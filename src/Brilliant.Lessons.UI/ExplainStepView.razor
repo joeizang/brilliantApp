@@ -1,0 +1,34 @@
+<article class="explain-step">
+    <h2>@Step.Title</h2>
+
+    <div class="explain-body">@((MarkupString)BodyHtml)</div>
+
+    @foreach (var snippet in Step.Snippets)
+    {
+        <pre class="code-block" data-language="@snippet.Language"><code>@snippet.Code</code></pre>
+    }
+
+    @if (Step.Comparison is { } cmp)
+    {
+        <div class="comparison">
+            <section>
+                <h3>C#</h3>
+                <pre class="code-block" data-language="csharp"><code>@cmp.CSharp</code></pre>
+            </section>
+            <section>
+                <h3>Python</h3>
+                <pre class="code-block" data-language="python"><code>@cmp.Python</code></pre>
+            </section>
+        </div>
+    }
+</article>
+
+@code {
+    [Parameter, EditorRequired] public ExplainStep Step { get; set; } = default!;
+
+    // Body is author-controlled markdown from the validated Content Pack; raw HTML is disabled anyway.
+    private static readonly Markdig.MarkdownPipeline Pipeline =
+        Markdig.MarkdownExtensions.DisableHtml(new Markdig.MarkdownPipelineBuilder()).Build();
+
+    private string BodyHtml => Markdig.Markdown.ToHtml(Step.Body, Pipeline);
+}

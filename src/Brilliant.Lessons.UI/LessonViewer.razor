@@ -1,0 +1,16 @@
+@if (Lesson is null)
+{
+    <p>No lessons found in this content pack.</p>
+}
+else if (Lesson.Steps.FirstOrDefault() is ExplainStep step)
+{
+    <h1 class="lesson-title">@Lesson.Title</h1>
+    <ExplainStepView Step="step" />
+}
+
+@code {
+    [Parameter, EditorRequired] public ContentGraph Content { get; set; } = default!;
+
+    // Tracer bullet: shows the first step of the first lesson. Lesson flow comes in later issues.
+    private Lesson? Lesson => Content.Lessons.FirstOrDefault();
+}

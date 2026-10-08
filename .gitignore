@@ -1,0 +1,6 @@
+
+# build output
+bin/
+obj/
+*.user
+src/Brilliant.App/Resources/Raw/*.pack.zip

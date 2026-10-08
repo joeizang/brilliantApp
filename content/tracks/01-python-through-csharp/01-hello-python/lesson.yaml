@@ -1,0 +1,23 @@
+id: lesson.hello-python
+title: Hello, Python
+steps:
+  - id: step.hello-python.printing
+    type: explain
+    title: Printing and variables
+    body: |
+      You already know how to program, so let's skip the ceremony.
+      In Python there is **no `Main`, no `using`, no semicolons** and you don't declare types.
+
+      Indentation, not braces, marks a block.
+    snippets:
+      - language: python
+        code: |
+          name = "Ada"
+          print(f"Hello, {name}!")
+    comparison:
+      csharp: |
+        string name = "Ada";
+        Console.WriteLine($"Hello, {name}!");
+      python: |
+        name = "Ada"
+        print(f"Hello, {name}!")
