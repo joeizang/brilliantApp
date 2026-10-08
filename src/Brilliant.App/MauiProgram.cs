@@ -1,5 +1,4 @@
 using Brilliant.Core.Content;
-using Microsoft.Extensions.Logging;
 
 namespace Brilliant.App;
 
@@ -25,7 +24,6 @@ public static class MauiProgram
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();
-        builder.Logging.AddDebug();
 #endif
         return builder.Build();
     }
