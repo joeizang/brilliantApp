@@ -36,7 +36,7 @@ public static partial class ContentValidator
         .WithNamingConvention(CamelCaseNamingConvention.Instance)
         .Build();
 
-    [GeneratedRegex(@"^(track|lesson|step)\.[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)*$")]
+    [GeneratedRegex(@"^(track|lesson|step|concept|review)\.[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)*$")]
     private static partial Regex IdPattern();
 
     [GeneratedRegex(@"^\d+\.\d+\.\d+$")]
@@ -112,19 +112,89 @@ public static partial class ContentValidator
                 report.Add(lessonRel, "a lesson needs at least one step.");
             else
                 for (var i = 0; i < lessonDto.Steps.Count; i++)
+                {
+                    if (IsEmptyEntry(lessonDto.Steps[i], $"steps[{i}]", lessonRel, report)) continue;
                     if (LoadStep(lessonDto.Steps[i], $"steps[{i}]", lessonRel, report, seenIds) is { } step)
                         steps.Add(step);
+                }
+
+            var concepts = LoadConcepts(lessonDto, lessonRel, report, seenIds);
+            var reviewItems = LoadReviewItems(lessonDto, lessonRel, report, seenIds, concepts, steps);
 
             if (lessonDto.Id is not null)
             {
                 lessonIds.Add(lessonDto.Id);
-                lessons.Add(new Lesson(lessonDto.Id, lessonDto.Title ?? "", dto.Id ?? "", steps));
+                lessons.Add(new Lesson(lessonDto.Id, lessonDto.Title ?? "", dto.Id ?? "", steps)
+                {
+                    Concepts = concepts,
+                    ReviewItems = reviewItems,
+                });
             }
         }
 
         if (lessonDirs.Count == 0) report.Add(trackRel, "a track needs at least one lesson folder.");
         if (dto.Id is not null) tracks.Add(new Track(dto.Id, dto.Title ?? "", lessonIds));
     }
+
+    private static List<Concept> LoadConcepts(LessonDto lesson, string file, ValidationReport report,
+        Dictionary<string, string> seenIds)
+    {
+        var concepts = new List<Concept>();
+        for (var i = 0; i < (lesson.Concepts?.Count ?? 0); i++)
+        {
+            var c = lesson.Concepts![i];
+            if (IsEmptyEntry(c, $"concepts[{i}]", file, report)) continue;
+            var label = c.Id is null ? $"concepts[{i}]" : $"concepts[{i}] ('{c.Id}')";
+            CheckId(c.Id, "concept", file, report, seenIds, label);
+            Require(c.Title, "title", file, report, label);
+            if (c.Id is not null) concepts.Add(new Concept(c.Id, c.Title ?? ""));
+        }
+        return concepts;
+    }
+
+    private static List<ReviewItem> LoadReviewItems(LessonDto lesson, string file, ValidationReport report,
+        Dictionary<string, string> seenIds, List<Concept> concepts, List<Step> steps)
+    {
+        var items = new List<ReviewItem>();
+        for (var i = 0; i < (lesson.ReviewItems?.Count ?? 0); i++)
+        {
+            var r = lesson.ReviewItems![i];
+            if (IsEmptyEntry(r, $"reviewItems[{i}]", file, report)) continue;
+            var label = r.Id is null ? $"reviewItems[{i}]" : $"reviewItems[{i}] ('{r.Id}')";
+            CheckId(r.Id, "review", file, report, seenIds, label);
+            Require(r.Concept, "concept", file, report, label);
+            Require(r.Step, "step", file, report, label);
+
+            if (!string.IsNullOrWhiteSpace(r.Concept) && concepts.All(c => c.Id != r.Concept))
+                report.Add(file, $"{label}: concept '{r.Concept}' is not declared in this lesson's 'concepts'.");
+            if (!string.IsNullOrWhiteSpace(r.Step))
+            {
+                var step = steps.FirstOrDefault(s => s.Id == r.Step);
+                if (step is null)
+                    report.Add(file, $"{label}: step '{r.Step}' is not a valid step of this lesson.");
+                else if (step is ExplainStep)
+                    report.Add(file, $"{label}: step '{r.Step}' is an explain step; a review item needs a question (choice or predict-output).");
+            }
+            if (r.Id is not null && r.Concept is not null && r.Step is not null)
+                items.Add(new ReviewItem(r.Id, r.Concept, r.Step));
+        }
+        return items;
+    }
+
+    private static List<string> LoadHints(StepDto dto, string label, string file, ValidationReport report)
+    {
+        var hints = dto.Hints ?? [];
+        if (hints.Count == 0) return [];
+        if (dto.Type is not ("choice" or "predict-output"))
+            report.Add(file, $"{label}: 'hints' only apply to questions (choice or predict-output).");
+        if (hints.Count > MaxHints)
+            report.Add(file, $"{label}: at most {MaxHints} hints (nudge, pattern hint, partial, full walkthrough); found {hints.Count}.");
+        for (var i = 0; i < hints.Count; i++)
+            if (string.IsNullOrWhiteSpace(hints[i])) report.Add(file, $"{label}: hints[{i}] is empty.");
+        return hints.Select(h => h ?? "").ToList();
+    }
+
+    private const int MaxHints = 4;
 
     private static Step? LoadStep(StepDto dto, string where, string file, ValidationReport report,
         Dictionary<string, string> seenIds)
@@ -135,8 +205,9 @@ public static partial class ContentValidator
         CheckId(dto.Id, "step", file, report, seenIds, label);
         Require(dto.Title, "title", file, report, label);
 
-        if (dto.Type == "choice") return LoadChoice(dto, label, file, report, before);
-        if (dto.Type == "predict-output") return LoadPredictOutput(dto, label, file, report, before);
+        var hints = LoadHints(dto, label, file, report);
+        if (dto.Type == "choice") return WithHints(LoadChoice(dto, label, file, report, before), hints);
+        if (dto.Type == "predict-output") return WithHints(LoadPredictOutput(dto, label, file, report, before), hints);
 
         if (dto.Type != "explain")
         {
@@ -150,6 +221,7 @@ public static partial class ContentValidator
         for (var i = 0; i < (dto.Snippets?.Count ?? 0); i++)
         {
             var s = dto.Snippets![i];
+            if (IsEmptyEntry(s, $"{label}: snippets[{i}]", file, report)) continue;
             if (string.IsNullOrWhiteSpace(s.Language)) report.Add(file, $"{label}: snippets[{i}] needs a 'language'.");
             if (string.IsNullOrWhiteSpace(s.Code)) report.Add(file, $"{label}: snippets[{i}] needs 'code'.");
             snippets.Add(new CodeSnippet(s.Language ?? "", s.Code ?? ""));
@@ -168,6 +240,17 @@ public static partial class ContentValidator
             : null;
     }
 
+    /// <summary>A bare `-` or `[null]` in a YAML list deserializes to null; report it instead of crashing.</summary>
+    private static bool IsEmptyEntry(object? entry, string where, string file, ValidationReport report)
+    {
+        if (entry is not null) return false;
+        report.Add(file, $"{where}: entry is empty; remove the stray '-' or fill it in.");
+        return true;
+    }
+
+    private static Step? WithHints(Step? step, List<string> hints) =>
+        step is null || hints.Count == 0 ? step : step with { Hints = hints };
+
     private static Step? LoadChoice(StepDto dto, string label, string file, ValidationReport report, int errorsBefore)
     {
         Require(dto.Prompt, "prompt", file, report, label);
@@ -176,6 +259,7 @@ public static partial class ContentValidator
         for (var i = 0; i < (dto.Options?.Count ?? 0); i++)
         {
             var o = dto.Options![i];
+            if (IsEmptyEntry(o, $"{label}: options[{i}]", file, report)) continue;
             if (string.IsNullOrWhiteSpace(o.Text)) report.Add(file, $"{label}: options[{i}] needs 'text'.");
             options.Add(new ChoiceOption(o.Text ?? "", o.Correct ?? false, o.Feedback));
         }
@@ -214,6 +298,7 @@ public static partial class ContentValidator
             for (var i = 0; i < dto.Options!.Count; i++)
             {
                 var o = dto.Options[i];
+                if (IsEmptyEntry(o, $"{label}: options[{i}]", file, report)) continue;
                 if (string.IsNullOrWhiteSpace(o.Text)) report.Add(file, $"{label}: options[{i}] needs 'text'.");
                 options.Add(new ChoiceOption(o.Text ?? "", o.Correct ?? false, o.Feedback));
             }
@@ -236,6 +321,7 @@ public static partial class ContentValidator
             {
                 var m = dto.Mistakes![i];
                 var where = $"{label}: mistakes[{i}]";
+                if (IsEmptyEntry(m, where, file, report)) continue;
                 var answers = m.Answers ?? [];
                 if (answers.Count == 0 && string.IsNullOrWhiteSpace(m.Regex))
                     report.Add(file, $"{where} needs 'answers' and/or 'regex'.");
@@ -310,7 +396,16 @@ public static partial class ContentValidator
 
     private sealed class PackDto { public string? Id { get; set; } public string? Version { get; set; } }
     private sealed class TrackDto { public string? Id { get; set; } public string? Title { get; set; } }
-    private sealed class LessonDto { public string? Id { get; set; } public string? Title { get; set; } public List<StepDto>? Steps { get; set; } }
+    private sealed class LessonDto
+    {
+        public string? Id { get; set; }
+        public string? Title { get; set; }
+        public List<StepDto>? Steps { get; set; }
+        public List<ConceptDto>? Concepts { get; set; }
+        public List<ReviewItemDto>? ReviewItems { get; set; }
+    }
+    private sealed class ConceptDto { public string? Id { get; set; } public string? Title { get; set; } }
+    private sealed class ReviewItemDto { public string? Id { get; set; } public string? Concept { get; set; } public string? Step { get; set; } }
     private sealed class SnippetDto { public string? Language { get; set; } public string? Code { get; set; } }
     private sealed class ComparisonDto { public string? Csharp { get; set; } public string? Python { get; set; } }
     private sealed class StepDto
@@ -328,6 +423,7 @@ public static partial class ContentValidator
         public string? Language { get; set; }
         public List<string>? Accepted { get; set; }
         public List<MistakeDto>? Mistakes { get; set; }
+        public List<string>? Hints { get; set; }
     }
     private sealed class MistakeDto { public List<string>? Answers { get; set; } public string? Regex { get; set; } public string? Feedback { get; set; } }
     private sealed class OptionDto { public string? Text { get; set; } public bool? Correct { get; set; } public string? Feedback { get; set; } }

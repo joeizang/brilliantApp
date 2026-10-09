@@ -37,6 +37,14 @@
     }
 }
 
+/*
+ * Fluid type scale. Every size in the app is in rem, so scaling the root scales text, spacing and the
+ * 52rem content column together. The size grows with the viewport width (CSS px): 1rem on a phone
+ * (~412px), ~1.2rem on a laptop, ~1.5rem on a 2560px-wide screen, capped at 1.875rem on ultrawides.
+ * rem (not px) keeps the user's own font-size preference in play.
+ */
+html { font-size: clamp(1rem, .875rem + .4vw, 1.875rem); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
 html, body { background: var(--bg); color: var(--fg); }
 
 /* Shared controls (global so every step renderer looks the same). */

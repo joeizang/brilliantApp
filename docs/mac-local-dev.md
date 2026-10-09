@@ -49,6 +49,10 @@ dotnet build src/Brilliant.App -t:Run -f net10.0-maccatalyst
     - **typed**: `accepted` lists the correct outputs. Optional `mistakes` give specific feedback; each needs `feedback` plus `answers` (exact matches) and/or a `regex`, and must not repeat an accepted answer.
     - **multiple choice**: `options` as for `choice`, with exactly one `correct`; `mistakes` are not allowed (use per-option `feedback`).
     - Answers are compared after normalising: runs of spaces/tabs collapse, lines and ends are trimmed, curly quotes are straightened and `"`/`'` are treated alike. Case still matters. Regexes run against the normalised response.
+- A lesson may declare, alongside `steps`:
+  - `concepts`: ideas it teaches (`id: concept.…`, `title`).
+  - `reviewItems`: questions Review will resurface later (`id: review.…`, `concept` declared in the same lesson, `step` = a `choice` or `predict-output` step of the same lesson, which is reused as the question).
+  - Question steps (`choice`, `predict-output`) may carry `hints`: up to 4, gentlest first (nudge → pattern hint → partial → full walkthrough). Hints and review items are authored and validated now; the app shows/schedules them in later issues.
 - Lessons in a track are ordered by folder name (`01-…`, `02-…`) and unlock in that order.
 - Unknown YAML fields are errors, so typos aren't silently ignored.
 

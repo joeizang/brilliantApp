@@ -13,7 +13,9 @@ public sealed class ContentGraph
 
         foreach (var item in Tracks.Cast<ContentItem>()
                      .Concat(Lessons)
-                     .Concat(Lessons.SelectMany(l => l.Steps)))
+                     .Concat(Lessons.SelectMany(l => l.Steps))
+                     .Concat(Lessons.SelectMany(l => l.Concepts))
+                     .Concat(Lessons.SelectMany(l => l.ReviewItems)))
         {
             if (!_byId.TryAdd(item.Id, item))
                 throw new ContentPackException($"Duplicate content ID '{item.Id}'.");

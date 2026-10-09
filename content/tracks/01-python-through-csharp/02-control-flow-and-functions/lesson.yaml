@@ -1,0 +1,329 @@
+id: lesson.control-flow-functions
+title: Control flow & functions
+concepts:
+  - id: concept.for-range
+    title: for loops and range
+  - id: concept.while-loop
+    title: while loops
+  - id: concept.functions
+    title: Defining functions
+  - id: concept.tuples
+    title: Tuples
+  - id: concept.unpacking
+    title: Unpacking
+reviewItems:
+  - id: review.control-flow.range-step
+    concept: concept.for-range
+    step: step.control-flow.predict-range-step
+  - id: review.control-flow.while-loop
+    concept: concept.while-loop
+    step: step.control-flow.predict-while
+  - id: review.control-flow.default-args
+    concept: concept.functions
+    step: step.control-flow.predict-default-args
+  - id: review.control-flow.swap
+    concept: concept.unpacking
+    step: step.control-flow.predict-swap
+  - id: review.control-flow.min-max
+    concept: concept.tuples
+    step: step.control-flow.predict-min-max
+steps:
+  - id: step.control-flow.for-range
+    type: explain
+    title: for loops and range
+    body: |
+      Python's `for` is C#'s `foreach`: it walks the **values** of anything iterable. There is no
+      `for (int i = 0; i < n; i++)`. When you need counting numbers, you loop over `range`.
+
+      - `range(n)` gives `0 … n-1`
+      - `range(a, b)` gives `a … b-1`
+      - `range(a, b, step)` counts by `step`
+
+      The end value is always **excluded**.
+    comparison:
+      csharp: |
+        for (int i = 0; i < 3; i++)
+            Console.WriteLine(i);
+
+        foreach (var name in names)
+            Console.WriteLine(name);
+      python: |
+        for i in range(3):
+            print(i)
+
+        for name in names:
+            print(name)
+  - id: step.control-flow.predict-range
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print? Put each printed line on its own line.
+    code: |
+      for i in range(3):
+          print(i)
+    accepted:
+      - "0\n1\n2"
+    mistakes:
+      - answers:
+          - "1\n2\n3"
+        feedback: "`range(3)` starts at 0, like an array index."
+      - answers:
+          - "0\n1\n2\n3"
+        feedback: The end value is excluded, so `range(3)` stops after 2.
+      - regex: "^0 1 2$"
+        feedback: Each `print` call ends with a newline, so every number gets its own line.
+    hints:
+      - Where does `range(3)` start, and where does it stop?
+      - "`range(3)` is the numbers 0, 1 and 2. `print` adds a newline each time."
+  - id: step.control-flow.predict-range-step
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print? (`list` turns the range into a list so you can see it.)
+    code: print(list(range(2, 10, 3)))
+    options:
+      - text: "[2, 5, 8]"
+        correct: true
+        feedback: Start at 2, add 3 each time, and stop before reaching 10.
+      - text: "[2, 5, 8, 10]"
+        correct: false
+        feedback: The end value (10) is excluded. Also 8 + 3 = 11 would overshoot it.
+      - text: "[5, 8]"
+        correct: false
+        feedback: The start value is included, so the list begins with 2.
+      - text: "[2, 4, 6, 8]"
+        correct: false
+        feedback: "The third argument is the step: here it is 3, not 2."
+    hints:
+      - The three arguments are start, stop, step, in that order.
+      - Start at 2, keep adding the step, and stop before you reach or pass 10.
+      - "2, then 2 + 3, then 5 + 3. What would come next, and is it below 10?"
+  - id: step.control-flow.while-loops
+    type: explain
+    title: while loops
+    body: |
+      `while` works like C#'s, minus the parentheses and braces. Two things catch C# developers out:
+
+      - **There is no `++`**. Write `i += 1`.
+      - **There is no do-while.** Use `while True:` and `break` when you need the body to run at least once.
+
+      `break` leaves the loop and `continue` skips to the next check, exactly as in C#.
+    comparison:
+      csharp: |
+        int n = 1;
+        while (n < 20)
+        {
+            n *= 3;
+        }
+      python: |
+        n = 1
+        while n < 20:
+            n *= 3
+  - id: step.control-flow.predict-while
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      n = 1
+      while n < 20:
+          n *= 3
+      print(n)
+    accepted:
+      - "27"
+    mistakes:
+      - answers:
+          - "9"
+        feedback: When n is 9, `9 < 20` is still true, so the body runs once more.
+      - answers:
+          - "81"
+        feedback: The condition is checked before every pass. 27 is no longer below 20, so the loop stops there.
+      - answers:
+          - "20"
+        feedback: n is multiplied by 3 each time; it never gets set to the limit.
+    hints:
+      - Write down n after each pass through the loop.
+      - n goes 1 → 3 → 9. Is 9 below 20?
+      - "1, 3, 9, then 27. After 27 is the condition still true?"
+  - id: step.control-flow.functions
+    type: explain
+    title: Defining functions
+    body: |
+      `def` defines a function. You don't write a return type, and parameter types are optional.
+      A function can have **default values** and be called with **keyword arguments**.
+
+      Without a `return`, the function gives back `None`.
+    comparison:
+      csharp: |
+        static string Greet(string name, string punctuation = "!")
+        {
+            return "Hi " + name + punctuation;
+        }
+        Greet("Ada", punctuation: "?");
+      python: |
+        def greet(name, punctuation="!"):
+            return "Hi " + name + punctuation
+
+        greet("Ada", punctuation="?")
+  - id: step.control-flow.predict-default-args
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print? Put each printed line on its own line.
+    code: |
+      def greet(name, punctuation="!"):
+          return "Hi " + name + punctuation
+
+      print(greet("Ada"))
+      print(greet("Ada", "?"))
+    accepted:
+      - "Hi Ada!\nHi Ada?"
+    mistakes:
+      - answers:
+          - "Hi Ada!\nHi Ada!"
+        feedback: Passing a second argument overrides the default, so the second call uses `?`.
+      - answers:
+          - "Hi Ada\nHi Ada?"
+        feedback: When the argument is omitted, the default `!` is used.
+    hints:
+      - How many arguments does each call pass?
+      - The default is used only when you leave that argument out.
+      - "Call 1 leaves out `punctuation` (so `!`). Call 2 passes `?`."
+  - id: step.control-flow.check-return
+    type: choice
+    title: Check your understanding
+    prompt: What does a function give back if it has no `return` statement?
+    options:
+      - text: None
+        correct: true
+        feedback: Right. Falling off the end of a function returns `None`.
+      - text: Nothing (calling it is an error)
+        correct: false
+        feedback: Python has no `void`. Every call produces a value, and here it is `None`.
+      - text: 0
+        correct: false
+        feedback: Python doesn't invent a default number. The value is `None`.
+      - text: An empty string
+        correct: false
+        feedback: Not an empty string; it's `None`.
+    hints:
+      - Recall what `print(...)` handed back in the previous lesson.
+  - id: step.control-flow.tuples
+    type: explain
+    title: Tuples
+    body: |
+      A **tuple** is a fixed-size, **immutable** sequence: `(1, 2)`. You can index and loop over it like a list,
+      but you can't change it (`t[0] = 5` raises a `TypeError`).
+
+      It's the commas that make a tuple, not the parentheses, so `1, 2` is also a tuple, and `(1,)` is a one-element tuple.
+      Tuples compare by value, and a function that "returns several values" is really returning one tuple.
+    comparison:
+      csharp: |
+        (int Min, int Max) MinMax(int[] xs) => (xs.Min(), xs.Max());
+        var pair = (1, 2);
+      python: |
+        def min_max(xs):
+            return min(xs), max(xs)
+
+        pair = (1, 2)
+  - id: step.control-flow.check-tuples
+    type: choice
+    title: Check your understanding
+    prompt: Which of these are true about tuples?
+    multiSelect: true
+    options:
+      - text: A tuple can't be changed after it is created.
+        correct: true
+        feedback: Right. Tuples are immutable.
+      - text: "`(1, 2) == (1, 2)` is True."
+        correct: true
+        feedback: Tuples compare element by element, so equal contents means equal tuples.
+      - text: You can add an element with `t.append(3)`.
+        correct: false
+        feedback: "`append` belongs to lists. Tuples have no way to grow."
+      - text: A function can return several values by returning a tuple.
+        correct: true
+        feedback: Yes. `return a, b` returns the tuple `(a, b)`.
+    hints:
+      - Three of the four are true. One of them mentions a method that tuples don't have.
+      - The key word is *immutable*. What can't you do to something immutable?
+  - id: step.control-flow.unpacking
+    type: explain
+    title: Unpacking
+    body: |
+      **Unpacking** assigns the parts of a tuple (or any sequence) to several names in one go. It's like C#'s
+      deconstruction, but works everywhere, including in `for` loops.
+
+      - The **whole right side is evaluated first**, then assigned. That makes swaps trivial: `a, b = b, a`.
+      - `enumerate(items)` yields `(index, item)` pairs, so you can write `for i, x in enumerate(items):`.
+      - Use `_` for a part you don't need, and `first, *rest = items` to collect the leftovers.
+    comparison:
+      csharp: |
+        var (lo, hi) = MinMax(xs);
+        (a, b) = (b, a);
+      python: |
+        lo, hi = min_max(xs)
+        a, b = b, a
+  - id: step.control-flow.predict-swap
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      a, b = 1, 2
+      a, b = b, a + b
+      print(a, b)
+    accepted:
+      - "2 3"
+    mistakes:
+      - answers:
+          - "2 4"
+        feedback: "The whole right side `(b, a + b)` is built first from the *old* values `(2, 3)`, and only then assigned. `a + b` uses the old `a`, which is 1."
+      - answers:
+          - "1 3"
+        feedback: "`a` receives the old `b` (2), so it changes."
+      - answers:
+          - "2 2"
+        feedback: "`b` becomes the old `a` plus the old `b`, which is 1 + 2 = 3."
+    hints:
+      - Which values does the right-hand side use, the old ones or the new ones?
+      - The right side is evaluated completely before any assignment happens.
+      - "Right side: `(b, a + b)` with a=1, b=2 is `(2, 3)`."
+      - "Then `a = 2` and `b = 3`, and `print(a, b)` prints them separated by a space: `2 3`."
+  - id: step.control-flow.predict-enumerate
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print? Put each printed line on its own line.
+    code: |
+      for i, name in enumerate(["x", "y"]):
+          print(i, name)
+    accepted:
+      - "0 x\n1 y"
+    mistakes:
+      - answers:
+          - "1 x\n2 y"
+        feedback: "`enumerate` counts from 0 by default. You can change that with `enumerate(items, start=1)`."
+    hints:
+      - "`enumerate` yields (index, item) pairs. Where does the index begin?"
+  - id: step.control-flow.predict-min-max
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      def min_max(nums):
+          return min(nums), max(nums)
+
+      lo, hi = min_max([4, 9, 2])
+      print(hi - lo)
+    options:
+      - text: "7"
+        correct: true
+        feedback: The function returns the tuple (2, 9). `hi - lo` is 9 - 2.
+      - text: "5"
+        correct: false
+        feedback: "That would be 9 - 4. `min` is 2 (not 4), because it looks at the whole list."
+      - text: (2, 9)
+        correct: false
+        feedback: The tuple is unpacked into `lo` and `hi`; the `print` shows only their difference.
+      - text: An error, because a function can't return two values
+        correct: false
+        feedback: It returns one tuple, which unpacks neatly into two names.
+    hints:
+      - What does the function return, and where does it go?
+      - "`return min(nums), max(nums)` returns one tuple. `lo, hi = ...` unpacks it."
+      - "The minimum of [4, 9, 2] is 2 and the maximum is 9."

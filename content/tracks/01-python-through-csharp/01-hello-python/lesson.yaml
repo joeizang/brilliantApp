@@ -1,5 +1,30 @@
 id: lesson.hello-python
-title: Hello, Python
+title: Python through C# eyes
+concepts:
+  - id: concept.python-indentation
+    title: Indentation is syntax
+  - id: concept.python-dynamic-typing
+    title: Dynamic typing
+  - id: concept.python-fstrings
+    title: f-strings and print
+  - id: concept.python-none
+    title: None vs null
+reviewItems:
+  - id: review.hello-python.indentation
+    concept: concept.python-indentation
+    step: step.hello-python.predict-indent
+  - id: review.hello-python.dynamic-type
+    concept: concept.python-dynamic-typing
+    step: step.hello-python.predict-type
+  - id: review.hello-python.format-spec
+    concept: concept.python-fstrings
+    step: step.hello-python.predict-format
+  - id: review.hello-python.print-returns-none
+    concept: concept.python-none
+    step: step.hello-python.predict-print-none
+  - id: review.hello-python.is-none
+    concept: concept.python-none
+    step: step.hello-python.check-none
 steps:
   - id: step.hello-python.printing
     type: explain
@@ -8,7 +33,7 @@ steps:
       You already know how to program, so let's skip the ceremony.
       In Python there is **no `Main`, no `using`, no semicolons** and you don't declare types.
 
-      Indentation, not braces, marks a block.
+      A script just runs from the top, one statement per line.
     snippets:
       - language: python
         code: |
@@ -21,35 +46,6 @@ steps:
       python: |
         name = "Ada"
         print(f"Hello, {name}!")
-  - id: step.hello-python.indentation
-    type: explain
-    title: Indentation is syntax
-    body: |
-      Where C# uses `{ }`, Python uses **indentation** to group statements.
-    comparison:
-      csharp: |
-        if (x > 0)
-        {
-            Console.WriteLine("positive");
-        }
-      python: |
-        if x > 0:
-            print("positive")
-  - id: step.hello-python.check-types
-    type: choice
-    title: Check your understanding
-    prompt: Which of these are true about Python compared to C#?
-    multiSelect: true
-    options:
-      - text: Blocks are marked by indentation.
-        correct: true
-        feedback: Yes. Indentation is part of the syntax.
-      - text: Every statement must end with a semicolon.
-        correct: false
-        feedback: No semicolons are needed; a newline ends a statement.
-      - text: You don't have to declare a variable's type.
-        correct: true
-        feedback: Right. Types belong to values, not variables.
   - id: step.hello-python.check-main
     type: choice
     title: Entry point
@@ -61,21 +57,31 @@ steps:
       - text: "static void Main() { print('Hi') }"
         correct: false
         feedback: That's C#-flavoured. Python has no required entry-point method.
-  - id: step.hello-python.predict-fstring
-    type: predict-output
-    title: Predict the output
-    prompt: What does this print? Type it exactly.
-    code: |
-      name = "Ada"
-      print(f"Hi {name}!")
-    accepted:
-      - "Hi Ada!"
-    mistakes:
-      - answers:
-          - "Hi {name}!"
-        feedback: The `f` prefix makes Python substitute `{name}` with its value, just like `$"..."` in C#.
-      - regex: "^Hi name!?$"
-        feedback: "`name` is a variable, so its value (not its name) is printed."
+      - text: "class Program: print('Hi')"
+        correct: false
+        feedback: Python doesn't need a class around code. Top-level statements just run.
+    hints:
+      - Think about what C# top-level statements already let you skip.
+      - Python takes that idea all the way. A file is simply a list of statements.
+  - id: step.hello-python.indentation
+    type: explain
+    title: Indentation is syntax
+    body: |
+      Where C# uses `{ }`, Python uses **indentation** to group statements.
+      A line ending in `:` opens a block, and the indented lines under it are the block.
+
+      Use four spaces per level, and be consistent. Mixing levels is an error, not a style choice.
+    comparison:
+      csharp: |
+        if (x > 0)
+        {
+            Console.WriteLine("positive");
+        }
+        Console.WriteLine("always");
+      python: |
+        if x > 0:
+            print("positive")
+        print("always")
   - id: step.hello-python.predict-indent
     type: predict-output
     title: Predict the output
@@ -95,3 +101,195 @@ steps:
       - text: Nothing
         correct: false
         feedback: The last line is outside the `if` block, so it still runs.
+    hints:
+      - Which lines are indented under the `if`?
+      - The block belongs to the `if` only while it is indented. The last line is back at the left edge.
+      - "Is `3 > 5` true? If not, skip the indented block and carry on with the next unindented line."
+  - id: step.hello-python.dynamic-typing
+    type: explain
+    title: Values have types, variables don't
+    body: |
+      In C#, `var x = 5;` fixes `x` as an `int` forever. In Python a name is just a **label** you can stick on any value,
+      and it is the *value* that carries the type.
+
+      Rebinding a name to a different type is legal. Python checks types only when an operation actually runs
+      (`"a" + 1` fails then, not before). `type(x)` tells you what `x` currently refers to.
+
+      Type hints exist (`x: int = 5`) but are only documentation for tools; Python does not enforce them.
+    comparison:
+      csharp: |
+        var x = 5;
+        x = "five";   // compile error
+      python: |
+        x = 5
+        x = "five"    # fine: x now labels a str
+  - id: step.hello-python.predict-type
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print? `type(x).__name__` is the name of x's type.
+    code: |
+      x = 10
+      x = "ten"
+      print(type(x).__name__)
+    accepted:
+      - str
+    mistakes:
+      - answers:
+          - int
+        feedback: "`x` was an int for a moment, but the second line re-labels it with a string. The *latest* value decides."
+      - answers:
+          - string
+        feedback: "Python's name for text is `str`, not `string`."
+      - answers:
+          - "<class 'str'>"
+        feedback: "That is what `print(type(x))` shows. `.__name__` gives just the name."
+    hints:
+      - Which line runs last before the print?
+      - A name always refers to its most recent value. The type comes from that value.
+      - "After `x = \"ten\"`, x refers to text. Python's text type is spelled with three letters."
+      - "The answer is `str`: x was re-bound to a string, and `.__name__` drops the `<class ...>` wrapper."
+  - id: step.hello-python.check-types
+    type: choice
+    title: Check your understanding
+    prompt: Which of these are true about Python compared to C#?
+    multiSelect: true
+    options:
+      - text: Blocks are marked by indentation.
+        correct: true
+        feedback: Yes. Indentation is part of the syntax.
+      - text: Every statement must end with a semicolon.
+        correct: false
+        feedback: No semicolons are needed; a newline ends a statement.
+      - text: You don't have to declare a variable's type.
+        correct: true
+        feedback: Right. Types belong to values, not variables.
+      - text: A variable can never change to a different type once assigned.
+        correct: false
+        feedback: It can. `x = 5` followed by `x = "five"` is legal, because the name is just re-bound.
+    hints:
+      - There are two correct options. One is about layout and one is about types.
+      - "Think back to the `x = 5` then `x = \"five\"` example."
+  - id: step.hello-python.fstrings
+    type: explain
+    title: f-strings and print
+    body: |
+      An `f` before the opening quote turns a string into an **f-string**, like C#'s `$"..."`.
+      Anything in `{ }` is evaluated, and after a colon you can add a **format spec**.
+
+      `print` writes its arguments separated by a space and ends with a newline.
+      Single and double quotes are interchangeable.
+    comparison:
+      csharp: |
+        var price = 4.5;
+        Console.WriteLine($"Total: {price * 3:F2}");
+        Console.WriteLine("a" + " " + "b");
+      python: |
+        price = 4.5
+        print(f"Total: {price * 3:.2f}")
+        print("a", "b")
+  - id: step.hello-python.predict-fstring
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print? Type it exactly.
+    code: |
+      name = "Ada"
+      print(f"Hi {name}!")
+    accepted:
+      - "Hi Ada!"
+    mistakes:
+      - answers:
+          - "Hi {name}!"
+        feedback: The `f` prefix makes Python substitute `{name}` with its value, just like `$"..."` in C#.
+      - regex: "^Hi name!?$"
+        feedback: "`name` is a variable, so its value (not its name) is printed."
+    hints:
+      - What does the `f` in front of the quote do?
+      - Anything inside `{ }` is replaced by its value.
+      - "`{name}` becomes `Ada`; the rest of the text is copied as is."
+  - id: step.hello-python.predict-format
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      price = 4.5
+      qty = 3
+      print(f"{price * qty:.2f}")
+    accepted:
+      - "13.50"
+    mistakes:
+      - answers:
+          - "13.5"
+        feedback: "`:.2f` means fixed-point with two decimals, so a trailing zero is kept."
+      - answers:
+          - "13"
+        feedback: "`.2f` keeps two digits after the decimal point; nothing is rounded to a whole number."
+      - regex: "^4\\.5 ?\\* ?3$"
+        feedback: "Inside `{ }` the expression is *evaluated*, not printed as text."
+    hints:
+      - Work out the expression inside the braces first.
+      - After the colon is a format spec. `.2f` means "two digits after the decimal point".
+      - "`4.5 * 3` is `13.5`. Pad it to two decimals."
+      - "The answer is `13.50`."
+  - id: step.hello-python.none-vs-null
+    type: explain
+    title: None is Python's null
+    body: |
+      `None` is Python's "no value". It is a real object (the only one of its type), not a missing reference,
+      so you won't get a `NullReferenceException`. Using it wrongly raises an `AttributeError` or `TypeError` instead.
+
+      Test for it with **`is None`** (identity), not `== None`. A function that doesn't `return` anything gives you `None`,
+      and so does `print(...)`, which writes text but returns nothing useful.
+
+      The word `null` doesn't exist in Python at all.
+    comparison:
+      csharp: |
+        string? s = null;
+        if (s == null) { Console.WriteLine("nothing"); }
+      python: |
+        s = None
+        if s is None:
+            print("nothing")
+  - id: step.hello-python.predict-print-none
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      result = print("hi")
+      print(result)
+    options:
+      - text: hi, then None
+        correct: true
+        feedback: The first `print` writes `hi` and returns `None`, which `result` then holds.
+      - text: hi, then hi
+        correct: false
+        feedback: "`print` returns `None`, not the text it printed."
+      - text: Only hi
+        correct: false
+        feedback: The second `print` still runs and writes whatever `result` is, which is `None`.
+      - text: An error, because print has no return value
+        correct: false
+        feedback: Every Python function returns something. With no `return` statement, that is `None`.
+    hints:
+      - Two `print` calls run. What does the first one hand back?
+      - A function with nothing to return gives you `None`.
+      - "Line 1 prints `hi` and sets `result` to `None`. Line 2 prints that."
+  - id: step.hello-python.check-none
+    type: choice
+    title: Testing for no value
+    prompt: Which is the idiomatic way to check that `x` has no value?
+    options:
+      - text: "x is None"
+        correct: true
+        feedback: Right. `is` checks identity, and there is only ever one `None`.
+      - text: "x == None"
+        correct: false
+        feedback: Usually works, but `==` can be overridden by a class. The convention (and the safe form) is `is None`.
+      - text: "x == null"
+        correct: false
+        feedback: There is no `null` in Python. This raises a NameError.
+      - text: "x.isNull()"
+        correct: false
+        feedback: "`None` has no such method. Use the `is` operator instead."
+    hints:
+      - Python has an operator that checks whether two names refer to the very same object.
+      - The no-value object is `None`, with a capital N.
