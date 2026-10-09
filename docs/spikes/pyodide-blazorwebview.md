@@ -11,7 +11,8 @@ Pyodide 314.0.7 (npm package), bundled under `wwwroot/pyodide/` (5 files, ~13 MB
 | Loads from bundled assets, network off | Yes | Yes (airplane mode) |
 | Python in a Web Worker → stdout to C# | Yes | Yes |
 | Cold-start Pyodide load | 867 ms | 1577 ms |
-| Run of trivial snippet | 3 ms | 5 ms |
+| Run of trivial snippet | 3 ms | 6 ms |
+| Round-trip C# → worker → C# (incl. load) | 886 ms | 1607 ms |
 | Size impact | ~13 MB added to the `.app` (uncompressed files) | **+6.4 MB** on a Release APK (30.2 MB → 36.5 MB; unoptimised, unsigned-config build) |
 
 Load time is measured inside the worker (`loadPyodide`), on first use after process start. Subsequent runs reuse the loaded worker.
