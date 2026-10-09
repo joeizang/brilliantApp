@@ -21,3 +21,43 @@ steps:
       python: |
         name = "Ada"
         print(f"Hello, {name}!")
+  - id: step.hello-python.indentation
+    type: explain
+    title: Indentation is syntax
+    body: |
+      Where C# uses `{ }`, Python uses **indentation** to group statements.
+    comparison:
+      csharp: |
+        if (x > 0)
+        {
+            Console.WriteLine("positive");
+        }
+      python: |
+        if x > 0:
+            print("positive")
+  - id: step.hello-python.check-types
+    type: choice
+    title: Check your understanding
+    prompt: Which of these are true about Python compared to C#?
+    multiSelect: true
+    options:
+      - text: Blocks are marked by indentation.
+        correct: true
+        feedback: Yes. Indentation is part of the syntax.
+      - text: Every statement must end with a semicolon.
+        correct: false
+        feedback: No semicolons are needed; a newline ends a statement.
+      - text: You don't have to declare a variable's type.
+        correct: true
+        feedback: Right. Types belong to values, not variables.
+  - id: step.hello-python.check-main
+    type: choice
+    title: Entry point
+    prompt: Which is the smallest valid Python program that prints Hi?
+    options:
+      - text: "print('Hi')"
+        correct: true
+        feedback: Correct. No Main, no class needed.
+      - text: "static void Main() { print('Hi') }"
+        correct: false
+        feedback: That's C#-flavoured. Python has no required entry-point method.

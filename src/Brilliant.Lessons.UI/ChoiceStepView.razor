@@ -1,0 +1,90 @@
+<article class="choice-step">
+    <h2>@Step.Title</h2>
+    <p class="prompt">@Step.Prompt</p>
+    @if (Step.MultiSelect)
+    {
+        <p class="hint">Select all that apply.</p>
+    }
+
+    <ul class="options">
+        @for (var i = 0; i < Step.Options.Count; i++)
+        {
+            var index = i;
+            var option = Step.Options[index];
+            var picked = _selected.Contains(index);
+            <li class="@OptionClass(index, picked)">
+                <label>
+                    <input type="@(Step.MultiSelect ? "checkbox" : "radio")" name="@Step.Id" checked="@picked"
+                           disabled="@_locked" @onchange="() => Toggle(index)" />
+                    @option.Text
+                </label>
+                @if (_result is not null && picked && option.Feedback is { Length: > 0 })
+                {
+                    <div class="option-feedback">@option.Feedback</div>
+                }
+            </li>
+        }
+    </ul>
+
+    @if (_result is null)
+    {
+        <button class="primary" disabled="@(_selected.Count == 0)" @onclick="Check">Check</button>
+    }
+    else if (_result.IsCorrect)
+    {
+        <p class="verdict correct" role="status">Correct!</p>
+        <button class="primary" @onclick="() => OnContinue.InvokeAsync()">Continue</button>
+    }
+    else
+    {
+        <p class="verdict incorrect" role="status">Not quite. Have another go.</p>
+        <button class="primary" @onclick="TryAgain">Try again</button>
+    }
+</article>
+
+@code {
+    [Parameter, EditorRequired] public ChoiceStep Step { get; set; } = default!;
+
+    /// <summary>Raised each time the learner checks an answer (correct or not).</summary>
+    [Parameter] public EventCallback<ChoiceResult> OnAnswered { get; set; }
+
+    /// <summary>Raised when the learner continues after a correct answer.</summary>
+    [Parameter] public EventCallback OnContinue { get; set; }
+
+    private readonly SortedSet<int> _selected = [];
+    private ChoiceResult? _result;
+    private bool _locked => _result is not null;
+
+    private void Toggle(int index)
+    {
+        if (_locked) return;
+        if (Step.MultiSelect)
+        {
+            if (!_selected.Remove(index)) _selected.Add(index);
+        }
+        else
+        {
+            _selected.Clear();
+            _selected.Add(index);
+        }
+    }
+
+    private async Task Check()
+    {
+        _result = ChoiceEvaluator.Evaluate(Step, _selected);
+        await OnAnswered.InvokeAsync(_result);
+    }
+
+    private void TryAgain()
+    {
+        _result = null;
+        _selected.Clear();
+    }
+
+    private string OptionClass(int index, bool picked)
+    {
+        if (_result is null) return picked ? "option selected" : "option";
+        if (picked) return Step.Options[index].Correct ? "option right" : "option wrong";
+        return "option";
+    }
+}

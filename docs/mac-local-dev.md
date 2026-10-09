@@ -42,5 +42,17 @@ dotnet build src/Brilliant.App -t:Run -f net10.0-maccatalyst
 
 - Every track, lesson and step has a stable `id` (`track.…`, `lesson.…`, `step.…`; lowercase words joined by `-` or `.`), unique across the pack.
 - `pack.yaml` has an `id` and a `version` like `1.2.3`.
-- Only `explain` steps exist so far. They need `title` and `body` (markdown); `snippets` and a C#↔Python `comparison` are optional but must be complete if present.
+- Step types so far: `explain` and `choice`.
+  - `explain` needs `title` and `body` (markdown); `snippets` and a C#↔Python `comparison` are optional but must be complete if present.
+  - `choice` needs `title`, `prompt` and at least 2 `options` (`text`, `correct`, optional `feedback`). Exactly one option must be correct unless `multiSelect: true`.
 - Unknown YAML fields are errors, so typos aren't silently ignored.
+
+## Progress storage
+
+Progress is an append-only event log (`StepAnswered`, `StepCompleted`) in SQLite at
+`~/Library/Containers/com.joeizang.brilliantapp/Data/Library/brilliant.db`. Database triggers reject UPDATE/DELETE.
+The current step is derived from the log, so relaunching resumes where you left off. To start a lesson over, quit the app and delete that file:
+
+```bash
+sqlite3 ~/Library/Containers/com.joeizang.brilliantapp/Data/Library/brilliant.db "select Seq, Type, StepId, Data from Events"
+```

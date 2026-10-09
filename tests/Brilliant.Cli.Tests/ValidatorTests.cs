@@ -144,4 +144,76 @@ public sealed class ValidatorTests : IDisposable
         Write("pack.yaml", "id: pack.t\nversion: one\n");
         Assert.Contains(ContentValidator.Validate(_root).Errors, e => e.File == "pack.yaml" && e.Message.Contains("version"));
     }
+
+    private static string ChoiceStep(string options, string extra = "") => $"""
+        id: lesson.one
+        title: One
+        steps:
+          - id: step.one.q
+            type: choice
+            title: Q
+            prompt: Pick one
+            {extra}
+            options:
+        {Indent(options)}
+        """;
+
+    private static string Indent(string text) =>
+        string.Join('\n', text.Split('\n').Select(l => "    " + l));
+
+    [Fact]
+    public void Valid_choice_step_packs_with_options_and_feedback()
+    {
+        WriteValidPack(ChoiceStep("""
+              - text: A
+                correct: true
+                feedback: because
+              - text: B
+            """));
+        var outPath = Path.Combine(_root, "c.zip");
+
+        Assert.True(ContentPacker.Pack(_root, outPath).IsValid);
+
+        var step = Assert.IsType<ChoiceStep>(ContentPackFormat.Load(outPath).Get<Step>("step.one.q"));
+        Assert.False(step.MultiSelect);
+        Assert.Equal([true, false], step.Options.Select(o => o.Correct));
+        Assert.Equal("because", step.Options[0].Feedback);
+    }
+
+    [Fact]
+    public void Choice_without_a_correct_option_is_reported()
+    {
+        WriteValidPack(ChoiceStep("""
+              - text: A
+              - text: B
+            """));
+        Assert.Contains(ContentValidator.Validate(_root).Errors, e => e.Message.Contains("no option is marked"));
+    }
+
+    [Fact]
+    public void Single_choice_with_two_correct_options_requires_multiSelect()
+    {
+        const string opts = """
+              - text: A
+                correct: true
+              - text: B
+                correct: true
+            """;
+        WriteValidPack(ChoiceStep(opts));
+        Assert.Contains(ContentValidator.Validate(_root).Errors, e => e.Message.Contains("multiSelect"));
+
+        WriteValidPack(ChoiceStep(opts, "multiSelect: true"));
+        Assert.True(ContentValidator.Validate(_root).IsValid);
+    }
+
+    [Fact]
+    public void Choice_with_too_few_options_or_missing_text_is_reported()
+    {
+        WriteValidPack(ChoiceStep("""
+              - correct: true
+            """));
+        var messages = ContentValidator.Validate(_root).Errors.Select(e => e.Message).ToList();
+        Assert.Contains(messages, m => m.Contains("at least 2 options"));
+        Assert.Contains(messages, m => m.Contains("options[0] needs 'text'"));
+    }
 }

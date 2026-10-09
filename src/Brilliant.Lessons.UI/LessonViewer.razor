@@ -1,16 +1,48 @@
+@using Brilliant.Core.Progress
+@inject ProgressRecorder Recorder
+
 @if (Lesson is null)
 {
     <p>No lessons found in this content pack.</p>
 }
-else if (Lesson.Steps.FirstOrDefault() is ExplainStep step)
+else
 {
+    var progress = LessonProgress.From(Lesson, Recorder.Log.ReadAll());
     <h1 class="lesson-title">@Lesson.Title</h1>
-    <ExplainStepView Step="step" />
+
+    <div class="lesson-progress" role="progressbar" aria-valuemin="0" aria-valuemax="@progress.TotalSteps" aria-valuenow="@progress.CompletedCount">
+        <div class="bar"><div class="fill" style="width:@(progress.TotalSteps == 0 ? 0 : 100 * progress.CompletedCount / progress.TotalSteps)%"></div></div>
+        <span>@(progress.IsComplete ? "Lesson complete" : $"{progress.Remaining} of {progress.TotalSteps} steps remaining")</span>
+    </div>
+
+    @if (progress.CurrentStep is { } step)
+    {
+        <div @key="step.Id">
+            @switch (step)
+            {
+                case ExplainStep explain:
+                    <ExplainStepView Step="explain" />
+                    <div class="step-actions"><button class="primary" @onclick="() => Complete(step)">Continue</button></div>
+                    break;
+                case ChoiceStep choice:
+                    <ChoiceStepView Step="choice"
+                                    OnAnswered="r => Recorder.StepAnswered(Lesson.Id, choice.Id, r.IsCorrect, r.Selected)"
+                                    OnContinue="() => Complete(step)" />
+                    break;
+            }
+        </div>
+    }
+    else
+    {
+        <p class="lesson-done">You've finished this lesson. 🎉</p>
+    }
 }
 
 @code {
     [Parameter, EditorRequired] public ContentGraph Content { get; set; } = default!;
 
-    // Tracer bullet: shows the first step of the first lesson. Lesson flow comes in later issues.
+    // Tracer bullet: plays the first lesson. Track/lesson navigation comes in a later issue.
     private Lesson? Lesson => Content.Lessons.FirstOrDefault();
+
+    private void Complete(Step step) => Recorder.StepCompleted(Lesson!.Id, step.Id);
 }

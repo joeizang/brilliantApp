@@ -1,4 +1,6 @@
 using Brilliant.Core.Content;
+using Brilliant.Core.Progress;
+using Brilliant.Data;
 
 namespace Brilliant.App;
 
@@ -21,6 +23,13 @@ public static class MauiProgram
             buffer.Position = 0;
             return ContentPackFormat.Load(buffer);
         });
+
+        // Progress lives in an append-only event log in on-device SQLite.
+        var dataDir = FileSystem.AppDataDirectory;
+        builder.Services.AddSingleton<IProgressEventLog>(_ =>
+            new SqliteProgressEventLog($"Data Source={Path.Combine(dataDir, "brilliant.db")}"));
+        builder.Services.AddSingleton(sp =>
+            new ProgressRecorder(sp.GetRequiredService<IProgressEventLog>(), DeviceId.GetOrCreate(dataDir)));
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();

@@ -135,9 +135,11 @@ public static partial class ContentValidator
         CheckId(dto.Id, "step", file, report, seenIds, label);
         Require(dto.Title, "title", file, report, label);
 
+        if (dto.Type == "choice") return LoadChoice(dto, label, file, report, before);
+
         if (dto.Type != "explain")
         {
-            report.Add(file, $"{label}: unsupported step type '{dto.Type ?? "(missing)"}' (supported: explain).");
+            report.Add(file, $"{label}: unsupported step type '{dto.Type ?? "(missing)"}' (supported: explain, choice).");
             return null;
         }
 
@@ -162,6 +164,32 @@ public static partial class ContentValidator
 
         return report.Errors.Count == before
             ? new ExplainStep(dto.Id!, dto.Title!, dto.Body!, snippets, comparison)
+            : null;
+    }
+
+    private static Step? LoadChoice(StepDto dto, string label, string file, ValidationReport report, int errorsBefore)
+    {
+        Require(dto.Prompt, "prompt", file, report, label);
+
+        var options = new List<ChoiceOption>();
+        for (var i = 0; i < (dto.Options?.Count ?? 0); i++)
+        {
+            var o = dto.Options![i];
+            if (string.IsNullOrWhiteSpace(o.Text)) report.Add(file, $"{label}: options[{i}] needs 'text'.");
+            options.Add(new ChoiceOption(o.Text ?? "", o.Correct ?? false, o.Feedback));
+        }
+
+        var multi = dto.MultiSelect ?? false;
+        var correct = options.Count(o => o.Correct);
+        if (options.Count < 2)
+            report.Add(file, $"{label}: a choice step needs at least 2 options.");
+        else if (correct == 0)
+            report.Add(file, $"{label}: no option is marked 'correct: true'.");
+        else if (!multi && correct != 1)
+            report.Add(file, $"{label}: {correct} options are correct but 'multiSelect' is not true; mark exactly one correct option or set multiSelect: true.");
+
+        return report.Errors.Count == errorsBefore
+            ? new ChoiceStep(dto.Id!, dto.Title!, dto.Prompt!, multi, options)
             : null;
     }
 
@@ -229,5 +257,9 @@ public static partial class ContentValidator
         public string? Body { get; set; }
         public List<SnippetDto>? Snippets { get; set; }
         public ComparisonDto? Comparison { get; set; }
+        public string? Prompt { get; set; }
+        public bool? MultiSelect { get; set; }
+        public List<OptionDto>? Options { get; set; }
     }
+    private sealed class OptionDto { public string? Text { get; set; } public bool? Correct { get; set; } public string? Feedback { get; set; } }
 }
