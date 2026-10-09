@@ -4,3 +4,7 @@ bin/
 obj/
 *.user
 src/Brilliant.App/Resources/Raw/*.pack.zip
+
+# Pyodide spike assets (downloaded, see docs/spikes)
+src/Brilliant.App/wwwroot/pyodide/*
+!src/Brilliant.App/wwwroot/pyodide/.gitkeep

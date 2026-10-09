@@ -1,0 +1,37 @@
+@using Microsoft.JSInterop
+@using System.Diagnostics
+@inject IJSRuntime JS
+
+<section style="font-family:system-ui;padding:1rem;border-top:2px solid #888">
+    <h2>Pyodide spike (issue #2)</h2>
+    <p>Turn networking off first (airplane mode / Wi-Fi off), then run.</p>
+    <button @onclick="Run" disabled="@busy" style="font-size:1.2rem;padding:.5rem 1rem">Run Python in worker</button>
+    <pre>@result</pre>
+</section>
+
+@code {
+    private bool busy;
+    private string result = "";
+    private const string Code = "import sys\nprint('Hello from Python', sys.version.split()[0])\nprint(sum(i*i for i in range(10)))";
+
+    private async Task Run()
+    {
+        busy = true;
+        result = "Running… (first run loads Pyodide)";
+        StateHasChanged();
+        try
+        {
+            await using var module = await JS.InvokeAsync<IJSObjectReference>("import", "./spike.js");
+            var info = await module.InvokeAsync<System.Text.Json.JsonElement>("info");
+            var sw = Stopwatch.StartNew();
+            var r = await module.InvokeAsync<System.Text.Json.JsonElement>("run", Code);
+            sw.Stop();
+            result = $"origin: {info.GetProperty("origin").GetString()}\nnavigator.onLine: {info.GetProperty("online").GetBoolean()}\n"
+                   + (r.GetProperty("ok").GetBoolean()
+                       ? $"stdout (received in C#):\n{r.GetProperty("stdout").GetString()}\nPyodide load: {r.GetProperty("loadMs").GetInt32()} ms, run: {r.GetProperty("runMs").GetInt32()} ms, round-trip: {sw.ElapsedMilliseconds} ms"
+                       : "FAILED: " + r.GetProperty("error").GetString());
+        }
+        catch (Exception ex) { result = "FAILED: " + ex; }
+        busy = false;
+    }
+}
