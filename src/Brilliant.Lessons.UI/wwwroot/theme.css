@@ -1,0 +1,46 @@
+/*
+ * Theme tokens. Dark is the default; the light variant applies when the OS appearance is light, and the
+ * media query re-evaluates live, so the app follows the system setting without a restart.
+ * Components use only these tokens, never raw colours.
+ */
+:root {
+    color-scheme: dark;
+    --bg: #16171d;
+    --fg: #e8e9ee;
+    --border: rgba(255, 255, 255, .24);
+    --track: rgba(255, 255, 255, .16);
+    --surface: rgba(255, 255, 255, .06);
+    --accent: #6ea0ff;
+    --on-accent: #0b1020;
+    --success: #4cc27f;
+    --danger: #ff7b7b;
+    --warn-bg: rgba(245, 166, 35, .28);
+    --code-bg: #1e1e2e;
+    --code-fg: #cdd6f4;
+}
+
+@media (prefers-color-scheme: light) {
+    :root {
+        color-scheme: light;
+        --bg: #ffffff;
+        --fg: #1c1d22;
+        --border: rgba(0, 0, 0, .24);
+        --track: rgba(0, 0, 0, .12);
+        --surface: rgba(0, 0, 0, .04);
+        --accent: #2f6fe0;
+        --on-accent: #ffffff;
+        --success: #1f7a42;
+        --danger: #c0322f;
+        --warn-bg: rgba(245, 166, 35, .3);
+        --code-bg: #f1f2f6;
+        --code-fg: #1f2330;
+    }
+}
+
+html, body { background: var(--bg); color: var(--fg); }
+
+/* Shared controls (global so every step renderer looks the same). */
+button.primary { font-size: 1rem; padding: .5rem 1.2rem; border-radius: 8px; border: none; background: var(--accent); color: var(--on-accent); cursor: pointer; }
+button.primary:disabled { opacity: .4; cursor: default; }
+button.secondary { font-size: 1rem; padding: .45rem 1.1rem; border-radius: 8px; border: 2px solid var(--accent); background: none; color: var(--accent); cursor: pointer; }
+button.link { background: none; border: none; color: var(--accent); cursor: pointer; font: inherit; padding: 0; }

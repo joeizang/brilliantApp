@@ -1,13 +1,11 @@
 .choice-step { max-width: 52rem; margin: 0 auto; padding: 1.5rem; font-family: -apple-system, system-ui, sans-serif; }
 .options { list-style: none; padding: 0; display: grid; gap: .5rem; }
-.option { border: 2px solid #8884; border-radius: 10px; padding: .6rem .9rem; }
+.option { border: 2px solid var(--border); border-radius: 10px; padding: .6rem .9rem; }
 .option label { display: flex; gap: .6rem; align-items: center; cursor: pointer; }
-.option.selected { border-color: #4c8bf5; }
-.option.right { border-color: #2e9d57; background: #2e9d5718; }
-.option.wrong { border-color: #d64545; background: #d6454518; }
+.option.selected { border-color: var(--accent); }
+.option.right { border-color: var(--success); background: color-mix(in srgb, var(--success) 14%, transparent); }
+.option.wrong { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
 .option-feedback { margin-top: .4rem; font-size: .9rem; opacity: .85; }
-.verdict.correct { color: #2e9d57; font-weight: 600; }
-.verdict.incorrect { color: #d64545; font-weight: 600; }
+.verdict.correct { color: var(--success); font-weight: 600; }
+.verdict.incorrect { color: var(--danger); font-weight: 600; }
 .hint { opacity: .7; margin-top: -.5rem; }
-button.primary { font-size: 1rem; padding: .5rem 1.2rem; border-radius: 8px; border: none; background: #4c8bf5; color: #fff; cursor: pointer; }
-button.primary:disabled { opacity: .4; cursor: default; }

@@ -63,3 +63,9 @@ The current step is derived from the log, so relaunching resumes where you left 
 ```bash
 sqlite3 ~/Library/Containers/com.joeizang.brilliantapp/Data/Library/brilliant.db "select Seq, Type, StepId, Data from Events"
 ```
+
+## Theming
+
+Colours live as CSS custom properties in `src/Brilliant.Lessons.UI/wwwroot/theme.css` (served at `_content/Brilliant.Lessons.UI/theme.css`).
+Dark is the default; the light variant applies under `prefers-color-scheme: light`, so the app follows the macOS appearance and updates live.
+Components must use the tokens (`var(--accent)` etc.), never raw colours. Shared button styles (`primary`, `secondary`, `link`) are global in the same file.

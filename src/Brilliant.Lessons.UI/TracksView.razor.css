@@ -1,8 +1,8 @@
 .screen-title { max-width: 52rem; margin: 1rem auto 0; padding: 0 1.5rem; font-family: -apple-system, system-ui, sans-serif; }
 .cards { list-style: none; max-width: 52rem; margin: 1rem auto; padding: 0 1.5rem; display: grid; gap: .8rem; }
-.card { width: 100%; text-align: left; display: grid; gap: .35rem; padding: 1rem 1.2rem; border: 2px solid #8884; border-radius: 12px; background: none; color: inherit; cursor: pointer; font-family: -apple-system, system-ui, sans-serif; }
-.card:hover { border-color: #4c8bf5; }
+.card { width: 100%; text-align: left; display: grid; gap: .35rem; padding: 1rem 1.2rem; border: 2px solid var(--border); border-radius: 12px; background: none; color: inherit; cursor: pointer; font-family: -apple-system, system-ui, sans-serif; }
+.card:hover { border-color: var(--accent); }
 .card-title { font-size: 1.15rem; font-weight: 600; }
 .card-meta { font-size: .9rem; opacity: .75; }
-.bar { display: block; height: 8px; border-radius: 4px; background: #8883; overflow: hidden; }
-.fill { display: block; height: 100%; background: #4c8bf5; }
+.bar { display: block; height: 8px; border-radius: 4px; background: var(--track); overflow: hidden; }
+.fill { display: block; height: 100%; background: var(--accent); }

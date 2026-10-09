@@ -2,7 +2,8 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:local="clr-namespace:Brilliant.App"
-             x:Class="Brilliant.App.MainPage">
+             x:Class="Brilliant.App.MainPage"
+             BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#16171D, Default=#16171D}">
     <BlazorWebView HostPage="wwwroot/index.html">
         <BlazorWebView.RootComponents>
             <RootComponent Selector="#app" ComponentType="{x:Type local:Components.Routes}" />
