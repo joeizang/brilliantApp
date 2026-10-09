@@ -30,6 +30,7 @@ public sealed record Comparison(string CSharp, string Python);
 [JsonDerivedType(typeof(ExplainStep), "explain")]
 [JsonDerivedType(typeof(ChoiceStep), "choice")]
 [JsonDerivedType(typeof(PredictOutputStep), "predict-output")]
+[JsonDerivedType(typeof(WriteCodeStep), "write-code")]
 public abstract record Step(string Id, string Title) : ContentItem(Id)
 {
     /// <summary>
@@ -79,5 +80,24 @@ public sealed record PredictOutputStep(
 {
     [JsonIgnore] public bool IsTyped => Options.Count == 0;
 }
+
+/// <summary>
+/// One hidden test of a write-code step: the learner's function is called as <c>entrypoint(<see cref="Input"/>)</c> and the
+/// result must equal the Python expression <see cref="Expected"/>. Both are Python source text, e.g. <c>[3, 1, 2], 2</c> and <c>(1, 3)</c>.
+/// </summary>
+public sealed record CodeTest(string Input, string Expected);
+
+/// <summary>
+/// "Write the function." The learner edits <see cref="Starter"/> code; on submit it is run against the hidden
+/// <see cref="Tests"/> by calling <see cref="Entrypoint"/>. <see cref="Language"/> is declared per exercise ("python" for now).
+/// </summary>
+public sealed record WriteCodeStep(
+    string Id,
+    string Title,
+    string Prompt,
+    string Language,
+    string Starter,
+    string Entrypoint,
+    IReadOnlyList<CodeTest> Tests) : Step(Id, Title);
 
 public sealed record PackManifest(string PackId, string Version, int FormatVersion);

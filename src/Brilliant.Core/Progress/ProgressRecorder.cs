@@ -18,6 +18,11 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
         Append(ProgressEventTypes.StepAnswered, lessonId, stepId,
             JsonSerializer.Serialize(new { correct, response }));
 
+    /// <summary>Records one write-code submission: the code as submitted and how many hidden tests it passed.</summary>
+    public void CodeSubmitted(string lessonId, string stepId, string code, int passedTests, int totalTests) =>
+        Append(ProgressEventTypes.CodeSubmitted, lessonId, stepId,
+            JsonSerializer.Serialize(new { code, passed = totalTests > 0 && passedTests == totalTests, passedTests, totalTests }));
+
     public void StepCompleted(string lessonId, string stepId) =>
         Append(ProgressEventTypes.StepCompleted, lessonId, stepId, null);
 

@@ -373,6 +373,62 @@ public sealed class ValidatorTests : IDisposable
         Assert.Contains(blank, x => x.Contains("hints[1] is empty"));
     }
 
+    private const string WriteCodeHead = "  - id: step.one.w\n    type: write-code\n    title: W\n    prompt: Write it\n";
+    private const string WriteCodeBody = "    language: python\n    entrypoint: add\n    starter: |\n      def add(a, b):\n          pass\n    tests:\n      - input: \"1, 2\"\n        expected: \"3\"\n";
+
+    [Fact]
+    public void Write_code_step_loads_into_the_pack()
+    {
+        WriteValidPack(LessonHeader + "steps:\n" + WriteCodeHead + WriteCodeBody
+            + "      - input: \"\"\n        expected: \"0\"\n    hints:\n      - nudge\n");
+        var outPath = Path.Combine(_root, "out", "p.zip");
+
+        var report = ContentPacker.Pack(_root, outPath);
+
+        Assert.True(report.IsValid, string.Join("\n", report.Errors));
+        var step = Assert.IsType<WriteCodeStep>(ContentPackFormat.Load(outPath).Get<Step>("step.one.w"));
+        Assert.Equal(("python", "add"), (step.Language, step.Entrypoint));
+        Assert.Equal("def add(a, b):\n    pass\n", step.Starter);
+        Assert.Equal([new CodeTest("1, 2", "3"), new CodeTest("", "0")], step.Tests);
+        Assert.Equal(["nudge"], step.Hints);
+    }
+
+    [Fact]
+    public void Write_code_step_requires_prompt_entrypoint_language_and_tests()
+    {
+        var m = LessonErrors(LessonHeader + "steps:\n  - id: step.one.w\n    type: write-code\n    title: W\n");
+        Assert.Contains(m, x => x.Contains("'prompt' is required"));
+        Assert.Contains(m, x => x.Contains("'entrypoint' is required"));
+        Assert.Contains(m, x => x.Contains("'language' is required"));
+        Assert.Contains(m, x => x.Contains("at least one hidden test"));
+    }
+
+    [Fact]
+    public void Write_code_language_and_entrypoint_are_checked()
+    {
+        var m = LessonErrors(LessonHeader + "steps:\n" + WriteCodeHead
+            + "    language: java\n    entrypoint: 2fast\n    tests:\n      - input: '1'\n        expected: '1'\n");
+        Assert.Contains(m, x => x.Contains("unsupported language 'java'"));
+        Assert.Contains(m, x => x.Contains("'2fast' is not a valid Python function name"));
+    }
+
+    [Fact]
+    public void Write_code_tests_need_input_and_expected()
+    {
+        var m = LessonErrors(LessonHeader + "steps:\n" + WriteCodeHead
+            + "    language: python\n    entrypoint: add\n    tests:\n      - expected: '1'\n      - input: '1'\n      -\n");
+        Assert.Contains(m, x => x.Contains("tests[0] needs 'input'"));
+        Assert.Contains(m, x => x.Contains("tests[1] needs 'expected'"));
+        Assert.Contains(m, x => x.Contains("tests[2]") && x.Contains("entry is empty"));
+    }
+
+    [Fact]
+    public void Write_code_step_rejects_unknown_fields()
+    {
+        var m = LessonErrors(LessonHeader + "steps:\n" + WriteCodeHead + WriteCodeBody + "    bogus: 1\n");
+        Assert.NotEmpty(m); // unknown YAML fields are validation errors, as for every other step type
+    }
+
     [Fact]
     public void Shipped_content_is_valid_and_every_lesson_is_fully_authored()
     {

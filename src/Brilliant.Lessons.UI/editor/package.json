@@ -1,0 +1,23 @@
+{
+  "name": "brilliant-code-editor",
+  "private": true,
+  "description": "Builds the offline CodeMirror 6 bundle (../wwwroot/code-editor.js). Run scripts/build-editor.sh after changing src/ or the dependencies.",
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/code-editor.js --bundle --minify --format=esm --target=es2022 --outfile=../wwwroot/code-editor.js"
+  },
+  "dependencies": {
+    "@codemirror/autocomplete": "6.20.3",
+    "@codemirror/commands": "6.11.1",
+    "@codemirror/lang-python": "6.2.1",
+    "@codemirror/language": "6.13.1",
+    "@codemirror/lint": "6.9.7",
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.14",
+    "@lezer/highlight": "1.2.5",
+    "codemirror": "6.0.2"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

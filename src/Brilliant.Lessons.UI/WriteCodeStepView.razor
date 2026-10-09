@@ -1,0 +1,122 @@
+@using Brilliant.Core.Python
+@inject IPythonRuntime Runtime
+
+<article class="write-step">
+    <h2>@Step.Title</h2>
+    <p class="prompt">@Step.Prompt</p>
+
+    <CodeEditor @ref="_editor" InitialCode="@Step.Starter" />
+
+    <div class="run-row">
+        <button class="primary" disabled="@_running" @onclick="Submit">@(_running ? "Running…" : "Run tests")</button>
+        @if (_running && !_warmedUp)
+        {
+            <span class="note">Starting Python… the first run takes a few seconds.</span>
+        }
+    </div>
+
+    <div aria-live="polite">
+        @if (_runtimeFailure is not null)
+        {
+            <p class="verdict incorrect" role="alert">Couldn't run your code: @_runtimeFailure</p>
+        }
+        else if (_result is { } result)
+        {
+            @switch (result.Status)
+            {
+                case TestRunStatus.Passed:
+                    <p class="verdict correct" role="status">All @result.Tests.Count tests passed! 🎉</p>
+                    @StdoutBlock("Output when your file loaded", result.Stdout)
+                    <button class="primary" @onclick="() => OnContinue.InvokeAsync()">Continue</button>
+                    break;
+
+                case TestRunStatus.Error:
+                    <p class="verdict incorrect" role="status">@result.Message</p>
+                    @TracebackBlock(result.Traceback)
+                    @StdoutBlock("Output before the error", result.Stdout)
+                    break;
+
+                default:
+                    var failure = result.FirstFailure!;
+                    <p class="verdict incorrect" role="status">Not yet: @result.PassedCount of @result.Tests.Count tests passed.</p>
+                    <section class="failure" aria-label="First failing test">
+                        <h3>First failing test</h3>
+                        <dl>
+                            <dt>Call</dt><dd><code>@failure.Call</code></dd>
+                            <dt>Expected</dt><dd><code>@failure.Expected</code></dd>
+                            <dt>Your code returned</dt><dd>@if (failure.Actual is null) { <em>nothing, it raised an error</em> } else { <code>@failure.Actual</code> }</dd>
+                        </dl>
+                        @StdoutBlock("Printed during this test", failure.Stdout)
+                        @TracebackBlock(failure.Traceback)
+                    </section>
+                    break;
+            }
+        }
+    </div>
+</article>
+
+@code {
+    /// <summary>What the learner submitted and how it did.</summary>
+    public sealed record Submission(string Code, TestRunResult Result);
+
+    [Parameter, EditorRequired] public WriteCodeStep Step { get; set; } = default!;
+
+    /// <summary>Raised each time the learner runs their code against the tests (pass or fail).</summary>
+    [Parameter] public EventCallback<Submission> OnSubmitted { get; set; }
+
+    /// <summary>Raised when the learner continues after all tests pass.</summary>
+    [Parameter] public EventCallback OnContinue { get; set; }
+
+    private CodeEditor _editor = default!;
+    private bool _running;
+    private bool _warmedUp;
+    private TestRunResult? _result;
+    private string? _runtimeFailure;
+
+    private async Task Submit()
+    {
+        _running = true;
+        _result = null;
+        _runtimeFailure = null;
+        await _editor.ClearErrorMarkersAsync();
+        await _editor.HighlightLineAsync(null);
+
+        var code = await _editor.GetCodeAsync();
+        try
+        {
+            _result = await Runtime.RunTestsAsync(code, Step.Entrypoint, Step.Tests);
+            _warmedUp = true;
+        }
+        catch (Exception ex)
+        {
+            // The runtime itself failed (e.g. the Python worker couldn't start); that says nothing about the learner's code.
+            _runtimeFailure = ex.Message;
+        }
+        finally
+        {
+            _running = false;
+        }
+
+        if (_result is null) return;
+        await OnSubmitted.InvokeAsync(new Submission(code, _result));
+        await MarkErrorLine(_result);
+    }
+
+    private async Task MarkErrorLine(TestRunResult result)
+    {
+        var (line, trace) = result.Status == TestRunStatus.Error
+            ? (result.ErrorLine, result.Traceback)
+            : (result.FirstFailure?.ErrorLine, result.FirstFailure?.Traceback);
+        if (line is not { } n || trace is null) return;
+        var message = trace.Split('\n', StringSplitOptions.RemoveEmptyEntries).LastOrDefault()?.Trim() ?? "Error";
+        await _editor.SetErrorMarkersAsync([new EditorMarker(n, message)]);
+        await _editor.HighlightLineAsync(n);
+    }
+
+    // Razor templates (not RenderTreeBuilder) so the component's scoped CSS applies to what they render.
+    private static RenderFragment StdoutBlock(string label, string stdout) =>
+        @<text>@if (!string.IsNullOrEmpty(stdout)) { <div class="output"><h4>@label</h4><pre>@stdout</pre></div> }</text>;
+
+    private static RenderFragment TracebackBlock(string? traceback) =>
+        @<text>@if (!string.IsNullOrEmpty(traceback)) { <pre class="traceback" aria-label="Python error">@traceback</pre> }</text>;
+}
