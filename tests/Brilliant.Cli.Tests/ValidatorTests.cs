@@ -329,6 +329,37 @@ public sealed class ValidatorTests : IDisposable
         Assert.Contains(m, x => x.Contains("concept.no-title") && x.Contains("'title' is required"));
     }
 
+    [Theory]
+    [InlineData("concepts", "concepts:\n  -\n")]
+    [InlineData("concepts", "concepts:\n  - ~\n")]
+    [InlineData("reviewItems", "reviewItems:\n  -\n")]
+    [InlineData("reviewItems", "reviewItems:\n  - null\n")]
+    public void Null_declaration_entries_are_reported_not_crashed_on(string list, string declaration)
+    {
+        var m = LessonErrors(LessonHeader + declaration + "steps:\n" + QuestionStep);
+        Assert.Contains(m, x => x.Contains($"{list}[0]") && x.Contains("entry is empty"));
+    }
+
+    [Theory]
+    [InlineData("steps[0]", "steps:\n  -\n" + QuestionStep)]
+    [InlineData("options[0]", "steps:\n  - id: step.one.q\n    type: choice\n    title: Q\n    prompt: Pick\n    options:\n      -\n      - text: a\n        correct: true\n      - text: b\n")]
+    [InlineData("snippets[0]", "steps:\n  - id: step.one.e\n    type: explain\n    title: E\n    body: b\n    snippets:\n      -\n")]
+    public void Null_entries_inside_steps_are_reported_not_crashed_on(string where, string steps)
+    {
+        var m = LessonErrors(LessonHeader + steps);
+        Assert.Contains(m, x => x.Contains(where) && x.Contains("entry is empty"));
+    }
+
+    [Fact]
+    public void Null_entries_in_predict_output_options_and_mistakes_are_reported()
+    {
+        var typed = LessonErrors(Predict("    accepted: ['1']\n    mistakes:\n      -\n"));
+        Assert.Contains(typed, x => x.Contains("mistakes[0]") && x.Contains("entry is empty"));
+
+        var choice = LessonErrors(Predict("    options:\n      -\n      - text: a\n        correct: true\n      - text: b\n"));
+        Assert.Contains(choice, x => x.Contains("options[0]") && x.Contains("entry is empty"));
+    }
+
     [Fact]
     public void Hints_are_limited_to_questions_and_to_four_levels()
     {

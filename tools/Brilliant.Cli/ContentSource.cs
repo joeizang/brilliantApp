@@ -112,8 +112,11 @@ public static partial class ContentValidator
                 report.Add(lessonRel, "a lesson needs at least one step.");
             else
                 for (var i = 0; i < lessonDto.Steps.Count; i++)
+                {
+                    if (IsEmptyEntry(lessonDto.Steps[i], $"steps[{i}]", lessonRel, report)) continue;
                     if (LoadStep(lessonDto.Steps[i], $"steps[{i}]", lessonRel, report, seenIds) is { } step)
                         steps.Add(step);
+                }
 
             var concepts = LoadConcepts(lessonDto, lessonRel, report, seenIds);
             var reviewItems = LoadReviewItems(lessonDto, lessonRel, report, seenIds, concepts, steps);
@@ -140,6 +143,7 @@ public static partial class ContentValidator
         for (var i = 0; i < (lesson.Concepts?.Count ?? 0); i++)
         {
             var c = lesson.Concepts![i];
+            if (IsEmptyEntry(c, $"concepts[{i}]", file, report)) continue;
             var label = c.Id is null ? $"concepts[{i}]" : $"concepts[{i}] ('{c.Id}')";
             CheckId(c.Id, "concept", file, report, seenIds, label);
             Require(c.Title, "title", file, report, label);
@@ -155,6 +159,7 @@ public static partial class ContentValidator
         for (var i = 0; i < (lesson.ReviewItems?.Count ?? 0); i++)
         {
             var r = lesson.ReviewItems![i];
+            if (IsEmptyEntry(r, $"reviewItems[{i}]", file, report)) continue;
             var label = r.Id is null ? $"reviewItems[{i}]" : $"reviewItems[{i}] ('{r.Id}')";
             CheckId(r.Id, "review", file, report, seenIds, label);
             Require(r.Concept, "concept", file, report, label);
@@ -216,6 +221,7 @@ public static partial class ContentValidator
         for (var i = 0; i < (dto.Snippets?.Count ?? 0); i++)
         {
             var s = dto.Snippets![i];
+            if (IsEmptyEntry(s, $"{label}: snippets[{i}]", file, report)) continue;
             if (string.IsNullOrWhiteSpace(s.Language)) report.Add(file, $"{label}: snippets[{i}] needs a 'language'.");
             if (string.IsNullOrWhiteSpace(s.Code)) report.Add(file, $"{label}: snippets[{i}] needs 'code'.");
             snippets.Add(new CodeSnippet(s.Language ?? "", s.Code ?? ""));
@@ -234,6 +240,14 @@ public static partial class ContentValidator
             : null;
     }
 
+    /// <summary>A bare `-` or `[null]` in a YAML list deserializes to null; report it instead of crashing.</summary>
+    private static bool IsEmptyEntry(object? entry, string where, string file, ValidationReport report)
+    {
+        if (entry is not null) return false;
+        report.Add(file, $"{where}: entry is empty; remove the stray '-' or fill it in.");
+        return true;
+    }
+
     private static Step? WithHints(Step? step, List<string> hints) =>
         step is null || hints.Count == 0 ? step : step with { Hints = hints };
 
@@ -245,6 +259,7 @@ public static partial class ContentValidator
         for (var i = 0; i < (dto.Options?.Count ?? 0); i++)
         {
             var o = dto.Options![i];
+            if (IsEmptyEntry(o, $"{label}: options[{i}]", file, report)) continue;
             if (string.IsNullOrWhiteSpace(o.Text)) report.Add(file, $"{label}: options[{i}] needs 'text'.");
             options.Add(new ChoiceOption(o.Text ?? "", o.Correct ?? false, o.Feedback));
         }
@@ -283,6 +298,7 @@ public static partial class ContentValidator
             for (var i = 0; i < dto.Options!.Count; i++)
             {
                 var o = dto.Options[i];
+                if (IsEmptyEntry(o, $"{label}: options[{i}]", file, report)) continue;
                 if (string.IsNullOrWhiteSpace(o.Text)) report.Add(file, $"{label}: options[{i}] needs 'text'.");
                 options.Add(new ChoiceOption(o.Text ?? "", o.Correct ?? false, o.Feedback));
             }
@@ -305,6 +321,7 @@ public static partial class ContentValidator
             {
                 var m = dto.Mistakes![i];
                 var where = $"{label}: mistakes[{i}]";
+                if (IsEmptyEntry(m, where, file, report)) continue;
                 var answers = m.Answers ?? [];
                 if (answers.Count == 0 && string.IsNullOrWhiteSpace(m.Regex))
                     report.Add(file, $"{where} needs 'answers' and/or 'regex'.");
