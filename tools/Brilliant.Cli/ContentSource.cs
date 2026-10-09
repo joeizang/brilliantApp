@@ -136,10 +136,11 @@ public static partial class ContentValidator
         Require(dto.Title, "title", file, report, label);
 
         if (dto.Type == "choice") return LoadChoice(dto, label, file, report, before);
+        if (dto.Type == "predict-output") return LoadPredictOutput(dto, label, file, report, before);
 
         if (dto.Type != "explain")
         {
-            report.Add(file, $"{label}: unsupported step type '{dto.Type ?? "(missing)"}' (supported: explain, choice).");
+            report.Add(file, $"{label}: unsupported step type '{dto.Type ?? "(missing)"}' (supported: explain, choice, predict-output).");
             return null;
         }
 
@@ -190,6 +191,69 @@ public static partial class ContentValidator
 
         return report.Errors.Count == errorsBefore
             ? new ChoiceStep(dto.Id!, dto.Title!, dto.Prompt!, multi, options)
+            : null;
+    }
+
+    private static Step? LoadPredictOutput(StepDto dto, string label, string file, ValidationReport report, int errorsBefore)
+    {
+        Require(dto.Prompt, "prompt", file, report, label);
+        Require(dto.Code, "code", file, report, label);
+
+        var hasOptions = dto.Options is { Count: > 0 };
+        var hasAccepted = dto.Accepted is { Count: > 0 };
+        var options = new List<ChoiceOption>();
+        var accepted = new List<string>();
+        var mistakes = new List<MistakePattern>();
+
+        if (hasOptions == hasAccepted)
+            report.Add(file, $"{label}: give either 'accepted' answers (typed) or 'options' (multiple choice), not {(hasOptions ? "both" : "neither")}.");
+        else if (hasOptions)
+        {
+            if (dto.Mistakes is { Count: > 0 })
+                report.Add(file, $"{label}: 'mistakes' only apply to typed steps; use per-option 'feedback' instead.");
+            for (var i = 0; i < dto.Options!.Count; i++)
+            {
+                var o = dto.Options[i];
+                if (string.IsNullOrWhiteSpace(o.Text)) report.Add(file, $"{label}: options[{i}] needs 'text'.");
+                options.Add(new ChoiceOption(o.Text ?? "", o.Correct ?? false, o.Feedback));
+            }
+            if (options.Count < 2)
+                report.Add(file, $"{label}: a multiple-choice prediction needs at least 2 options.");
+            else if (options.Count(o => o.Correct) != 1)
+                report.Add(file, $"{label}: exactly one option must be marked 'correct: true'.");
+        }
+        else
+        {
+            for (var i = 0; i < dto.Accepted!.Count; i++)
+            {
+                if (AnswerEvaluator.Normalize(dto.Accepted[i]).Length == 0)
+                    report.Add(file, $"{label}: accepted[{i}] is empty.");
+                accepted.Add(dto.Accepted[i] ?? "");
+            }
+
+            var acceptedNormalised = accepted.Select(AnswerEvaluator.Normalize).ToHashSet();
+            for (var i = 0; i < (dto.Mistakes?.Count ?? 0); i++)
+            {
+                var m = dto.Mistakes![i];
+                var where = $"{label}: mistakes[{i}]";
+                var answers = m.Answers ?? [];
+                if (answers.Count == 0 && string.IsNullOrWhiteSpace(m.Regex))
+                    report.Add(file, $"{where} needs 'answers' and/or 'regex'.");
+                if (string.IsNullOrWhiteSpace(m.Feedback))
+                    report.Add(file, $"{where} needs 'feedback'.");
+                foreach (var a in answers.Where(a => acceptedNormalised.Contains(AnswerEvaluator.Normalize(a))))
+                    report.Add(file, $"{where}: answer '{a}' is also an accepted answer.");
+                if (!string.IsNullOrWhiteSpace(m.Regex))
+                {
+                    try { _ = new Regex(m.Regex); }
+                    catch (ArgumentException ex) { report.Add(file, $"{where}: invalid regex ({ex.Message})"); }
+                }
+                mistakes.Add(new MistakePattern(answers, string.IsNullOrWhiteSpace(m.Regex) ? null : m.Regex, m.Feedback ?? ""));
+            }
+        }
+
+        return report.Errors.Count == errorsBefore
+            ? new PredictOutputStep(dto.Id!, dto.Title!, dto.Prompt!, new CodeSnippet(dto.Language ?? "python", dto.Code!), accepted, mistakes, options)
             : null;
     }
 
@@ -260,6 +324,11 @@ public static partial class ContentValidator
         public string? Prompt { get; set; }
         public bool? MultiSelect { get; set; }
         public List<OptionDto>? Options { get; set; }
+        public string? Code { get; set; }
+        public string? Language { get; set; }
+        public List<string>? Accepted { get; set; }
+        public List<MistakeDto>? Mistakes { get; set; }
     }
+    private sealed class MistakeDto { public List<string>? Answers { get; set; } public string? Regex { get; set; } public string? Feedback { get; set; } }
     private sealed class OptionDto { public string? Text { get; set; } public bool? Correct { get; set; } public string? Feedback { get; set; } }
 }

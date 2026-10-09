@@ -5,3 +5,6 @@
 .step-actions { max-width: 52rem; margin: 0 auto; padding: 0 1.5rem 1.5rem; }
 .lesson-done { max-width: 52rem; margin: 2rem auto; padding: 0 1.5rem; font: 1.2rem -apple-system, system-ui, sans-serif; }
 button.primary { font-size: 1rem; padding: .5rem 1.2rem; border-radius: 8px; border: none; background: #4c8bf5; color: #fff; cursor: pointer; }
+.lesson-bar { max-width: 52rem; margin: .8rem auto 0; padding: 0 1.5rem; display: flex; gap: 1rem; align-items: center; font: .9rem -apple-system, system-ui, sans-serif; }
+.review-badge { background: #f5a62333; border-radius: 6px; padding: .15rem .5rem; }
+button.link { background: none; border: none; color: #4c8bf5; cursor: pointer; font: inherit; padding: 0; }

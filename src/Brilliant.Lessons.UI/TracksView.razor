@@ -1,0 +1,22 @@
+@using Brilliant.Core.Progress
+@inject ProgressRecorder Recorder
+
+<h1 class="screen-title">Tracks</h1>
+<ul class="cards">
+    @foreach (var state in CourseProgress.From(Content, Recorder.Log.ReadAll()))
+    {
+        var pct = state.TotalLessons == 0 ? 0 : 100 * state.CompletedLessons / state.TotalLessons;
+        <li>
+            <button class="card" @onclick="() => OnOpenTrack.InvokeAsync(state.Track)">
+                <span class="card-title">@state.Track.Title @(state.IsComplete ? "✓" : "")</span>
+                <span class="card-meta">@state.CompletedLessons of @state.TotalLessons lessons complete</span>
+                <span class="bar"><span class="fill" style="width:@pct%"></span></span>
+            </button>
+        </li>
+    }
+</ul>
+
+@code {
+    [Parameter, EditorRequired] public ContentGraph Content { get; set; } = default!;
+    [Parameter] public EventCallback<Track> OnOpenTrack { get; set; }
+}

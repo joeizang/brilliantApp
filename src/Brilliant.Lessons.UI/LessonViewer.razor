@@ -1,48 +1,73 @@
 @using Brilliant.Core.Progress
 @inject ProgressRecorder Recorder
 
-@if (Lesson is null)
+<div class="lesson-bar">
+    <button class="link" @onclick="() => OnExit.InvokeAsync()">← Back</button>
+    @if (Review)
+    {
+        <span class="review-badge">Review mode: your progress won't change</span>
+    }
+</div>
+<h1 class="lesson-title">@Lesson.Title</h1>
+
+@{
+    var progress = LessonProgress.From(Lesson, Recorder.Log.ReadAll());
+    var total = Lesson.Steps.Count;
+    var done = Review ? _reviewIndex : progress.CompletedCount;
+    var step = Review ? Lesson.Steps.ElementAtOrDefault(_reviewIndex) : progress.CurrentStep;
+}
+
+<div class="lesson-progress" role="progressbar" aria-valuemin="0" aria-valuemax="@total" aria-valuenow="@done">
+    <div class="bar"><div class="fill" style="width:@(total == 0 ? 0 : 100 * done / total)%"></div></div>
+    <span>@(step is null ? (Review ? "Review finished" : "Lesson complete") : $"{total - done} of {total} steps remaining")</span>
+</div>
+
+@if (step is not null)
 {
-    <p>No lessons found in this content pack.</p>
+    <div @key="step.Id">
+        @switch (step)
+        {
+            case ExplainStep explain:
+                <ExplainStepView Step="explain" />
+                <div class="step-actions"><button class="primary" @onclick="() => Complete(step)">Continue</button></div>
+                break;
+            case ChoiceStep choice:
+                <ChoiceStepView Step="choice"
+                                OnAnswered="r => { if (!Review) Recorder.StepAnswered(Lesson.Id, choice.Id, r.IsCorrect, r.Selected); }"
+                                OnContinue="() => Complete(step)" />
+                break;
+            case PredictOutputStep predict:
+                <PredictOutputStepView Step="predict" OnAnswered="a => Answered(predict, a)" OnContinue="() => Complete(step)" />
+                break;
+        }
+    </div>
 }
 else
 {
-    var progress = LessonProgress.From(Lesson, Recorder.Log.ReadAll());
-    <h1 class="lesson-title">@Lesson.Title</h1>
-
-    <div class="lesson-progress" role="progressbar" aria-valuemin="0" aria-valuemax="@progress.TotalSteps" aria-valuenow="@progress.CompletedCount">
-        <div class="bar"><div class="fill" style="width:@(progress.TotalSteps == 0 ? 0 : 100 * progress.CompletedCount / progress.TotalSteps)%"></div></div>
-        <span>@(progress.IsComplete ? "Lesson complete" : $"{progress.Remaining} of {progress.TotalSteps} steps remaining")</span>
-    </div>
-
-    @if (progress.CurrentStep is { } step)
-    {
-        <div @key="step.Id">
-            @switch (step)
-            {
-                case ExplainStep explain:
-                    <ExplainStepView Step="explain" />
-                    <div class="step-actions"><button class="primary" @onclick="() => Complete(step)">Continue</button></div>
-                    break;
-                case ChoiceStep choice:
-                    <ChoiceStepView Step="choice"
-                                    OnAnswered="r => Recorder.StepAnswered(Lesson.Id, choice.Id, r.IsCorrect, r.Selected)"
-                                    OnContinue="() => Complete(step)" />
-                    break;
-            }
-        </div>
-    }
-    else
-    {
-        <p class="lesson-done">You've finished this lesson. 🎉</p>
-    }
+    <p class="lesson-done">@(Review ? "That's the whole lesson." : "You've finished this lesson. 🎉")</p>
+    <div class="step-actions"><button class="primary" @onclick="() => OnExit.InvokeAsync()">Back to track</button></div>
 }
 
 @code {
-    [Parameter, EditorRequired] public ContentGraph Content { get; set; } = default!;
+    [Parameter, EditorRequired] public Lesson Lesson { get; set; } = default!;
 
-    // Tracer bullet: plays the first lesson. Track/lesson navigation comes in a later issue.
-    private Lesson? Lesson => Content.Lessons.FirstOrDefault();
+    /// <summary>Replays the lesson from the start without recording anything, so completion is untouched.</summary>
+    [Parameter] public bool Review { get; set; }
 
-    private void Complete(Step step) => Recorder.StepCompleted(Lesson!.Id, step.Id);
+    [Parameter] public EventCallback OnExit { get; set; }
+
+    private int _reviewIndex;
+
+    private void Answered(PredictOutputStep step, PredictOutputStepView.Attempt a)
+    {
+        if (Review) return;
+        if (a.Response is not null) Recorder.StepAnswered(Lesson.Id, step.Id, a.Result.IsCorrect, a.Response);
+        else Recorder.StepAnswered(Lesson.Id, step.Id, a.Result.IsCorrect, [a.Selected!.Value]);
+    }
+
+    private void Complete(Step step)
+    {
+        if (Review) _reviewIndex++;
+        else Recorder.CompleteStep(Lesson, step.Id);
+    }
 }

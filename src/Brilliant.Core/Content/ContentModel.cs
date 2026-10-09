@@ -16,6 +16,7 @@ public sealed record Comparison(string CSharp, string Python);
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 [JsonDerivedType(typeof(ExplainStep), "explain")]
 [JsonDerivedType(typeof(ChoiceStep), "choice")]
+[JsonDerivedType(typeof(PredictOutputStep), "predict-output")]
 public abstract record Step(string Id, string Title) : ContentItem(Id);
 
 /// <summary>Text (markdown), optional code snippets and an optional side-by-side C#↔Python comparison.</summary>
@@ -36,5 +37,27 @@ public sealed record ChoiceStep(
     string Prompt,
     bool MultiSelect,
     IReadOnlyList<ChoiceOption> Options) : Step(Id, Title);
+
+/// <summary>
+/// A typed answer that earns specific feedback. It matches when the normalised response equals one of
+/// <see cref="Answers"/> (also normalised) or satisfies <see cref="Regex"/>.
+/// </summary>
+public sealed record MistakePattern(IReadOnlyList<string> Answers, string? Regex, string Feedback);
+
+/// <summary>
+/// "What does this print?" Typed variant: <see cref="Accepted"/> answers plus authored <see cref="Mistakes"/>.
+/// Multiple-choice variant: <see cref="Options"/> is non-empty (exactly one correct) and the typed fields are empty.
+/// </summary>
+public sealed record PredictOutputStep(
+    string Id,
+    string Title,
+    string Prompt,
+    CodeSnippet Code,
+    IReadOnlyList<string> Accepted,
+    IReadOnlyList<MistakePattern> Mistakes,
+    IReadOnlyList<ChoiceOption> Options) : Step(Id, Title)
+{
+    [JsonIgnore] public bool IsTyped => Options.Count == 0;
+}
 
 public sealed record PackManifest(string PackId, string Version, int FormatVersion);

@@ -42,15 +42,22 @@ dotnet build src/Brilliant.App -t:Run -f net10.0-maccatalyst
 
 - Every track, lesson and step has a stable `id` (`track.…`, `lesson.…`, `step.…`; lowercase words joined by `-` or `.`), unique across the pack.
 - `pack.yaml` has an `id` and a `version` like `1.2.3`.
-- Step types so far: `explain` and `choice`.
+- Step types so far: `explain`, `choice` and `predict-output`.
   - `explain` needs `title` and `body` (markdown); `snippets` and a C#↔Python `comparison` are optional but must be complete if present.
   - `choice` needs `title`, `prompt` and at least 2 `options` (`text`, `correct`, optional `feedback`). Exactly one option must be correct unless `multiSelect: true`.
+  - `predict-output` shows a `code` snippet (optional `language`, default `python`) and a `prompt`, in one of two variants (exactly one is required):
+    - **typed**: `accepted` lists the correct outputs. Optional `mistakes` give specific feedback; each needs `feedback` plus `answers` (exact matches) and/or a `regex`, and must not repeat an accepted answer.
+    - **multiple choice**: `options` as for `choice`, with exactly one `correct`; `mistakes` are not allowed (use per-option `feedback`).
+    - Answers are compared after normalising: runs of spaces/tabs collapse, lines and ends are trimmed, curly quotes are straightened and `"`/`'` are treated alike. Case still matters. Regexes run against the normalised response.
+- Lessons in a track are ordered by folder name (`01-…`, `02-…`) and unlock in that order.
 - Unknown YAML fields are errors, so typos aren't silently ignored.
 
 ## Progress storage
 
-Progress is an append-only event log (`StepAnswered`, `StepCompleted`) in SQLite at
+Progress is an append-only event log (`StepAnswered`, `StepCompleted`, `LessonCompleted`) in SQLite at
 `~/Library/Containers/com.joeizang.brilliantapp/Data/Library/brilliant.db`. Database triggers reject UPDATE/DELETE.
+`LessonCompleted` is written once, when a lesson's last step is completed. Lock/completion state is derived from the log
+(a lesson is unlocked when the previous one in its track is complete). **Review mode** (replaying a completed lesson) records nothing, so it can't change completion.
 The current step is derived from the log, so relaunching resumes where you left off. To start a lesson over, quit the app and delete that file:
 
 ```bash

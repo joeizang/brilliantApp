@@ -1,0 +1,25 @@
+@* Root navigation: Tracks → Track → Lesson (play or review). *@
+@if (_lesson is { } lesson)
+{
+    <LessonViewer @key="(lesson.Id, _review)" Lesson="lesson" Review="_review" OnExit="BackToTrack" />
+}
+else if (_track is { } track)
+{
+    <TrackView Content="Content" Track="track" OnBack="BackToTracks" OnOpenLesson="OpenLesson" />
+}
+else
+{
+    <TracksView Content="Content" OnOpenTrack="t => _track = t" />
+}
+
+@code {
+    [Parameter, EditorRequired] public ContentGraph Content { get; set; } = default!;
+
+    private Track? _track;
+    private Lesson? _lesson;
+    private bool _review;
+
+    private void OpenLesson((Lesson Lesson, bool Review) target) => (_lesson, _review) = (target.Lesson, target.Review);
+    private void BackToTrack() => _lesson = null;
+    private void BackToTracks() => (_lesson, _track) = (null, null);
+}

@@ -1,0 +1,92 @@
+<article class="predict-step">
+    <h2>@Step.Title</h2>
+    <p class="prompt">@Step.Prompt</p>
+    <pre class="code-block" data-language="@Step.Code.Language"><code>@Step.Code.Code</code></pre>
+
+    @if (Step.IsTyped)
+    {
+        <textarea class="answer-input" rows="@Math.Max(1, Math.Min(6, _response.Split('\n').Length))" placeholder="Type the output"
+                  aria-label="Predicted output" spellcheck="false" autocomplete="off" autocapitalize="off"
+                  disabled="@Locked" @bind="_response" @bind:event="oninput"></textarea>
+    }
+    else
+    {
+        <ul class="options">
+            @for (var i = 0; i < Step.Options.Count; i++)
+            {
+                var index = i;
+                var picked = _picked == index;
+                <li class="@OptionClass(index, picked)">
+                    <label>
+                        <input type="radio" name="@Step.Id" checked="@picked" disabled="@Locked" @onchange="() => _picked = index" />
+                        @Step.Options[index].Text
+                    </label>
+                    @if (_result is not null && picked && _result.Feedback is { Length: > 0 })
+                    {
+                        <div class="option-feedback">@_result.Feedback</div>
+                    }
+                </li>
+            }
+        </ul>
+    }
+
+    @if (_result is null)
+    {
+        <button class="primary" disabled="@(!CanCheck)" @onclick="Check">Check</button>
+    }
+    else if (_result.IsCorrect)
+    {
+        <p class="verdict correct" role="status">Correct!</p>
+        <button class="primary" @onclick="() => OnContinue.InvokeAsync()">Continue</button>
+    }
+    else
+    {
+        <p class="verdict incorrect" role="status">Not quite. Have another go.</p>
+        @if (Step.IsTyped && _result.Feedback is { Length: > 0 })
+        {
+            <p class="mistake-feedback">@_result.Feedback</p>
+        }
+        <button class="primary" @onclick="TryAgain">Try again</button>
+    }
+</article>
+
+@code {
+    /// <summary>What the learner submitted: <see cref="Response"/> for typed, <see cref="Selected"/> for multiple choice.</summary>
+    public sealed record Attempt(AnswerResult Result, string? Response, int? Selected);
+
+    [Parameter, EditorRequired] public PredictOutputStep Step { get; set; } = default!;
+
+    /// <summary>Raised each time the learner checks an answer (correct or not).</summary>
+    [Parameter] public EventCallback<Attempt> OnAnswered { get; set; }
+
+    /// <summary>Raised when the learner continues after a correct answer.</summary>
+    [Parameter] public EventCallback OnContinue { get; set; }
+
+    private string _response = "";
+    private int? _picked;
+    private AnswerResult? _result;
+
+    private bool Locked => _result is not null;
+    private bool CanCheck => Step.IsTyped ? !string.IsNullOrWhiteSpace(_response) : _picked is not null;
+
+    private async Task Check()
+    {
+        _result = Step.IsTyped
+            ? AnswerEvaluator.Evaluate(Step, _response)
+            : AnswerEvaluator.Evaluate(Step, _picked!.Value);
+        await OnAnswered.InvokeAsync(new Attempt(_result, Step.IsTyped ? _response : null, _picked));
+    }
+
+    private void TryAgain()
+    {
+        _result = null;
+        _picked = null; // typed answers stay in the box so the learner can edit them
+    }
+
+    private string OptionClass(int index, bool picked)
+    {
+        if (_result is null) return picked ? "option selected" : "option";
+        if (picked) return Step.Options[index].Correct ? "option right" : "option wrong";
+        return "option";
+    }
+}

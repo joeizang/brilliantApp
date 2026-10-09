@@ -1,0 +1,15 @@
+.predict-step { max-width: 52rem; margin: 0 auto; padding: 1.5rem; font-family: -apple-system, system-ui, sans-serif; }
+.code-block { background: #8881; border-radius: 8px; padding: .8rem 1rem; overflow-x: auto; font: .95rem ui-monospace, Menlo, monospace; }
+.answer-input { width: 100%; box-sizing: border-box; font: 1rem ui-monospace, Menlo, monospace; padding: .6rem .8rem; border: 2px solid #8884; border-radius: 10px; margin-bottom: 1rem; resize: vertical; }
+.answer-input:focus { outline: none; border-color: #4c8bf5; }
+.options { list-style: none; padding: 0; display: grid; gap: .5rem; }
+.option { border: 2px solid #8884; border-radius: 10px; padding: .6rem .9rem; }
+.option label { display: flex; gap: .6rem; align-items: center; cursor: pointer; }
+.option.selected { border-color: #4c8bf5; }
+.option.right { border-color: #2e9d57; background: #2e9d5718; }
+.option.wrong { border-color: #d64545; background: #d6454518; }
+.option-feedback, .mistake-feedback { margin-top: .4rem; font-size: .95rem; opacity: .9; }
+.verdict.correct { color: #2e9d57; font-weight: 600; }
+.verdict.incorrect { color: #d64545; font-weight: 600; }
+button.primary { font-size: 1rem; padding: .5rem 1.2rem; border-radius: 8px; border: none; background: #4c8bf5; color: #fff; cursor: pointer; }
+button.primary:disabled { opacity: .4; cursor: default; }

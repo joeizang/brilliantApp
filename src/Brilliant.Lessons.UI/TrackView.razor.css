@@ -1,0 +1,14 @@
+.crumbs { max-width: 52rem; margin: .8rem auto 0; padding: 0 1.5rem; font: .9rem -apple-system, system-ui, sans-serif; }
+.screen-title { max-width: 52rem; margin: .5rem auto 0; padding: 0 1.5rem; font-family: -apple-system, system-ui, sans-serif; }
+.track-meta { max-width: 52rem; margin: .3rem auto 0; padding: 0 1.5rem; opacity: .75; font-family: -apple-system, system-ui, sans-serif; }
+.lessons { list-style: none; max-width: 52rem; margin: 1rem auto; padding: 0 1.5rem; display: grid; gap: .6rem; font-family: -apple-system, system-ui, sans-serif; }
+.lesson { display: flex; align-items: center; gap: .9rem; padding: .8rem 1rem; border: 2px solid #8884; border-radius: 12px; }
+.lesson.locked { opacity: .55; }
+.lesson.completed { border-color: #2e9d5788; }
+.status { width: 1.5rem; text-align: center; font-size: 1.2rem; }
+.lesson-name { flex: 1; display: grid; font-weight: 600; }
+.lesson-name small { font-weight: 400; opacity: .7; }
+button.link { background: none; border: none; color: #4c8bf5; cursor: pointer; font: inherit; padding: 0; }
+button.primary { font-size: 1rem; padding: .45rem 1.1rem; border-radius: 8px; border: none; background: #4c8bf5; color: #fff; cursor: pointer; }
+button.primary:disabled { opacity: .4; cursor: default; }
+button.secondary { font-size: 1rem; padding: .45rem 1.1rem; border-radius: 8px; border: 2px solid #4c8bf5; background: none; color: #4c8bf5; cursor: pointer; }

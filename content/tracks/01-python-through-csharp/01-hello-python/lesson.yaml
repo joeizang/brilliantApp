@@ -61,3 +61,37 @@ steps:
       - text: "static void Main() { print('Hi') }"
         correct: false
         feedback: That's C#-flavoured. Python has no required entry-point method.
+  - id: step.hello-python.predict-fstring
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print? Type it exactly.
+    code: |
+      name = "Ada"
+      print(f"Hi {name}!")
+    accepted:
+      - "Hi Ada!"
+    mistakes:
+      - answers:
+          - "Hi {name}!"
+        feedback: The `f` prefix makes Python substitute `{name}` with its value, just like `$"..."` in C#.
+      - regex: "^Hi name!?$"
+        feedback: "`name` is a variable, so its value (not its name) is printed."
+  - id: step.hello-python.predict-indent
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      x = 3
+      if x > 5:
+          print("big")
+      print("done")
+    options:
+      - text: done
+        correct: true
+        feedback: Only the indented line belongs to the `if`; `print("done")` always runs.
+      - text: big, then done
+        correct: false
+        feedback: "`x > 5` is false, so the indented block is skipped."
+      - text: Nothing
+        correct: false
+        feedback: The last line is outside the `if` block, so it still runs.

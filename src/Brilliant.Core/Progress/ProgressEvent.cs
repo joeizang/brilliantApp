@@ -4,6 +4,9 @@ public static class ProgressEventTypes
 {
     public const string StepAnswered = "StepAnswered";
     public const string StepCompleted = "StepCompleted";
+
+    /// <summary>Recorded once, when the last step of a lesson is completed. Lesson-level events carry an empty StepId.</summary>
+    public const string LessonCompleted = "LessonCompleted";
 }
 
 /// <summary>
