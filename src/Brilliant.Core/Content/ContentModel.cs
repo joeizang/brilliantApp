@@ -7,7 +7,20 @@ public abstract record ContentItem(string Id);
 
 public sealed record Track(string Id, string Title, IReadOnlyList<string> LessonIds) : ContentItem(Id);
 
-public sealed record Lesson(string Id, string Title, string TrackId, IReadOnlyList<Step> Steps) : ContentItem(Id);
+/// <summary>An idea a lesson teaches. Mastery and review will be tracked per concept.</summary>
+public sealed record Concept(string Id, string Title) : ContentItem(Id);
+
+/// <summary>
+/// A question introduced by a lesson that Review will later resurface. It reuses an existing answerable
+/// step (<see cref="StepId"/>) of the same lesson as its question, and belongs to one <see cref="ConceptId"/>.
+/// </summary>
+public sealed record ReviewItem(string Id, string ConceptId, string StepId) : ContentItem(Id);
+
+public sealed record Lesson(string Id, string Title, string TrackId, IReadOnlyList<Step> Steps) : ContentItem(Id)
+{
+    public IReadOnlyList<Concept> Concepts { get; init; } = [];
+    public IReadOnlyList<ReviewItem> ReviewItems { get; init; } = [];
+}
 
 public sealed record CodeSnippet(string Language, string Code);
 
@@ -17,7 +30,14 @@ public sealed record Comparison(string CSharp, string Python);
 [JsonDerivedType(typeof(ExplainStep), "explain")]
 [JsonDerivedType(typeof(ChoiceStep), "choice")]
 [JsonDerivedType(typeof(PredictOutputStep), "predict-output")]
-public abstract record Step(string Id, string Title) : ContentItem(Id);
+public abstract record Step(string Id, string Title) : ContentItem(Id)
+{
+    /// <summary>
+    /// Hint ladder for answerable steps, gentlest first (nudge → pattern hint → partial → full walkthrough).
+    /// Authored now; shown to the learner by a later issue.
+    /// </summary>
+    public IReadOnlyList<string> Hints { get; init; } = [];
+}
 
 /// <summary>Text (markdown), optional code snippets and an optional side-by-side C#↔Python comparison.</summary>
 public sealed record ExplainStep(

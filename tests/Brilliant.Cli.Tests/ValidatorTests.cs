@@ -269,4 +269,107 @@ public sealed class ValidatorTests : IDisposable
         Assert.Contains(m, x => x.Contains("mistakes[2]") && x.Contains("also an accepted answer"));
         Assert.Contains(m, x => x.Contains("mistakes[3]") && x.Contains("invalid regex"));
     }
+
+    private const string LessonHeader = "id: lesson.one\ntitle: One\n";
+
+    private const string QuestionStep = "  - id: step.one.q\n    type: choice\n    title: Q\n    prompt: Pick\n    options:\n      - text: a\n        correct: true\n      - text: b\n";
+
+    private const string ExplainOnly = "  - id: step.one.e\n    type: explain\n    title: E\n    body: b\n";
+
+    private List<string> LessonErrors(string yaml)
+    {
+        WriteValidPack(yaml);
+        return ContentValidator.Validate(_root).Errors.Select(e => e.Message).ToList();
+    }
+
+    [Fact]
+    public void Concepts_review_items_and_hints_load_into_the_pack()
+    {
+        WriteValidPack(LessonHeader
+            + "concepts:\n  - id: concept.idea\n    title: Idea\n"
+            + "reviewItems:\n  - id: review.one.q\n    concept: concept.idea\n    step: step.one.q\n"
+            + "steps:\n" + ExplainOnly + QuestionStep + "    hints:\n      - nudge\n      - full answer\n");
+        var outPath = Path.Combine(_root, "out", "p.zip");
+
+        var report = ContentPacker.Pack(_root, outPath);
+
+        Assert.True(report.IsValid, string.Join("\n", report.Errors));
+        var graph = ContentPackFormat.Load(outPath);
+        Assert.Equal("Idea", graph.Get<Concept>("concept.idea").Title);
+        var item = graph.Get<ReviewItem>("review.one.q");
+        Assert.Equal(("concept.idea", "step.one.q"), (item.ConceptId, item.StepId));
+        Assert.Equal(["nudge", "full answer"], graph.Get<Step>("step.one.q").Hints);
+        Assert.Empty(graph.Get<Step>("step.one.e").Hints);
+        Assert.Single(graph.Get<Lesson>("lesson.one").ReviewItems);
+    }
+
+    [Fact]
+    public void Review_item_must_point_at_a_declared_concept_and_a_question_step_of_the_lesson()
+    {
+        var m = LessonErrors(LessonHeader
+            + "concepts:\n  - id: concept.idea\n    title: Idea\n"
+            + "reviewItems:\n"
+            + "  - id: review.one.a\n    concept: concept.missing\n    step: step.one.q\n"
+            + "  - id: review.one.b\n    concept: concept.idea\n    step: step.one.nope\n"
+            + "  - id: review.one.c\n    concept: concept.idea\n    step: step.one.e\n"
+            + "steps:\n" + ExplainOnly + QuestionStep);
+        Assert.Contains(m, x => x.Contains("review.one.a") && x.Contains("'concept.missing' is not declared"));
+        Assert.Contains(m, x => x.Contains("review.one.b") && x.Contains("not a valid step"));
+        Assert.Contains(m, x => x.Contains("review.one.c") && x.Contains("explain step"));
+    }
+
+    [Fact]
+    public void Concept_and_review_ids_follow_the_id_rules_and_must_be_unique()
+    {
+        var m = LessonErrors(LessonHeader
+            + "concepts:\n  - id: concept.idea\n    title: Idea\n  - id: concept.idea\n    title: Again\n  - id: Idea\n    title: Bad\n  - id: concept.no-title\n"
+            + "steps:\n" + QuestionStep);
+        Assert.Contains(m, x => x.Contains("duplicate id 'concept.idea'"));
+        Assert.Contains(m, x => x.Contains("id 'Idea' is invalid"));
+        Assert.Contains(m, x => x.Contains("concept.no-title") && x.Contains("'title' is required"));
+    }
+
+    [Fact]
+    public void Hints_are_limited_to_questions_and_to_four_levels()
+    {
+        var onExplain = LessonErrors(LessonHeader + "steps:\n" + ExplainOnly + "    hints:\n      - nudge\n");
+        Assert.Contains(onExplain, x => x.Contains("only apply to questions"));
+
+        var tooMany = LessonErrors(LessonHeader + "steps:\n" + QuestionStep + "    hints: [a, b, c, d, e]\n");
+        Assert.Contains(tooMany, x => x.Contains("at most 4 hints"));
+
+        var blank = LessonErrors(LessonHeader + "steps:\n" + QuestionStep + "    hints: ['a', ' ']\n");
+        Assert.Contains(blank, x => x.Contains("hints[1] is empty"));
+    }
+
+    [Fact]
+    public void Shipped_content_is_valid_and_every_lesson_is_fully_authored()
+    {
+        var root = FindRepoContent();
+        var report = ContentValidator.Load(root, out var content);
+
+        Assert.True(report.IsValid, string.Join("\n", report.Errors));
+        Assert.NotNull(content);
+        Assert.True(content!.Lessons.Count >= 2);
+        foreach (var lesson in content.Lessons)
+        {
+            Assert.True(lesson.Steps.Count >= 10, $"{lesson.Id} has too few steps for a 15-20 minute lesson.");
+            Assert.NotEmpty(lesson.Concepts);
+            Assert.NotEmpty(lesson.ReviewItems);
+            Assert.Contains(lesson.Steps, s => s is PredictOutputStep);
+            Assert.Contains(lesson.Steps, s => s is ChoiceStep);
+            // Every question carries a hint ladder.
+            Assert.All(lesson.Steps.Where(s => s is not ExplainStep), s => Assert.NotEmpty(s.Hints));
+            // Every declared concept is exercised by at least one review item.
+            Assert.All(lesson.Concepts, c => Assert.Contains(lesson.ReviewItems, r => r.ConceptId == c.Id));
+        }
+    }
+
+    private static string FindRepoContent()
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+            if (File.Exists(Path.Combine(dir.FullName, "content", "pack.yaml")))
+                return Path.Combine(dir.FullName, "content");
+        throw new DirectoryNotFoundException("Could not find the repo's content directory.");
+    }
 }
