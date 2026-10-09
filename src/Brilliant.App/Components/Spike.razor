@@ -6,18 +6,21 @@
     <h2>Pyodide spike (issue #2)</h2>
     <p>Turn networking off first (airplane mode / Wi-Fi off), then run.</p>
     <button @onclick="Run" disabled="@busy" style="font-size:1.2rem;padding:.5rem 1rem">Run Python in worker</button>
-    <pre>@result</pre>
+    <h3 style="margin:.5rem 0">@timing</h3>
+    <pre style="white-space:pre-wrap">@result</pre>
 </section>
 
 @code {
     private bool busy;
     private string result = "";
+    private string timing = "";
     private const string Code = "import sys\nprint('Hello from Python', sys.version.split()[0])\nprint(sum(i*i for i in range(10)))";
 
     private async Task Run()
     {
         busy = true;
         result = "Running… (first run loads Pyodide)";
+        timing = "";
         StateHasChanged();
         try
         {
@@ -26,6 +29,8 @@
             var sw = Stopwatch.StartNew();
             var r = await module.InvokeAsync<System.Text.Json.JsonElement>("run", Code);
             sw.Stop();
+            if (r.GetProperty("ok").GetBoolean())
+                timing = $"LOAD {r.GetProperty("loadMs").GetInt32()} ms · RUN {r.GetProperty("runMs").GetInt32()} ms · ROUND-TRIP {sw.ElapsedMilliseconds} ms";
             result = $"origin: {info.GetProperty("origin").GetString()}\nnavigator.onLine: {info.GetProperty("online").GetBoolean()}\n"
                    + (r.GetProperty("ok").GetBoolean()
                        ? $"stdout (received in C#):\n{r.GetProperty("stdout").GetString()}\nPyodide load: {r.GetProperty("loadMs").GetInt32()} ms, run: {r.GetProperty("runMs").GetInt32()} ms, round-trip: {sw.ElapsedMilliseconds} ms"
