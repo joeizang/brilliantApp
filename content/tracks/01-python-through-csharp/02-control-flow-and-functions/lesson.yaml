@@ -330,6 +330,8 @@ steps:
       - answers:
           - "2 2"
         feedback: "`b` becomes the old `a` plus the old `b`, which is 1 + 2 = 3."
+      - regex: "^\\(?2, ?3\\)?$"
+        feedback: "The values are right, but `print(a, b)` separates its arguments with a single space and adds no commas or parentheses, so the output is `2 3`. (`print((a, b))` would show a tuple.)"
     hints:
       - Which values does the right-hand side use, the old ones or the new ones?
       - The right side is evaluated completely before any assignment happens.
