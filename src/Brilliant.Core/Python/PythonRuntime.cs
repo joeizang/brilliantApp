@@ -21,6 +21,9 @@ public sealed record TestOutcome(
     string? Traceback,
     int? ErrorLine);
 
+/// <summary>A labelled chunk of text the learner's code printed.</summary>
+public sealed record OutputSection(string Label, string Text);
+
 /// <summary>The result of running a submission against all of a step's tests.</summary>
 public sealed record TestRunResult(
     TestRunStatus Status,
@@ -32,6 +35,24 @@ public sealed record TestRunResult(
 {
     public int PassedCount => Tests.Count(t => t.Passed);
     public TestOutcome? FirstFailure => Tests.FirstOrDefault(t => !t.Passed);
+
+    /// <summary>
+    /// Everything the code printed, whatever the verdict: first while the file loaded, then during each test call
+    /// (labelled with the call). Sections with no output are left out.
+    /// </summary>
+    public IReadOnlyList<OutputSection> Outputs
+    {
+        get
+        {
+            var sections = new List<OutputSection>();
+            if (!string.IsNullOrEmpty(Stdout))
+                sections.Add(new(Status == TestRunStatus.Error ? "Output before the error" : "Output when your file loaded", Stdout));
+            foreach (var test in Tests)
+                if (!string.IsNullOrEmpty(test.Stdout))
+                    sections.Add(new($"Printed during {test.Call}", test.Stdout));
+            return sections;
+        }
+    }
 }
 
 /// <summary>Runs learner Python. Implemented over Pyodide in a Web Worker by the app host (works offline).</summary>

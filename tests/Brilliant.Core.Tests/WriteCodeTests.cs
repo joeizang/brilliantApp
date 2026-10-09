@@ -88,4 +88,24 @@ public class WriteCodeTests
         Assert.Equal(1, result.PassedCount);
         Assert.Equal("add(2, 2)", result.FirstFailure!.Call);
     }
+
+    [Fact]
+    public void Outputs_cover_file_loading_and_every_test_call_whatever_the_verdict()
+    {
+        var passing = new TestRunResult(TestRunStatus.Passed, "", null, null, null,
+            [new TestOutcome("f(7)", "7", "7", true, "debug 7\n", null, null)]);
+        Assert.Equal([new OutputSection("Printed during f(7)", "debug 7\n")], passing.Outputs);
+
+        var failing = new TestRunResult(TestRunStatus.Failed, "loading\n", null, null, null,
+        [
+            new TestOutcome("f(1)", "1", "1", true, "one\n", null, null),
+            new TestOutcome("f(2)", "2", "3", false, "", null, null),
+            new TestOutcome("f(3)", "3", "4", false, "three\n", null, null),
+        ]);
+        Assert.Equal(["Output when your file loaded", "Printed during f(1)", "Printed during f(3)"], failing.Outputs.Select(o => o.Label));
+
+        var error = new TestRunResult(TestRunStatus.Error, "partial\n", "m", "tb", 1, []);
+        Assert.Equal("Output before the error", error.Outputs.Single().Label);
+        Assert.Empty(new TestRunResult(TestRunStatus.Passed, "", null, null, null, []).Outputs);
+    }
 }

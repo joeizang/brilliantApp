@@ -26,14 +26,11 @@
             {
                 case TestRunStatus.Passed:
                     <p class="verdict correct" role="status">All @result.Tests.Count tests passed! 🎉</p>
-                    @StdoutBlock("Output when your file loaded", result.Stdout)
-                    <button class="primary" @onclick="() => OnContinue.InvokeAsync()">Continue</button>
                     break;
 
                 case TestRunStatus.Error:
                     <p class="verdict incorrect" role="status">@result.Message</p>
                     @TracebackBlock(result.Traceback)
-                    @StdoutBlock("Output before the error", result.Stdout)
                     break;
 
                 default:
@@ -46,10 +43,20 @@
                             <dt>Expected</dt><dd><code>@failure.Expected</code></dd>
                             <dt>Your code returned</dt><dd>@if (failure.Actual is null) { <em>nothing, it raised an error</em> } else { <code>@failure.Actual</code> }</dd>
                         </dl>
-                        @StdoutBlock("Printed during this test", failure.Stdout)
                         @TracebackBlock(failure.Traceback)
                     </section>
                     break;
+            }
+
+            @* Print output is shown whatever the verdict: from loading the file and from every test call. *@
+            @foreach (var section in result.Outputs)
+            {
+                @StdoutBlock(section.Label, section.Text)
+            }
+
+            @if (result.Status == TestRunStatus.Passed)
+            {
+                <button class="primary" @onclick="() => OnContinue.InvokeAsync()">Continue</button>
             }
         }
     </div>
