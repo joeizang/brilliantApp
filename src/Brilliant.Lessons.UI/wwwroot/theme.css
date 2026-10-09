@@ -17,6 +17,13 @@
     --warn-bg: rgba(245, 166, 35, .28);
     --code-bg: #1e1e2e;
     --code-fg: #cdd6f4;
+    --code-muted: #9399b2;
+    --selection: rgba(110, 160, 255, .35);
+    --syn-keyword: #cba6f7;
+    --syn-string: #a6e3a1;
+    --syn-number: #fab387;
+    --syn-comment: #9399b2;
+    --syn-definition: #89b4fa;
 }
 
 @media (prefers-color-scheme: light) {
@@ -34,6 +41,13 @@
         --warn-bg: rgba(245, 166, 35, .3);
         --code-bg: #f1f2f6;
         --code-fg: #1f2330;
+        --code-muted: #5c6070;
+        --selection: rgba(47, 111, 224, .25);
+        --syn-keyword: #7a3db8;
+        --syn-string: #1f7a42;
+        --syn-number: #b34a00;
+        --syn-comment: #5c6070;
+        --syn-definition: #1f58c0;
     }
 }
 
@@ -52,3 +66,10 @@ button.primary { font-size: 1rem; padding: .5rem 1.2rem; border-radius: 8px; bor
 button.primary:disabled { opacity: .4; cursor: default; }
 button.secondary { font-size: 1rem; padding: .45rem 1.1rem; border-radius: 8px; border: 2px solid var(--accent); background: none; color: var(--accent); cursor: pointer; }
 button.link { background: none; border: none; color: var(--accent); cursor: pointer; font: inherit; padding: 0; }
+
+/* Syntax colours for the code editor (classes come from CodeMirror's classHighlighter, so this must be global). */
+.tok-keyword, .tok-bool, .tok-null { color: var(--syn-keyword); }
+.tok-string, .tok-string2 { color: var(--syn-string); }
+.tok-number { color: var(--syn-number); }
+.tok-comment { color: var(--syn-comment); font-style: italic; }
+.tok-definition, .tok-className, .tok-typeName { color: var(--syn-definition); }

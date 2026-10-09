@@ -185,8 +185,8 @@ public static partial class ContentValidator
     {
         var hints = dto.Hints ?? [];
         if (hints.Count == 0) return [];
-        if (dto.Type is not ("choice" or "predict-output"))
-            report.Add(file, $"{label}: 'hints' only apply to questions (choice or predict-output).");
+        if (dto.Type is not ("choice" or "predict-output" or "write-code"))
+            report.Add(file, $"{label}: 'hints' only apply to questions (choice, predict-output or write-code).");
         if (hints.Count > MaxHints)
             report.Add(file, $"{label}: at most {MaxHints} hints (nudge, pattern hint, partial, full walkthrough); found {hints.Count}.");
         for (var i = 0; i < hints.Count; i++)
@@ -208,10 +208,11 @@ public static partial class ContentValidator
         var hints = LoadHints(dto, label, file, report);
         if (dto.Type == "choice") return WithHints(LoadChoice(dto, label, file, report, before), hints);
         if (dto.Type == "predict-output") return WithHints(LoadPredictOutput(dto, label, file, report, before), hints);
+        if (dto.Type == "write-code") return WithHints(LoadWriteCode(dto, label, file, report, before), hints);
 
         if (dto.Type != "explain")
         {
-            report.Add(file, $"{label}: unsupported step type '{dto.Type ?? "(missing)"}' (supported: explain, choice, predict-output).");
+            report.Add(file, $"{label}: unsupported step type '{dto.Type ?? "(missing)"}' (supported: explain, choice, predict-output, write-code).");
             return null;
         }
 
@@ -343,6 +344,36 @@ public static partial class ContentValidator
             : null;
     }
 
+    private static readonly Regex PythonIdentifier = new("^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.Compiled);
+
+    private static Step? LoadWriteCode(StepDto dto, string label, string file, ValidationReport report, int errorsBefore)
+    {
+        Require(dto.Prompt, "prompt", file, report, label);
+        Require(dto.Entrypoint, "entrypoint", file, report, label);
+        if (dto.Language is null) report.Add(file, $"{label}: 'language' is required (supported: python).");
+        else if (dto.Language != "python") report.Add(file, $"{label}: unsupported language '{dto.Language}' (supported: python).");
+        if (!string.IsNullOrWhiteSpace(dto.Entrypoint) && !PythonIdentifier.IsMatch(dto.Entrypoint))
+            report.Add(file, $"{label}: entrypoint '{dto.Entrypoint}' is not a valid Python function name.");
+
+        var tests = new List<CodeTest>();
+        if (dto.Tests is null or { Count: 0 })
+            report.Add(file, $"{label}: a write-code step needs at least one hidden test.");
+        else
+            for (var i = 0; i < dto.Tests.Count; i++)
+            {
+                var t = dto.Tests[i];
+                if (IsEmptyEntry(t, $"{label}: tests[{i}]", file, report)) continue;
+                // 'input' may be empty (a function with no arguments); 'expected' never is.
+                if (t.Input is null) report.Add(file, $"{label}: tests[{i}] needs 'input' (the call's arguments as Python source; \"\" for none).");
+                if (string.IsNullOrWhiteSpace(t.Expected)) report.Add(file, $"{label}: tests[{i}] needs 'expected' (a Python expression).");
+                tests.Add(new CodeTest(t.Input ?? "", t.Expected ?? ""));
+            }
+
+        return report.Errors.Count == errorsBefore
+            ? new WriteCodeStep(dto.Id!, dto.Title!, dto.Prompt!, dto.Language!, dto.Starter ?? "", dto.Entrypoint!, tests)
+            : null;
+    }
+
     private static void CheckId(string? id, string kind, string file, ValidationReport report,
         Dictionary<string, string> seenIds, string? label = null)
     {
@@ -424,7 +455,11 @@ public static partial class ContentValidator
         public List<string>? Accepted { get; set; }
         public List<MistakeDto>? Mistakes { get; set; }
         public List<string>? Hints { get; set; }
+        public string? Starter { get; set; }
+        public string? Entrypoint { get; set; }
+        public List<TestDto>? Tests { get; set; }
     }
+    private sealed class TestDto { public string? Input { get; set; } public string? Expected { get; set; } }
     private sealed class MistakeDto { public List<string>? Answers { get; set; } public string? Regex { get; set; } public string? Feedback { get; set; } }
     private sealed class OptionDto { public string? Text { get; set; } public bool? Correct { get; set; } public string? Feedback { get; set; } }
 }

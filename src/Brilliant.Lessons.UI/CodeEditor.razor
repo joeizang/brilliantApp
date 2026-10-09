@@ -1,0 +1,60 @@
+@using Microsoft.JSInterop
+@implements ICodeEditor
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div @ref="_host" class="code-editor"></div>
+
+@code {
+    /// <summary>The code the editor starts with. Later changes go through <see cref="SetCodeAsync"/>.</summary>
+    [Parameter] public string InitialCode { get; set; } = "";
+
+    private ElementReference _host;
+    private IJSObjectReference? _module;
+    private int _id;
+    private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/Brilliant.Lessons.UI/code-editor.js");
+            _id = await _module.InvokeAsync<int>("create", _host, InitialCode);
+            _ready.SetResult();
+        }
+        catch (Exception ex)
+        {
+            _ready.SetException(ex);
+        }
+    }
+
+    // Callers may arrive before the first render has created the editor; wait for it.
+    private async ValueTask<IJSObjectReference> ModuleAsync()
+    {
+        await _ready.Task;
+        return _module!;
+    }
+
+    public async ValueTask<string> GetCodeAsync() => await (await ModuleAsync()).InvokeAsync<string>("getCode", _id);
+
+    public async ValueTask SetCodeAsync(string code) => await (await ModuleAsync()).InvokeVoidAsync("setCode", _id, code);
+
+    public async ValueTask SetErrorMarkersAsync(IReadOnlyList<EditorMarker> markers) =>
+        await (await ModuleAsync()).InvokeVoidAsync("setErrorMarkers", _id, markers.Select(m => new { line = m.Line, message = m.Message }));
+
+    public async ValueTask ClearErrorMarkersAsync() => await (await ModuleAsync()).InvokeVoidAsync("clearErrorMarkers", _id);
+
+    public async ValueTask HighlightLineAsync(int? line) => await (await ModuleAsync()).InvokeVoidAsync("highlightLine", _id, line);
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is null) return;
+        try
+        {
+            await _module.InvokeVoidAsync("dispose", _id);
+            await _module.DisposeAsync();
+        }
+        catch (JSDisconnectedException) { } // the app is shutting down; nothing left to clean up
+    }
+}

@@ -5,6 +5,9 @@ public static class ProgressEventTypes
     public const string StepAnswered = "StepAnswered";
     public const string StepCompleted = "StepCompleted";
 
+    /// <summary>A write-code submission, recorded every time the learner runs their code against the tests.</summary>
+    public const string CodeSubmitted = "CodeSubmitted";
+
     /// <summary>Recorded once, when the last step of a lesson is completed. Lesson-level events carry an empty StepId.</summary>
     public const string LessonCompleted = "LessonCompleted";
 }

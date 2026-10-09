@@ -73,3 +73,12 @@ sqlite3 ~/Library/Containers/com.joeizang.brilliantapp/Data/Library/brilliant.db
 Colours live as CSS custom properties in `src/Brilliant.Lessons.UI/wwwroot/theme.css` (served at `_content/Brilliant.Lessons.UI/theme.css`).
 Dark is the default; the light variant applies under `prefers-color-scheme: light`, so the app follows the macOS appearance and updates live.
 Components must use the tokens (`var(--accent)` etc.), never raw colours. Shared button styles (`primary`, `secondary`, `link`) are global in the same file.
+
+## Code editor and Python runtime (issue #9)
+
+- **Editor:** CodeMirror 6, bundled into `src/Brilliant.Lessons.UI/wwwroot/code-editor.js` (committed). Sources are in
+  `src/Brilliant.Lessons.UI/editor/`; after changing them run `scripts/build-editor.sh` (needs Node) and commit the bundle.
+- **Python:** the bundled Pyodide runs in a Web Worker (`wwwroot/python-worker.js`, bridged by `python-runtime.js`, exposed to the UI as
+  `IPythonRuntime`). The test harness is `wwwroot/python/harness.py`; check it under CPython with
+  `python3 -I -m unittest discover -s tests/python`.
+- Known limit until #10: there is no timeout, so an infinite loop in learner code hangs the worker until the app is restarted.

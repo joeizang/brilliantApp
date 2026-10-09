@@ -8,6 +8,9 @@
 
 
   <ItemGroup>
+    <!-- editor/ is the CodeMirror build source (see scripts/build-editor.sh); only its bundled output in wwwroot ships. -->
+    <Content Remove="editor\**" />
+    <None Remove="editor\**" />
     <SupportedPlatform Include="browser" />
   </ItemGroup>
 

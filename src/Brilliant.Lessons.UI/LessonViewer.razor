@@ -39,6 +39,9 @@
             case PredictOutputStep predict:
                 <PredictOutputStepView Step="predict" OnAnswered="a => Answered(predict, a)" OnContinue="() => Complete(step)" />
                 break;
+            case WriteCodeStep write:
+                <WriteCodeStepView Step="write" OnSubmitted="s => Submitted(write, s)" OnContinue="() => Complete(step)" />
+                break;
         }
     </div>
 }
@@ -63,6 +66,11 @@ else
         if (Review) return;
         if (a.Response is not null) Recorder.StepAnswered(Lesson.Id, step.Id, a.Result.IsCorrect, a.Response);
         else Recorder.StepAnswered(Lesson.Id, step.Id, a.Result.IsCorrect, [a.Selected!.Value]);
+    }
+
+    private void Submitted(WriteCodeStep step, WriteCodeStepView.Submission s)
+    {
+        if (!Review) Recorder.CodeSubmitted(Lesson.Id, step.Id, s.Code, s.Result.PassedCount, step.Tests.Count);
     }
 
     private void Complete(Step step)

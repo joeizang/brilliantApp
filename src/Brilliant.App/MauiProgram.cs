@@ -1,5 +1,6 @@
 using Brilliant.Core.Content;
 using Brilliant.Core.Progress;
+using Brilliant.Core.Python;
 using Brilliant.Data;
 
 namespace Brilliant.App;
@@ -30,6 +31,9 @@ public static class MauiProgram
             new SqliteProgressEventLog($"Data Source={Path.Combine(dataDir, "brilliant.db")}"));
         builder.Services.AddSingleton(sp =>
             new ProgressRecorder(sp.GetRequiredService<IProgressEventLog>(), DeviceId.GetOrCreate(dataDir)));
+
+        // The Python runtime talks to the webview it lives in, so it is scoped to the BlazorWebView.
+        builder.Services.AddScoped<IPythonRuntime, PyodideRuntime>();
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();
