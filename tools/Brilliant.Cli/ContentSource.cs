@@ -17,6 +17,7 @@ public sealed class ValidationReport
     public IReadOnlyList<ValidationError> Errors => _errors;
     public bool IsValid => _errors.Count == 0;
     internal void Add(string file, string message) => _errors.Add(new ValidationError(file, message));
+    internal List<ReferenceCheck> ReferenceChecks { get; } = [];
 }
 
 public sealed record LoadedContent(PackManifest Manifest, IReadOnlyList<Track> Tracks, IReadOnlyList<Lesson> Lessons);
@@ -42,9 +43,10 @@ public static partial class ContentValidator
     [GeneratedRegex(@"^\d+\.\d+\.\d+$")]
     private static partial Regex VersionPattern();
 
-    public static ValidationReport Validate(string contentRoot) => Load(contentRoot, out _);
+    public static ValidationReport Validate(string contentRoot, IReferenceSolutionRunner? runner = null) => Load(contentRoot, out _, runner);
 
-    public static ValidationReport Load(string contentRoot, out LoadedContent? content)
+    /// <param name="runner">Runs write-code reference solutions; defaults to the machine's CPython.</param>
+    public static ValidationReport Load(string contentRoot, out LoadedContent? content, IReferenceSolutionRunner? runner = null)
     {
         var report = new ValidationReport();
         content = null;
@@ -66,6 +68,10 @@ public static partial class ContentValidator
         else
             foreach (var trackDir in Directory.GetDirectories(tracksDir).Order(StringComparer.Ordinal))
                 LoadTrack(contentRoot, trackDir, report, seenIds, tracks, lessons);
+
+        // Only once the content is structurally sound: prove every exercise's reference solution passes its own tests.
+        if (report.IsValid && report.ReferenceChecks.Count > 0)
+            ReferenceSolutionChecker.Check(report.ReferenceChecks, runner ?? new CPythonRunner(), report);
 
         if (report.IsValid && manifest is not null)
             content = new LoadedContent(manifest, tracks, lessons);
@@ -350,6 +356,7 @@ public static partial class ContentValidator
     {
         Require(dto.Prompt, "prompt", file, report, label);
         Require(dto.Entrypoint, "entrypoint", file, report, label);
+        Require(dto.Solution, "solution", file, report, label); // authoring-only: proved against the tests, never packed
         if (dto.Language is null) report.Add(file, $"{label}: 'language' is required (supported: python).");
         else if (dto.Language != "python") report.Add(file, $"{label}: unsupported language '{dto.Language}' (supported: python).");
         if (!string.IsNullOrWhiteSpace(dto.Entrypoint) && !PythonIdentifier.IsMatch(dto.Entrypoint))
@@ -369,9 +376,9 @@ public static partial class ContentValidator
                 tests.Add(new CodeTest(t.Input ?? "", t.Expected ?? ""));
             }
 
-        return report.Errors.Count == errorsBefore
-            ? new WriteCodeStep(dto.Id!, dto.Title!, dto.Prompt!, dto.Language!, dto.Starter ?? "", dto.Entrypoint!, tests)
-            : null;
+        if (report.Errors.Count != errorsBefore) return null;
+        report.ReferenceChecks.Add(new ReferenceCheck(file, label, dto.Id!, dto.Entrypoint!, dto.Solution!, tests));
+        return new WriteCodeStep(dto.Id!, dto.Title!, dto.Prompt!, dto.Language!, dto.Starter ?? "", dto.Entrypoint!, tests);
     }
 
     private static void CheckId(string? id, string kind, string file, ValidationReport report,
@@ -457,6 +464,7 @@ public static partial class ContentValidator
         public List<string>? Hints { get; set; }
         public string? Starter { get; set; }
         public string? Entrypoint { get; set; }
+        public string? Solution { get; set; }
         public List<TestDto>? Tests { get; set; }
     }
     private sealed class TestDto { public string? Input { get; set; } public string? Expected { get; set; } }

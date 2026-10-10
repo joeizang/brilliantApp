@@ -84,6 +84,12 @@ Components must use the tokens (`var(--accent)` etc.), never raw colours. Shared
 - Runs are limited to 5 seconds (`PyodideRuntime.RunTimeout`). A run that exceeds it is stopped by terminating the worker; the next run starts a fresh one.
   JS bridge logic is tested with `node --test tests/js/python-runtime.test.mjs`.
 
+## Reference solutions (issue #11)
+
+Every `write-code` step in `content/` needs a `solution:` (authoring-only, never packed). `validate` and `pack` run each solution
+against the step's tests with the same `harness.py` under CPython (`python3`, or the interpreter in `BRILLIANT_PYTHON`) and refuse to
+produce a pack if any fails, reporting lesson file, step, test, expected and actual.
+
 ## Code drafts (issue #12)
 
 What a learner types in a write-code step is saved automatically, so leaving the step, the lesson or the app doesn't lose it.

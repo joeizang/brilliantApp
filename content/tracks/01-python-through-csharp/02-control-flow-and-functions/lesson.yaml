@@ -109,6 +109,12 @@ steps:
           total = 0
           # add 1, 2, ... n to total
           return total
+    solution: |
+      def sum_to(n):
+          total = 0
+          for i in range(1, n + 1):
+              total += i
+          return total
     tests:
       - input: "4"
         expected: "10"
@@ -241,6 +247,13 @@ steps:
     starter: |
       def clamp(value, low, high):
           pass
+    solution: |
+      def clamp(value, low, high):
+          if value < low:
+              return low
+          if value > high:
+              return high
+          return value
     tests:
       - input: "5, 0, 10"
         expected: "5"

@@ -12,6 +12,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The same harness the app runs under Pyodide; the validator runs it under CPython to prove reference solutions. -->
+    <EmbeddedResource Include="..\..\src\Brilliant.App\wwwroot\python\harness.py" LogicalName="harness.py" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Brilliant.Core\Brilliant.Core.csproj" />
   </ItemGroup>
 
