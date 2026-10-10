@@ -1,0 +1,4 @@
+.mastery { display: flex; align-items: center; gap: var(--space-md); }
+.mastery .bar { flex: 1; }
+.mastery .fill { background: var(--success); }
+.mastery-pct { min-width: 3.5rem; text-align: right; font-size: .85rem; font-variant-numeric: tabular-nums; color: var(--fg-secondary); white-space: nowrap; }

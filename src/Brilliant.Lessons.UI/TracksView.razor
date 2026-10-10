@@ -26,6 +26,7 @@ else
                 <span class="card-title">@state.Track.Title @(state.IsComplete ? "✓" : "")</span>
                 <span class="card-meta">@state.CompletedLessons of @state.TotalLessons lessons complete</span>
                 <span class="bar"><span class="fill" style="width:@pct%"></span></span>
+                <MasteryBar Value="learner.TrackMastery(state.Track.Id)" Label="@("Mastery of " + state.Track.Title)" Suffix="mastered" />
             </button>
         </li>
     }

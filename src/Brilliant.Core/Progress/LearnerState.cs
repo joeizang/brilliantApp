@@ -48,10 +48,23 @@ public sealed record ReviewItemState(Lesson Lesson, ReviewItem Item, Step Questi
 /// <param name="AsOf">The "now" the state was projected for.</param>
 /// <param name="Reviews">Every review item of the current content, in track and lesson order, re-solves of problems answered incorrectly included.</param>
 /// <param name="Queue">What Review offers today: the due items, capped and ordered by the Review Queue Builder.</param>
-public sealed record LearnerState(DateTimeOffset AsOf, IReadOnlyList<TrackState> Tracks, IReadOnlyList<ReviewItemState> Reviews, ReviewQueue Queue)
+/// <param name="Concepts">Mastery of every concept of the current content, in track and lesson order.</param>
+public sealed record LearnerState(DateTimeOffset AsOf, IReadOnlyList<TrackState> Tracks, IReadOnlyList<ReviewItemState> Reviews, ReviewQueue Queue,
+    IReadOnlyList<ConceptMastery> Concepts)
 {
     public TrackState? Track(string trackId) => Tracks.FirstOrDefault(t => t.Track.Id == trackId);
 
     public LessonState? Lesson(string lessonId) =>
         Tracks.SelectMany(t => t.Lessons).FirstOrDefault(l => l.Lesson.Id == lessonId);
+
+    public ConceptMastery? Concept(string conceptId) => Concepts.FirstOrDefault(c => c.Concept.Id == conceptId);
+
+    public IEnumerable<ConceptMastery> ConceptsOf(string trackId) => Concepts.Where(c => c.Lesson.Lesson.TrackId == trackId);
+
+    /// <summary>Mean mastery (0–1) of a track's concepts; concepts not yet reached count as zero. Zero for an unknown or concept-less track.</summary>
+    public double TrackMastery(string trackId)
+    {
+        var concepts = ConceptsOf(trackId).ToList();
+        return concepts.Count == 0 ? 0 : concepts.Average(c => c.Mastery);
+    }
 }

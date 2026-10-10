@@ -17,11 +17,15 @@
         }
         else if (_lesson is { } lesson)
         {
-            <LessonViewer @key="(lesson.Id, _review)" Lesson="lesson" Review="_review" OnExit="BackToTrack" OnProgress="() => StateHasChanged()" />
+            <LessonViewer @key="(lesson.Id, _review)" Lesson="lesson" Review="_review" OnExit="ExitLesson" OnProgress="() => StateHasChanged()" />
+        }
+        else if (_concept is { } concept)
+        {
+            <ConceptView Content="Content" ConceptId="@concept" OnBack="ExitConcept" OnOpenLesson="OpenLesson" />
         }
         else if (_track is { } track)
         {
-            <TrackView Content="Content" Track="track" OnBack="BackToTracks" OnOpenLesson="OpenLesson" />
+            <TrackView Content="Content" Track="track" OnBack="BackToTracks" OnOpenLesson="OpenLesson" OnOpenConcept="OpenConcept" />
         }
         else
         {
@@ -35,6 +39,7 @@
 
     private Track? _track;
     private Lesson? _lesson;
+    private string? _concept;
     private bool _review;
     private bool _reviewing;
     private IJSObjectReference? _module;
@@ -72,17 +77,22 @@
     private Task OnShortcut(StepShortcut s) => s.Command != StepCommand.Back ? Task.CompletedTask : InvokeAsync(() =>
     {
         if (_reviewing) BackToTracks();
-        else if (_lesson is not null) BackToTrack();
+        else if (_lesson is not null) ExitLesson();
+        else if (_concept is not null) ExitConcept();
         else if (_track is not null) BackToTracks();
         StateHasChanged();
     });
 
-    private void OpenTrack(Track track) => (_track, _lesson, _reviewing) = (track, null, false);
+    private void OpenTrack(Track track) => (_track, _lesson, _concept, _reviewing) = (track, null, null, false);
+    private void OpenConcept(string conceptId) => _concept = conceptId;
     private void OpenLesson((Lesson Lesson, bool Review) target) => (_lesson, _review) = (target.Lesson, target.Review);
-    private void OpenLessonFromSidebar((Track Track, Lesson Lesson, bool Review) target) => (_track, _lesson, _review, _reviewing) = (target.Track, target.Lesson, target.Review, false);
-    private void OpenReview() => (_lesson, _track, _reviewing) = (null, null, true);
-    private void BackToTrack() => _lesson = null;
-    private void BackToTracks() => (_lesson, _track, _reviewing) = (null, null, false);
+    private void OpenLessonFromSidebar((Track Track, Lesson Lesson, bool Review) target) => (_track, _lesson, _concept, _review, _reviewing) = (target.Track, target.Lesson, null, target.Review, false);
+    private void OpenReview() => (_lesson, _track, _concept, _reviewing) = (null, null, null, true);
+
+    // Leaving a lesson returns to wherever it was opened from: its concept if it was opened from one (that stays set), else its track.
+    private void ExitLesson() => _lesson = null;
+    private void ExitConcept() => _concept = null;
+    private void BackToTracks() => (_lesson, _track, _concept, _reviewing) = (null, null, null, false);
 
     public async ValueTask DisposeAsync()
     {

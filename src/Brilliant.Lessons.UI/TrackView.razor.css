@@ -9,3 +9,13 @@
 .lesson.completed .status { color: var(--success); }
 .lesson-name { flex: 1; display: grid; font-weight: 600; }
 .lesson-name small { font-weight: 400; }
+.track-mastery { margin-top: var(--space-sm); }
+.section-title { margin-top: var(--space-xl); margin-bottom: var(--space-xs); font-size: 1.2rem; }
+.concepts { list-style: none; margin-top: var(--space-md); margin-bottom: var(--space-xl); display: grid; gap: .5rem; }
+.concept button { width: 100%; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: .25rem var(--space-md); padding: .75rem 1.25rem; background: var(--surface-raised); border: 1px solid var(--hairline); border-radius: var(--radius-lg); color: inherit; cursor: pointer; font: inherit; text-align: left; min-height: var(--touch); transition: transform .25s var(--ease), box-shadow .25s var(--ease); }
+.concept button:hover { transform: translateY(-.0625rem); box-shadow: var(--shadow-card); }
+.concept-title { font-weight: 600; }
+.level { font-size: .8rem; color: var(--fg-secondary); }
+.concept.known .level { color: var(--success); }
+.concept button ::deep .mastery { grid-column: 1 / -1; }
+.concept.notstarted button { opacity: .75; }

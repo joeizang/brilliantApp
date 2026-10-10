@@ -1,0 +1,27 @@
+.crumbs { margin-top: var(--space-sm); font-size: .95rem; }
+.screen-title { margin-top: 0; margin-bottom: var(--space-xs); }
+.track-meta { margin-top: 0; margin-bottom: 0; }
+.section-title { margin-top: var(--space-xl); margin-bottom: var(--space-sm); font-size: 1.2rem; }
+.concept-head { display: grid; gap: var(--space-sm); margin-top: var(--space-sm); }
+.concept-level { margin: 0; }
+.level-pill { display: inline-block; padding: .1rem .7rem; border-radius: 980px; background: var(--surface); color: var(--fg-secondary); font-size: .8rem; font-weight: 500; }
+.level-pill.known { background: color-mix(in srgb, var(--success) 20%, var(--surface)); color: var(--success); }
+.level-pill.learning { background: color-mix(in srgb, var(--accent) 18%, var(--surface)); color: var(--accent); }
+.concept-lesson { display: flex; align-items: center; gap: var(--space-md); flex-wrap: wrap; }
+.concept-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: var(--space-md); margin: 0; }
+.concept-stats div { padding: var(--space-md) 1.25rem; background: var(--surface-raised); border: 1px solid var(--hairline); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
+.concept-stats dt { font-size: .85rem; color: var(--fg-secondary); }
+.concept-stats dd { margin: 0; font-size: 1.1rem; font-weight: 600; }
+.concept-items, .attempts { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.concept-item, .attempt { display: flex; align-items: center; gap: var(--space-md); padding: .75rem 1.25rem; background: var(--surface-raised); border: 1px solid var(--hairline); border-radius: var(--radius-lg); }
+.item-title { flex: 1; font-weight: 600; }
+.item-kind { padding: .05rem .5rem; border-radius: 980px; background: var(--surface); color: var(--fg-secondary); }
+.item-due, .attempt-what small { color: var(--fg-secondary); }
+.attempt-mark { width: 1.5rem; text-align: center; font-size: 1.1rem; }
+.attempt.correct .attempt-mark { color: var(--success); }
+.attempt.incorrect .attempt-mark { color: var(--danger); }
+.attempt-what { flex: 1; display: grid; font-weight: 600; }
+.attempt-what small { font-weight: 400; }
+.attempt-result { font-size: .85rem; color: var(--fg-secondary); }
+.attempts { margin-bottom: var(--space-xl); }
+.concept-items { margin-bottom: var(--space-sm); }
