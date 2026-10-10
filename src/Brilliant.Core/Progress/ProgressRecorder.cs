@@ -18,6 +18,11 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
         Append(ProgressEventTypes.StepAnswered, lessonId, stepId,
             JsonSerializer.Serialize(new { correct, response }));
 
+    /// <summary>Records a fill-in-the-blank attempt: what the learner put in each blank (by blank ID).</summary>
+    public void StepAnswered(string lessonId, string stepId, bool correct, IReadOnlyDictionary<string, string> blanks) =>
+        Append(ProgressEventTypes.StepAnswered, lessonId, stepId,
+            JsonSerializer.Serialize(new { correct, blanks }));
+
     /// <summary>Records one write-code submission: the code as submitted and how many hidden tests it passed.</summary>
     public void CodeSubmitted(string lessonId, string stepId, string code, int passedTests, int totalTests) =>
         Append(ProgressEventTypes.CodeSubmitted, lessonId, stepId,

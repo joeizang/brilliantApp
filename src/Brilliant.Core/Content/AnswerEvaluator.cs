@@ -2,6 +2,15 @@ using System.Text.RegularExpressions;
 
 namespace Brilliant.Core.Content;
 
+/// <summary>The verdict for one blank of a fill-in-the-blank step.</summary>
+public sealed record BlankResult(string BlankId, bool IsCorrect, string? Feedback);
+
+/// <summary>The verdict for a whole fill-in-the-blank step: correct only when every blank is.</summary>
+public sealed record FillBlankResult(IReadOnlyList<BlankResult> Blanks)
+{
+    public bool IsCorrect => Blanks.All(b => b.IsCorrect);
+}
+
 /// <summary>Verdict for a non-code answer. <see cref="Feedback"/> is the authored message that applies, if any.</summary>
 public sealed record AnswerResult(bool IsCorrect, string? Feedback);
 
@@ -31,12 +40,27 @@ public static class AnswerEvaluator
     public static AnswerResult Evaluate(PredictOutputStep step, string? response)
     {
         if (!step.IsTyped) throw new InvalidOperationException($"Step '{step.Id}' is multiple-choice; pass the selected option index.");
+        return Judge(step.Accepted, step.Mistakes, response);
+    }
 
+    /// <summary>
+    /// Fill-in-the-blank: each blank is judged on its own, like a typed prediction. A blank missing from
+    /// <paramref name="responses"/> counts as left empty, so it is wrong.
+    /// </summary>
+    public static FillBlankResult Evaluate(FillBlankStep step, IReadOnlyDictionary<string, string> responses) =>
+        new(step.Blanks.Select(b =>
+        {
+            var result = Judge(b.Accepted, b.Mistakes, responses.GetValueOrDefault(b.Id));
+            return new BlankResult(b.Id, result.IsCorrect, result.Feedback);
+        }).ToList());
+
+    private static AnswerResult Judge(IReadOnlyList<string> accepted, IReadOnlyList<MistakePattern> mistakes, string? response)
+    {
         var given = Normalize(response);
         if (given.Length == 0) return new AnswerResult(false, null);
-        if (step.Accepted.Any(a => Normalize(a) == given)) return new AnswerResult(true, null);
+        if (accepted.Any(a => Normalize(a) == given)) return new AnswerResult(true, null);
 
-        foreach (var mistake in step.Mistakes)
+        foreach (var mistake in mistakes)
             if (Matches(mistake, given))
                 return new AnswerResult(false, mistake.Feedback);
 
