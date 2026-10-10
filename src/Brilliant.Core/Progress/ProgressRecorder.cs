@@ -14,6 +14,23 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
     public LearnerState Project(ContentGraph content) =>
         LearnerStateProjector.Project(log.ReadAll(), content, _clock.GetUtcNow());
 
+    /// <summary>
+    /// Records LessonCompleted for lessons that a content change has just completed (the learner's last unfinished
+    /// step was deleted), so the completion survives later content changes. The projector is pure and can't remember
+    /// that on its own. Idempotent; run it whenever content is loaded. Returns how many completions were recorded.
+    /// </summary>
+    public int RecordCompletionsFrom(ContentGraph content)
+    {
+        var recorded = 0;
+        foreach (var lesson in Project(content).Tracks.SelectMany(t => t.Lessons))
+        {
+            if (lesson.Status != LessonStatus.Completed || lesson.Progress.CompletionRecorded || lesson.Progress.TotalSteps == 0) continue;
+            Append(ProgressEventTypes.LessonCompleted, lesson.Lesson.Id, "", null);
+            recorded++;
+        }
+        return recorded;
+    }
+
     public void StepAnswered(string lessonId, string stepId, bool correct, IReadOnlyList<int> selected) =>
         Append(ProgressEventTypes.StepAnswered, lessonId, stepId,
             JsonSerializer.Serialize(new { correct, selected }));

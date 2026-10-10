@@ -23,10 +23,10 @@ Progress attaches to stable step and lesson IDs, never to positions.
 |---|---|
 | Step edited (same ID) | History kept. It stays complete. |
 | Steps reordered | No effect. |
-| Step deleted | Retired: its events stay in the log, listed in `RetiredStepIds`, but no longer count. Deleting the last unfinished step completes the lesson. |
+| Step deleted | Retired: its events stay in the log, listed in `RetiredStepIds`, but no longer count. Deleting the last unfinished step completes the lesson. That completion has no event of its own, so `ProgressRecorder.RecordCompletionsFrom` appends `LessonCompleted` for it (called from `CourseShell.OnParametersSet`, so on every content load). Without it, a step added later would silently un-complete the lesson. |
 | Lesson deleted | Its events are ignored. |
 | Step added to an **unfinished** lesson | Just another remaining step. |
-| Step added to a **finished** lesson | The lesson stays `Completed`, the next lesson stays unlocked, and the step is listed in `NewSteps`. The track screen shows "N new steps" with a **Play new step(s)** button, and the lesson player offers only those steps. Finishing them clears the marker and does not record `LessonCompleted` again. |
+| Step added to a **finished** lesson | The lesson stays `Completed`, the next lesson stays unlocked, and the step is listed in `NewSteps`. The track screen shows "N new steps" with a **Play new step(s)** button and a secondary **Review** button, and the lesson player offers only those steps. Finishing them clears the marker and does not record `LessonCompleted` again. |
 
 `LessonProgress.CurrentStep` is `null` for a finished lesson; `NextStep` is the first step without a `StepCompleted`
 event either way, which is what the lesson player uses.

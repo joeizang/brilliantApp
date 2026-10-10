@@ -285,4 +285,62 @@ public class LearnerStateProjectorTests
         Assert.Equal(1, progress.CompletedCount);
         Assert.Equal("step.one.b", progress.CurrentStep!.Id);
     }
+
+    // --- Completion reached through a content deletion must survive later additions (review of #49) -----------------
+
+    [Fact]
+    public void Deleting_the_last_unfinished_step_then_adding_a_new_one_keeps_the_lesson_completed()
+    {
+        var (log, rec) = NewLog();
+        rec.CompleteStep(One, "step.one.a");
+
+        // Content update 1: step b is deleted, which completes the lesson. The app records that when it loads the pack.
+        var trimmed = L("one", "a");
+        Assert.Equal(1, rec.RecordCompletionsFrom(Graph(trimmed, Two, Three)));
+
+        // Content update 2: step c is added. The lesson must stay completed with c flagged as new.
+        var state = Project(log.Items, Graph(L("one", "a", "c"), Two, Three));
+        var lesson = state.Lesson(One.Id)!;
+
+        Assert.Equal(LessonStatus.Completed, lesson.Status);
+        Assert.Equal(["step.one.c"], lesson.Progress.NewSteps.Select(x => x.Id));
+        Assert.Equal(LessonStatus.Available, state.Lesson(Two.Id)!.Status);
+    }
+
+    [Fact]
+    public void Recording_completions_is_idempotent_and_ignores_lessons_that_are_not_complete()
+    {
+        var (log, rec) = NewLog();
+        rec.CompleteStep(One, "step.one.a");
+        var content = Graph(L("one", "a"), Two, Three);
+
+        Assert.Equal(1, rec.RecordCompletionsFrom(content));
+        var after = log.Items.Count;
+        Assert.Equal(0, rec.RecordCompletionsFrom(content));
+        Assert.Equal(after, log.Items.Count);
+
+        // Two and Three were never started, so nothing is recorded for them.
+        Assert.Single(log.Items, e => e.Type == ProgressEventTypes.LessonCompleted);
+    }
+
+    [Fact]
+    public void Recording_completions_skips_lessons_whose_completion_is_already_recorded()
+    {
+        var (log, rec) = NewLog();
+        foreach (var s in One.Steps) rec.CompleteStep(One, s.Id);
+        var before = log.Items.Count;
+
+        Assert.Equal(0, rec.RecordCompletionsFrom(Graph()));
+        Assert.Equal(before, log.Items.Count);
+    }
+
+    [Fact]
+    public void An_empty_lesson_is_not_recorded_as_completed()
+    {
+        var (log, rec) = NewLog();
+        var empty = new Lesson("lesson.empty", "Empty", "track.t", []);
+
+        Assert.Equal(0, rec.RecordCompletionsFrom(Graph(empty)));
+        Assert.Empty(log.Items);
+    }
 }

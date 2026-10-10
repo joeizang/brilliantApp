@@ -33,7 +33,7 @@ public class NewStepsTests : ShortcutContext
     }
 
     [Fact]
-    public void The_track_screen_flags_new_steps_and_offers_to_play_them()
+    public void The_track_screen_flags_new_steps_and_offers_both_playing_them_and_reviewing_the_lesson()
     {
         Finish(Lesson("a", "b"));
         var grown = Lesson("a", "b", "c");
@@ -41,7 +41,7 @@ public class NewStepsTests : ShortcutContext
         var cut = Render<TrackView>(p => p.Add(c => c.Content, Graph(grown)).Add(c => c.Track, Graph(grown).Tracks[0]));
 
         Assert.Contains("Completed · 1 new step", cut.Markup);
-        Assert.Equal("Play new step", cut.Find("li.lesson button").TextContent.Trim());
+        Assert.Equal(["Play new step", "Review"], cut.FindAll("li.lesson button").Select(b => b.TextContent.Trim()));
         Assert.Contains("1 of 1 lessons complete", cut.Markup);
     }
 
@@ -72,5 +72,39 @@ public class NewStepsTests : ShortcutContext
 
         Assert.Contains("Lesson complete", cut.Markup);
         Assert.Single(_log.Items, e => e.Type == ProgressEventTypes.LessonCompleted);
+    }
+
+    [Fact]
+    public async Task Review_from_the_track_screen_replays_the_whole_lesson_even_with_new_steps()
+    {
+        Finish(Lesson("a", "b"));
+        var grown = Lesson("a", "b", "c");
+        var opened = new List<(Lesson Lesson, bool Review)>();
+
+        var cut = Render<TrackView>(p => p.Add(c => c.Content, Graph(grown)).Add(c => c.Track, Graph(grown).Tracks[0])
+            .Add(c => c.OnOpenLesson, t => opened.Add(t)));
+        await cut.InvokeAsync(() => cut.FindAll("li.lesson button").Single(b => b.TextContent.Trim() == "Review").Click());
+        await cut.InvokeAsync(() => cut.FindAll("li.lesson button").Single(b => b.TextContent.Trim() == "Play new step").Click());
+
+        Assert.Equal([(grown, true), (grown, false)], opened);
+    }
+
+    [Fact]
+    public void Loading_content_that_completed_a_lesson_by_deletion_records_it_so_a_later_addition_cannot_undo_it()
+    {
+        var recorder = new ProgressRecorder(_log, "device");
+        Services.AddSingleton(recorder);
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        JSInterop.SetupModule("./_content/Brilliant.Lessons.UI/shortcuts.js");
+        recorder.CompleteStep(Lesson("a", "b"), "a");
+
+        // The pack now has only step "a": the lesson is complete, and opening the app records that.
+        Render<CourseShell>(p => p.Add(c => c.Content, Graph(Lesson("a"))));
+        Assert.Single(_log.Items, e => e.Type == ProgressEventTypes.LessonCompleted);
+
+        // A later pack adds step "c": the lesson stays complete and c is new.
+        var state = recorder.Project(Graph(Lesson("a", "c")));
+        Assert.Equal(LessonStatus.Completed, state.Lesson("lesson.l")!.Status);
+        Assert.Equal(1, state.Lesson("lesson.l")!.NewStepCount);
     }
 }
