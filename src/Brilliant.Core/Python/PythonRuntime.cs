@@ -64,6 +64,12 @@ public interface IPythonRuntime
     /// Never throws for problems in the learner's code; those come back in the result.
     /// </summary>
     Task<TestRunResult> RunTestsAsync(string code, string entrypoint, IReadOnlyList<CodeTest> tests, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Runs <paramref name="code"/> once, recording every line it executes (see wwwroot/python/tracer.py) and the lists named by
+    /// <paramref name="visuals"/>. Never throws for problems in the code; those come back in the result.
+    /// </summary>
+    Task<TraceResult> TraceAsync(string code, IReadOnlyList<Visual> visuals, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Reads the JSON the Python test harness (wwwroot/python/harness.py) returns.</summary>

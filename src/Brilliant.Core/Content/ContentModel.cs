@@ -47,6 +47,7 @@ public sealed record Comparison(string CSharp, string Python);
 [JsonDerivedType(typeof(WriteCodeStep), "write-code")]
 [JsonDerivedType(typeof(FillBlankStep), "fill-blank")]
 [JsonDerivedType(typeof(ParsonsStep), "parsons")]
+[JsonDerivedType(typeof(TraceStep), "trace")]
 public abstract record Step(string Id, string Title) : ContentItem(Id)
 {
     /// <summary>
@@ -149,3 +150,23 @@ public sealed record ParsonsStep(
     IReadOnlyList<ParsonsLine> Lines) : Step(Id, Title);
 
 public sealed record PackManifest(string PackId, string Version, int FormatVersion);
+
+/// <summary>
+/// Which variable of a <see cref="TraceStep"/>'s code to draw and how. <see cref="As"/> is the drawing, <see cref="Array"/> for now:
+/// a list shown as cells. <see cref="Pointers"/> name int variables whose value is drawn as a labelled marker on the cell it indexes.
+/// </summary>
+public sealed record Visual(string Variable, string As, IReadOnlyList<string> Pointers)
+{
+    public const string Array = "array";
+}
+
+/// <summary>
+/// "Watch it run." The learner steps forward and back through the execution of <see cref="Code"/>, seeing the current line,
+/// the local variables and each <see cref="Visuals"/> entry at every step. Nothing is answered; the step completes like an explanation.
+/// </summary>
+public sealed record TraceStep(
+    string Id,
+    string Title,
+    string Body,
+    string Code,
+    IReadOnlyList<Visual> Visuals) : Step(Id, Title);

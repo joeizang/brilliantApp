@@ -34,6 +34,10 @@
                 <ExplainStepView Step="explain" />
                 <div class="step-actions"><button class="primary" @onclick="() => Complete(step)">Continue</button></div>
                 break;
+            case TraceStep trace:
+                <TraceStepView Step="trace" />
+                <div class="step-actions"><button class="primary continue" @onclick="() => Complete(step)">Continue</button></div>
+                break;
             case ChoiceStep choice:
                 <ChoiceStepView Step="choice"
                                 OnAnswered="r => { if (!Review) Recorder.StepAnswered(Lesson.Id, choice.Id, r.IsCorrect, r.Selected); }"
@@ -96,8 +100,8 @@ else
             case StepCommand.Advance when CurrentStep is null:
                 await Finish();
                 return;
-            case StepCommand.Advance when CurrentStep is ExplainStep explain:
-                await Complete(explain);
+            case StepCommand.Advance when CurrentStep is ExplainStep or TraceStep:
+                await Complete(CurrentStep);
                 break;
         }
         StateHasChanged();

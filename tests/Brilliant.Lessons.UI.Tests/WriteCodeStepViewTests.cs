@@ -18,6 +18,8 @@ public class WriteCodeStepViewTests : ShortcutContext
     {
         public Task<TestRunResult> RunTestsAsync(string code, string entrypoint, IReadOnlyList<CodeTest> tests, CancellationToken ct = default) =>
             Task.FromResult(result);
+        public Task<TraceResult> TraceAsync(string code, IReadOnlyList<Visual> visuals, CancellationToken ct = default) =>
+            throw new NotSupportedException("This test does not trace.");
     }
 
     private sealed class MemoryDrafts : ICodeDraftStore
@@ -166,6 +168,9 @@ public class WriteCodeStepViewTests : ShortcutContext
             onRun();
             return result;
         }
+
+        public Task<TraceResult> TraceAsync(string code, IReadOnlyList<Visual> visuals, CancellationToken ct = default) =>
+            throw new NotSupportedException("This test does not trace.");
     }
 
     [Fact]

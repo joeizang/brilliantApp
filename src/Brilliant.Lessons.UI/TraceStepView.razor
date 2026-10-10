@@ -1,0 +1,57 @@
+@* A trace step: some explanation, then the example run once and recorded (offline, by the Python runtime) for the Trace Player. *@
+@using Brilliant.Core.Python
+@inject IPythonRuntime Runtime
+@implements IDisposable
+
+<article class="trace-step">
+    <h2>@Step.Title</h2>
+    <div class="trace-body">@((MarkupString)MarkdownHtml.ToHtml(Step.Body))</div>
+
+    @if (_failure is not null)
+    {
+        <p class="trace-failure" role="alert">Couldn't run the example: @_failure</p>
+    }
+    else if (_result is null)
+    {
+        <p class="note">Starting Python… the first run takes a few seconds.</p>
+    }
+    else if (_states.Count == 0)
+    {
+        <TraceEnding Result="_result" />
+    }
+    else
+    {
+        <TracePlayer Code="@Step.Code" States="_states" Result="_result" />
+    }
+</article>
+
+@code {
+    [Parameter, EditorRequired] public TraceStep Step { get; set; } = default!;
+
+    private readonly CancellationTokenSource _cancel = new();
+    private TraceResult? _result;
+    private IReadOnlyList<TraceState> _states = [];
+    private string? _failure;
+
+    // The example is recorded when the step is shown (the Python runtime is offline and quick once warm), not stored in the content.
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _result = await Runtime.TraceAsync(Step.Code, Step.Visuals, _cancel.Token);
+            _states = TraceModel.Build(_result, Step.Visuals);
+        }
+        catch (OperationCanceledException) when (_cancel.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            // The runtime itself failed (e.g. the Python worker couldn't start); the example is validated when the content is built.
+            _failure = ex.Message;
+        }
+    }
+
+    public void Dispose()
+    {
+        _cancel.Cancel();
+        _cancel.Dispose();
+    }
+}

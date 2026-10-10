@@ -18,6 +18,7 @@ public sealed class ValidationReport
     public bool IsValid => _errors.Count == 0;
     internal void Add(string file, string message) => _errors.Add(new ValidationError(file, message));
     internal List<ReferenceCheck> ReferenceChecks { get; } = [];
+    internal List<TraceCheck> TraceChecks { get; } = [];
 }
 
 public sealed record LoadedContent(PackManifest Manifest, IReadOnlyList<Track> Tracks, IReadOnlyList<Lesson> Lessons);
@@ -70,8 +71,8 @@ public static partial class ContentValidator
                 LoadTrack(contentRoot, trackDir, report, seenIds, tracks, lessons);
 
         // Only once the content is structurally sound: prove every exercise's reference solution passes its own tests.
-        if (report.IsValid && report.ReferenceChecks.Count > 0)
-            ReferenceSolutionChecker.Check(report.ReferenceChecks, runner ?? new CPythonRunner(), report);
+        if (report.IsValid && (report.ReferenceChecks.Count > 0 || report.TraceChecks.Count > 0))
+            ReferenceSolutionChecker.CheckAll(report, runner ?? new CPythonRunner());
 
         if (report.IsValid && manifest is not null)
             content = new LoadedContent(manifest, tracks, lessons);
@@ -182,8 +183,8 @@ public static partial class ContentValidator
                 var step = steps.FirstOrDefault(s => s.Id == r.Step);
                 if (step is null)
                     report.Add(file, $"{label}: step '{r.Step}' is not a valid step of this lesson.");
-                else if (step is ExplainStep)
-                    report.Add(file, $"{label}: step '{r.Step}' is an explain step; a review item needs a question (choice or predict-output).");
+                else if (step is ExplainStep or TraceStep)
+                    report.Add(file, $"{label}: step '{r.Step}' is an {(step is TraceStep ? "trace" : "explain")} step; a review item needs a question (choice or predict-output).");
             }
             if (r.Id is not null && r.Concept is not null && r.Step is not null)
                 items.Add(new ReviewItem(r.Id, r.Concept, r.Step, kind));
@@ -228,10 +229,11 @@ public static partial class ContentValidator
         if (dto.Type == "write-code") return WithHints(LoadWriteCode(dto, label, file, report, before), hints);
         if (dto.Type == "fill-blank") return WithHints(LoadFillBlank(dto, label, file, report, before), hints);
         if (dto.Type == "parsons") return WithHints(LoadParsons(dto, label, file, report, before), hints);
+        if (dto.Type == "trace") return LoadTrace(dto, label, file, report, before);
 
         if (dto.Type != "explain")
         {
-            report.Add(file, $"{label}: unsupported step type '{dto.Type ?? "(missing)"}' (supported: explain, choice, predict-output, write-code, fill-blank, parsons).");
+            report.Add(file, $"{label}: unsupported step type '{dto.Type ?? "(missing)"}' (supported: explain, choice, predict-output, write-code, fill-blank, parsons, trace).");
             return null;
         }
 
@@ -448,6 +450,47 @@ public static partial class ContentValidator
             : null;
     }
 
+    private static Step? LoadTrace(StepDto dto, string label, string file, ValidationReport report, int errorsBefore)
+    {
+        Require(dto.Body, "body", file, report, label);
+        Require(dto.Code, "code", file, report, label);
+
+        var visuals = new List<Visual>();
+        if (dto.Visualise is null or { Count: 0 })
+            report.Add(file, $"{label}: a trace step needs at least one entry in 'visualise' (which variable to draw, and how).");
+        else
+            for (var i = 0; i < dto.Visualise.Count; i++)
+            {
+                var v = dto.Visualise[i];
+                var where = $"{label}: visualise[{i}]";
+                if (IsEmptyEntry(v, where, file, report)) continue;
+                Require(v.Variable, "variable", file, report, where);
+                Require(v.As, "as", file, report, where);
+                if (!string.IsNullOrWhiteSpace(v.Variable) && !PythonIdentifier.IsMatch(v.Variable))
+                    report.Add(file, $"{where}: variable '{v.Variable}' is not a valid Python name.");
+                if (!string.IsNullOrWhiteSpace(v.As) && v.As != Visual.Array)
+                    report.Add(file, $"{where}: unsupported 'as' value '{v.As}' (supported: {Visual.Array}).");
+                if (v.Variable is not null && visuals.FindIndex(x => x.Variable == v.Variable) is var first and >= 0)
+                    report.Add(file, $"{where}: '{v.Variable}' is already drawn by visualise[{first}].");
+
+                var pointers = new List<string>();
+                foreach (var pointer in v.Pointers ?? [])
+                {
+                    if (string.IsNullOrWhiteSpace(pointer) || !PythonIdentifier.IsMatch(pointer))
+                        report.Add(file, $"{where}: pointer '{pointer}' is not a valid Python name.");
+                    else if (pointers.Contains(pointer))
+                        report.Add(file, $"{where}: pointer '{pointer}' is listed twice.");
+                    else
+                        pointers.Add(pointer);
+                }
+                visuals.Add(new Visual(v.Variable ?? "", v.As ?? "", pointers));
+            }
+
+        if (report.Errors.Count != errorsBefore) return null;
+        report.TraceChecks.Add(new TraceCheck(file, label, dto.Code!, visuals));
+        return new TraceStep(dto.Id!, dto.Title!, dto.Body!, dto.Code!, visuals);
+    }
+
     private static readonly Regex PythonIdentifier = new("^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.Compiled);
 
     private static Step? LoadWriteCode(StepDto dto, string label, string file, ValidationReport report, int errorsBefore)
@@ -566,7 +609,9 @@ public static partial class ContentValidator
         public string? Template { get; set; }
         public List<BlankDto>? Blanks { get; set; }
         public List<TestDto>? Tests { get; set; }
+        public List<VisualDto>? Visualise { get; set; }
     }
+    private sealed class VisualDto { public string? Variable { get; set; } public string? As { get; set; } public List<string>? Pointers { get; set; } }
     private sealed class BlankDto { public string? Id { get; set; } public List<string>? Accepted { get; set; } public List<MistakeDto>? Mistakes { get; set; } }
     private sealed class TestDto { public string? Input { get; set; } public string? Expected { get; set; } }
     private sealed class MistakeDto { public List<string>? Answers { get; set; } public string? Regex { get; set; } public string? Feedback { get; set; } }

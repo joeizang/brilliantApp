@@ -5,10 +5,11 @@ import assert from 'node:assert/strict';
 
 const workers = [];
 class FakeWorker {
-    constructor() { this.terminated = false; this.script = FakeWorker.next; workers.push(this); }
+    constructor() { this.terminated = false; this.sent = []; this.script = FakeWorker.next; workers.push(this); }
     terminate() { this.terminated = true; }
     postMessage(msg) {
         if (this.terminated) return;
+        this.sent.push(msg);
         queueMicrotask(() => {
             if (this.script === 'hang') { this.onmessage({ data: { id: msg.id, started: true } }); return; } // never answers
             this.onmessage({ data: { id: msg.id, started: true } });
@@ -17,7 +18,7 @@ class FakeWorker {
     }
 }
 globalThis.Worker = FakeWorker;
-const { runTests } = await import('../../src/Brilliant.App/wwwroot/python-runtime.js');
+const { runTests, trace } = await import('../../src/Brilliant.App/wwwroot/python-runtime.js');
 
 test('a run that never finishes comes back as timedOut and its worker is terminated', async () => {
     FakeWorker.next = 'hang';
@@ -51,4 +52,27 @@ test('a worker error rejects the run and the next run starts a new worker', asyn
     const before = workers.length;
     assert.equal(JSON.parse(await runTests('x', 'f', '[]', 50)).status, 'passed');
     assert.equal(workers.length, before + 1);
+});
+
+test('a trace is sent to the worker as a trace request with the variables to watch', async () => {
+    FakeWorker.next = 'ok';
+    await trace('nums = [1]', '["nums"]', 50);
+    assert.deepEqual(workers.at(-1).sent.at(-1), { id: workers.at(-1).sent.at(-1).id, kind: 'trace', code: 'nums = [1]', watchJson: '["nums"]' });
+});
+
+test('test runs are sent as tests requests', async () => {
+    FakeWorker.next = 'ok';
+    await runTests('def f(): pass', 'f', '[]', 50);
+    const sent = workers.at(-1).sent.at(-1);
+    assert.equal(sent.kind, 'tests');
+    assert.equal(sent.entrypoint, 'f');
+});
+
+test('a trace that never finishes comes back as an error trace with no frames', async () => {
+    workers.at(-1).script = 'hang';   // the healthy worker is reused, so make it the one that hangs
+    const result = JSON.parse(await trace('10 ** 10 ** 10', '[]', 50));
+    assert.equal(result.status, 'error');
+    assert.deepEqual(result.frames, []);
+    assert.match(result.message, /more than 0.05 seconds/);
+    assert.equal(workers.at(-1).terminated, true);
 });

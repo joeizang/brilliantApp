@@ -42,6 +42,8 @@ public class ReviewQueueViewTests : ShortcutContext
     {
         public Task<TestRunResult> RunTestsAsync(string code, string entrypoint, IReadOnlyList<CodeTest> tests, CancellationToken ct = default) =>
             Task.FromResult(new TestRunResult(TestRunStatus.Passed, "", null, null, null, []));
+        public Task<TraceResult> TraceAsync(string code, IReadOnlyList<Visual> visuals, CancellationToken ct = default) =>
+            throw new NotSupportedException("This test does not trace.");
     }
 
     private static ChoiceStep Q(string id) =>

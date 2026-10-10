@@ -16,6 +16,9 @@
     /// </summary>
     [Parameter] public Action<string>? OnChanged { get; set; }
 
+    /// <summary>Shows the code without letting the learner change or focus it (the Trace Player's view of the example).</summary>
+    [Parameter] public bool ReadOnly { get; set; }
+
     private ElementReference _host;
     private IJSObjectReference? _module;
     private int _id;
@@ -29,7 +32,7 @@
         {
             _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/Brilliant.Lessons.UI/code-editor.js");
             _self = DotNetObjectReference.Create(this);
-            _id = await _module.InvokeAsync<int>("create", _host, InitialCode, _self);
+            _id = await _module.InvokeAsync<int>("create", _host, InitialCode, _self, ReadOnly);
             _ready.SetResult();
         }
         catch (Exception ex)

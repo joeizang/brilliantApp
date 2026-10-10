@@ -1,0 +1,30 @@
+@* How a recording ended: what the code printed, the error that stopped it, or that it was cut short. Shown on the last step. *@
+@using Brilliant.Core.Python
+
+<div class="trace-ending" aria-live="polite">
+    @if (Result.Status == TraceStatus.Error)
+    {
+        <div class="trace-error" role="status">
+            <p class="verdict incorrect">@(Result.Message ?? "The code raised an error.")</p>
+            @if (!string.IsNullOrEmpty(Result.Traceback))
+            {
+                <pre class="traceback" aria-label="Python error">@Result.Traceback</pre>
+            }
+        </div>
+    }
+    else if (Result.Status == TraceStatus.Truncated)
+    {
+        <p class="trace-note">@(Result.Message ?? "The example runs for more steps than can be shown. The recording stops here.")</p>
+    }
+    @if (!string.IsNullOrEmpty(Result.Stdout))
+    {
+        <div class="trace-output">
+            <h4>Printed</h4>
+            <pre>@Result.Stdout</pre>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public TraceResult Result { get; set; } = default!;
+}
