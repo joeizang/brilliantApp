@@ -64,7 +64,7 @@
         _ => "row",
     }) + (row.LookedUpBy.Count > 0 ? " looked-up" : "");
 
-    private string RowKey(RowView row) => row.Change == RowChange.None ? row.Key : $"{row.Key}@{Step}";
+    private string RowKey(RowView row) => row.Change == RowChange.None ? row.Id : $"{row.Id}@{Step}";
 
     private RenderFragment Lookups(RowView row) => builder =>
     {

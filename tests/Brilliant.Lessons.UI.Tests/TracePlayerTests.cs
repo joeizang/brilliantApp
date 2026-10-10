@@ -292,18 +292,29 @@ public class TracePlayerTests : ShortcutContext
         new(line is null ? "return" : "line", line, "<module>", locals, new Dictionary<string, TrackedArray>(),
             new Dictionary<string, TrackedTable> { [variable] = table });
 
+    /// <summary>The id the recorder would give a key: a stand-in that is the same for the same label.</summary>
+    private static int IdOf(string key) => key.Aggregate(17, (hash, c) => hash * 31 + c);
+
     private static TrackedTable Dict(int more, params (string Key, string Value)[] rows) =>
-        new("dict", "dict", rows.Select(r => new TableRow(r.Key, r.Value)).ToList(), more);
+        new("dict", "dict", rows.Select(r => new TableRow(r.Key, r.Value, IdOf(r.Key))).ToList(), more, new Dictionary<string, int>());
 
     private static TrackedTable Members(params string[] members) =>
-        new("set", "set", members.Select(m => new TableRow(m, null)).ToList(), 0);
+        new("set", "set", members.Select(m => new TableRow(m, null, IdOf(m))).ToList(), 0, new Dictionary<string, int>());
 
     private static TraceFrame CountsFrame(int? line, string? word, params (string Key, string Value)[] rows)
     {
         var locals = new List<TraceLocal> { new("counts", "dict", "{...}") };
         if (word is not null) locals.Add(new TraceLocal("word", "str", word));
-        return TableFrame(line, "counts", Dict(0, rows), [.. locals]);
+        var table = Dict(0, rows);
+        if (word is not null && rows.Any(r => r.Key == word)) table = table with { Hits = new Dictionary<string, int> { ["word"] = IdOf(word) } };
+        return TableFrame(line, "counts", table, [.. locals]);
     }
+
+    // Two long keys clip to the same label; the recorder still gives them different ids.
+    private static TraceFrame ClashingFrame(int line, string firstValue, string secondValue) =>
+        TableFrame(line, "counts",
+            new TrackedTable("dict", "dict", [new TableRow("'aaaa…", firstValue, 1), new TableRow("'aaaa…", secondValue, 2)], 0, new Dictionary<string, int>()),
+            new TraceLocal("counts", "dict", "{...}"));
 
     private static TraceResult RunOf(params TraceFrame[] frames) => new(TraceStatus.Ok, frames, "", null, null, null);
 
@@ -415,6 +426,47 @@ public class TracePlayerTests : ShortcutContext
     {
         var cut = OpenCounts(RunOf(CountsFrame(1, "'a'", ("'a'", "1"))));
 
+        Assert.Empty(cut.FindAll(".table-miss"));
+    }
+
+    [Fact]
+    public void Rows_whose_labels_read_the_same_are_all_drawn_and_stepping_through_them_works()
+    {
+        var run = RunOf(ClashingFrame(1, "1", "2"), ClashingFrame(2, "1", "3"), ClashingFrame(3, "4", "3"));
+        var cut = OpenCounts(run);
+        Assert.Equal(["1", "2"], cut.FindAll("table.dict .row-value").Select(v => v.TextContent));
+
+        cut.Find("button.next").Click();
+        Assert.Equal(["1", "3"], cut.FindAll("table.dict .row-value").Select(v => v.TextContent));
+        Assert.Equal("3", Assert.Single(cut.FindAll("tr.row.updated")).QuerySelector(".row-value")!.TextContent);
+
+        cut.Find("button.next").Click();
+        cut.Find("button.prev").Click();
+        cut.Find("button.prev").Click();
+        Assert.Equal(["1", "2"], cut.FindAll("table.dict .row-value").Select(v => v.TextContent));
+    }
+
+    [Fact]
+    public void Rows_whose_labels_read_the_same_do_not_stop_playback()
+    {
+        var cut = Start(RunOf(ClashingFrame(1, "1", "2"), ClashingFrame(2, "1", "3"), ClashingFrame(3, "4", "3")), CountsVisual, out _);
+        cut.Find("button.play").Click();
+
+        Tick(cut);
+        Tick(cut);
+
+        Assert.Equal("Step 3 of 3", Position(cut));
+        Assert.Equal(["4", "3"], cut.FindAll("table.dict .row-value").Select(v => v.TextContent));
+    }
+
+    [Fact]
+    public void A_pointer_marks_the_row_python_found_even_when_the_reprs_differ()
+    {
+        var table = Dict(0, ("1", "'found'")) with { Hits = new Dictionary<string, int> { ["key"] = IdOf("1") } };
+        var run = RunOf(TableFrame(1, "counts", table, new TraceLocal("counts", "dict", "{...}"), new TraceLocal("key", "float", "1.0")));
+        var cut = Start(run, [new Visual("counts", Visual.Dict, ["key"])], out _);
+
+        Assert.Equal("key", Assert.Single(cut.FindAll("tr.row.looked-up")).QuerySelector(".looked-up-by")!.TextContent);
         Assert.Empty(cut.FindAll(".table-miss"));
     }
 

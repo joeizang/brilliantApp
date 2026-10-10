@@ -11,10 +11,18 @@ public class TraceTests
         new(line is null ? "return" : "line", line, function, locals ?? [],
             arrays.ToDictionary(a => a.Name, a => new TrackedArray("list", a.Cells, 0)));
 
-    private static TrackedTable Dict(params (string Key, string Value)[] rows) =>
-        new("dict", "dict", rows.Select(r => new TableRow(r.Key, r.Value)).ToList(), 0);
+    /// <summary>The id the recorder would give a key: a stand-in that is the same for the same label.</summary>
+    private static int IdOf(string key) => key.Aggregate(17, (hash, c) => hash * 31 + c);
 
-    private static TrackedTable Set(params string[] members) => new("set", "set", members.Select(m => new TableRow(m, null)).ToList(), 0);
+    private static TrackedTable Dict(params (string Key, string Value)[] rows) =>
+        new("dict", "dict", rows.Select(r => new TableRow(r.Key, r.Value, IdOf(r.Key))).ToList(), 0, new Dictionary<string, int>());
+
+    private static TrackedTable Set(params string[] members) =>
+        new("set", "set", members.Select(m => new TableRow(m, null, IdOf(m))).ToList(), 0, new Dictionary<string, int>());
+
+    /// <summary>The table as the recorder reports it when each named variable holds the key with that label.</summary>
+    private static TrackedTable Holding(TrackedTable table, params (string Variable, string Key)[] holds) =>
+        table with { Hits = holds.ToDictionary(h => h.Variable, h => IdOf(h.Key)) };
 
     private static TraceFrame TableFrame(int? line, string name, TrackedTable table, params TraceLocal[] locals) =>
         new(line is null ? "return" : "line", line, "<module>", locals, new Dictionary<string, TrackedArray>(),
@@ -87,6 +95,23 @@ public class TraceTests
         Assert.Equal(("dict", "OrderedDict", 3), (tables["d"].Kind, tables["d"].Type, tables["d"].More));
         Assert.Equal(new TableRow("'a'", "1"), Assert.Single(tables["d"].Rows));
         Assert.Equal(new TableRow("2", null), Assert.Single(tables["s"].Rows));
+        Assert.Null(tables["d"].Hits);                  // a trace from before lookups were recorded
+    }
+
+    [Fact]
+    public void Row_ids_and_hits_in_the_tracer_json_parse()
+    {
+        var json = """
+            {"status": "ok", "frames": [{"event": "line", "line": 1, "function": "<module>", "locals": [], "tracked": {},
+              "tables": {"d": {"kind": "dict", "type": "dict", "rows": [{"id": 4, "key": "'a'", "value": "1"}], "more": 0, "hits": {"word": 4, "other": 9}}}}],
+             "stdout": "", "message": null, "traceback": null, "errorLine": null}
+            """;
+
+        var table = Assert.Single(TraceResultJson.Parse(json).Frames).Tables!["d"];
+
+        Assert.Equal(new TableRow("'a'", "1", 4), Assert.Single(table.Rows));
+        Assert.Equal(4, table.Hits!["word"]);
+        Assert.Equal(9, table.Hits["other"]);
     }
 
     [Fact]
@@ -444,7 +469,7 @@ public class TraceTests
     [Fact]
     public void A_pointer_marks_the_row_whose_key_its_variable_holds()
     {
-        var states = Build(Run(TableFrame(1, "counts", Dict(("'a'", "1"), ("'b'", "2")), new TraceLocal("word", "str", "'b'"))), Counts);
+        var states = Build(Run(TableFrame(1, "counts", Holding(Dict(("'a'", "1"), ("'b'", "2")), ("word", "'b'")), new TraceLocal("word", "str", "'b'"))), Counts);
 
         var table = states[0].Tables[0];
         Assert.Empty(table.Rows[0].LookedUpBy);
@@ -474,7 +499,7 @@ public class TraceTests
     public void Two_pointers_can_look_at_the_same_row_and_a_set_can_be_looked_up_too()
     {
         var visual = new Visual("seen", Visual.Set, ["x", "y"]);
-        var states = Build(Run(TableFrame(1, "seen", Set("1", "2"), new TraceLocal("x", "int", "2"), new TraceLocal("y", "int", "2"))), visual);
+        var states = Build(Run(TableFrame(1, "seen", Holding(Set("1", "2"), ("x", "2"), ("y", "2")), new TraceLocal("x", "int", "2"), new TraceLocal("y", "int", "2"))), visual);
 
         Assert.Equal(["x", "y"], states[0].Tables[0].Rows[1].LookedUpBy);
     }
@@ -490,6 +515,110 @@ public class TraceTests
         Assert.Equal(RowChange.Removed, table.Rows[0].Change);
         Assert.Empty(table.Rows[0].LookedUpBy);
         Assert.Equal(["word"], table.Misses);
+    }
+
+    [Fact]
+    public void A_pointer_finds_a_key_python_treats_as_equal_though_the_reprs_differ()
+    {
+        var table = Holding(Dict(("1", "'found'")), ("key", "1"));
+        var states = Build(Run(TableFrame(1, "counts", table, new TraceLocal("key", "float", "1.0"))), new Visual("counts", Visual.Dict, ["key"]));
+
+        Assert.Equal(["key"], states[0].Tables[0].Rows[0].LookedUpBy);
+        Assert.Empty(states[0].Tables[0].Misses);
+    }
+
+    [Fact]
+    public void A_pointer_the_recorder_did_not_find_is_a_miss_even_when_its_repr_matches_a_label()
+    {
+        // The label reads 'a' but the recorder says the variable holds no key: trust the recorder.
+        var states = Build(Run(TableFrame(1, "counts", Dict(("'a'", "1")), new TraceLocal("word", "str", "'a'"))), Counts);
+
+        Assert.All(states[0].Tables[0].Rows, r => Assert.Empty(r.LookedUpBy));
+        Assert.Equal(["word"], states[0].Tables[0].Misses);
+    }
+
+    [Fact]
+    public void A_pointer_that_found_a_row_cut_off_by_the_row_limit_is_neither_a_lookup_nor_a_miss()
+    {
+        var table = (Dict(("'a'", "1")) with { More = 5 }) with { Hits = new Dictionary<string, int> { ["word"] = IdOf("'far away'") } };
+        var states = Build(Run(TableFrame(1, "counts", table, new TraceLocal("word", "str", "'far away'"))), Counts);
+
+        Assert.All(states[0].Tables[0].Rows, r => Assert.Empty(r.LookedUpBy));
+        Assert.Empty(states[0].Tables[0].Misses);
+    }
+
+    [Fact]
+    public void Without_recorded_lookups_nothing_is_marked_or_missed()
+    {
+        var table = Dict(("'a'", "1")) with { Hits = null };
+        var states = Build(Run(TableFrame(1, "counts", table, new TraceLocal("word", "str", "'a'"))), Counts);
+
+        Assert.All(states[0].Tables[0].Rows, r => Assert.Empty(r.LookedUpBy));
+        Assert.Empty(states[0].Tables[0].Misses);
+    }
+
+    // Two long keys clip to the same label; the recorder still gives them different ids.
+    private static TrackedTable Clashing(string firstValue, string secondValue) =>
+        new("dict", "dict", [new TableRow("'aaaa…", firstValue, 1), new TableRow("'aaaa…", secondValue, 2)], 0, new Dictionary<string, int>());
+
+    [Fact]
+    public void Rows_whose_labels_read_the_same_are_told_apart_by_their_ids()
+    {
+        var states = Build(Run(TableFrame(1, "counts", Clashing("1", "2"))), Counts);
+
+        var rows = states[0].Tables[0].Rows;
+        Assert.Equal(2, rows.Select(r => r.Id).Distinct().Count());
+        Assert.Equal(["1", "2"], rows.Select(r => r.Value!));
+    }
+
+    [Fact]
+    public void A_change_is_matched_to_the_row_with_the_same_id_not_the_same_label()
+    {
+        var states = Build(Run(TableFrame(1, "counts", Clashing("1", "2")), TableFrame(2, "counts", Clashing("1", "3"))), Counts);
+
+        Assert.Equal([RowChange.None, RowChange.Updated], states[1].Tables[0].Rows.Select(r => r.Change));
+    }
+
+    [Fact]
+    public void A_row_with_a_clashing_label_that_goes_is_the_one_marked_removed()
+    {
+        var after = new TrackedTable("dict", "dict", [new TableRow("'aaaa…", "1", 1)], 0, new Dictionary<string, int>());
+        var states = Build(Run(TableFrame(1, "counts", Clashing("1", "2")), TableFrame(2, "counts", after)), Counts);
+
+        var rows = states[1].Tables[0].Rows;
+        Assert.Equal([RowChange.None, RowChange.Removed], rows.Select(r => r.Change));
+        Assert.Equal("2", rows[1].Value);
+    }
+
+    [Fact]
+    public void A_row_that_replaces_another_with_the_same_label_is_added_and_the_old_one_removed()
+    {
+        var replaced = new TrackedTable("dict", "dict", [new TableRow("'aaaa…", "1", 3)], 0, new Dictionary<string, int>());
+        var original = new TrackedTable("dict", "dict", [new TableRow("'aaaa…", "1", 1)], 0, new Dictionary<string, int>());
+        var states = Build(Run(TableFrame(1, "counts", original), TableFrame(2, "counts", replaced)), Counts);
+
+        Assert.Equal([RowChange.Added, RowChange.Removed], states[1].Tables[0].Rows.Select(r => r.Change));
+    }
+
+    [Fact]
+    public void Rows_from_a_trace_without_ids_are_told_apart_by_their_labels()
+    {
+        var old = new TrackedTable("dict", "dict", [new TableRow("'a'", "1"), new TableRow("'b'", "1")], 0);
+        var next = new TrackedTable("dict", "dict", [new TableRow("'a'", "2"), new TableRow("'b'", "1")], 0);
+        var states = Build(Run(TableFrame(1, "counts", old), TableFrame(2, "counts", next)), Counts);
+
+        Assert.Equal([RowChange.Updated, RowChange.None], states[1].Tables[0].Rows.Select(r => r.Change));
+        Assert.Equal(2, states[1].Tables[0].Rows.Select(r => r.Id).Distinct().Count());
+    }
+
+    [Fact]
+    public void A_row_recorded_without_an_id_is_never_taken_for_a_missed_lookup()
+    {
+        var table = new TrackedTable("dict", "dict", [new TableRow("'a'", "1")], 0, new Dictionary<string, int>());
+        var states = Build(Run(TableFrame(1, "counts", table, new TraceLocal("word", "str", "'zzz'"))), Counts);
+
+        Assert.Empty(states[0].Tables[0].Rows[0].LookedUpBy);
+        Assert.Equal(["word"], states[0].Tables[0].Misses);
     }
 
     [Fact]

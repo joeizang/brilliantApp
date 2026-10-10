@@ -16,14 +16,20 @@ public sealed record TraceLocal(string Name, string Type, string Repr);
 /// <summary>A watched list as recorded at one step: the first cells' reprs, and how many more there were.</summary>
 public sealed record TrackedArray(string Type, IReadOnlyList<string> Cells, int More);
 
-/// <summary>One dict entry or set member as recorded: the repr of the key, and of the value (null for a set).</summary>
-public sealed record TableRow(string Key, string? Value);
+/// <summary>
+/// One dict entry or set member as recorded: the repr of the key, and of the value (null for a set). <see cref="Key"/> is only a
+/// label (clipped, so different keys can share one); <see cref="Id"/> tells the rows apart and is the same for a key at every step.
+/// It is null in a trace recorded before ids existed.
+/// </summary>
+public sealed record TableRow(string Key, string? Value, int? Id = null);
 
 /// <summary>
 /// A watched dict or set as recorded at one step. <see cref="Kind"/> is "dict" or "set" (a subclass or a frozenset counts as its base);
 /// <see cref="Type"/> is the actual type name. A set's rows are sorted; a dict's are in insertion order.
+/// <see cref="Hits"/> maps each local variable that holds a key (or member) of the table, by Python's own equality, to that key's id;
+/// the id belongs to no row when the row was cut off. It is null in a trace recorded before lookups were.
 /// </summary>
-public sealed record TrackedTable(string Kind, string Type, IReadOnlyList<TableRow> Rows, int More);
+public sealed record TrackedTable(string Kind, string Type, IReadOnlyList<TableRow> Rows, int More, IReadOnlyDictionary<string, int>? Hits = null);
 
 /// <summary>
 /// The state just before <see cref="Line"/> ran (<see cref="Event"/> "line"), or the state the module finished in
@@ -80,7 +86,7 @@ public enum RowChange { None, Added, Updated, Removed }
 /// A dict entry or set member. <see cref="LookedUpBy"/> names the pointer variables holding this key. A <see cref="RowChange.Removed"/>
 /// row is a ghost of what the previous step had, shown for one step so the learner sees it go; it is never looked up.
 /// </summary>
-public sealed record RowView(string Key, string? Value, RowChange Change, IReadOnlyList<string> LookedUpBy);
+public sealed record RowView(string Id, string Key, string? Value, RowChange Change, IReadOnlyList<string> LookedUpBy);
 
 /// <summary>
 /// A dict or set drawn as rows. <see cref="Misses"/> names the pointers that exist but hold a key that isn't a row (a failed lookup);
@@ -156,6 +162,9 @@ public static class TraceModel
         return value >= 0 && value < cellCount ? value : null;
     }
 
+    /// <summary>What tells a row apart from the others: its id, or its label in a trace recorded without ids.</summary>
+    private static string Identity(TableRow row) => row.Id is { } id ? $"#{id}" : $"key:{row.Key}";
+
     private static IReadOnlyList<TableView> Tables(TraceFrame frame, List<Visual> visuals, TraceState? previous)
     {
         var views = new List<TableView>();
@@ -166,27 +175,29 @@ public static class TraceModel
             // What was really in the table before, not the ghosts of what had already gone.
             var wasThere = before?.Rows.Where(r => r.Change != RowChange.Removed).ToList();
 
-            var rows = new List<RowView>();
-            var misses = new List<string>();
-            var lookups = visual.Pointers
-                .Select(name => (Name: name, Local: frame.Locals.FirstOrDefault(l => l.Name == name)))
-                .Where(p => p.Local is not null)
-                .Select(p => (p.Name, Key: p.Local!.Repr))
-                .ToList();
+            // The recorder says which variables hold a key; this does not guess from reprs, which `1` and `1.0` would fool.
+            var lookups = new List<(string Name, int? Hit)>();
+            if (tracked.Hits is not null)
+                foreach (var name in visual.Pointers.Where(name => frame.Locals.Any(l => l.Name == name)))
+                    lookups.Add((name, tracked.Hits.TryGetValue(name, out var hit) ? hit : null));
 
+            var rows = new List<RowView>();
             foreach (var row in tracked.Rows)
             {
-                var was = wasThere?.FirstOrDefault(r => r.Key == row.Key);
+                var identity = Identity(row);
+                var was = wasThere?.FirstOrDefault(r => r.Id == identity);
                 var change = wasThere is null ? RowChange.None
                     : was is null ? RowChange.Added
                     : was.Value != row.Value ? RowChange.Updated
                     : RowChange.None;
-                rows.Add(new RowView(row.Key, row.Value, change, lookups.Where(l => l.Key == row.Key).Select(l => l.Name).ToList()));
+                rows.Add(new RowView(identity, row.Key, row.Value, change,
+                    lookups.Where(l => row.Id is not null && l.Hit == row.Id).Select(l => l.Name).ToList()));
             }
-            foreach (var gone in wasThere?.Where(w => tracked.Rows.All(r => r.Key != w.Key)) ?? [])
-                rows.Add(new RowView(gone.Key, gone.Value, RowChange.Removed, []));
+            foreach (var gone in wasThere?.Where(w => tracked.Rows.All(r => Identity(r) != w.Id)) ?? [])
+                rows.Add(new RowView(gone.Id, gone.Key, gone.Value, RowChange.Removed, []));
 
-            misses.AddRange(lookups.Where(l => rows.All(r => r.Change == RowChange.Removed || r.Key != l.Key)).Select(l => l.Name));
+            // A variable that holds no key at all is a miss; one that holds a key cut off from the rows is not, for it may well be there.
+            var misses = lookups.Where(l => l.Hit is null).Select(l => l.Name).ToList();
             views.Add(new TableView(visual.Variable, tracked.Kind, rows, tracked.More, misses));
         }
         return views;

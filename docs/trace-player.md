@@ -60,9 +60,17 @@ The validator rejects, with the file and step in the message:
 `trace_code(code, watch_json)` runs the code with `sys.settrace` and returns JSON. It is plain stdlib Python so the CLI runs the same file
 under CPython. Each frame is the state *just before* a line runs (`event: "line"`), or the state the module finished in (`event: "return"`,
 no line). A frame holds the function name, the locals (name, type, clipped repr) and, per watched variable, either `tracked` (a list or
-tuple: the first cells' reprs) or `tables` (a dict or set: `kind`, the Python `type` name and the first rows as `{key, value}`).
+tuple: the first cells' reprs) or `tables` (a dict or set: `kind`, the Python `type` name, the first rows as `{id, key, value}` and `hits`).
 A dict keeps its insertion order. A set has none, so its members are sorted (by value, falling back to sorted by repr for mixed types) to
 keep them from jumping about between steps.
+
+A row's `key` is only a label: its repr, clipped to 24 characters, so two different long keys can read the same. What tells rows apart is
+`id`, a number the recorder gives each distinct key (or member) the first time it meets it in the run and then reuses at every step. Keys
+are told apart the way a dict tells them apart, so `1`, `1.0` and `True` share an id, as they share a row.
+
+`hits` is the recorder's answer to "which variables are looking something up here": for every variable the frame lists, `value in table`,
+by Python's own equality, and if so that key's id. `key = 1.0` hits the row for `1`; an unhashable value, or one whose `__eq__` raises, is
+simply not a hit. A hit can carry the id of a row that was cut off by the 20-row limit, so it names no shown row.
 
 Limits keep a runaway example from hanging or flooding the UI: 300 frames (then `status: "truncated"`), 24 locals, 40 cells per list and 20 rows per
 dict or set (the rest are counted as *+N more*; sets over 500 members are shown in iteration order rather than sorted at every step), reprs clipped, 4000 characters of output. Modules, functions, classes and dunder names are hidden from the
@@ -77,11 +85,14 @@ being "new" isn't a change the learner caused.
 
 - `LocalView.Changed`: the name is new or its repr differs.
 - `CellView.Changed`: the cell is new or its text differs.
-- `RowView.Change` (dicts and sets): `Added` when the key is new, `Updated` when its value differs (dicts only), `Removed` for a key the
-  previous step had and this one does not. A removed row is kept as a ghost for that one step so the learner sees it go, and is never
+- `RowView.Id`: what a row is keyed by (and what the Razor `@key` uses), taken from the recorder's `id`, never from the clipped label. In a
+  trace recorded before ids existed it falls back to the label.
+- `RowView.Change` (dicts and sets): `Added` when the id is new, `Updated` when its value differs (dicts only), `Removed` for a key the
+  previous step had and this one does not (matched by id, so two keys with the same label are not confused). A removed row is kept as a ghost for that one step so the learner sees it go, and is never
   compared again. The first step marks nothing, and neither does the first step in a new function.
-- `RowView.LookedUpBy`: the pointer variables whose repr equals the row's key repr. `TableView.Misses` are the pointers that exist but
-  match no live row.
+- `RowView.LookedUpBy`: the pointer variables the recorder reported as hitting that row's id. `TableView.Misses` are the pointers that
+  exist but hit nothing at all (a hit on a row cut off by the 20-row limit is neither a lookup nor a miss, since the key may well be there).
+  The model never compares reprs; a trace without `hits` marks no lookups and reports no misses.
 - A table is drawn only when the recorded value really is the kind the visual asks for (a list named as `dict` draws nothing).
 - `PointerView.Index`: the cell the pointer's variable indexes. Null when the variable is missing, isn't an `int`, or is outside the
   recorded cells (negative, or past the end). `Moved` is true when the index differs from the previous state's.
@@ -146,5 +157,5 @@ slots in beside them.
 line highlight, lesson wiring), `tests/js/shortcuts.test.mjs` (key classification) and `ShortcutTests.cs` (the page listener's mapping).
 bUnit can't observe a CSS transition or element reuse, so the sliding, flashing and the ghost row's fade are checked by looking at the running app.
 
-Known limits: a pointer's key is matched to a row by repr, so a key clipped to 24 characters never matches; and the recorder keeps only
-the first 20 rows, so a pointer on a later row reads as a miss.
+Known limit: the recorder keeps only the first 20 rows, so a pointer on a later row is shown as nothing (neither marked nor a miss) beside
+*+N more*.
