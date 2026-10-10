@@ -16,13 +16,19 @@ public sealed record LessonProgress(Lesson Lesson, IReadOnlySet<string> Complete
     public bool IsComplete => CompletionRecorded || Remaining == 0;
 
     /// <summary>The first step without a StepCompleted event (progress attaches to IDs, so reordering is safe); null when done.</summary>
-    public Step? CurrentStep => IsComplete ? null : Lesson.Steps.FirstOrDefault(s => !CompletedStepIds.Contains(s.Id));
+    public Step? CurrentStep => IsComplete ? null : NextStep;
 
-    public static LessonProgress From(Lesson lesson, IEnumerable<ProgressEvent> events)
-    {
-        var ofLesson = events.Where(e => e.LessonId == lesson.Id).ToList();
-        return new(lesson,
-            ofLesson.Where(e => e.Type == ProgressEventTypes.StepCompleted).Select(e => e.StepId).ToHashSet(),
-            ofLesson.Any(e => e.Type == ProgressEventTypes.LessonCompleted));
-    }
+    /// <summary>The first step without a StepCompleted event, whether or not the lesson was finished before; null when every step is done.</summary>
+    public Step? NextStep => Lesson.Steps.FirstOrDefault(s => !CompletedStepIds.Contains(s.Id));
+
+    /// <summary>Steps added after the learner finished the lesson. Empty while the lesson is unfinished: then they are simply remaining.</summary>
+    public IReadOnlyList<Step> NewSteps =>
+        CompletionRecorded ? Lesson.Steps.Where(s => !CompletedStepIds.Contains(s.Id)).ToList() : [];
+
+    /// <summary>Steps the learner completed that no longer exist in the content. Their events are kept but ignored.</summary>
+    public IReadOnlyList<string> RetiredStepIds =>
+        CompletedStepIds.Where(id => Lesson.Steps.All(s => s.Id != id)).Order(StringComparer.Ordinal).ToList();
+
+    public static LessonProgress From(Lesson lesson, IEnumerable<ProgressEvent> events) =>
+        LearnerStateProjector.ProjectLesson(lesson, events);
 }

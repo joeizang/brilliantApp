@@ -10,6 +10,10 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
 
     public IProgressEventLog Log => log;
 
+    /// <summary>The learner's state right now: the whole log projected against <paramref name="content"/>.</summary>
+    public LearnerState Project(ContentGraph content) =>
+        LearnerStateProjector.Project(log.ReadAll(), content, _clock.GetUtcNow());
+
     public void StepAnswered(string lessonId, string stepId, bool correct, IReadOnlyList<int> selected) =>
         Append(ProgressEventTypes.StepAnswered, lessonId, stepId,
             JsonSerializer.Serialize(new { correct, selected }));

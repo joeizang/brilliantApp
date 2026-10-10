@@ -2,7 +2,7 @@
 @inject ProgressRecorder Recorder
 
 <nav class="sidebar" aria-label="Course">
-    @foreach (var track in CourseProgress.From(Content, Recorder.Log.ReadAll()))
+    @foreach (var track in Recorder.Project(Content).Tracks)
     {
         <section class="side-track">
             <button class="side-track-title @(track.Track.Id == CurrentTrack?.Id ? "current" : "")" @onclick="() => OnOpenTrack.InvokeAsync(track.Track)">
@@ -16,7 +16,7 @@
                         <button class="side-lesson @l.Status.ToString().ToLowerInvariant() @(l.Lesson.Id == CurrentLesson?.Id ? "current" : "")"
                                 disabled="@(l.Status == LessonStatus.Locked)"
                                 aria-current="@(l.Lesson.Id == CurrentLesson?.Id ? "page" : null)"
-                                @onclick="() => OnOpenLesson.InvokeAsync((track.Track, l.Lesson, l.Status == LessonStatus.Completed))">
+                                @onclick="() => OnOpenLesson.InvokeAsync((track.Track, l.Lesson, l.Status == LessonStatus.Completed && l.NewStepCount == 0))">
                             <span class="status" aria-hidden="true">@Icon(l.Status)</span>
                             <span>@l.Lesson.Title</span>
                         </button>
