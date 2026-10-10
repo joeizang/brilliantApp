@@ -164,9 +164,10 @@ public class ShortcutTests : ShortcutContext
     }
 
     [Fact]
-    public async Task Back_climbs_one_level_at_a_time_and_stops_at_the_tracks_list()
+    public async Task Back_climbs_one_level_at_a_time_and_stops_at_Today()
     {
         var cut = OpenShell();
+        cut.Find("button.browse").Click();
         cut.Find("main .card").Click();                              // the track
         cut.Find("main ol.lessons button.primary").Click();          // lesson A
         Assert.Contains("Title lesson.a.1", cut.Find("main").TextContent);
@@ -178,8 +179,11 @@ public class ShortcutTests : ShortcutContext
         await Press(StepCommand.Back);
         Assert.Equal("Tracks", cut.Find("main h1").TextContent);
 
+        await Press(StepCommand.Back);
+        Assert.Equal("Today", cut.Find("main h1").TextContent.Trim());
+
         await Press(StepCommand.Back);                               // already at the top
-        Assert.Equal("Tracks", cut.Find("main h1").TextContent);
+        Assert.Equal("Today", cut.Find("main h1").TextContent.Trim());
     }
 
     [Fact]

@@ -5,6 +5,10 @@
     var learner = Recorder.Project(Content);
     var due = learner.Queue.Items.Count;
 }
+@if (OnBack.HasDelegate)
+{
+    <div class="crumbs"><button class="link" @onclick="() => OnBack.InvokeAsync()">← Today</button></div>
+}
 <h1 class="screen-title">Tracks</h1>
 @if (due > 0)
 {
@@ -36,4 +40,7 @@ else
     [Parameter, EditorRequired] public ContentGraph Content { get; set; } = default!;
     [Parameter] public EventCallback<Track> OnOpenTrack { get; set; }
     [Parameter] public EventCallback OnOpenReview { get; set; }
+
+    /// <summary>Back to Today, when Tracks is reached from there.</summary>
+    [Parameter] public EventCallback OnBack { get; set; }
 }

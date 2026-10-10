@@ -10,7 +10,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .side-track-title:hover, .side-lesson:hover:not(:disabled) { background: var(--surface); }
 .side-track-title.current { color: var(--fg); }
 .side-lesson.current { background: color-mix(in srgb, var(--accent) 20%, transparent); font-weight: 600; }
-.side-review { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: .5rem; min-height: 2.25rem; padding: .45rem .75rem; border-radius: var(--radius-sm); font-size: .95rem; font-weight: 600; transition: background-color .15s var(--ease); }
-.side-review:hover { background: var(--surface); }
-.side-review.current { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.side-review, .side-today { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: .5rem; min-height: 2.25rem; padding: .45rem .75rem; border-radius: var(--radius-sm); font-size: .95rem; font-weight: 600; transition: background-color .15s var(--ease); }
+.side-review:hover, .side-today:hover { background: var(--surface); }
+.side-review.current, .side-today.current { background: color-mix(in srgb, var(--accent) 20%, transparent); }
 .due-count { min-width: 1.4rem; padding: .05rem .45rem; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: .75rem; font-weight: 700; text-align: center; }
+.streak-count { font-size: .8rem; font-weight: 600; color: var(--fg-secondary); font-variant-numeric: tabular-nums; }

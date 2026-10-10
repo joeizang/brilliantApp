@@ -29,8 +29,87 @@ public static class LearnerStateProjector
         var log = Distinct(events);
         var tracks = content.Tracks.Select(track => ProjectTrack(track, content, log)).ToList();
         var (reviews, answeredToday) = ProjectReviews(tracks, log, now);
-        return new LearnerState(now, tracks, reviews, ReviewQueueBuilder.Build(reviews, now, answeredToday, queueOptions),
-            ProjectConcepts(tracks, reviews, log, now));
+        var queue = ReviewQueueBuilder.Build(reviews, now, answeredToday, queueOptions);
+        return new LearnerState(now, tracks, reviews, queue, ProjectConcepts(tracks, reviews, log, now), ProjectToday(tracks, queue, log, now));
+    }
+
+    /// <summary>
+    /// What the learner did in a window of time: steps completed, reviews answered, how many of the answers were right, and which
+    /// concepts' mastery moved (compared as projected at <paramref name="since"/> and at <paramref name="until"/>). Pure, like
+    /// <see cref="Project"/>.
+    /// </summary>
+    public static SessionSummary Summarize(IEnumerable<ProgressEvent> events, ContentGraph content, DateTimeOffset since, DateTimeOffset until)
+    {
+        var log = Distinct(events);
+        var window = log.Where(e => e.OccurredAt >= since && e.OccurredAt <= until).ToList();
+        var outcomes = window.Select(Outcome).Where(o => o is not null).ToList();
+
+        var before = Project(log.Where(e => e.OccurredAt < since), content, since).Concepts
+            .ToDictionary(c => (c.Lesson.Lesson.Id, c.Concept.Id), c => c.Mastery);
+        var changes = Project(log.Where(e => e.OccurredAt <= until), content, until).Concepts
+            .Where(c => c.History.Any(a => a.At >= since && a.At <= until))      // only what was practised, not what merely faded meanwhile
+            .Select(c => new MasteryChange(c.Concept, c.Lesson, before[(c.Lesson.Lesson.Id, c.Concept.Id)], c.Mastery))
+            .Where(c => Math.Abs(c.Delta) > 1e-9)
+            .OrderByDescending(c => Math.Abs(c.Delta)).ThenBy(c => c.Concept.Id, StringComparer.Ordinal)
+            .ToList();
+
+        return new SessionSummary(
+            window.Where(e => e.Type == ProgressEventTypes.StepCompleted).Select(e => (e.LessonId, e.StepId)).Distinct().Count(),
+            window.Count(e => e.Type == ProgressEventTypes.ReviewAnswered && ParseReviewAnswer(e) is not null),
+            outcomes.Count, outcomes.Count(o => o == true), changes);
+    }
+
+    /// <summary>
+    /// The goal, today's progress and the streak. Progress is the steps completed (each step once a day) plus the reviews
+    /// answered, on the learner's local day. A day counts toward the streak when it met the goal in force at its end, so changing
+    /// the goal never rewrites history.
+    /// </summary>
+    private static TodayState ProjectToday(
+        IReadOnlyList<TrackState> tracks, ReviewQueue queue, IReadOnlyList<ProgressEvent> log, DateTimeOffset now)
+    {
+        DateTime DayOf(ProgressEvent e) => e.OccurredAt.ToOffset(now.Offset).Date;
+
+        var done = new Dictionary<DateTime, int>();
+        foreach (var day in log.Where(e => e.Type == ProgressEventTypes.StepCompleted).Select(e => (Day: DayOf(e), e.LessonId, e.StepId)).Distinct())
+            done[day.Day] = done.GetValueOrDefault(day.Day) + 1;
+        foreach (var e in log.Where(e => e.Type == ProgressEventTypes.ReviewAnswered && ParseReviewAnswer(e) is not null))
+            done[DayOf(e)] = done.GetValueOrDefault(DayOf(e)) + 1;
+
+        var goals = log.Where(e => e.Type == ProgressEventTypes.DailyGoalSet)
+            .Select(e => (Event: e, Steps: ParseGoal(e))).Where(x => x.Steps is not null)
+            .OrderBy(x => x.Event.OccurredAt).ThenBy(x => x.Event.Id, StringComparer.Ordinal)
+            .Select(x => (Day: DayOf(x.Event), Steps: x.Steps!.Value)).ToList();
+        int GoalOn(DateTime day) => goals.LastOrDefault(g => g.Day <= day) is { Steps: > 0 } g ? g.Steps : TodayState.DefaultGoal;
+        bool Met(DateTime day) => done.GetValueOrDefault(day) >= GoalOn(day);
+
+        var today = now.Date;
+        var streak = 0;
+        for (var day = Met(today) ? today : today.AddDays(-1); Met(day); day = day.AddDays(-1)) streak++;
+
+        var lessons = tracks.SelectMany(t => t.Lessons).ToList();
+        var next = lessons.FirstOrDefault(l => l.Status == LessonStatus.InProgress) ?? lessons.FirstOrDefault(l => l.Status == LessonStatus.Available);
+
+        var started = log.Where(e => e.Type == ProgressEventTypes.SessionStarted && DayOf(e) == today)
+            .OrderByDescending(e => e.OccurredAt).ThenBy(e => e.Id, StringComparer.Ordinal).FirstOrDefault();
+        var session = started is not null && !log.Any(e => e.Type == ProgressEventTypes.SessionCompleted && e.OccurredAt >= started.OccurredAt)
+            ? new SessionState(started.LessonId.Length == 0 ? null : started.LessonId, started.OccurredAt)
+            : null;
+
+        return new TodayState(goals.Count == 0 ? TodayState.DefaultGoal : GoalOn(today), done.GetValueOrDefault(today), streak, next,
+            queue.Items.Count, session);
+    }
+
+    private static int? ParseGoal(ProgressEvent e)
+    {
+        if (e.Data is null) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(e.Data);
+            return doc.RootElement.ValueKind == JsonValueKind.Object
+                && doc.RootElement.TryGetProperty("steps", out var steps) && steps.ValueKind == JsonValueKind.Number && steps.TryGetInt32(out var n)
+                ? TodayState.ClampGoal(n) : null;
+        }
+        catch (JsonException) { return null; }
     }
 
     /// <summary>

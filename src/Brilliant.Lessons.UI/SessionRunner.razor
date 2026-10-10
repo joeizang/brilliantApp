@@ -1,0 +1,85 @@
+@* The daily session: Review first, then the current lesson, then the summary. Where it is up to is derived from the log,
+   so a session left part-way resumes exactly where it stopped, even after a restart. *@
+@using Brilliant.Core.Progress
+@inject ProgressRecorder Recorder
+
+<ol class="session-steps" aria-label="Session">
+    <li aria-current="@Current(Phase.Review)">Review</li>
+    <li aria-current="@Current(Phase.Lesson)">Lesson</li>
+    <li aria-current="@Current(Phase.Summary)">Summary</li>
+</ol>
+
+@switch (_phase)
+{
+    case Phase.Review:
+        <ReviewView Content="Content" OnExit="OnExit" OnFinished="AfterReview" FinishedText="@(_lesson is null ? "See summary" : "Continue to lesson")" OnProgress="OnProgress" />
+        break;
+    case Phase.Lesson:
+        <LessonViewer @key="_lesson!.Id" Lesson="_lesson!" OnExit="OnExit" OnFinished="ShowSummary" FinishedText="See summary" OnProgress="OnProgress" />
+        break;
+    default:
+        <SessionSummaryView Summary="_summary!" Today="_today!" OnDone="OnExit" />
+        break;
+}
+
+@code {
+    private enum Phase { Review, Lesson, Summary }
+
+    [Parameter, EditorRequired] public ContentGraph Content { get; set; } = default!;
+
+    /// <summary>The learner left (the Back link) or is done with the summary. An unfinished session stays open to resume.</summary>
+    [Parameter] public EventCallback OnExit { get; set; }
+
+    /// <summary>Raised after progress is recorded, so whatever shows it elsewhere (the sidebar) can refresh.</summary>
+    [Parameter] public EventCallback OnProgress { get; set; }
+
+    private Phase _phase;
+    private SessionState _session = default!;
+    private Lesson? _lesson;
+    private SessionSummary? _summary;
+    private TodayState? _today;
+
+    private string? Current(Phase phase) => phase == _phase ? "step" : null;
+
+    protected override void OnInitialized()
+    {
+        var state = Recorder.Project(Content);
+        if (state.Today.Session is null)
+        {
+            Recorder.StartSession(state.Today.NextLesson?.Lesson.Id);
+            state = Recorder.Project(Content);
+        }
+        _session = state.Today.Session!;
+        var lesson = _session.LessonId is { } id ? state.Lesson(id) : null;
+        _lesson = lesson?.Lesson;
+
+        // Review comes first, unless the learner has already moved on into the lesson this session.
+        var movedOn = lesson is not null && Recorder.Log.ReadAll().Any(e =>
+            e.Type == ProgressEventTypes.StepCompleted && e.LessonId == lesson.Lesson.Id && e.OccurredAt >= _session.StartedAt);
+        if (state.Queue.Items.Count > 0 && !movedOn) _phase = Phase.Review;
+        else if (lesson is not null && lesson.Status != LessonStatus.Completed) _phase = Phase.Lesson;
+        else EnterSummary();
+    }
+
+    private async Task AfterReview()
+    {
+        if (_lesson is not null && Recorder.Project(Content).Lesson(_lesson.Id) is { Status: not LessonStatus.Completed }) _phase = Phase.Lesson;
+        else EnterSummary();
+        await OnProgress.InvokeAsync();
+    }
+
+    private async Task ShowSummary()
+    {
+        EnterSummary();
+        await OnProgress.InvokeAsync();
+    }
+
+    // The session ends when the summary is reached; reopening it later finds it already closed and starts a new one.
+    private void EnterSummary()
+    {
+        _summary = LearnerStateProjector.Summarize(Recorder.Log.ReadAll(), Content, _session.StartedAt, Recorder.Now);
+        Recorder.CompleteSession();
+        _today = Recorder.Project(Content).Today;
+        _phase = Phase.Summary;
+    }
+}

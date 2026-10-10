@@ -222,7 +222,7 @@ public class ReviewViewTests : ShortcutContext
     }
 
     [Fact]
-    public void Opening_review_from_the_shell_shows_the_queue_and_Back_returns_to_the_tracks()
+    public void Opening_review_from_the_shell_shows_the_queue_and_Back_returns_to_Today()
     {
         FinishLesson();
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -233,7 +233,7 @@ public class ReviewViewTests : ShortcutContext
         Assert.Contains("Question step.q1", cut.Markup);
 
         cut.Find("button.link").Click();
-        Assert.Contains("Tracks", cut.Find("h1.screen-title").TextContent);
+        Assert.Equal("Today", cut.Find("main h1").TextContent.Trim());
     }
 
     [Fact]
