@@ -43,7 +43,7 @@
                 <div class="review-actions"><button class="primary" @onclick="Next">Skip</button></div>
                 break;
         }
-        <HintLadder Hints="item.Question.Hints" Caption="A hint makes this come back sooner." OnRevealed="level => Hinted(item, level)" />
+        <HintLadder Hints="item.Question.Hints" Initial="item.AttemptHints" Caption="A hint makes this come back sooner." OnRevealed="level => Hinted(item, level)" />
         @if (_scheduled is { } due)
         {
             <p class="review-next" role="status">You'll see this again @Describe(due - Recorder.Now).</p>
@@ -90,7 +90,7 @@ else
 
     private void Show()
     {
-        (_recorded, _hintsUsed, _scheduled, _shownAt) = (false, 0, null, Recorder.Now);
+        (_recorded, _hintsUsed, _scheduled, _shownAt) = (false, _current?.AttemptHints ?? 0, null, Recorder.Now);
         (_nextDue, _waiting) = _current is null ? Finished() : (null, 0);
     }
 
@@ -99,7 +99,7 @@ else
     {
         if (_recorded) return;
         _recorded = true;
-        Recorder.ReviewAnswered(item, correct, _hintsUsed, Recorder.Now - _shownAt);
+        Recorder.ReviewAnswered(item, correct, item.HintsBefore(_hintsUsed), Recorder.Now - _shownAt);
         _scheduled = Recorder.Project(Content).Reviews.First(r => r.Item.Id == item.Item.Id).Card?.Due;
         await OnProgress.InvokeAsync();
     }

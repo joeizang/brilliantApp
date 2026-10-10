@@ -27,14 +27,25 @@ only requires non-empty text. Explain steps take no hints.
 ## The `HintUsed` event
 
 `StepId` is the question step; `Data` is `{ "level": 1-based rung, "item": review item ID or null }`. `item` is set only when the hint was asked
-in Review, so a lesson attempt and a review attempt of the same step never blur together. The projector ignores `HintUsed`: it doesn't
-change lesson progress, unlock reviews or touch a schedule.
+in Review, so a lesson attempt and a review attempt of the same step never blur together. Malformed events (no level, a level below 1,
+a non-string item) are ignored. The projector reads them in two ways, both pure functions of the log:
+
+- **Lesson hints** (`item` null) → `ReviewItemState.LessonHints`: the highest rung used on that step while learning it.
+- **Review hints** → `ReviewItemState.AttemptHints`: the highest rung asked for that item *since its last `ReviewAnswered`*. That is the help already
+  taken on the attempt in progress. Answering closes the attempt, so the next one starts clean.
+
+They never change lesson progress or unlock anything.
 
 ## Rating impact
 
-Review counts the hints a learner asked for **before their first answer** and passes the count to `RatingInference` (see [review.md](review.md)):
+The hints counted against a review answer are `ReviewItemState.HintsBefore(askedThisAttempt)`: the most of
 
-| Hints used | Rating of a correct answer |
+1. the hints asked on this attempt (live in the ladder, and those restored from before, see below), and
+2. the **carried lesson hints**, on an item's *first* review only.
+
+That count goes to `RatingInference` (see [review.md](review.md)) and is stored as `hintsUsed` on `ReviewAnswered`:
+
+| Hints counted | Rating of a correct answer |
 |---|---|
 | 0 | Easy / Good / Hard by time |
 | 1–2 | Hard |
@@ -44,11 +55,24 @@ A wrong answer is Again whatever the hints. FSRS does the rest: less stability, 
 both round to a one-day interval, so the difference shows in the stored stability and difficulty and in the second interval; against
 an unaided Good or Easy answer the item comes back days sooner.
 
-Hints asked after the first answer are practice: they are not recorded and don't change the rating that was stored.
+**Interrupted attempts.** Hint use is read back from the log, not held in the screen, so leaving Review (or quitting the app) after revealing
+hints and coming back can't erase them: the ladder reopens with those rungs shown and they still count. A write-code re-solve resumes the same way
+as its code draft does.
+
+**Hints asked after the first answer** are practice: not recorded, and they don't change the rating that was stored.
+
+## Hints used in a lesson (story 33)
+
+- **Re-solves.** A write-code, fill-blank or Parsons step that the learner used *any* hint on gets a re-solve (`resolve.<step id>`), exactly like one
+  answered incorrectly, even if the first submission passed. It unlocks with the lesson and is scheduled by FSRS like any review item.
+  Choice and predict-output steps get none: their authored review items already cover them.
+- **First review.** For a concept or pattern item, the lesson hints on its question step count against its first review (the "carried" hints
+  above), so a question the learner needed the answer for can't be rated Easy the first time it comes back. The re-solve is exempt: it is the
+  test of that very problem and is judged on its own hints.
+- Later reviews of an item look only at the hints asked in Review.
 
 ## Not in this slice
 
-- Hints used in a **lesson** are recorded but nothing reads them yet. A step solved only with the answer shown doesn't become a re-solve,
-  and doesn't change the first review. Mastery ([#21](https://github.com/joeizang/brilliantApp/issues/21)) is the natural reader.
 - No keyboard shortcut for *Need a hint?* yet.
 - The *full solution* rung doesn't link to the trace player.
+- Any hint, however small, creates a re-solve; if that turns out to be too many a threshold is one line in the projector.

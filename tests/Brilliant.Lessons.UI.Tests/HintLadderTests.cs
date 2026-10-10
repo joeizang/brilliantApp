@@ -295,6 +295,82 @@ public class HintLadderTests : ShortcutContext
     }
 
     [Fact]
+    public void Reopening_an_unanswered_review_keeps_the_hints_already_taken()
+    {
+        var first = OpenReview();
+        Reveal(first, 4);
+        first.Dispose();   // navigated away before checking
+
+        var cut = Render<ReviewView>(p => p.Add(c => c.Content, Content));
+        Assert.Equal(["nudge", "pattern", "partial", "solution"], cut.FindAll(".hint-text").Select(t => t.TextContent.Trim()));
+        _clock.Now = T0.AddSeconds(2);
+        AnswerRight(cut);
+
+        var answer = Assert.Single(Answers);
+        Assert.Equal((4, 1), (Data(answer).GetProperty("hintsUsed").GetInt32(), Data(answer).GetProperty("rating").GetInt32()));
+    }
+
+    [Fact]
+    public void Hints_taken_after_reopening_add_to_those_taken_before()
+    {
+        var first = OpenReview();
+        Reveal(first, 1);
+        first.Dispose();
+
+        var cut = Render<ReviewView>(p => p.Add(c => c.Content, Content));
+        Reveal(cut, 1);
+
+        Assert.Equal([1, 2], Hints.Select(e => Data(e).GetProperty("level").GetInt32()));
+        _clock.Now = T0.AddSeconds(2);
+        AnswerRight(cut);
+        Assert.Equal(2, Data(Assert.Single(Answers)).GetProperty("hintsUsed").GetInt32());
+    }
+
+    [Fact]
+    public void An_answered_review_does_not_hand_its_hints_to_the_next_attempt()
+    {
+        var cut = OpenReview();
+        Reveal(cut, 3);
+        AnswerRight(cut);
+        cut.Dispose();
+        _clock.Now = T0.AddDays(3);
+
+        var again = Render<ReviewView>(p => p.Add(c => c.Content, Content));
+
+        Assert.Empty(again.FindAll(".hint-text"));
+    }
+
+    [Fact]
+    public void Hints_taken_in_the_lesson_count_against_the_first_review()
+    {
+        _recorder.HintUsed("lesson.l", "step.q1", 3);
+        var cut = OpenReview();
+        _clock.Now = T0.AddSeconds(2);
+
+        AnswerRight(cut);
+
+        var answer = Assert.Single(Answers);
+        Assert.Equal((3, 1), (Data(answer).GetProperty("hintsUsed").GetInt32(), Data(answer).GetProperty("rating").GetInt32()));
+    }
+
+    [Fact]
+    public void Lesson_hints_do_not_follow_an_item_into_its_later_reviews()
+    {
+        _recorder.HintUsed("lesson.l", "step.q1", 3);
+        var first = OpenReview();
+        AnswerRight(first);
+        first.Dispose();
+        _clock.Now = T0.AddDays(10);
+
+        var cut = Render<ReviewView>(p => p.Add(c => c.Content, Content));
+        _clock.Now = T0.AddDays(10).AddSeconds(2);
+        AnswerRight(cut);
+
+        var second = Answers.Last();
+        Assert.Equal(("review.q1", 0), (Data(second).GetProperty("item").GetString(), Data(second).GetProperty("hintsUsed").GetInt32()));
+    }
+
+    [Fact]
     public void The_review_ladder_says_a_hint_has_a_cost()
     {
         var cut = OpenReview();

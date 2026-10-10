@@ -32,12 +32,17 @@
     /// <summary>Raised with the 1-based level each time a hint is revealed.</summary>
     [Parameter] public EventCallback<int> OnRevealed { get; set; }
 
+    /// <summary>How many rungs are already open when the ladder appears, for an attempt that was interrupted and resumed.</summary>
+    [Parameter] public int Initial { get; set; }
+
     /// <summary>Optional small print beside the button, e.g. what using a hint costs.</summary>
     [Parameter] public string? Caption { get; set; }
 
     private static readonly string[] Names = ["Nudge", "Pattern hint", "Partial code", "Full solution"];
 
     private int _revealed;
+
+    protected override void OnInitialized() => _revealed = Math.Clamp(Initial, 0, Hints.Count);
 
     // Only a full four-rung ladder has the standard rung names; a shorter one is just numbered.
     private string Label(int index) => Hints.Count == Names.Length ? Names[index] : $"Hint {index + 1} of {Hints.Count}";
