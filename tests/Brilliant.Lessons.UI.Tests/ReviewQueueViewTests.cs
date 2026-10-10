@@ -1,9 +1,12 @@
 using System.Text.Json;
 using Brilliant.Core.Content;
+using Brilliant.Core.Drafts;
+using Brilliant.Core.Python;
 using Brilliant.Core.Progress;
 using Brilliant.Core.Review;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.JSInterop;
 
 namespace Brilliant.Lessons.UI.Tests;
 
@@ -25,6 +28,20 @@ public class ReviewQueueViewTests : ShortcutContext
         public bool Append(ProgressEvent e) { Items.Add(e); return true; }
         public IReadOnlyList<ProgressEvent> ReadAll() => Items;
         public EventPage ReadSince(long cursor) => new(Items.Skip((int)cursor).ToList(), Items.Count);
+    }
+
+    private sealed class MemoryDrafts : ICodeDraftStore
+    {
+        public Dictionary<string, string> Saved { get; } = [];
+        public string? Get(string stepId) => Saved.GetValueOrDefault(stepId);
+        public void Save(string stepId, string code) => Saved[stepId] = code;
+        public void Reset(string stepId) => Saved.Remove(stepId);
+    }
+
+    private sealed class FakeRuntime : IPythonRuntime
+    {
+        public Task<TestRunResult> RunTestsAsync(string code, string entrypoint, IReadOnlyList<CodeTest> tests, CancellationToken ct = default) =>
+            Task.FromResult(new TestRunResult(TestRunStatus.Passed, "", null, null, null, []));
     }
 
     private static ChoiceStep Q(string id) =>
@@ -156,5 +173,77 @@ public class ReviewQueueViewTests : ShortcutContext
 
         Assert.Empty(Open(lesson).FindAll("input.blank"));
         Assert.Contains("all caught up", Open(lesson).Find(".review-done").TextContent, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // --- Write-code re-solves must start from the starter, not from the learner's saved lesson solution ----------------
+
+    private static readonly WriteCodeStep Write = new("step.write", "Echo", "Write f", "python", "def f(x):\n    pass\n", "f", [new CodeTest("7", "7")]);
+    private const string LessonSolution = "def f(x):\n    return x\n";
+
+    private (IRenderedComponent<ReviewView> Cut, BunitJSModuleInterop Module, MemoryDrafts Drafts, Lesson Lesson) OpenWriteCodeResolve(Action<MemoryDrafts>? arrange = null)
+    {
+        var lesson = new Lesson("lesson.w", "Write", "track.t", [new ExplainStep("step.intro", "Intro", "b", [], null), Write]);
+        _recorder.CodeSubmitted(lesson.Id, Write.Id, "def f(x): pass", 0, 1);        // got it wrong first,
+        _recorder.CodeSubmitted(lesson.Id, Write.Id, LessonSolution, 1, 1);          // then solved it to finish the lesson
+        Finish(lesson);
+        var drafts = new MemoryDrafts { Saved = { [Write.Id] = LessonSolution } };    // and the editor autosaved that solution
+        arrange?.Invoke(drafts);
+
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var module = JSInterop.SetupModule("./_content/Brilliant.Lessons.UI/code-editor.js");
+        module.Setup<int>("create", _ => true).SetResult(1);
+        module.Setup<string>("getCode", _ => true).SetResult("def f(x):\n    return x + 1\n");
+        Services.AddSingleton<ICodeDraftStore>(drafts);
+        Services.AddSingleton<IPythonRuntime>(new FakeRuntime());
+
+        var cut = Open(lesson);
+        cut.WaitForAssertion(() => Assert.Single(module.Invocations["create"]));
+        return (cut, module, drafts, lesson);
+    }
+
+    private static string EditorStartedWith(BunitJSModuleInterop module) => (string)module.Invocations["create"].Single().Arguments[1]!;
+
+    [Fact]
+    public void A_write_code_re_solve_starts_from_the_starter_not_the_saved_lesson_solution()
+    {
+        var (_, module, drafts, _) = OpenWriteCodeResolve();
+
+        Assert.Equal(Write.Starter, EditorStartedWith(module));
+        Assert.Equal(LessonSolution, drafts.Saved[Write.Id]);   // the lesson's own draft is left alone
+    }
+
+    [Fact]
+    public void Typing_in_a_re_solve_never_overwrites_the_lessons_draft()
+    {
+        var (_, module, drafts, _) = OpenWriteCodeResolve();
+
+        ((DotNetObjectReference<CodeEditor>)module.Invocations["create"].Single().Arguments[2]!).Value.OnJsChanged("def f(x):\n    return 1\n");
+
+        Assert.Equal(LessonSolution, drafts.Saved[Write.Id]);
+        Assert.Equal("def f(x):\n    return 1\n", drafts.Saved["review.resolve.step.write.0"]);
+    }
+
+    [Fact]
+    public void An_interrupted_re_solve_resumes_where_it_was_left()
+    {
+        var (_, module, _, _) = OpenWriteCodeResolve(d => d.Saved["review.resolve.step.write.0"] = "def f(x):\n    return 2\n");
+
+        Assert.Equal("def f(x):\n    return 2\n", EditorStartedWith(module));
+    }
+
+    [Fact]
+    public void The_next_due_attempt_starts_fresh_again_after_one_was_answered()
+    {
+        var (cut, module, drafts, lesson) = OpenWriteCodeResolve();
+        cut.Find("button.primary").Click();                                           // Run tests: the first check is recorded
+        cut.WaitForState(() => Answers.Any());
+        var due = _recorder.Project(Graph(lesson)).Reviews.Single(r => r.Item.Id == "resolve.step.write").Card!.Due;
+        drafts.Saved["review.resolve.step.write.0"] = "def f(x):\n    return x + 1\n";
+
+        _clock.Now = due;
+        var second = Open(lesson);
+        second.WaitForAssertion(() => Assert.Equal(2, module.Invocations["create"].Count));
+
+        Assert.Equal(Write.Starter, (string)module.Invocations["create"][1].Arguments[1]!);
     }
 }

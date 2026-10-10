@@ -88,12 +88,19 @@
 
     [Parameter, EditorRequired] public WriteCodeStep Step { get; set; } = default!;
 
+    /// <summary>
+    /// Where the learner's code is autosaved. Defaults to the step's ID, so a lesson keeps one draft per step. Review passes its own,
+    /// so a re-solve neither starts from nor overwrites the solution the learner saved in the lesson.
+    /// </summary>
+    [Parameter] public string? DraftKey { get; set; }
+
     /// <summary>Raised each time the learner runs their code against the tests (pass or fail).</summary>
     [Parameter] public EventCallback<Submission> OnSubmitted { get; set; }
 
     /// <summary>Raised when the learner continues after all tests pass.</summary>
     [Parameter] public EventCallback OnContinue { get; set; }
 
+    private string Key => DraftKey ?? Step.Id;
     private CodeEditor _editor = default!;
     private string _initialCode = "";
     private bool _confirmingReset;
@@ -107,7 +114,7 @@
 
     protected override void OnInitialized()
     {
-        _initialCode = Drafts.Get(Step.Id) ?? Step.Starter;
+        _initialCode = Drafts.Get(Key) ?? Step.Starter;
         _shortcuts = Shortcuts.Subscribe(OnShortcut);
     }
 
@@ -132,8 +139,8 @@
     private void SaveDraft(string code)
     {
         if (_resetting) return;   // an edit reported while a reset is in flight is the text being replaced
-        if (code == Step.Starter) Drafts.Reset(Step.Id);
-        else Drafts.Save(Step.Id, code);
+        if (code == Step.Starter) Drafts.Reset(Key);
+        else Drafts.Save(Key, code);
     }
 
     private async Task ResetToStarter()
@@ -144,7 +151,7 @@
         _resetting = true;
         try
         {
-            Drafts.Reset(Step.Id);
+            Drafts.Reset(Key);
             await _editor.SetCodeAsync(Step.Starter);
             await _editor.ClearErrorMarkersAsync();
             await _editor.HighlightLineAsync(null);
@@ -152,7 +159,7 @@
         finally
         {
             // Whatever autosave callbacks arrived during the JS round trips were ignored; the reset has the last word.
-            Drafts.Reset(Step.Id);
+            Drafts.Reset(Key);
             _resetting = false;
         }
     }

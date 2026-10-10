@@ -36,7 +36,7 @@
                 <ParsonsStepView Step="parsons" OnAnswered="a => Answered(item, a.Result.IsCorrect)" OnContinue="Next" />
                 break;
             case WriteCodeStep write:
-                <WriteCodeStepView Step="write" OnSubmitted="s => Answered(item, s.Result.Status == TestRunStatus.Passed)" OnContinue="Next" />
+                <WriteCodeStepView Step="write" DraftKey="@DraftKey(item)" OnSubmitted="s => Answered(item, s.Result.Status == TestRunStatus.Passed)" OnContinue="Next" />
                 break;
             default:
                 <p>This kind of question can't be reviewed here yet.</p>
@@ -101,6 +101,10 @@ else
         _scheduled = Recorder.Project(Content).Reviews.First(r => r.Item.Id == item.Item.Id).Card?.Due;
         await OnProgress.InvokeAsync();
     }
+
+    // A review attempt keeps its own draft, apart from the lesson's. Counting answers in the key means an interrupted attempt resumes,
+    // while the next due attempt (after this one was answered) starts again from the starter.
+    private static string DraftKey(ReviewItemState item) => $"review.{item.Item.Id}.{item.Answers}";
 
     private void Next()
     {

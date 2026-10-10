@@ -110,7 +110,8 @@ A **re-solve** appears for each problem step (write-code, fill-blank, Parsons) t
 `StepAnswered` with `correct: false`, or a `CodeSubmitted` that did not pass. Its ID is `resolve.<step id>`, it unlocks with its
 lesson like any other item, and from then on it is scheduled by FSRS like any other item (answers are `ReviewAnswered` events
 with that item ID). Wrong answers given *during Review* are not lesson attempts, so they don't create more re-solves. A re-solve
-retires if its problem step is deleted. Choice and predict-output steps never get re-solves: the lesson's own review items cover them.
+retires if its problem step is deleted. A write-code re-solve keeps its own code draft (`review.<item id>.<answers so far>`), so it starts from
+the starter instead of the solution the learner saved in the lesson, never overwrites that lesson draft, resumes if interrupted, and starts afresh at the next due attempt. Choice and predict-output steps never get re-solves: the lesson's own review items cover them.
 
 The validator accepts `kind: concept` or `kind: pattern` and rejects anything else (including `resolve`). There are no pattern items
 in Track 1 (it teaches Python syntax); the first arrive with the DSA tracks.
