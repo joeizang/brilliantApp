@@ -23,6 +23,7 @@ self.onmessage = async (e) => {
     const { id, code, entrypoint, testsJson } = e.data;
     try {
         const h = await ensureLoaded();
+        self.postMessage({ id, started: true }); // loading is done; the run timeout starts now
         self.postMessage({ id, ok: true, result: h.run_tests(code, entrypoint, testsJson) });
     } catch (err) {
         self.postMessage({ id, ok: false, error: String(err) });

@@ -108,4 +108,14 @@ public class WriteCodeTests
         Assert.Equal("Output before the error", error.Outputs.Single().Label);
         Assert.Empty(new TestRunResult(TestRunStatus.Passed, "", null, null, null, []).Outputs);
     }
+
+    [Fact]
+    public void The_runtimes_timed_out_json_parses_to_a_timed_out_result()
+    {
+        var json = """{"status":"timedOut","stdout":"","message":"too long","traceback":null,"errorLine":null,"tests":[]}""";
+        var result = TestRunResultJson.Parse(json);
+        Assert.Equal(TestRunStatus.TimedOut, result.Status);
+        Assert.Equal("too long", result.Message);
+        Assert.Empty(result.Tests);
+    }
 }

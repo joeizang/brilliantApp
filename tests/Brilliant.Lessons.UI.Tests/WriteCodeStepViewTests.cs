@@ -75,4 +75,14 @@ public class WriteCodeStepViewTests : BunitContext
 
         Assert.Empty(cut.FindAll(".output"));
     }
+
+    [Fact]
+    public void A_timed_out_run_explains_it_was_stopped_and_offers_no_continue()
+    {
+        var cut = Run(new TestRunResult(TestRunStatus.TimedOut, "", "Your code ran for more than 5 seconds, so it was stopped.", null, null, []));
+
+        Assert.Contains("was stopped", cut.Find(".verdict").TextContent);
+        Assert.Empty(cut.FindAll(".failure"));
+        Assert.Equal("Run tests", cut.Find("button.primary").TextContent);
+    }
 }
