@@ -94,6 +94,19 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
         return rating;
     }
 
+    /// <summary>Records the daily goal in steps (kept within <see cref="TodayState.MinGoal"/>–<see cref="TodayState.MaxGoal"/>). Returns the goal as stored.</summary>
+    public int SetDailyGoal(int steps)
+    {
+        var goal = TodayState.ClampGoal(steps);
+        Append(ProgressEventTypes.DailyGoalSet, "", "", JsonSerializer.Serialize(new { steps = goal }));
+        return goal;
+    }
+
+    /// <summary>Records the start of a daily session that continues with <paramref name="lessonId"/> (null when there is no lesson left).</summary>
+    public void StartSession(string? lessonId) => Append(ProgressEventTypes.SessionStarted, lessonId ?? "", "", null);
+
+    public void CompleteSession() => Append(ProgressEventTypes.SessionCompleted, "", "", null);
+
     private void Append(string type, string lessonId, string stepId, string? data) =>
         log.Append(new ProgressEvent(Guid.NewGuid().ToString("N"), deviceId, _clock.GetUtcNow(), type, lessonId, stepId, data));
 }

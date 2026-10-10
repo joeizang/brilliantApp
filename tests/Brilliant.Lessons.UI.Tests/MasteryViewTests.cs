@@ -299,6 +299,7 @@ public class MasteryViewTests : ShortcutContext
     {
         Finish();
         var cut = OpenShell();
+        cut.Find("button.browse").Click();
         cut.Find("main .card").Click();
         cut.FindAll("main li.concept button")[0].Click();
         Assert.Equal("List indexing", cut.Find("main h1").TextContent.Trim());
@@ -309,6 +310,9 @@ public class MasteryViewTests : ShortcutContext
 
         await Press(StepCommand.Back);
         Assert.Equal("Tracks", cut.Find("main h1").TextContent.Trim());
+
+        await Press(StepCommand.Back);
+        Assert.Equal("Today", cut.Find("main h1").TextContent.Trim());
     }
 
     [Fact]
@@ -316,6 +320,7 @@ public class MasteryViewTests : ShortcutContext
     {
         Finish();
         var cut = OpenShell();
+        cut.Find("button.browse").Click();
         cut.Find("main .card").Click();
         cut.FindAll("main li.concept button")[0].Click();
 

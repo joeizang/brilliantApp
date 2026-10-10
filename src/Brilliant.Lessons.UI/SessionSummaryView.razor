@@ -1,0 +1,55 @@
+@* The end-of-session summary: what was done, how well, what it did to mastery, and where that leaves today's goal. *@
+@using Brilliant.Core.Progress
+
+<div class="summary">
+    <h1 class="summary-title">Session complete</h1>
+
+    <dl class="summary-stats">
+        <div><dt>Steps</dt><dd>@Summary.Steps</dd></div>
+        <div><dt>Reviews</dt><dd>@Summary.Reviews</dd></div>
+        <div><dt>Accuracy</dt><dd>@(Summary.Accuracy is { } a ? $"{(int)Math.Round(100 * a)}%" : "—")</dd></div>
+    </dl>
+
+    <h2 class="summary-heading">Mastery</h2>
+    @if (Summary.MasteryChanges.Count == 0)
+    {
+        <p class="summary-none">No mastery changes this time. Answering questions and reviews moves it.</p>
+    }
+    else
+    {
+        <ul class="summary-changes">
+            @foreach (var c in Summary.MasteryChanges)
+            {
+                var delta = Pct(c.After) - Pct(c.Before);
+                <li class="@(c.IsGain ? "up" : "down")">
+                    <span class="change-name">@c.Concept.Title<small>@c.Lesson.Lesson.Title</small></span>
+                    <span class="change-values">@Pct(c.Before)% → @Pct(c.After)%</span>
+                    <span class="change-delta" aria-label="@(c.IsGain ? "up" : "down") @Math.Abs(delta) points">@(c.IsGain ? "▲" : "▼") @Math.Abs(delta)</span>
+                </li>
+            }
+        </ul>
+    }
+
+    <p class="summary-goal">
+        @Today.DoneToday of @Today.GoalSteps steps today@(Today.GoalMet ? " · Goal met ✓" : "").
+        @if (Today.Streak > 0)
+        {
+            <strong>@(Today.Streak)-day streak</strong>
+        }
+    </p>
+
+    <div class="summary-actions">
+        <button class="primary summary-done" @onclick="() => OnDone.InvokeAsync()">Back to Today</button>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public SessionSummary Summary { get; set; } = default!;
+
+    /// <summary>Today as it stands after the session, for the goal and streak line.</summary>
+    [Parameter, EditorRequired] public TodayState Today { get; set; } = default!;
+
+    [Parameter] public EventCallback OnDone { get; set; }
+
+    private static int Pct(double mastery) => (int)Math.Round(100 * Math.Clamp(mastery, 0, 1));
+}

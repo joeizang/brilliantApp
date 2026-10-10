@@ -49,8 +49,9 @@ public sealed record ReviewItemState(Lesson Lesson, ReviewItem Item, Step Questi
 /// <param name="Reviews">Every review item of the current content, in track and lesson order, re-solves of problems answered incorrectly included.</param>
 /// <param name="Queue">What Review offers today: the due items, capped and ordered by the Review Queue Builder.</param>
 /// <param name="Concepts">Mastery of every concept of the current content, in track and lesson order.</param>
+/// <param name="Today">The daily goal, streak, next lesson and session, for the Today screen.</param>
 public sealed record LearnerState(DateTimeOffset AsOf, IReadOnlyList<TrackState> Tracks, IReadOnlyList<ReviewItemState> Reviews, ReviewQueue Queue,
-    IReadOnlyList<ConceptMastery> Concepts)
+    IReadOnlyList<ConceptMastery> Concepts, TodayState Today)
 {
     public TrackState? Track(string trackId) => Tracks.FirstOrDefault(t => t.Track.Id == trackId);
 

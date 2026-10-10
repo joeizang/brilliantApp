@@ -61,12 +61,18 @@ else
     {
         <p class="review-next">Next review @Describe(next - Recorder.Now).</p>
     }
-    <div class="review-actions"><button class="primary" @onclick="() => OnExit.InvokeAsync()">Back to tracks</button></div>
+    <div class="review-actions"><button class="primary" @onclick="Finish">@(FinishedText ?? "Back to tracks")</button></div>
 }
 
 @code {
     [Parameter, EditorRequired] public ContentGraph Content { get; set; } = default!;
     [Parameter] public EventCallback OnExit { get; set; }
+
+    /// <summary>Raised by the button at the end of the queue (the Back link raises <see cref="OnExit"/>), so a daily session can tell "done" from "leaving". Falls back to <see cref="OnExit"/>.</summary>
+    [Parameter] public EventCallback OnFinished { get; set; }
+
+    /// <summary>The label of the button at the end of the queue.</summary>
+    [Parameter] public string? FinishedText { get; set; }
 
     /// <summary>Raised after an answer is recorded, so whatever shows the due count elsewhere (the sidebar) can refresh.</summary>
     [Parameter] public EventCallback OnProgress { get; set; }
@@ -115,6 +121,8 @@ else
     // A review attempt keeps its own draft, apart from the lesson's. Counting answers in the key means an interrupted attempt resumes,
     // while the next due attempt (after this one was answered) starts again from the starter.
     private static string DraftKey(ReviewItemState item) => $"review.{item.Item.Id}.{item.Answers}";
+
+    private Task Finish() => (OnFinished.HasDelegate ? OnFinished : OnExit).InvokeAsync();
 
     private void Next()
     {

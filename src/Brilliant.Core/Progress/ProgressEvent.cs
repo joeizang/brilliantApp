@@ -22,6 +22,18 @@ public static class ProgressEventTypes
     /// that was inferred; the rating is stored so the schedule replays identically even if inference is tuned later.
     /// </summary>
     public const string ReviewAnswered = "ReviewAnswered";
+
+    /// <summary>The learner chose their daily goal. Data holds <c>steps</c>; the latest setting wins. Lesson-level, empty IDs.</summary>
+    public const string DailyGoalSet = "DailyGoalSet";
+
+    /// <summary>
+    /// The learner began a daily session. <c>LessonId</c> is the lesson the session continues with (empty when nothing was left to
+    /// learn). Whether the session is still running, and which phase it is in, is derived, never recorded.
+    /// </summary>
+    public const string SessionStarted = "SessionStarted";
+
+    /// <summary>The learner reached the end-of-session summary.</summary>
+    public const string SessionCompleted = "SessionCompleted";
 }
 
 /// <summary>

@@ -122,4 +122,4 @@ Mastery per concept and track, built on these review items, is in [mastery.md](m
 ## Not in this slice
 
 A per-learner cap or weights in settings (the options exist, the UI doesn't);
-choosing an easier form of a re-solve on a phone, such as Parsons instead of typing code (story 43); streaks and the Today screen ([#22](https://github.com/joeizang/brilliantApp/issues/22)).
+choosing an easier form of a re-solve on a phone, such as Parsons instead of typing code (story 43). Streaks and the Today screen landed in [#22](https://github.com/joeizang/brilliantApp/issues/22); see [today.md](today.md).

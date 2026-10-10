@@ -1,4 +1,4 @@
-@* Root navigation: Tracks → Track → Lesson (play or review). On wide windows a sidebar lists every track and lesson. *@
+@* Root navigation: Today (home) → the daily session, or Tracks → Track → Lesson (play or review). On wide windows a sidebar lists every track and lesson. *@
 @using Microsoft.JSInterop
 @implements IAsyncDisposable
 @inject IJSRuntime JS
@@ -7,13 +7,17 @@
 
 <div class="shell">
     <aside class="shell-sidebar">
-        <CourseSidebar Content="Content" CurrentTrack="_track" CurrentLesson="_lesson" ReviewActive="_reviewing"
-                       OnOpenTrack="OpenTrack" OnOpenLesson="OpenLessonFromSidebar" OnOpenReview="OpenReview" />
+        <CourseSidebar Content="Content" CurrentTrack="_track" CurrentLesson="_lesson" ReviewActive="_reviewing" TodayActive="IsToday"
+                       OnOpenToday="GoToToday" OnOpenTrack="OpenTrack" OnOpenLesson="OpenLessonFromSidebar" OnOpenReview="OpenReview" />
     </aside>
     <main class="shell-main">
-        @if (_reviewing)
+        @if (_session)
         {
-            <ReviewView Content="Content" OnExit="BackToTracks" OnProgress="() => StateHasChanged()" />
+            <SessionRunner Content="Content" OnExit="GoToToday" OnProgress="() => StateHasChanged()" />
+        }
+        else if (_reviewing)
+        {
+            <ReviewView Content="Content" OnExit="GoToToday" FinishedText="Back to Today" OnProgress="() => StateHasChanged()" />
         }
         else if (_lesson is { } lesson)
         {
@@ -27,9 +31,13 @@
         {
             <TrackView Content="Content" Track="track" OnBack="BackToTracks" OnOpenLesson="OpenLesson" OnOpenConcept="OpenConcept" />
         }
+        else if (_browsing)
+        {
+            <TracksView Content="Content" OnOpenTrack="OpenTrack" OnOpenReview="OpenReview" OnBack="GoToToday" />
+        }
         else
         {
-            <TracksView Content="Content" OnOpenTrack="OpenTrack" OnOpenReview="OpenReview" />
+            <TodayView Content="Content" OnStart="StartSession" OnBrowse="BackToTracks" OnOpenReview="OpenReview" />
         }
     </main>
 </div>
@@ -42,6 +50,8 @@
     private string? _concept;
     private bool _review;
     private bool _reviewing;
+    private bool _session;
+    private bool _browsing;
     private IJSObjectReference? _module;
     private DotNetObjectReference<CourseShell>? _self;
     private IDisposable? _shortcuts;
@@ -73,26 +83,32 @@
         _ => throw new ArgumentOutOfRangeException(nameof(command), command, "Unknown shortcut."),
     });
 
-    // Back is the shell's alone: one step up from wherever the learner is (lesson → track → tracks).
+    private bool IsToday => !_session && !_reviewing && !_browsing && _track is null && _lesson is null && _concept is null;
+
+    // Back is the shell's alone: one step up from wherever the learner is (lesson → track → tracks → Today).
     private Task OnShortcut(StepShortcut s) => s.Command != StepCommand.Back ? Task.CompletedTask : InvokeAsync(() =>
     {
-        if (_reviewing) BackToTracks();
+        if (_session || _reviewing || _browsing) GoToToday();
         else if (_lesson is not null) ExitLesson();
         else if (_concept is not null) ExitConcept();
         else if (_track is not null) BackToTracks();
         StateHasChanged();
     });
 
-    private void OpenTrack(Track track) => (_track, _lesson, _concept, _reviewing) = (track, null, null, false);
+    private void OpenTrack(Track track) => (_track, _lesson, _concept, _reviewing, _session, _browsing) = (track, null, null, false, false, false);
     private void OpenConcept(string conceptId) => _concept = conceptId;
     private void OpenLesson((Lesson Lesson, bool Review) target) => (_lesson, _review) = (target.Lesson, target.Review);
-    private void OpenLessonFromSidebar((Track Track, Lesson Lesson, bool Review) target) => (_track, _lesson, _concept, _review, _reviewing) = (target.Track, target.Lesson, null, target.Review, false);
-    private void OpenReview() => (_lesson, _track, _concept, _reviewing) = (null, null, null, true);
+    private void OpenLessonFromSidebar((Track Track, Lesson Lesson, bool Review) target) => (_track, _lesson, _concept, _review, _reviewing, _session, _browsing) = (target.Track, target.Lesson, null, target.Review, false, false, false);
+    private void OpenReview() => (_lesson, _track, _concept, _reviewing, _session, _browsing) = (null, null, null, true, false, false);
+
+    // An unfinished session stays open in the log; Today offers to resume it.
+    private void StartSession() => (_lesson, _track, _concept, _reviewing, _session, _browsing) = (null, null, null, false, true, false);
 
     // Leaving a lesson returns to wherever it was opened from: its concept if it was opened from one (that stays set), else its track.
     private void ExitLesson() => _lesson = null;
     private void ExitConcept() => _concept = null;
-    private void BackToTracks() => (_lesson, _track, _concept, _reviewing) = (null, null, null, false);
+    private void BackToTracks() => (_lesson, _track, _concept, _reviewing, _session, _browsing) = (null, null, null, false, false, true);
+    private void GoToToday() => (_lesson, _track, _concept, _reviewing, _session, _browsing) = (null, null, null, false, false, false);
 
     public async ValueTask DisposeAsync()
     {

@@ -6,6 +6,13 @@
     var due = learner.Queue.Items.Count;
 }
 <nav class="sidebar" aria-label="Course">
+    <button class="side-today @(TodayActive ? "current" : "")" aria-current="@(TodayActive ? "page" : null)" @onclick="() => OnOpenToday.InvokeAsync()">
+        <span>Today</span>
+        @if (learner.Today.Streak > 0)
+        {
+            <small class="streak-count" aria-label="@learner.Today.Streak day streak">🔥 @learner.Today.Streak</small>
+        }
+    </button>
     <button class="side-review @(ReviewActive ? "current" : "")" aria-current="@(ReviewActive ? "page" : null)" @onclick="() => OnOpenReview.InvokeAsync()">
         <span>Review</span>
         @if (due > 0)
@@ -44,6 +51,8 @@
     [Parameter] public Lesson? CurrentLesson { get; set; }
     [Parameter] public EventCallback<Track> OnOpenTrack { get; set; }
     [Parameter] public bool ReviewActive { get; set; }
+    [Parameter] public bool TodayActive { get; set; }
+    [Parameter] public EventCallback OnOpenToday { get; set; }
     [Parameter] public EventCallback OnOpenReview { get; set; }
 
     /// <summary>A lesson was picked: its track, the lesson, and whether to replay it (it is already complete).</summary>

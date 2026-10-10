@@ -58,7 +58,7 @@
 else
 {
     <p class="lesson-done">@(Review ? "That's the whole lesson." : "You've finished this lesson. 🎉")</p>
-    <div class="step-actions"><button class="primary" @onclick="() => OnExit.InvokeAsync()">Back to track</button></div>
+    <div class="step-actions"><button class="primary" @onclick="Finish">@(FinishedText ?? "Back to track")</button></div>
 }
 
 @code {
@@ -68,6 +68,12 @@ else
     [Parameter] public bool Review { get; set; }
 
     [Parameter] public EventCallback OnExit { get; set; }
+
+    /// <summary>Raised by the button on the finished screen, and by Return there (the Back link raises <see cref="OnExit"/>), so a daily session can tell "done" from "leaving". Falls back to <see cref="OnExit"/>.</summary>
+    [Parameter] public EventCallback OnFinished { get; set; }
+
+    /// <summary>The label of the button on the finished screen.</summary>
+    [Parameter] public string? FinishedText { get; set; }
 
     /// <summary>Raised after a step is completed, so whatever shows progress elsewhere (the sidebar) can refresh.</summary>
     [Parameter] public EventCallback OnProgress { get; set; }
@@ -88,7 +94,7 @@ else
         switch (s.Command)
         {
             case StepCommand.Advance when CurrentStep is null:
-                await OnExit.InvokeAsync();
+                await Finish();
                 return;
             case StepCommand.Advance when CurrentStep is ExplainStep explain:
                 await Complete(explain);
@@ -96,6 +102,8 @@ else
         }
         StateHasChanged();
     });
+
+    private Task Finish() => (OnFinished.HasDelegate ? OnFinished : OnExit).InvokeAsync();
 
     private void Hinted(Step step, int level)
     {
