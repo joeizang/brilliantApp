@@ -468,8 +468,8 @@ public static partial class ContentValidator
                 Require(v.As, "as", file, report, where);
                 if (!string.IsNullOrWhiteSpace(v.Variable) && !PythonIdentifier.IsMatch(v.Variable))
                     report.Add(file, $"{where}: variable '{v.Variable}' is not a valid Python name.");
-                if (!string.IsNullOrWhiteSpace(v.As) && v.As != Visual.Array)
-                    report.Add(file, $"{where}: unsupported 'as' value '{v.As}' (supported: {Visual.Array}).");
+                if (!string.IsNullOrWhiteSpace(v.As) && !Visual.Kinds.Contains(v.As))
+                    report.Add(file, $"{where}: unsupported 'as' value '{v.As}' (supported: {string.Join(", ", Visual.Kinds)}).");
                 if (v.Variable is not null && visuals.FindIndex(x => x.Variable == v.Variable) is var first and >= 0)
                     report.Add(file, $"{where}: '{v.Variable}' is already drawn by visualise[{first}].");
 

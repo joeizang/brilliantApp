@@ -110,11 +110,44 @@ public sealed class TraceStepValidatorTests : IDisposable
     }
 
     [Fact]
-    public void Only_arrays_can_be_drawn_for_now()
+    public void Only_arrays_dicts_and_sets_can_be_drawn()
     {
         var m = Errors(Head + Body + Code + "    visualise:\n      - variable: nums\n        as: tree\n");
 
-        Assert.Contains(m, x => x.Contains("visualise[0]") && x.Contains("unsupported") && x.Contains("'tree'") && x.Contains("array"));
+        Assert.Contains(m, x => x.Contains("visualise[0]") && x.Contains("unsupported") && x.Contains("'tree'") && x.Contains("array, dict, set"));
+    }
+
+    [Theory]
+    [InlineData("dict")]
+    [InlineData("set")]
+    public void Dicts_and_sets_can_be_drawn_with_pointers_naming_the_keys_to_look_up(string kind)
+    {
+        var yaml = Head + Body + Code + $"    visualise:\n      - variable: counts\n        as: {kind}\n        pointers: [word]\n";
+        var runner = new FakeRunner((_, _) => TableTrace(kind));
+
+        Assert.Empty(Errors(yaml, runner));
+        var visual = Assert.Single(Assert.Single(runner.Traced).Visuals);
+        Assert.Equal(("counts", kind), (visual.Variable, visual.As));
+        Assert.Equal(["word"], visual.Pointers);
+    }
+
+    [Fact]
+    public void A_dict_step_survives_packing()
+    {
+        WriteLesson(Header + Head + Body + Code + "    visualise:\n      - variable: counts\n        as: dict\n        pointers: [word]\n");
+        var outPath = Path.Combine(_root, "out", "p.zip");
+
+        var report = ContentPacker.Pack(_root, outPath, new FakeRunner((_, _) => TableTrace("dict")));
+
+        Assert.True(report.IsValid, string.Join("\n", report.Errors));
+        var step = Assert.IsType<TraceStep>(ContentPackFormat.Load(outPath).Get<Lesson>("lesson.one").Steps[0]);
+        Assert.Equal(new Visual("counts", Visual.Dict, ["word"]), step.Visuals[0], new VisualComparer());
+    }
+
+    private sealed class VisualComparer : IEqualityComparer<Visual>
+    {
+        public bool Equals(Visual? a, Visual? b) => a!.Variable == b!.Variable && a.As == b.As && a.Pointers.SequenceEqual(b.Pointers);
+        public int GetHashCode(Visual v) => v.Variable.GetHashCode();
     }
 
     [Theory]
@@ -234,6 +267,61 @@ public sealed class TraceStepValidatorTests : IDisposable
         Assert.Contains(Errors(Head + Body + Code + Visualise, runner), x => x.Contains("no steps"));
     }
 
+    private static TraceResult TableTrace(string kind, string repr = "'a'", string pointerType = "str")
+    {
+        var table = kind == "dict" ? new TrackedTable("dict", "dict", [new TableRow("'a'", "1")], 0) : new TrackedTable("set", "set", [new TableRow("'a'", null)], 0);
+        TraceFrame F(int? line) => new(line is null ? "return" : "line", line, "<module>", [new TraceLocal("word", pointerType, repr)],
+            new Dictionary<string, TrackedArray>(), new Dictionary<string, TrackedTable> { ["counts"] = table });
+        return new(TraceStatus.Ok, [F(1), F(null)], "", null, null, null);
+    }
+
+    [Theory]
+    [InlineData("dict", "never a dict")]
+    [InlineData("set", "never a set")]
+    public void A_table_variable_that_is_never_that_kind_of_collection_is_reported(string kind, string expected)
+    {
+        var yaml = Head + Body + Code + $"    visualise:\n      - variable: counts\n        as: {kind}\n";
+        var runner = new FakeRunner((_, _) => TableTrace(kind == "dict" ? "set" : "dict"));    // the other one
+
+        Assert.Contains(Errors(yaml, runner), x => x.Contains("'counts'") && x.Contains(expected));
+    }
+
+    [Fact]
+    public void A_dict_variable_that_is_a_list_in_the_trace_is_reported()
+    {
+        var yaml = Head + Body + Code + "    visualise:\n      - variable: nums\n        as: dict\n";
+
+        Assert.Contains(Errors(yaml, new FakeRunner(Good)), x => x.Contains("'nums'") && x.Contains("never a dict"));
+    }
+
+    [Fact]
+    public void A_lookup_pointer_that_is_never_a_variable_in_the_trace_is_reported()
+    {
+        var yaml = Head + Body + Code + "    visualise:\n      - variable: counts\n        as: dict\n        pointers: [ghost]\n";
+
+        var m = Errors(yaml, new FakeRunner((_, _) => TableTrace("dict")));
+
+        Assert.Contains(m, x => x.Contains("pointer 'ghost'") && x.Contains("never a variable"));
+    }
+
+    [Fact]
+    public void A_lookup_pointer_may_hold_any_type_of_key()
+    {
+        var yaml = Head + Body + Code + "    visualise:\n      - variable: counts\n        as: dict\n        pointers: [word]\n";
+
+        Assert.Empty(Errors(yaml, new FakeRunner((_, _) => TableTrace("dict", "3", "int"))));
+    }
+
+    [Fact]
+    public void Code_with_no_executable_line_has_no_steps_to_trace()
+    {
+        var onlyTheModuleStart = new TraceFrame("line", 0, "<module>", [], new Dictionary<string, TrackedArray>());
+        var done = new TraceFrame("return", null, "<module>", [], new Dictionary<string, TrackedArray>());
+        var runner = new FakeRunner((_, _) => new(TraceStatus.Ok, [onlyTheModuleStart, done], "", null, null, null));
+
+        Assert.Contains(Errors(Head + Body + Code + Visualise, runner), x => x.Contains("no steps"));
+    }
+
     [Fact]
     public void Nothing_is_traced_when_the_content_is_otherwise_invalid()
     {
@@ -295,5 +383,38 @@ public sealed class TraceStepValidatorTests : IDisposable
         var m = Errors(Head + Body + "    code: |\n      xs = [1]\n" + Visualise, new CPythonRunner());
 
         Assert.Contains(m, x => x.Contains("'nums'") && x.Contains("never a list"));
+    }
+
+    [Fact]
+    public void Real_cpython_traces_a_dict_and_a_set_with_lookups()
+    {
+        const string code = "    code: |\n      counts = {}\n      seen = set()\n      for word in ['a', 'b', 'a']:\n          counts[word] = counts.get(word, 0) + 1\n          seen.add(word)\n";
+        const string visuals = "    visualise:\n      - variable: counts\n        as: dict\n        pointers: [word]\n      - variable: seen\n        as: set\n        pointers: [word]\n";
+
+        Assert.Empty(Errors(Head + Body + code + visuals, new CPythonRunner()));
+    }
+
+    [Fact]
+    public void Real_cpython_reports_a_dict_that_is_really_a_list()
+    {
+        var m = Errors(Head + Body + "    code: |\n      counts = [1]\n    visualise:\n      - variable: counts\n        as: dict\n", new CPythonRunner());
+
+        Assert.Contains(m, x => x.Contains("'counts'") && x.Contains("never a dict"));
+    }
+
+    [Fact]
+    public void Real_cpython_reports_code_with_only_comments_as_having_no_steps()
+    {
+        var m = Errors(Head + Body + "    code: |\n      # nothing to run\n" + Visualise, new CPythonRunner());
+
+        Assert.Contains(m, x => x.Contains("no steps"));
+    }
+
+    [Fact]
+    public void Real_cpython_does_not_call_a_single_statement_empty()
+    {
+        var m = Errors(Head + Body + "    code: |\n      nums = [1]\n" + Visualise, new CPythonRunner());
+
+        Assert.DoesNotContain(m, x => x.Contains("no steps"));
     }
 }

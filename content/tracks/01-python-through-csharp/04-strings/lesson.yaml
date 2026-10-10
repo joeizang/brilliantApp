@@ -310,6 +310,26 @@ steps:
     hints:
       - What did the previous step say about C#'s `char`?
       - A `for` loop yields the items of the sequence.
+  - id: step.strings.trace-count-letters
+    type: trace
+    title: Counting letters with a dict
+    body: |
+      A `dict` maps keys to values, like C#'s `Dictionary<char, int>`, and a `set` keeps each value once, like `HashSet<char>`.
+      Press play, or step with the arrow keys, and watch `ch` walk through the string. The row `ch` looks up in `counts` is
+      marked. A new letter adds a row, a repeated one updates it, and `seen` only ever grows when the letter is new.
+    code: |
+      word = "banana"
+      counts = {}
+      seen = set()
+      for ch in word:
+          seen.add(ch)
+          counts[ch] = counts.get(ch, 0) + 1
+    visualise:
+      - variable: counts
+        as: dict
+        pointers: [ch]
+      - variable: seen
+        as: set
   - id: step.strings.order-vowels
     type: parsons
     title: Put the function in order

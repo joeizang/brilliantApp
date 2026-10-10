@@ -11,3 +11,6 @@ src/Brilliant.App/wwwroot/pyodide/*
 
 # CodeMirror bundle build
 src/Brilliant.Lessons.UI/editor/node_modules/
+
+__pycache__/
+*.pyc

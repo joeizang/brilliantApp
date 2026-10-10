@@ -1,0 +1,86 @@
+@* A dict or set in the Trace Player: a dict as key/value rows, a set as a run of members. What changed since the last step is marked
+   (added, updated, removed), and so are the rows the pointer variables are looking up. *@
+@using Brilliant.Core.Python
+
+<figure class="table" data-variable="@Table.Variable">
+    <figcaption class="table-name"><code>@Table.Variable</code> <span class="table-kind">@Table.Kind</span></figcaption>
+
+    @if (Table.Kind == Visual.Dict)
+    {
+        <table class="dict" aria-label="@Describe()">
+            <tbody>
+                @foreach (var row in Table.Rows)
+                {
+                    <tr class="@RowClass(row)" @key="RowKey(row)">
+                        <th scope="row" class="row-key"><code>@row.Key</code></th>
+                        <td class="row-value"><code>@row.Value</code></td>
+                        <td class="row-lookup">@Lookups(row)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <ul class="set" aria-label="@Describe()">
+            @foreach (var row in Table.Rows)
+            {
+                <li class="@RowClass(row)" @key="RowKey(row)">
+                    <code class="row-key">@row.Key</code>@Lookups(row)
+                </li>
+            }
+        </ul>
+    }
+
+    @if (IsEmpty)
+    {
+        <p class="table-empty">empty</p>
+    }
+    @if (Table.More > 0)
+    {
+        <p class="table-more">+@Table.More more</p>
+    }
+    @if (Table.Misses.Count > 0)
+    {
+        <p class="table-miss">Looking up <code>@string.Join(", ", Table.Misses)</code> finds no such @Noun.</p>
+    }
+</figure>
+
+@code {
+    [Parameter, EditorRequired] public TableView Table { get; set; } = default!;
+
+    /// <summary>The player's step number. A changed row is keyed by it, so it is a fresh element and replays its flash on every step it changes in.</summary>
+    [Parameter, EditorRequired] public int Step { get; set; }
+
+    private string Noun => Table.Kind == Visual.Set ? "member" : "key";
+
+    private bool IsEmpty => Table.More == 0 && Table.Rows.All(r => r.Change == RowChange.Removed);
+
+    private static string RowClass(RowView row) => (row.Change switch
+    {
+        RowChange.Added => "row added",
+        RowChange.Updated => "row updated",
+        RowChange.Removed => "row removed",
+        _ => "row",
+    }) + (row.LookedUpBy.Count > 0 ? " looked-up" : "");
+
+    private string RowKey(RowView row) => row.Change == RowChange.None ? row.Id : $"{row.Id}@{Step}";
+
+    private RenderFragment Lookups(RowView row) => builder =>
+    {
+        foreach (var name in row.LookedUpBy)
+        {
+            builder.OpenElement(0, "span");
+            builder.AddAttribute(1, "class", "looked-up-by");
+            builder.AddContent(2, name);
+            builder.CloseElement();
+        }
+    };
+
+    private string Describe()
+    {
+        var rows = Table.Rows.Where(r => r.Change != RowChange.Removed)
+            .Select(r => r.Value is null ? r.Key : $"{r.Key}: {r.Value}");
+        return $"{Table.Variable}: " + (IsEmpty ? "empty" : string.Join(", ", rows) + (Table.More > 0 ? $" and {Table.More} more" : ""));
+    }
+}

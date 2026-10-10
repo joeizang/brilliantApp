@@ -152,12 +152,19 @@ public sealed record ParsonsStep(
 public sealed record PackManifest(string PackId, string Version, int FormatVersion);
 
 /// <summary>
-/// Which variable of a <see cref="TraceStep"/>'s code to draw and how. <see cref="As"/> is the drawing, <see cref="Array"/> for now:
-/// a list shown as cells. <see cref="Pointers"/> name int variables whose value is drawn as a labelled marker on the cell it indexes.
+/// Which variable of a <see cref="TraceStep"/>'s code to draw and how. <see cref="As"/> is the drawing:
+/// <see cref="Array"/> (a list or tuple shown as cells), <see cref="Dict"/> (key/value rows) or <see cref="Set"/> (members).
+/// <see cref="Pointers"/> name variables drawn as labelled markers: for an array, int variables, on the cell they index;
+/// for a dict or set, variables holding a key, on the row with that key (a lookup).
 /// </summary>
 public sealed record Visual(string Variable, string As, IReadOnlyList<string> Pointers)
 {
     public const string Array = "array";
+    public const string Dict = "dict";
+    public const string Set = "set";
+
+    /// <summary>Every drawing the player knows, in the order the docs list them.</summary>
+    public static readonly IReadOnlyList<string> Kinds = [Array, Dict, Set];
 }
 
 /// <summary>

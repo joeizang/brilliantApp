@@ -40,6 +40,7 @@ public static class MauiProgram
 
         // Shortcuts and menu commands reach whichever step is on screen through one bus, shared by the webview's key listener and the native menu.
         builder.Services.AddSingleton<StepShortcuts>();
+        builder.Services.AddSingleton(TimeProvider.System);   // the Trace Player's playback timer
 
         // The Python runtime talks to the webview it lives in, so it is scoped to the BlazorWebView.
         builder.Services.AddScoped<IPythonRuntime, PyodideRuntime>();

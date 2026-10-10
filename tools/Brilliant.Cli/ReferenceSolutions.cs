@@ -76,7 +76,7 @@ public sealed class CPythonRunner : IReferenceSolutionRunner
     {
         var request = System.Text.Json.JsonSerializer.Serialize(new
         {
-            code, watch = visuals.Where(v => v.As == Visual.Array).Select(v => v.Variable),
+            code, watch = visuals.Where(v => Visual.Kinds.Contains(v.As)).Select(v => v.Variable).Distinct(),
         });
         var run = Execute(TraceBootstrap, request);
         if (run.TimedOut)
@@ -182,24 +182,39 @@ internal static class ReferenceSolutionChecker
             yield return $"the code runs for too long to trace. {result.Message}";
             yield break;
         }
-        if (result.Frames.Count == 0)
+        if (!result.Frames.Any(f => f.Line is >= 1))
         {
-            yield return "the code has no steps to trace (is it empty?).";
+            yield return "the code has no steps to trace (is it empty, or only comments?).";
             yield break;
         }
 
         foreach (var visual in visuals)
         {
-            if (!result.Frames.Any(f => f.Tracked.ContainsKey(visual.Variable)))
+            if (!result.Frames.Any(f => Draws(f, visual)))
             {
-                yield return $"variable '{visual.Variable}' is never a list or tuple in the trace, so there is nothing to draw.";
+                yield return visual.As switch
+                {
+                    Visual.Dict => $"variable '{visual.Variable}' is never a dict in the trace, so there is nothing to draw.",
+                    Visual.Set => $"variable '{visual.Variable}' is never a set in the trace, so there is nothing to draw.",
+                    _ => $"variable '{visual.Variable}' is never a list or tuple in the trace, so there is nothing to draw.",
+                };
                 continue;
             }
             foreach (var pointer in visual.Pointers)
-                if (!result.Frames.Any(f => f.Locals.Any(l => l.Name == pointer && l.Type == "int")))
-                    yield return $"pointer '{pointer}' (of '{visual.Variable}') is never an int variable in the trace.";
+            {
+                // An array's pointers index cells, so they must be ints; a dict's or set's hold a key, which can be anything.
+                var isArray = visual.As == Visual.Array;
+                if (!result.Frames.Any(f => f.Locals.Any(l => l.Name == pointer && (!isArray || l.Type == "int"))))
+                    yield return isArray
+                        ? $"pointer '{pointer}' (of '{visual.Variable}') is never an int variable in the trace."
+                        : $"pointer '{pointer}' (of '{visual.Variable}') is never a variable in the trace.";
+            }
         }
     }
+
+    private static bool Draws(TraceFrame frame, Visual visual) => visual.As == Visual.Array
+        ? frame.Tracked.ContainsKey(visual.Variable)
+        : frame.Tables is not null && frame.Tables.TryGetValue(visual.Variable, out var table) && table.Kind == visual.As;
 
     /// <summary>Runs every reference solution against its step's tests and reports each failure with lesson, step, test, expected and actual. False when Python was not available.</summary>
     private static bool Check(IReadOnlyList<ReferenceCheck> checks, IReferenceSolutionRunner runner, ValidationReport report)

@@ -80,6 +80,9 @@
         "run" => new StepShortcut(StepCommand.Run),
         "advance" => new StepShortcut(StepCommand.Advance),
         "choose" => new StepShortcut(StepCommand.Choose, number),
+        "previous" => new StepShortcut(StepCommand.Previous),
+        "next" => new StepShortcut(StepCommand.Next),
+        "playpause" => new StepShortcut(StepCommand.PlayPause),
         _ => throw new ArgumentOutOfRangeException(nameof(command), command, "Unknown shortcut."),
     });
 
