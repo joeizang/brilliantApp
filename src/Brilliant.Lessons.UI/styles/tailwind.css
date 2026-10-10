@@ -1,0 +1,37 @@
+/*
+ * Tailwind entry point. Only the theme and the utilities are imported: no Preflight, so Tailwind never resets the
+ * app's own styles. Utilities land in a cascade layer, and the app's CSS (theme.css, the scoped .razor.css files) is
+ * unlayered, so wherever both set the same property the app's rule wins. A utility only takes effect where nothing
+ * else styles that property.
+ */
+@layer theme, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+/* Scan the markup that can carry classes. */
+@source "../**/*.razor";
+@source "../../Brilliant.App/**/*.razor";
+@source "../../Brilliant.App/wwwroot/index.html";
+
+/*
+ * The design tokens, so `bg-surface` and `text-fg-secondary` mean the same thing as var(--surface) and
+ * var(--fg-secondary) and follow light/dark. Only the colours are mapped; spacing already matches: Tailwind's
+ * step is 0.25rem, so `p-1` is --space-xs, `p-2` --space-sm, `p-4` --space-md, `p-6` --space-lg, `p-12` --space-xl.
+ * `inline` makes the utility emit var(--bg) itself rather than a Tailwind variable that would not change with the theme.
+ */
+@theme inline {
+    --color-*: initial;
+    --color-bg: var(--bg);
+    --color-surface: var(--surface);
+    --color-surface-raised: var(--surface-raised);
+    --color-fg: var(--fg);
+    --color-fg-secondary: var(--fg-secondary);
+    --color-border: var(--border);
+    --color-hairline: var(--hairline);
+    --color-accent: var(--accent);
+    --color-on-accent: var(--on-accent);
+    --color-success: var(--success);
+    --color-danger: var(--danger);
+    --color-transparent: transparent;
+    --color-current: currentColor;
+}

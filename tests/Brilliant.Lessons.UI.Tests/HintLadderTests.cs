@@ -30,6 +30,18 @@ public class HintLadderTests : ShortcutContext
     private IRenderedComponent<HintLadder> Ladder(IReadOnlyList<string> hints, List<int>? levels = null, string? caption = null) =>
         Render<HintLadder>(p => p.Add(c => c.Hints, hints).Add(c => c.OnRevealed, l => levels?.Add(l)).Add(c => c.Caption, caption));
 
+    [Fact]
+    public void The_ladder_sits_in_the_same_centred_column_as_the_step_above_it()
+    {
+        // Without this it stretched to the left edge of the page, away from the question it belongs to.
+        var cut = Ladder(["a nudge"]);
+
+        var classes = cut.Find("section.hint-ladder").ClassList;
+        Assert.Contains("mx-auto", classes);
+        Assert.Contains("max-w-(--content-width)", classes);
+        Assert.Contains("px-6", classes);
+    }
+
     private static string[] Shown(IRenderedComponent<HintLadder> cut) => cut.FindAll(".hint-text").Select(t => t.TextContent.Trim()).ToArray();
 
     [Fact]

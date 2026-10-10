@@ -7,7 +7,7 @@
 @implements IDisposable
 
 <div class="trace-player">
-    <CodeEditor @ref="_editor" InitialCode="@Code" ReadOnly="true" />
+    <CodeEditor @ref="_editor" InitialCode="@ShownCode" ReadOnly="true" />
 
     <div class="controls">
         <button class="secondary prev" disabled="@(_index == 0)" @onclick="() => Step(_index - 1)">← Previous</button>
@@ -111,6 +111,9 @@
     private const int StepMilliseconds = 1000;   // between steps at 1×
 
     [Parameter, EditorRequired] public string Code { get; set; } = "";
+
+    /// <summary>The code as drawn: YAML block text ends in a newline, which the editor would number as an empty last line the example never runs.</summary>
+    private string ShownCode => Code.TrimEnd('\r', '\n');
 
     /// <summary>The steps to walk, from <see cref="TraceModel.Build"/>. Never empty.</summary>
     [Parameter, EditorRequired] public IReadOnlyList<TraceState> States { get; set; } = default!;

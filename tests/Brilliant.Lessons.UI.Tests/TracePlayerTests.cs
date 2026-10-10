@@ -47,6 +47,15 @@ public class TracePlayerTests : ShortcutContext
         cut.Find($"g.pointer[data-name='{name}']").GetAttribute(attribute)!;
 
     [Fact]
+    public void The_code_box_does_not_end_with_a_blank_line()
+    {
+        // YAML block text ends in a newline; shown as it is, the editor would number an empty last line the example never runs.
+        var cut = Open(out _);
+
+        Assert.Equal(Code.TrimEnd('\n'), cut.FindComponent<CodeEditor>().Instance.InitialCode);
+    }
+
+    [Fact]
     public void Draws_every_cell_of_the_array_with_its_value()
     {
         var cut = Open(out _);
@@ -151,7 +160,7 @@ public class TracePlayerTests : ShortcutContext
         cut.WaitForAssertion(() =>
         {
             var create = module.Invocations["create"].Single();
-            Assert.Equal(Code, create.Arguments[1]);
+            Assert.Equal(Code.TrimEnd('\n'), create.Arguments[1]);
             Assert.Equal(true, create.Arguments[3]);    // read-only
         });
     }
@@ -325,7 +334,7 @@ public class TracePlayerTests : ShortcutContext
     {
         var cut = OpenCounts(RunOf(CountsFrame(1, null, ("'b'", "2"), ("'a'", "1"))));
 
-        var table = cut.Find("figure.table[data-variable='counts']");
+        var table = cut.Find("figure.trace-table[data-variable='counts']");
         Assert.Contains("counts", table.QuerySelector(".table-name")!.TextContent);
         Assert.Contains("dict", table.QuerySelector(".table-name")!.TextContent);
         Assert.Equal(["'b'", "'a'"], cut.FindAll("table.dict .row-key").Select(k => k.TextContent));
@@ -340,7 +349,7 @@ public class TracePlayerTests : ShortcutContext
 
         Assert.Equal(["1", "20", "30"], cut.FindAll("ul.set .row-key").Select(k => k.TextContent));
         Assert.Empty(cut.FindAll(".row-value"));
-        Assert.Contains("set", cut.Find("figure.table .table-name").TextContent);
+        Assert.Contains("set", cut.Find("figure.trace-table .table-name").TextContent);
     }
 
     [Fact]
@@ -479,7 +488,7 @@ public class TracePlayerTests : ShortcutContext
         var cut = Start(run, [new Visual("nums", Visual.Array, []), new Visual("counts", Visual.Dict, [])], out _);
 
         Assert.Single(cut.FindAll("figure.array"));
-        Assert.Single(cut.FindAll("figure.table"));
+        Assert.Single(cut.FindAll("figure.trace-table"));
     }
 
     // ---- Playback ----
