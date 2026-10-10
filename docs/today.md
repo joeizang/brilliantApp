@@ -4,7 +4,7 @@ Today is the app's home screen. It answers "what should I do now?" with one butt
 
 ## What the learner sees
 
-- **Today screen** (`TodayView`): the streak, "X of Y steps" with a progress bar, a stepper to change the goal, the review count, the next lesson, and one primary button: *Start today's session*, *Resume session* or (goal met, nothing open) *Do another session*. *Browse tracks* opens the old Tracks list. When nothing is due and every lesson is finished, it says so.
+- **Today screen** (`TodayView`): the streak, "X of Y steps" with a progress bar, a stepper to change the goal, the review count, the next lesson, and one primary button: *Start today's session*, *Resume session* or (goal met, nothing open) *Do another session*. *Browse tracks* opens the old Tracks list. An open session always keeps its *Resume session* button, even if the last step or answer used up all the work, so its summary can still be reached. When nothing is due and every lesson is finished, it says so.
 - **Daily session** (`SessionRunner`): Review first (if anything is due), then the current lesson, then the summary. Leaving part-way and pressing *Resume session* returns to the same phase and the same step.
 - **End-of-session summary** (`SessionSummaryView`): steps, reviews, accuracy, mastery changes (before → after, largest first), goal progress and streak.
 - **Navigation**: Back climbs lesson → track → Tracks → Today. The sidebar has a Today item with the streak.

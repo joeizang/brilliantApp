@@ -56,7 +56,8 @@
         </section>
     }
 
-    @if (today.HasWork)
+    @* An open session keeps its button even when the last step or answer used up all the work: its summary is still to be seen. *@
+    @if (today.HasWork || today.Session is not null)
     {
         <div class="today-actions">
             <button class="primary start-session" @onclick="() => OnStart.InvokeAsync()">@(today.Session is not null ? "Resume session" : today.GoalMet ? "Do another session" : "Start today's session")</button>

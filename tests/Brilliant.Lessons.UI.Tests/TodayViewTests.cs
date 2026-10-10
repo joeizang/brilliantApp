@@ -1,5 +1,6 @@
 using Brilliant.Core.Content;
 using Brilliant.Core.Progress;
+using Brilliant.Core.Review;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -498,5 +499,43 @@ public class TodayViewTests : ShortcutContext
         Assert.Contains("steps", cut.Find(".today-goal").TextContent);
         Assert.Contains("Goal met", cut.Find(".today-goal").TextContent);
         Assert.Contains("all caught up", cut.Find(".today-empty").TextContent);   // reviews done, every lesson finished
+    }
+
+    [Fact]
+    public void An_unfinished_session_keeps_Resume_even_when_nothing_is_left_to_do()
+    {
+        ReadyForASession();
+        _recorder.StartSession("lesson.next");
+        _clock.Now = T0.AddHours(2);
+        Finish(Next);
+        _recorder.ReviewAnswered(Basics.Id, Basics.ReviewItems[0], true, 0, TimeSpan.FromSeconds(5), Rating.Good);   // nothing due, nothing to learn, session still open
+
+        var cut = OpenToday();
+
+        Assert.Equal("Resume session", cut.Find("button.start-session").TextContent.Trim());
+        Assert.Empty(cut.FindAll(".today-empty"));
+    }
+
+    [Fact]
+    public void Leaving_after_the_last_step_still_lets_the_learner_reach_the_summary()
+    {
+        ReadyForASession();
+        var cut = OpenShell();
+        cut.Find("button.start-session").Click();
+        cut.FindAll("ul.options input")[0].Change(true);
+        cut.Find("button.primary").Click();
+        cut.Find("button.primary").Click();
+        cut.Find(".review-actions button.primary").Click();
+        cut.Find(".step-actions button.primary").Click();
+        cut.Find(".step-actions button.primary").Click();                   // last step done; "See summary" is showing
+        cut.Find(".lesson-bar button.link").Click();                        // leave before taking it
+
+        Assert.Empty(Events(ProgressEventTypes.SessionCompleted));
+        Assert.Equal("Resume session", cut.Find("button.start-session").TextContent.Trim());
+
+        cut.Find("button.start-session").Click();
+
+        Assert.Equal("Session complete", cut.Find("main h1").TextContent.Trim());
+        Assert.Single(Events(ProgressEventTypes.SessionCompleted));
     }
 }
