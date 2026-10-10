@@ -23,6 +23,11 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
         Append(ProgressEventTypes.StepAnswered, lessonId, stepId,
             JsonSerializer.Serialize(new { correct, blanks }));
 
+    /// <summary>Records a Parsons attempt: the arrangement as submitted, each line as its index in the solution plus the indentation level chosen.</summary>
+    public void StepAnswered(string lessonId, string stepId, bool correct, IReadOnlyList<ParsonsPlacement> arrangement) =>
+        Append(ProgressEventTypes.StepAnswered, lessonId, stepId,
+            JsonSerializer.Serialize(new { correct, arrangement = arrangement.Select(p => new { line = p.Piece, level = p.Level }) }));
+
     /// <summary>Records one write-code submission: the code as submitted and how many hidden tests it passed.</summary>
     public void CodeSubmitted(string lessonId, string stepId, string code, int passedTests, int totalTests) =>
         Append(ProgressEventTypes.CodeSubmitted, lessonId, stepId,

@@ -1,0 +1,19 @@
+.parsons-step { max-width: 52rem; margin: 0 auto; padding: 1.5rem; font-family: -apple-system, system-ui, sans-serif; }
+.hint-text { font-size: .95rem; opacity: .8; }
+kbd { font: .85em ui-monospace, Menlo, monospace; border: 1px solid var(--border); border-radius: 4px; padding: 0 .3em; margin: 0 .1em; background: var(--surface); }
+.rows { list-style: none; padding: 0; margin: 1rem 0; display: grid; gap: .4rem; counter-reset: row; }
+.row { display: flex; align-items: center; gap: .6rem; background: var(--code-bg); color: var(--code-fg); border: 2px solid var(--border); border-radius: 8px; padding: .4rem .6rem; cursor: grab; flex-wrap: wrap; }
+.row:focus { outline: none; border-color: var(--accent); }
+.row.dragging { opacity: .4; }
+.row.over { border-color: var(--accent); box-shadow: 0 -3px 0 var(--accent); }
+.row.right { border-color: var(--success); }
+.row.wrong { border-color: var(--danger); }
+.grip { opacity: .5; user-select: none; }
+.indent { display: inline-block; flex: none; height: 1px; transition: width .1s; }
+.text { font: .95rem ui-monospace, Menlo, monospace; white-space: pre; flex: 1; user-select: none; }
+.controls { display: inline-flex; gap: .25rem; }
+.controls button { font: inherit; line-height: 1; padding: .2rem .45rem; background: var(--surface); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
+.controls button:disabled { opacity: .35; cursor: default; }
+.why { flex-basis: 100%; font-size: .85rem; color: var(--danger); }
+.verdict.correct { color: var(--success); font-weight: 600; }
+.verdict.incorrect { color: var(--danger); font-weight: 600; }

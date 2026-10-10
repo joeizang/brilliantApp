@@ -191,8 +191,8 @@ public static partial class ContentValidator
     {
         var hints = dto.Hints ?? [];
         if (hints.Count == 0) return [];
-        if (dto.Type is not ("choice" or "predict-output" or "write-code" or "fill-blank"))
-            report.Add(file, $"{label}: 'hints' only apply to questions (choice, predict-output, write-code or fill-blank).");
+        if (dto.Type is not ("choice" or "predict-output" or "write-code" or "fill-blank" or "parsons"))
+            report.Add(file, $"{label}: 'hints' only apply to questions (choice, predict-output, write-code, fill-blank or parsons).");
         if (hints.Count > MaxHints)
             report.Add(file, $"{label}: at most {MaxHints} hints (nudge, pattern hint, partial, full walkthrough); found {hints.Count}.");
         for (var i = 0; i < hints.Count; i++)
@@ -216,10 +216,11 @@ public static partial class ContentValidator
         if (dto.Type == "predict-output") return WithHints(LoadPredictOutput(dto, label, file, report, before), hints);
         if (dto.Type == "write-code") return WithHints(LoadWriteCode(dto, label, file, report, before), hints);
         if (dto.Type == "fill-blank") return WithHints(LoadFillBlank(dto, label, file, report, before), hints);
+        if (dto.Type == "parsons") return WithHints(LoadParsons(dto, label, file, report, before), hints);
 
         if (dto.Type != "explain")
         {
-            report.Add(file, $"{label}: unsupported step type '{dto.Type ?? "(missing)"}' (supported: explain, choice, predict-output, write-code, fill-blank).");
+            report.Add(file, $"{label}: unsupported step type '{dto.Type ?? "(missing)"}' (supported: explain, choice, predict-output, write-code, fill-blank, parsons).");
             return null;
         }
 
@@ -417,6 +418,22 @@ public static partial class ContentValidator
 
         return report.Errors.Count == errorsBefore
             ? new FillBlankStep(dto.Id!, dto.Title!, dto.Prompt!, language, dto.Template!, blanks)
+            : null;
+    }
+
+    private static Step? LoadParsons(StepDto dto, string label, string file, ValidationReport report, int errorsBefore)
+    {
+        Require(dto.Prompt, "prompt", file, report, label);
+        Require(dto.Solution, "solution", file, report, label);
+        var language = dto.Language ?? "python";
+        if (language != "python") report.Add(file, $"{label}: unsupported language '{language}' (supported: python).");
+
+        var lines = string.IsNullOrWhiteSpace(dto.Solution)
+            ? []
+            : ParsonsSolution.Read(dto.Solution, msg => report.Add(file, $"{label}: {msg}"));
+
+        return report.Errors.Count == errorsBefore
+            ? new ParsonsStep(dto.Id!, dto.Title!, dto.Prompt!, language, lines)
             : null;
     }
 

@@ -654,6 +654,89 @@ public sealed class ValidatorTests : IDisposable
         }
     }
 
+    private const string ParsonsHead = "  - id: step.one.p\n    type: parsons\n    title: P\n    prompt: Put these in order\n";
+
+    private static string Solution(params string[] lines) =>
+        "    solution: |\n" + string.Concat(lines.Select(l => "      " + l + "\n"));
+
+    private List<string> ParsonsErrors(string body) => LessonErrors(LessonHeader + "steps:\n" + ParsonsHead + body);
+
+    [Fact]
+    public void Parsons_step_loads_into_the_pack_with_levels_worked_out_from_indentation()
+    {
+        WriteValidPack(LessonHeader + "steps:\n" + ParsonsHead
+            + Solution("def grade(score):", "    if score >= 50:", "        return 'pass'", "    else:", "        return 'fail'")
+            + "    hints:\n      - nudge\n");
+        var outPath = Path.Combine(_root, "out", "p.zip");
+
+        var report = ContentPacker.Pack(_root, outPath);
+
+        Assert.True(report.IsValid, string.Join("\n", report.Errors));
+        var step = Assert.IsType<ParsonsStep>(ContentPackFormat.Load(outPath).Get<Step>("step.one.p"));
+        Assert.Equal("python", step.Language);
+        Assert.Equal(["def grade(score):", "if score >= 50:", "return 'pass'", "else:", "return 'fail'"], step.Lines.Select(l => l.Text));
+        Assert.Equal([0, 1, 2, 1, 2], step.Lines.Select(l => l.Level));
+        Assert.Equal(["nudge"], step.Hints);
+    }
+
+    [Fact]
+    public void Parsons_requires_prompt_and_solution()
+    {
+        var m = LessonErrors(LessonHeader + "steps:\n  - id: step.one.p\n    type: parsons\n    title: P\n");
+        Assert.Contains(m, x => x.Contains("'prompt' is required"));
+        Assert.Contains(m, x => x.Contains("'solution' is required"));
+    }
+
+    [Fact]
+    public void Parsons_needs_at_least_two_lines_and_two_distinct_ones()
+    {
+        Assert.Contains(ParsonsErrors(Solution("print(1)")), x => x.Contains("at least 2 lines"));
+        Assert.Contains(ParsonsErrors(Solution("print(1)", "print(1)")), x => x.Contains("only one distinct line"));
+    }
+
+    [Fact]
+    public void Parsons_rejects_tabs_and_uneven_indentation()
+    {
+        Assert.Contains(ParsonsErrors("    solution: \"if x:\\n\\tpass\"\n"), x => x.Contains("uses a tab"));
+        Assert.Contains(ParsonsErrors(Solution("if x:", "    if y:", "       pass")), x => x.Contains("line 3 is indented 7 spaces") && x.Contains("(4)"));
+    }
+
+    [Fact]
+    public void Parsons_checks_that_indentation_follows_the_colons()
+    {
+        // A block scalar takes its indentation from its first line, so an indented first line needs an explicit indicator (|2).
+        Assert.Contains(ParsonsErrors("    solution: |2\n          x = 1\n      y = 2\n"), x => x.Contains("first line must not be"));
+        Assert.Contains(ParsonsErrors(Solution("if x:", "y = 2")), x => x.Contains("'solution' line 1 ends with ':' so line 2 must be indented one level deeper"));
+        Assert.Contains(ParsonsErrors(Solution("x = 1", "    y = 2")), x => x.Contains("indented deeper than the line before it, which doesn't end with ':'"));
+        Assert.Contains(ParsonsErrors(Solution("x = 1", "if x:")), x => x.Contains("ends with ':' on line 2 but nothing follows it"));
+    }
+
+    [Fact]
+    public void Parsons_block_headers_may_carry_a_trailing_comment()
+    {
+        var valid = ParsonsErrors(Solution("def grade(score):  # pass mark is 50", "    if score >= 50:  # the pass case", "        return 'pass'", "    return 'fail'"));
+        Assert.Empty(valid);
+
+        // The '#' in a string isn't a comment, and a ':' inside a comment doesn't open a block.
+        Assert.Empty(ParsonsErrors(Solution("if x == '#':", "    y = 1")));
+        Assert.Empty(ParsonsErrors(Solution("x = 1  # note:", "y = 2")));
+        Assert.Contains(ParsonsErrors(Solution("if x:  # note", "y = 2")), e => e.Contains("line 1 ends with ':' so line 2 must be indented one level deeper"));
+    }
+
+    [Fact]
+    public void Parsons_language_must_be_python()
+    {
+        var m = ParsonsErrors("    language: ruby\n" + Solution("x = 1", "y = 2"));
+        Assert.Contains(m, x => x.Contains("unsupported language 'ruby'"));
+    }
+
+    [Fact]
+    public void Parsons_hints_are_allowed_on_a_parsons_step()
+    {
+        WriteValidPack(LessonHeader + "steps:\n" + ParsonsHead + Solution("x = 1", "y = 2") + "    hints:\n      - a\n");
+        Assert.True(ContentValidator.Validate(_root).IsValid);
+    }
+
     private static string FindRepoContent()
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)

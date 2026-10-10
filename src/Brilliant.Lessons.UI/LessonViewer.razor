@@ -45,6 +45,9 @@
             case FillBlankStep fill:
                 <FillBlankStepView Step="fill" OnAnswered="a => Answered(fill, a)" OnContinue="() => Complete(step)" />
                 break;
+            case ParsonsStep parsons:
+                <ParsonsStepView Step="parsons" OnAnswered="a => Answered(parsons, a)" OnContinue="() => Complete(step)" />
+                break;
         }
     </div>
 }
@@ -74,6 +77,11 @@ else
     private void Answered(FillBlankStep step, FillBlankStepView.Attempt a)
     {
         if (!Review) Recorder.StepAnswered(Lesson.Id, step.Id, a.Result.IsCorrect, a.Responses);
+    }
+
+    private void Answered(ParsonsStep step, ParsonsStepView.Attempt a)
+    {
+        if (!Review) Recorder.StepAnswered(Lesson.Id, step.Id, a.Result.IsCorrect, a.Arrangement);
     }
 
     private void Submitted(WriteCodeStep step, WriteCodeStepView.Submission s)
