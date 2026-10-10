@@ -88,3 +88,16 @@ Components must use the tokens (`var(--accent)` etc.), never raw colours. Shared
 Every `write-code` step in `content/` needs a `solution:` (authoring-only, never packed). `validate` and `pack` run each solution
 against the step's tests with the same `harness.py` under CPython (`python3`, or the interpreter in `BRILLIANT_PYTHON`) and refuse to
 produce a pack if any fails, reporting lesson file, step, test, expected and actual.
+
+## Code drafts (issue #12)
+
+What a learner types in a write-code step is saved automatically, so leaving the step, the lesson or the app doesn't lose it.
+
+- **Where:** `drafts.db` in the app data directory, one row per step ID (`Drafts` table, `SqliteCodeDraftStore`). It is deliberately a separate file from `brilliant.db`: progress is an append-only event log, drafts are mutable and the latest write wins (the one exception to the event-log rule, per the PRD, and what draft sync in #30 will exchange).
+- **When:** the editor reports changes after 500 ms of no typing, and once more as the editor goes away, so navigating immediately after typing still saves. Running the tests does not touch the draft.
+- **Opening a step:** restores the draft if there is one, otherwise the starter.
+- **Reset to starter:** asks for confirmation inline ("Yes, reset" / "Keep my code"), then puts the starter back, clears the previous test results and error markers, and discards the draft. The row is kept as a tombstone (`Code` null, new `UpdatedAt`) so a later sync can tell the reset happened after another device's edit.
+- **Edited back to the starter:** stored as "no draft", so a later improvement to the starter still reaches learners who never really changed it.
+- **Editor bundle:** `code-editor.js` was rebuilt (`scripts/build-editor.sh`) for the change notification; edits made by `setCode` (reset) are not reported back.
+
+To wipe drafts while testing, quit the app and delete `drafts.db` from the app data directory (see "Progress storage").
