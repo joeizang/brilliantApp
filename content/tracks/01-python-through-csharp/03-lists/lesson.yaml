@@ -198,6 +198,7 @@ steps:
       - id: stop
         accepted:
           - "3"
+          - "-2"
         mistakes:
           - answers:
               - "2"
@@ -208,10 +209,11 @@ steps:
       - id: start
         accepted:
           - "-2"
+          - "3"
         mistakes:
           - answers:
               - "2"
-            feedback: "`nums[2:]` starts at index 2 and keeps three items. Count from the end instead, with a negative index."
+            feedback: "`nums[2:]` starts at index 2 and keeps three items, not two."
           - answers:
               - "-1"
             feedback: "`nums[-1:]` would keep only the last item."
@@ -307,7 +309,7 @@ steps:
     type: write-code
     title: Write a function
     prompt: |
-      Write `rotate_left(nums)`, which returns a **new** list with the first item moved to the end.
+      Write `rotate_left(nums)`, which returns the list with its first item moved to the end.
       So `rotate_left([1, 2, 3])` is `[2, 3, 1]`. An empty list stays empty.
     language: python
     entrypoint: rotate_left
@@ -327,7 +329,7 @@ steps:
       - input: "[4, 9, 7, 1]"
         expected: "[9, 7, 1, 4]"
     hints:
-      - Think of the list as two pieces, the first item and everything after it.
+      - Think of the list as two pieces, the first item and everything after it. Slices build new lists, so the original is left alone.
       - "`nums[1:]` is everything but the first item. `nums[:1]` is just the first item, as a list."
       - Two lists can be joined with `+`. Put the pieces back in the new order.
       - "`return nums[1:] + nums[:1]`"
