@@ -58,7 +58,8 @@ The learner never grades themselves. `Infer(correct, hintsUsed, elapsed, step)`:
 | parsons | 30 s | 150 s |
 | write-code | 90 s | 420 s |
 
-The hint ladder arrives with [#20](https://github.com/joeizang/brilliantApp/issues/20); until then Review records `hintsUsed = 0`.
+Hints come from the [hint ladder](hints.md): each rung used before the first answer lowers the rating (1–2 hints → Hard, 3 or more → Again), and
+Review stores that count in `hintsUsed`.
 The rating is stored on the event so history replays identically if these thresholds are tuned later.
 
 ## The `ReviewAnswered` event
@@ -106,10 +107,10 @@ matches. (Events are stored in UTC; their local date is taken with the offset of
 | Pattern | the same, with `kind: pattern` ("which pattern fits this problem?") | choice, predict-output |
 | Re-solve | derived by the projector, never authored | write-code, fill-blank, Parsons |
 
-A **re-solve** appears for each problem step (write-code, fill-blank, Parsons) that has at least one failed attempt in the log: a
-`StepAnswered` with `correct: false`, or a `CodeSubmitted` that did not pass. Its ID is `resolve.<step id>`, it unlocks with its
+A **re-solve** appears for each problem step (write-code, fill-blank, Parsons) that has at least one failed attempt in the log (a
+`StepAnswered` with `correct: false`, or a `CodeSubmitted` that did not pass) **or** a hint used in the lesson (`HintUsed` with no review item; see [hints.md](hints.md)). Its ID is `resolve.<step id>`, it unlocks with its
 lesson like any other item, and from then on it is scheduled by FSRS like any other item (answers are `ReviewAnswered` events
-with that item ID). Wrong answers given *during Review* are not lesson attempts, so they don't create more re-solves. A re-solve
+with that item ID). Wrong answers and hints given *during Review* are not lesson attempts, so they don't create more re-solves. A re-solve
 retires if its problem step is deleted. A write-code re-solve keeps its own code draft (`review.<item id>.<answers so far>`), so it starts from
 the starter instead of the solution the learner saved in the lesson, never overwrites that lesson draft, resumes if interrupted, and starts afresh at the next due attempt. Choice and predict-output steps never get re-solves: the lesson's own review items cover them.
 
@@ -118,7 +119,6 @@ in Track 1 (it teaches Python syntax); the first arrive with the DSA tracks.
 
 ## Not in this slice
 
-Hints that also bring a problem back sooner ([#20](https://github.com/joeizang/brilliantApp/issues/20), PRD story 33: a re-solve
-is created from wrong answers only for now); a per-learner cap or weights in settings (the options exist, the UI doesn't);
+A per-learner cap or weights in settings (the options exist, the UI doesn't);
 choosing an easier form of a re-solve on a phone, such as Parsons instead of typing code (story 43); mastery and concept views
 ([#21](https://github.com/joeizang/brilliantApp/issues/21)); streaks and the Today screen ([#22](https://github.com/joeizang/brilliantApp/issues/22)).

@@ -51,7 +51,7 @@ public abstract record Step(string Id, string Title) : ContentItem(Id)
 {
     /// <summary>
     /// Hint ladder for answerable steps, gentlest first (nudge → pattern hint → partial → full walkthrough).
-    /// Authored now; shown to the learner by a later issue.
+    /// Revealed one rung at a time by the hint ladder; each rung used lowers the rating Review infers.
     /// </summary>
     public IReadOnlyList<string> Hints { get; init; } = [];
 }

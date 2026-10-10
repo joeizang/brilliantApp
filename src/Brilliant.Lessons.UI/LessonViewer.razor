@@ -52,6 +52,7 @@
                 <ParsonsStepView Step="parsons" OnAnswered="a => Answered(parsons, a)" OnContinue="() => Complete(step)" />
                 break;
         }
+        <HintLadder Hints="step.Hints" OnRevealed="level => Hinted(step, level)" />
     </div>
 }
 else
@@ -95,6 +96,11 @@ else
         }
         StateHasChanged();
     });
+
+    private void Hinted(Step step, int level)
+    {
+        if (!Review) Recorder.HintUsed(Lesson.Id, step.Id, level);
+    }
 
     private void Answered(PredictOutputStep step, PredictOutputStepView.Attempt a)
     {

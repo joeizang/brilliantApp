@@ -25,9 +25,21 @@ public sealed record TrackState(Track Track, IReadOnlyList<LessonState> Lessons)
 /// Items are locked until their lesson is completed.
 /// </summary>
 /// <param name="Question">The answerable step the item re-asks.</param>
-public sealed record ReviewItemState(Lesson Lesson, ReviewItem Item, Step Question, bool IsUnlocked, CardState? Card, int Answers)
+/// <param name="AttemptHints">The highest hint rung asked in Review for this item since it was last answered: help already taken on the current attempt.</param>
+/// <param name="LessonHints">The highest hint rung the learner used on the question step while learning it in the lesson.</param>
+public sealed record ReviewItemState(Lesson Lesson, ReviewItem Item, Step Question, bool IsUnlocked, CardState? Card, int Answers,
+    int AttemptHints = 0, int LessonHints = 0)
 {
     public bool IsNew => Card is null;
+
+    /// <summary>
+    /// Lesson help that counts against the first review: someone who needed the answer shown while learning it hasn't yet proved they own it.
+    /// A re-solve is exempt (it exists to test that very problem again), as is anything already reviewed.
+    /// </summary>
+    public int CarriedHints => Item.Kind != ReviewKind.Resolve && Answers == 0 ? LessonHints : 0;
+
+    /// <summary>The hints to count against the rating of this attempt so far, given the help already taken in Review.</summary>
+    public int HintsBefore(int askedThisAttempt) => Math.Max(Math.Max(AttemptHints, askedThisAttempt), CarriedHints);
 
     public bool IsDue(DateTimeOffset now) => IsUnlocked && (Card is null || Card.Due <= now);
 }

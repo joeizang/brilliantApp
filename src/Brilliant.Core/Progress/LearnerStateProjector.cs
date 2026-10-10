@@ -59,25 +59,38 @@ public static class LearnerStateProjector
         var answers = parsed.ToLookup(x => x.Answer!.Value.Item, x => (x.Event.OccurredAt, x.Answer!.Value.Rating), StringComparer.Ordinal);
         var answeredToday = parsed.Count(x => x.Event.OccurredAt.ToOffset(now.Offset).Date == now.Date);
 
-        var failed = log.Where(IsFailedAttempt).Select(e => (e.LessonId, e.StepId)).ToHashSet();
+        var hints = log.Where(e => e.Type == ProgressEventTypes.HintUsed)
+            .Select(e => (Event: e, Hint: ParseHint(e))).Where(x => x.Hint is not null).ToList();
+        var lessonHints = hints.Where(x => x.Hint!.Value.Item is null)
+            .GroupBy(x => (x.Event.LessonId, x.Event.StepId))
+            .ToDictionary(g => g.Key, g => g.Max(x => x.Hint!.Value.Level));
+        var reviewHints = hints.Where(x => x.Hint!.Value.Item is not null)
+            .ToLookup(x => x.Hint!.Value.Item!, x => (x.Event.OccurredAt, x.Hint!.Value.Level), StringComparer.Ordinal);
+
+        // A problem comes back as a re-solve if it was answered incorrectly or the learner needed help with it.
+        var troubled = log.Where(IsFailedAttempt).Select(e => (e.LessonId, e.StepId)).Concat(lessonHints.Keys).ToHashSet();
 
         var reviews = new List<ReviewItemState>();
         foreach (var lesson in tracks.SelectMany(t => t.Lessons))
         {
             var resolves = lesson.Lesson.Steps
-                .Where(s => s is WriteCodeStep or FillBlankStep or ParsonsStep && failed.Contains((lesson.Lesson.Id, s.Id)))
+                .Where(s => s is WriteCodeStep or FillBlankStep or ParsonsStep && troubled.Contains((lesson.Lesson.Id, s.Id)))
                 .Select(s => new ReviewItem($"resolve.{s.Id}", "", s.Id, ReviewKind.Resolve));
             foreach (var item in lesson.Lesson.ReviewItems.Concat(resolves))
             {
                 if (lesson.Lesson.Steps.FirstOrDefault(s => s.Id == item.StepId) is not { } question) continue;
                 CardState? card = null;
+                DateTimeOffset? lastAnswered = null;
                 var count = 0;
                 foreach (var (at, rating) in answers[item.Id])
                 {
                     card = FsrsScheduler.Schedule(card, rating, at);
-                    count++;
+                    (lastAnswered, count) = (at, count + 1);
                 }
-                reviews.Add(new ReviewItemState(lesson.Lesson, item, question, lesson.Status == LessonStatus.Completed, card, count));
+                // Help asked for since the last answer belongs to the attempt in progress; earlier help was already judged.
+                var attemptHints = reviewHints[item.Id].Where(h => lastAnswered is null || h.OccurredAt > lastAnswered).Select(h => h.Level).DefaultIfEmpty(0).Max();
+                lessonHints.TryGetValue((lesson.Lesson.Id, question.Id), out var fromLesson);
+                reviews.Add(new ReviewItemState(lesson.Lesson, item, question, lesson.Status == LessonStatus.Completed, card, count, attemptHints, fromLesson));
             }
         }
         return (reviews, answeredToday);
@@ -95,6 +108,22 @@ public static class LearnerStateProjector
                 && ok.ValueKind == JsonValueKind.False;
         }
         catch (JsonException) { return false; }
+    }
+
+    /// <summary>The rung a HintUsed event reached, and the review item it was asked for (null in a lesson). Malformed events are ignored.</summary>
+    private static (int Level, string? Item)? ParseHint(ProgressEvent e)
+    {
+        if (e.Data is null) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(e.Data);
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object
+                || !root.TryGetProperty("level", out var level) || level.ValueKind != JsonValueKind.Number || !level.TryGetInt32(out var rung) || rung < 1) return null;
+            if (!root.TryGetProperty("item", out var item) || item.ValueKind == JsonValueKind.Null) return (rung, null);
+            return item.ValueKind == JsonValueKind.String ? (rung, item.GetString()) : null;
+        }
+        catch (JsonException) { return null; }
     }
 
     private static (string Item, Rating Rating)? ParseReviewAnswer(ProgressEvent e)

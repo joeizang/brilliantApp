@@ -8,6 +8,12 @@ public static class ProgressEventTypes
     /// <summary>A write-code submission, recorded every time the learner runs their code against the tests.</summary>
     public const string CodeSubmitted = "CodeSubmitted";
 
+    /// <summary>
+    /// The learner revealed a rung of a step's hint ladder. Data holds the 1-based <c>level</c> reached and, when it happened in
+    /// Review, the review <c>item</c> ID. Recorded once per rung, so the events of one question are its hint count.
+    /// </summary>
+    public const string HintUsed = "HintUsed";
+
     /// <summary>Recorded once, when the last step of a lesson is completed. Lesson-level events carry an empty StepId.</summary>
     public const string LessonCompleted = "LessonCompleted";
 

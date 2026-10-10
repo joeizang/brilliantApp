@@ -43,6 +43,7 @@
                 <div class="review-actions"><button class="primary" @onclick="Next">Skip</button></div>
                 break;
         }
+        <HintLadder Hints="item.Question.Hints" Initial="item.AttemptHints" Caption="A hint makes this come back sooner." OnRevealed="level => Hinted(item, level)" />
         @if (_scheduled is { } due)
         {
             <p class="review-next" role="status">You'll see this again @Describe(due - Recorder.Now).</p>
@@ -74,6 +75,7 @@ else
     private int _index;
     private DateTimeOffset _shownAt;
     private bool _recorded;
+    private int _hintsUsed;
     private DateTimeOffset? _scheduled;
     private DateTimeOffset? _nextDue;
     private int _waiting;
@@ -88,7 +90,7 @@ else
 
     private void Show()
     {
-        (_recorded, _scheduled, _shownAt) = (false, null, Recorder.Now);
+        (_recorded, _hintsUsed, _scheduled, _shownAt) = (false, _current?.AttemptHints ?? 0, null, Recorder.Now);
         (_nextDue, _waiting) = _current is null ? Finished() : (null, 0);
     }
 
@@ -97,9 +99,17 @@ else
     {
         if (_recorded) return;
         _recorded = true;
-        Recorder.ReviewAnswered(item, correct, hintsUsed: 0, Recorder.Now - _shownAt);
+        Recorder.ReviewAnswered(item, correct, item.HintsBefore(_hintsUsed), Recorder.Now - _shownAt);
         _scheduled = Recorder.Project(Content).Reviews.First(r => r.Item.Id == item.Item.Id).Card?.Due;
         await OnProgress.InvokeAsync();
+    }
+
+    // Hints count against the rating only if they were asked for before the first answer; after that the question is practice.
+    private void Hinted(ReviewItemState item, int level)
+    {
+        if (_recorded) return;
+        _hintsUsed = Math.Max(_hintsUsed, level);
+        Recorder.HintUsed(item.Lesson.Id, item.Item.StepId, level, item.Item.Id);
     }
 
     // A review attempt keeps its own draft, apart from the lesson's. Counting answers in the key means an interrupted attempt resumes,
