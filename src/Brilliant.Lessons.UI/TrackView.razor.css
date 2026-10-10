@@ -1,10 +1,11 @@
-.crumbs { max-width: 52rem; margin: .8rem auto 0; padding: 0 1.5rem; font: .9rem -apple-system, system-ui, sans-serif; }
-.screen-title { max-width: 52rem; margin: .5rem auto 0; padding: 0 1.5rem; font-family: -apple-system, system-ui, sans-serif; }
-.track-meta { max-width: 52rem; margin: .3rem auto 0; padding: 0 1.5rem; opacity: .75; font-family: -apple-system, system-ui, sans-serif; }
-.lessons { list-style: none; max-width: 52rem; margin: 1rem auto; padding: 0 1.5rem; display: grid; gap: .6rem; font-family: -apple-system, system-ui, sans-serif; }
-.lesson { display: flex; align-items: center; gap: .9rem; padding: .8rem 1rem; border: 2px solid var(--border); border-radius: 12px; }
-.lesson.locked { opacity: .55; }
-.lesson.completed { border-color: var(--success)88; }
+.crumbs { margin-top: var(--space-sm); font-size: .95rem; }
+.screen-title { margin-top: 0; margin-bottom: var(--space-xs); }
+.track-meta { margin-top: 0; margin-bottom: 0; }
+.lessons { list-style: none; margin-top: var(--space-lg); margin-bottom: var(--space-lg); display: grid; gap: .75rem; }
+.lesson { display: flex; align-items: center; gap: var(--space-md); padding: var(--space-md) 1.25rem; background: var(--surface-raised); border: 1px solid var(--hairline); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
+.lesson.locked { opacity: .6; }
+.lesson.completed { border-color: color-mix(in srgb, var(--success) 50%, transparent); }
 .status { width: 1.5rem; text-align: center; font-size: 1.2rem; }
+.lesson.completed .status { color: var(--success); }
 .lesson-name { flex: 1; display: grid; font-weight: 600; }
-.lesson-name small { font-weight: 400; opacity: .7; }
+.lesson-name small { font-weight: 400; }

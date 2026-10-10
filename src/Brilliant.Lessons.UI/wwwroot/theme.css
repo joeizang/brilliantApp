@@ -1,20 +1,25 @@
 /*
  * Theme tokens. Dark is the default; the light variant applies when the OS appearance is light, and the
  * media query re-evaluates live, so the app follows the system setting without a restart.
- * Components use only these tokens, never raw colours.
+ * Components use only these tokens, never raw colours, and every length is in rem so the whole UI scales together.
  */
 :root {
     color-scheme: dark;
-    --bg: #16171d;
-    --fg: #e8e9ee;
-    --border: rgba(255, 255, 255, .24);
-    --track: rgba(255, 255, 255, .16);
+    --bg: #121214;
     --surface: rgba(255, 255, 255, .06);
+    --surface-raised: #1c1c1f;
+    --fg: #f5f5f7;
+    --fg-secondary: #a1a1a6;
+    --border: rgba(255, 255, 255, .24);      /* controls: inputs, answer options, buttons (3:1 against the background) */
+    --hairline: rgba(255, 255, 255, .1);     /* decoration: dividers and card edges */
+    --track: rgba(255, 255, 255, .16);
     --accent: #6ea0ff;
     --on-accent: #0b1020;
     --success: #4cc27f;
     --danger: #ff7b7b;
     --warn-bg: rgba(245, 166, 35, .28);
+    --shadow-card: 0 .25rem 1.5rem rgba(0, 0, 0, .35);
+    --shadow-lift: 0 .5rem 2rem rgba(0, 0, 0, .5);
     /* Code editor: VS Code Dark+ */
     --code-bg: #1e1e1e;
     --code-fg: #d4d4d4;
@@ -36,15 +41,20 @@
     :root {
         color-scheme: light;
         --bg: #ffffff;
-        --fg: #1c1d22;
-        --border: rgba(0, 0, 0, .24);
-        --track: rgba(0, 0, 0, .12);
         --surface: rgba(0, 0, 0, .04);
+        --surface-raised: #f5f5f7;
+        --fg: #1d1d1f;
+        --fg-secondary: #6e6e73;
+        --border: rgba(0, 0, 0, .24);
+        --hairline: rgba(0, 0, 0, .08);
+        --track: rgba(0, 0, 0, .12);
         --accent: #2f6fe0;
         --on-accent: #ffffff;
         --success: #1f7a42;
         --danger: #c0322f;
         --warn-bg: rgba(245, 166, 35, .3);
+        --shadow-card: 0 .25rem 1.5rem rgba(0, 0, 0, .06);
+        --shadow-lift: 0 .5rem 2rem rgba(0, 0, 0, .12);
         /* Code editor: VS Code Light+ */
         --code-bg: #f5f5f5;
         --code-fg: #1f1f1f;
@@ -63,21 +73,104 @@
     }
 }
 
+:root {
+    /* Shape, rhythm and motion shared by every screen. 4 / 8 / 16 / 24 / 48 on a 16px root, in rem. */
+    --radius-sm: .5rem;
+    --radius-md: .75rem;
+    --radius-lg: 1.1rem;
+    --space-xs: .25rem;
+    --space-sm: .5rem;
+    --space-md: 1rem;
+    --space-lg: 1.5rem;
+    --space-xl: 3rem;
+    --content-width: 42rem;                  /* a readable column, ~680px at the default size */
+    --touch: 2.75rem;                        /* minimum height of anything you press */
+    --ease: cubic-bezier(.25, .1, .25, 1);
+    --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --font-mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+
 /*
  * Fluid type scale. Every size in the app is in rem, so scaling the root scales text, spacing and the
- * 52rem content column together. The size grows with the viewport width (CSS px): 1rem on a phone
+ * content column together. The size grows with the viewport width (CSS px): 1rem on a phone
  * (~412px), ~1.2rem on a laptop, ~1.5rem on a 2560px-wide screen, capped at 1.875rem on ultrawides.
  * rem (not px) keeps the user's own font-size preference in play.
  */
 html { font-size: clamp(1rem, .875rem + .4vw, 1.875rem); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 html, body { background: var(--bg); color: var(--fg); }
+body { font-family: var(--font-ui); line-height: 1.5; -webkit-font-smoothing: antialiased; }
 
-/* Shared controls (global so every step renderer looks the same). */
-button.primary { font-size: 1rem; padding: .5rem 1.2rem; border-radius: 8px; border: none; background: var(--accent); color: var(--on-accent); cursor: pointer; }
+h1, h2, h3 { line-height: 1.2; letter-spacing: -.02em; }
+h1 { font-size: 2rem; font-weight: 700; margin: 0 0 var(--space-sm); }
+h2 { font-size: 1.5rem; font-weight: 650; margin: 0 0 var(--space-md); }
+h3 { font-size: 1.1rem; font-weight: 600; }
+p { margin: 0 0 var(--space-md); }
+
+/* Every screen and step sits in the same centred column. */
+.screen-title, .track-meta, .crumbs, .cards, .lessons, .lesson-title, .lesson-bar, .lesson-progress, .step-actions, .lesson-done,
+.explain-step, .choice-step, .predict-step, .write-step, .fill-step, .parsons-step {
+    max-width: var(--content-width); margin-left: auto; margin-right: auto; padding-left: var(--space-lg); padding-right: var(--space-lg);
+    box-sizing: border-box;
+}
+.explain-step, .choice-step, .predict-step, .write-step, .fill-step, .parsons-step { padding-top: var(--space-lg); padding-bottom: var(--space-lg); }
+.cards, .lessons { padding-left: var(--space-lg); padding-right: var(--space-lg); }
+
+/* Secondary text uses a colour, never opacity, so it keeps its contrast. */
+.track-meta, .card-meta, .lesson-name small, .note, .option-feedback, .mistake-feedback, .hint, .hint-text, .lesson-progress { color: var(--fg-secondary); }
+
+/* A step arrives with a short fade; nothing moves for people who ask for less motion. */
+@keyframes fade-up { from { opacity: 0; transform: translateY(.75rem); } to { opacity: 1; transform: none; } }
+.explain-step, .choice-step, .predict-step, .write-step, .fill-step, .parsons-step { animation: fade-up .35s var(--ease) both; }
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+}
+
+/* Keyboard focus is always visible, and never shown for mouse clicks. */
+:focus-visible { outline: .15rem solid var(--accent); outline-offset: .15rem; }
+
+/* Shared controls (global so every step renderer looks the same). One filled button per screen; the rest are quieter. */
+button { font-family: inherit; }
+button.primary, button.secondary {
+    font-size: 1rem; font-weight: 500; min-height: var(--touch); padding: 0 1.5rem; border-radius: 999px; cursor: pointer;
+    transition: transform .2s var(--ease), filter .2s var(--ease), background-color .2s var(--ease);
+}
+button.primary { border: none; background: var(--accent); color: var(--on-accent); }
+button.secondary { border: 2px solid var(--accent); background: none; color: var(--accent); }
+button.primary:hover:not(:disabled) { transform: scale(1.02); filter: brightness(1.08); }
+button.secondary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+button.primary:active:not(:disabled), button.secondary:active:not(:disabled) { transform: scale(.98); }
 button.primary:disabled { opacity: .4; cursor: default; }
-button.secondary { font-size: 1rem; padding: .45rem 1.1rem; border-radius: 8px; border: 2px solid var(--accent); background: none; color: var(--accent); cursor: pointer; }
-button.link { background: none; border: none; color: var(--accent); cursor: pointer; font: inherit; padding: 0; }
+button.link { background: none; border: none; color: var(--accent); cursor: pointer; font: inherit; padding: var(--space-sm) 0; min-height: var(--touch); }
+button.link:hover:not(:disabled) { text-decoration: underline; }
+button.link:disabled { opacity: .5; cursor: default; }
+
+/* Progress bars (track cards and the lesson header). */
+.bar { display: block; height: .375rem; border-radius: 999px; background: var(--track); overflow: hidden; }
+.fill { display: block; height: 100%; border-radius: 999px; background: var(--accent); transition: width .4s var(--ease); }
+
+/* Verdicts, shared by every question type. */
+.verdict.correct { color: var(--success); font-weight: 600; }
+.verdict.incorrect { color: var(--danger); font-weight: 600; }
+
+/* Answer options (choice and multiple-choice predict-output). The selected ring is a shadow, so selecting never shifts the layout. */
+.options { list-style: none; padding: 0; margin: var(--space-md) 0; display: grid; gap: var(--space-sm); }
+.option { background: var(--surface-raised); border: 1px solid var(--hairline); border-radius: var(--radius-md); padding: .75rem 1rem; min-height: var(--touch); box-sizing: border-box; transition: box-shadow .15s var(--ease), background-color .15s var(--ease); }
+.option label { display: flex; gap: .75rem; align-items: center; cursor: pointer; min-height: 1.5rem; }
+.option:hover { box-shadow: 0 0 0 1px var(--border); }
+.option.selected { box-shadow: 0 0 0 2px var(--accent); }
+.option.right { box-shadow: 0 0 0 2px var(--success); background: color-mix(in srgb, var(--success) 14%, var(--surface-raised)); }
+.option.wrong { box-shadow: 0 0 0 2px var(--danger); background: color-mix(in srgb, var(--danger) 14%, var(--surface-raised)); }
+.option-feedback { margin-top: .4rem; font-size: .9rem; }
+
+/* Code on a lesson page (explanations, predict-output, fill-in-the-blank, test output). */
+.code-block, pre {
+    background: var(--code-bg); color: var(--code-fg); border-radius: var(--radius-md); padding: .85rem 1.1rem; overflow-x: auto;
+    font: .9rem/1.6 var(--font-mono); margin: 0 0 var(--space-md); border: 1px solid var(--hairline);
+}
+code { font-family: var(--font-mono); }
+.explain-body code:not(pre code) { background: var(--surface); border-radius: .3rem; padding: .1em .35em; font-size: .9em; }
+kbd { font: .85em var(--font-mono); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: .3rem; padding: 0 .35em; margin: 0 .1em; background: var(--surface); }
 
 /* Syntax colours for the code editor (classes come from the tagHighlighter in editor/src/code-editor.js, so this must be global). */
 .tok-keyword { color: var(--syn-keyword); }

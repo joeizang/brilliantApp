@@ -1,11 +1,12 @@
-.sidebar { font-family: -apple-system, system-ui, sans-serif; display: grid; gap: 1.2rem; align-content: start; }
-.side-track ol { list-style: none; margin: .3rem 0 0; padding: 0; display: grid; gap: .1rem; }
+.sidebar { display: grid; gap: var(--space-lg); align-content: start; }
+.side-track ol { list-style: none; margin: var(--space-xs) 0 0; padding: 0; display: grid; gap: .125rem; }
 button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; text-align: left; }
-.side-track-title { width: 100%; display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; padding: .35rem .6rem; border-radius: 8px; font-weight: 600; }
-.side-track-title small { font-weight: 400; opacity: .7; }
-.side-lesson { width: 100%; display: flex; gap: .55rem; align-items: baseline; padding: .35rem .6rem; border-radius: 8px; font-size: .95rem; }
+.side-track-title { width: 100%; display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; padding: .4rem .75rem; border-radius: var(--radius-sm); font-size: .8rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--fg-secondary); }
+.side-track-title small { font-size: inherit; font-weight: 400; }
+.side-lesson { width: 100%; display: flex; gap: .6rem; align-items: baseline; min-height: 2.25rem; padding: .45rem .75rem; border-radius: var(--radius-sm); font-size: .95rem; transition: background-color .15s var(--ease); }
 .side-lesson .status { width: 1.2rem; text-align: center; flex: none; }
 .side-lesson.completed .status { color: var(--success); }
 .side-lesson.locked { opacity: .5; cursor: default; }
 .side-track-title:hover, .side-lesson:hover:not(:disabled) { background: var(--surface); }
-.side-track-title.current, .side-lesson.current { background: var(--surface); box-shadow: inset 3px 0 0 var(--accent); }
+.side-track-title.current { color: var(--fg); }
+.side-lesson.current { background: color-mix(in srgb, var(--accent) 20%, transparent); font-weight: 600; }
