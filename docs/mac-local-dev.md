@@ -98,6 +98,12 @@ Components must use the tokens (`var(--accent)` etc.), never raw colours. Shared
 - **Motion:** a step fades up when it appears, cards lift on hover, progress bars ease. `prefers-reduced-motion` turns all of it off. Keyboard focus shows a visible ring (`:focus-visible`).
 - **Sidebar (wide windows):** translucent, with small-caps track headings and a tinted rounded pill on the current lesson.
 
+## Styling and Tailwind
+
+CSS is theme tokens, scoped `.razor.css` files and Tailwind utilities (`wwwroot/tailwind.css`, committed). After adding a utility class to a
+`.razor` file run `scripts/build-styles.sh` (needs Node) and commit the result; `scripts/build-styles.sh --check` verifies it is current.
+See [styling.md](styling.md).
+
 ## Code editor and Python runtime (issue #9)
 
 - **Editor:** CodeMirror 6, bundled into `src/Brilliant.Lessons.UI/wwwroot/code-editor.js` (committed). Sources are in

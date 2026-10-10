@@ -11,6 +11,9 @@
     <!-- editor/ is the CodeMirror build source (see scripts/build-editor.sh); only its bundled output in wwwroot ships. -->
     <Content Remove="editor\**" />
     <None Remove="editor\**" />
+    <!-- styles/ is the Tailwind build source (see scripts/build-styles.sh); only its built output in wwwroot ships. -->
+    <Content Remove="styles\**" />
+    <None Remove="styles\**" />
     <SupportedPlatform Include="browser" />
   </ItemGroup>
 

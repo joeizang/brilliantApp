@@ -1,7 +1,7 @@
 @* The hint ladder: a step's hints, gentlest first, revealed one at a time. Each rung used is reported so the host can record it. *@
 @if (Hints.Count > 0)
 {
-    <section class="hint-ladder" aria-label="Hints">
+    <section class="hint-ladder mx-auto box-border max-w-(--content-width) px-6" aria-label="Hints">
         @if (_revealed > 0)
         {
             <ol class="hint-list">
