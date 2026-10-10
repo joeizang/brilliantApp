@@ -10,11 +10,25 @@ public sealed record Track(string Id, string Title, IReadOnlyList<string> Lesson
 /// <summary>An idea a lesson teaches. Mastery and review will be tracked per concept.</summary>
 public sealed record Concept(string Id, string Title) : ContentItem(Id);
 
+/// <summary>What a review item trains. Pattern items are weighted up in the daily queue.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<ReviewKind>))]
+public enum ReviewKind
+{
+    /// <summary>"What does this do?" A question about an idea. The default.</summary>
+    Concept,
+
+    /// <summary>"Which pattern fits this problem?" Authored in a lesson's <c>reviewItems</c> with <c>kind: pattern</c>.</summary>
+    Pattern,
+
+    /// <summary>Redo a problem that was answered incorrectly. Never authored: the projector derives it from the event log.</summary>
+    Resolve,
+}
+
 /// <summary>
 /// A question introduced by a lesson that Review will later resurface. It reuses an existing answerable
 /// step (<see cref="StepId"/>) of the same lesson as its question, and belongs to one <see cref="ConceptId"/>.
 /// </summary>
-public sealed record ReviewItem(string Id, string ConceptId, string StepId) : ContentItem(Id);
+public sealed record ReviewItem(string Id, string ConceptId, string StepId, ReviewKind Kind = ReviewKind.Concept) : ContentItem(Id);
 
 public sealed record Lesson(string Id, string Title, string TrackId, IReadOnlyList<Step> Steps) : ContentItem(Id)
 {

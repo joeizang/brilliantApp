@@ -320,6 +320,40 @@ public sealed class ValidatorTests : IDisposable
     }
 
     [Fact]
+    public void Review_item_kind_is_concept_unless_the_author_says_pattern_and_travels_in_the_pack()
+    {
+        WriteValidPack(LessonHeader
+            + "concepts:\n  - id: concept.idea\n    title: Idea\n"
+            + "reviewItems:\n"
+            + "  - id: review.one.plain\n    concept: concept.idea\n    step: step.one.q\n"
+            + "  - id: review.one.concept\n    concept: concept.idea\n    step: step.one.q\n    kind: concept\n"
+            + "  - id: review.one.pattern\n    concept: concept.idea\n    step: step.one.q\n    kind: pattern\n"
+            + "steps:\n" + ExplainOnly + QuestionStep);
+        var outPath = Path.Combine(_root, "out", "p.zip");
+
+        var report = ContentPacker.Pack(_root, outPath);
+
+        Assert.True(report.IsValid, string.Join("\n", report.Errors));
+        var graph = ContentPackFormat.Load(outPath);
+        Assert.Equal(ReviewKind.Concept, graph.Get<ReviewItem>("review.one.plain").Kind);
+        Assert.Equal(ReviewKind.Concept, graph.Get<ReviewItem>("review.one.concept").Kind);
+        Assert.Equal(ReviewKind.Pattern, graph.Get<ReviewItem>("review.one.pattern").Kind);
+    }
+
+    [Theory]
+    [InlineData("resolve")]
+    [InlineData("Pattern")]
+    [InlineData("trivia")]
+    public void Review_item_kind_must_be_concept_or_pattern(string kind)
+    {
+        var m = LessonErrors(LessonHeader
+            + "concepts:\n  - id: concept.idea\n    title: Idea\n"
+            + $"reviewItems:\n  - id: review.one.a\n    concept: concept.idea\n    step: step.one.q\n    kind: {kind}\n"
+            + "steps:\n" + ExplainOnly + QuestionStep);
+        Assert.Contains(m, x => x.Contains("review.one.a") && x.Contains($"kind '{kind}' is not one of: concept, pattern"));
+    }
+
+    [Fact]
     public void Concept_and_review_ids_follow_the_id_rules_and_must_be_unique()
     {
         var m = LessonErrors(LessonHeader

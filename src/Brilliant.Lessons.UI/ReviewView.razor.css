@@ -5,3 +5,4 @@
 .review-next { margin-top: var(--space-md); color: var(--fg-secondary); font-size: .95rem; }
 .review-done { margin-top: var(--space-xl); margin-bottom: var(--space-md); font-size: 1.3rem; }
 .review-actions { padding-bottom: var(--space-lg); }
+.review-kind { display: inline-block; margin-top: var(--space-md); padding: .1rem .6rem; border-radius: 980px; background: var(--surface); color: var(--fg-secondary); font-size: .8rem; font-weight: 500; }

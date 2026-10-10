@@ -3,7 +3,7 @@
 
 @{
     var learner = Recorder.Project(Content);
-    var due = learner.DueReviews.Count;
+    var due = learner.Queue.Items.Count;
 }
 <nav class="sidebar" aria-label="Course">
     <button class="side-review @(ReviewActive ? "current" : "")" aria-current="@(ReviewActive ? "page" : null)" @onclick="() => OnOpenReview.InvokeAsync()">

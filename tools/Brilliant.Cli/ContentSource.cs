@@ -171,6 +171,10 @@ public static partial class ContentValidator
             Require(r.Concept, "concept", file, report, label);
             Require(r.Step, "step", file, report, label);
 
+            var kind = ReviewKind.Concept;
+            if (r.Kind is not null && !TryParseKind(r.Kind, out kind))
+                report.Add(file, $"{label}: kind '{r.Kind}' is not one of: concept, pattern.");
+
             if (!string.IsNullOrWhiteSpace(r.Concept) && concepts.All(c => c.Id != r.Concept))
                 report.Add(file, $"{label}: concept '{r.Concept}' is not declared in this lesson's 'concepts'.");
             if (!string.IsNullOrWhiteSpace(r.Step))
@@ -182,9 +186,16 @@ public static partial class ContentValidator
                     report.Add(file, $"{label}: step '{r.Step}' is an explain step; a review item needs a question (choice or predict-output).");
             }
             if (r.Id is not null && r.Concept is not null && r.Step is not null)
-                items.Add(new ReviewItem(r.Id, r.Concept, r.Step));
+                items.Add(new ReviewItem(r.Id, r.Concept, r.Step, kind));
         }
         return items;
+    }
+
+    /// <summary>Authors choose between concept and pattern items; re-solves are derived from the learner's mistakes, never declared.</summary>
+    private static bool TryParseKind(string text, out ReviewKind kind)
+    {
+        kind = text switch { "concept" => ReviewKind.Concept, "pattern" => ReviewKind.Pattern, _ => ReviewKind.Concept };
+        return text is "concept" or "pattern";
     }
 
     private static List<string> LoadHints(StepDto dto, string label, string file, ValidationReport report)
@@ -530,7 +541,7 @@ public static partial class ContentValidator
         public List<ReviewItemDto>? ReviewItems { get; set; }
     }
     private sealed class ConceptDto { public string? Id { get; set; } public string? Title { get; set; } }
-    private sealed class ReviewItemDto { public string? Id { get; set; } public string? Concept { get; set; } public string? Step { get; set; } }
+    private sealed class ReviewItemDto { public string? Id { get; set; } public string? Concept { get; set; } public string? Step { get; set; } public string? Kind { get; set; } }
     private sealed class SnippetDto { public string? Language { get; set; } public string? Code { get; set; } }
     private sealed class ComparisonDto { public string? Csharp { get; set; } public string? Python { get; set; } }
     private sealed class StepDto
