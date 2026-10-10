@@ -1,7 +1,7 @@
 // CodeMirror 6 behind the C# ICodeEditor interface (see CodeEditor.razor). Bundled by esbuild into
 // ../wwwroot/code-editor.js so it works offline inside BlazorWebView on Mac Catalyst and Android.
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, Decoration } from '@codemirror/view';
-import { EditorState, StateEffect, StateField } from '@codemirror/state';
+import { Annotation, EditorState, StateEffect, StateField } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { bracketMatching, indentOnInput, indentUnit, syntaxHighlighting } from '@codemirror/language';
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
@@ -10,7 +10,11 @@ import { classHighlighter } from '@lezer/highlight';
 import { python } from '@codemirror/lang-python';
 
 const editors = new Map();
+const pending = new Map();      // id -> { timer, notify } for a change the app hasn't been told about yet
 let nextId = 1;
+
+const CHANGE_DELAY_MS = 500;    // how long typing must pause before the app is told (autosave)
+const programmatic = Annotation.define();   // marks edits made by setCode, which the app already knows about
 
 // One highlighted line at a time (e.g. the line a traceback points at).
 const setHighlight = StateEffect.define();
@@ -42,7 +46,9 @@ const theme = EditorView.theme({
     '.cm-diagnostic': { fontFamily: 'inherit' },
 });
 
-export function create(element, code) {
+/** onChanged: optional DotNetObjectReference whose OnJsChanged(code) is called, debounced, after the learner edits. */
+export function create(element, code, onChanged) {
+    let id;
     const view = new EditorView({
         parent: element,
         state: EditorState.create({
@@ -55,10 +61,16 @@ export function create(element, code) {
                 python(), syntaxHighlighting(classHighlighter),
                 EditorView.contentAttributes.of({ 'aria-label': 'Code editor', spellcheck: 'false', autocapitalize: 'off', autocorrect: 'off' }),
                 highlightField, theme,
+                EditorView.updateListener.of(update => {
+                    if (!onChanged || !update.docChanged || update.transactions.some(t => t.annotation(programmatic))) return;
+                    const notify = () => { pending.delete(id); return onChanged.invokeMethodAsync('OnJsChanged', update.view.state.doc.toString()); };
+                    clearTimeout(pending.get(id)?.timer);
+                    pending.set(id, { timer: setTimeout(notify, CHANGE_DELAY_MS), notify });
+                }),
             ],
         }),
     });
-    const id = nextId++;
+    id = nextId++;
     editors.set(id, view);
     return id;
 }
@@ -73,7 +85,8 @@ export const getCode = id => get(id).state.doc.toString();
 
 export function setCode(id, code) {
     const view = get(id);
-    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: code ?? '' }, effects: setHighlight.of(null) });
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: code ?? '' }, effects: setHighlight.of(null), annotations: programmatic.of(true) });
+    cancelPending(id);
 }
 
 /** markers: [{ line (1-based), message }] */
@@ -97,9 +110,23 @@ export function highlightLine(id, line) {
     view.dispatch({ effects });
 }
 
+function cancelPending(id) {
+    clearTimeout(pending.get(id)?.timer);
+    pending.delete(id);
+}
+
+/** Tells the app about a not-yet-reported edit right now (used before the editor goes away). */
+export async function flush(id) {
+    const p = pending.get(id);
+    if (!p) return;
+    clearTimeout(p.timer);
+    await p.notify();
+}
+
 export const focus = id => get(id).focus();
 
 export function dispose(id) {
+    cancelPending(id);
     editors.get(id)?.destroy();
     editors.delete(id);
 }
