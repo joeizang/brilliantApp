@@ -31,6 +31,7 @@ public sealed record Comparison(string CSharp, string Python);
 [JsonDerivedType(typeof(ChoiceStep), "choice")]
 [JsonDerivedType(typeof(PredictOutputStep), "predict-output")]
 [JsonDerivedType(typeof(WriteCodeStep), "write-code")]
+[JsonDerivedType(typeof(FillBlankStep), "fill-blank")]
 public abstract record Step(string Id, string Title) : ContentItem(Id)
 {
     /// <summary>
@@ -99,5 +100,23 @@ public sealed record WriteCodeStep(
     string Starter,
     string Entrypoint,
     IReadOnlyList<CodeTest> Tests) : Step(Id, Title);
+
+/// <summary>
+/// One blank of a fill-in-the-blank step. The learner's text is correct when it equals one of <see cref="Accepted"/> after
+/// normalising (see <see cref="AnswerEvaluator.Normalize"/>); <see cref="Mistakes"/> give specific feedback for wrong answers.
+/// </summary>
+public sealed record Blank(string Id, IReadOnlyList<string> Accepted, IReadOnlyList<MistakePattern> Mistakes);
+
+/// <summary>
+/// "Fill in the blanks." Code whose <see cref="Template"/> is read-only except at its <see cref="Blanks"/>, each marked in the
+/// template as <c>{{blank-id}}</c> (see <see cref="FillBlankTemplate"/>). Every blank is single-line.
+/// </summary>
+public sealed record FillBlankStep(
+    string Id,
+    string Title,
+    string Prompt,
+    string Language,
+    string Template,
+    IReadOnlyList<Blank> Blanks) : Step(Id, Title);
 
 public sealed record PackManifest(string PackId, string Version, int FormatVersion);

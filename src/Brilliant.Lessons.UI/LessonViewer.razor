@@ -42,6 +42,9 @@
             case WriteCodeStep write:
                 <WriteCodeStepView Step="write" OnSubmitted="s => Submitted(write, s)" OnContinue="() => Complete(step)" />
                 break;
+            case FillBlankStep fill:
+                <FillBlankStepView Step="fill" OnAnswered="a => Answered(fill, a)" OnContinue="() => Complete(step)" />
+                break;
         }
     </div>
 }
@@ -66,6 +69,11 @@ else
         if (Review) return;
         if (a.Response is not null) Recorder.StepAnswered(Lesson.Id, step.Id, a.Result.IsCorrect, a.Response);
         else Recorder.StepAnswered(Lesson.Id, step.Id, a.Result.IsCorrect, [a.Selected!.Value]);
+    }
+
+    private void Answered(FillBlankStep step, FillBlankStepView.Attempt a)
+    {
+        if (!Review) Recorder.StepAnswered(Lesson.Id, step.Id, a.Result.IsCorrect, a.Responses);
     }
 
     private void Submitted(WriteCodeStep step, WriteCodeStepView.Submission s)

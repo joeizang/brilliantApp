@@ -425,6 +425,101 @@ public sealed class ValidatorTests : IDisposable
         Assert.Contains(m, x => x.Contains("tests[2]") && x.Contains("entry is empty"));
     }
 
+    private const string FillHead = "  - id: step.one.f\n    type: fill-blank\n    title: F\n    prompt: Fill it in\n";
+    private const string FillBody = "    template: |\n      for i in {{iter}}:\n          total {{op}} i\n    blanks:\n      - id: iter\n        accepted: [range(n)]\n      - id: op\n        accepted: [\"+=\"]\n";
+
+    [Fact]
+    public void Fill_blank_step_loads_into_the_pack()
+    {
+        WriteValidPack(LessonHeader + "steps:\n" + FillHead + FillBody
+            + "        mistakes:\n          - answers: [\"=\"]\n            feedback: Plain = replaces the total.\n    hints:\n      - nudge\n");
+        var outPath = Path.Combine(_root, "out", "p.zip");
+
+        var report = ContentPacker.Pack(_root, outPath);
+
+        Assert.True(report.IsValid, string.Join("\n", report.Errors));
+        var step = Assert.IsType<FillBlankStep>(ContentPackFormat.Load(outPath).Get<Step>("step.one.f"));
+        Assert.Equal("python", step.Language);
+        Assert.Equal("for i in {{iter}}:\n    total {{op}} i\n", step.Template);
+        Assert.Equal(["iter", "op"], step.Blanks.Select(b => b.Id));
+        Assert.Equal(["range(n)"], step.Blanks[0].Accepted);
+        Assert.Equal("Plain = replaces the total.", step.Blanks[1].Mistakes.Single().Feedback);
+        Assert.Equal(["nudge"], step.Hints);
+    }
+
+    [Fact]
+    public void Fill_blank_requires_prompt_template_and_blanks()
+    {
+        var m = LessonErrors(LessonHeader + "steps:\n  - id: step.one.f\n    type: fill-blank\n    title: F\n");
+        Assert.Contains(m, x => x.Contains("'prompt' is required"));
+        Assert.Contains(m, x => x.Contains("'template' is required"));
+        Assert.Contains(m, x => x.Contains("at least one entry in 'blanks'"));
+    }
+
+    [Fact]
+    public void A_blank_without_accepted_answers_is_rejected()
+    {
+        var none = LessonErrors(LessonHeader + "steps:\n" + FillHead + "    template: x = {{a}}\n    blanks:\n      - id: a\n");
+        Assert.Contains(none, x => x.Contains("'a'") && x.Contains("needs at least one accepted answer"));
+
+        var empty = LessonErrors(LessonHeader + "steps:\n" + FillHead + "    template: x = {{a}}\n    blanks:\n      - id: a\n        accepted: ['  ']\n");
+        Assert.Contains(empty, x => x.Contains("accepted[0] is empty"));
+    }
+
+    [Fact]
+    public void Accepted_answers_must_be_single_line_and_distinct()
+    {
+        var m = LessonErrors(LessonHeader + "steps:\n" + FillHead
+            + "    template: x = {{a}}\n    blanks:\n      - id: a\n        accepted: [\"1\\n2\", \"7\", \" 7 \"]\n");
+        Assert.Contains(m, x => x.Contains("accepted[0] spans several lines"));
+        Assert.Contains(m, x => x.Contains("accepted[2] repeats another accepted answer"));
+    }
+
+    [Fact]
+    public void Template_markers_and_declared_blanks_must_match_exactly()
+    {
+        var m = LessonErrors(LessonHeader + "steps:\n" + FillHead
+            + "    template: \"x = {{a}} + {{a}} + {{ghost}} + {{Bad Id}}\"\n    blanks:\n      - id: a\n        accepted: ['1']\n      - id: unused\n        accepted: ['2']\n");
+        Assert.Contains(m, x => x.Contains("blank 'a' appears more than once"));
+        Assert.Contains(m, x => x.Contains("uses blank 'ghost' which is not declared"));
+        Assert.Contains(m, x => x.Contains("'{{Bad Id}}' is not a valid blank"));
+        Assert.Contains(m, x => x.Contains("blank 'unused' is declared but never used"));
+    }
+
+    [Fact]
+    public void Blank_ids_must_be_valid_and_unique()
+    {
+        var m = LessonErrors(LessonHeader + "steps:\n" + FillHead
+            + "    template: x = {{a}}\n    blanks:\n      - id: a\n        accepted: ['1']\n      - id: a\n        accepted: ['2']\n      - id: Bad_Id\n        accepted: ['3']\n      - accepted: ['4']\n");
+        Assert.Contains(m, x => x.Contains("duplicate blank id 'a'"));
+        Assert.Contains(m, x => x.Contains("id 'Bad_Id' is invalid"));
+        Assert.Contains(m, x => x.Contains("blanks[3]") && x.Contains("'id' is required"));
+    }
+
+    [Fact]
+    public void Blank_mistakes_follow_the_same_rules_as_typed_predictions()
+    {
+        var m = LessonErrors(LessonHeader + "steps:\n" + FillHead
+            + "    template: x = {{a}}\n    blanks:\n      - id: a\n        accepted: ['1']\n        mistakes:\n          - answers: ['1']\n            feedback: dup\n          - regex: '['\n            feedback: bad\n          - answers: ['2']\n");
+        Assert.Contains(m, x => x.Contains("mistakes[0]") && x.Contains("also an accepted answer"));
+        Assert.Contains(m, x => x.Contains("mistakes[1]") && x.Contains("invalid regex"));
+        Assert.Contains(m, x => x.Contains("mistakes[2] needs 'feedback'"));
+    }
+
+    [Fact]
+    public void Fill_blank_language_is_checked_and_defaults_to_python()
+    {
+        var m = LessonErrors(LessonHeader + "steps:\n" + FillHead + FillBody + "    language: java\n");
+        Assert.Contains(m, x => x.Contains("unsupported language 'java'"));
+    }
+
+    [Fact]
+    public void A_fill_blank_step_can_back_a_review_item()
+    {
+        var yaml = LessonHeader + "concepts:\n  - id: concept.loops\n    title: Loops\nreviewItems:\n  - id: review.one.loop\n    concept: concept.loops\n    step: step.one.f\nsteps:\n" + FillHead + FillBody;
+        Assert.Empty(LessonErrors(yaml));
+    }
+
     private sealed class FakeRunner(Func<string, TestRunResult> result) : IReferenceSolutionRunner
     {
         public List<string> Solutions { get; } = [];

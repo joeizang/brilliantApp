@@ -191,8 +191,8 @@ public static partial class ContentValidator
     {
         var hints = dto.Hints ?? [];
         if (hints.Count == 0) return [];
-        if (dto.Type is not ("choice" or "predict-output" or "write-code"))
-            report.Add(file, $"{label}: 'hints' only apply to questions (choice, predict-output or write-code).");
+        if (dto.Type is not ("choice" or "predict-output" or "write-code" or "fill-blank"))
+            report.Add(file, $"{label}: 'hints' only apply to questions (choice, predict-output, write-code or fill-blank).");
         if (hints.Count > MaxHints)
             report.Add(file, $"{label}: at most {MaxHints} hints (nudge, pattern hint, partial, full walkthrough); found {hints.Count}.");
         for (var i = 0; i < hints.Count; i++)
@@ -215,10 +215,11 @@ public static partial class ContentValidator
         if (dto.Type == "choice") return WithHints(LoadChoice(dto, label, file, report, before), hints);
         if (dto.Type == "predict-output") return WithHints(LoadPredictOutput(dto, label, file, report, before), hints);
         if (dto.Type == "write-code") return WithHints(LoadWriteCode(dto, label, file, report, before), hints);
+        if (dto.Type == "fill-blank") return WithHints(LoadFillBlank(dto, label, file, report, before), hints);
 
         if (dto.Type != "explain")
         {
-            report.Add(file, $"{label}: unsupported step type '{dto.Type ?? "(missing)"}' (supported: explain, choice, predict-output, write-code).");
+            report.Add(file, $"{label}: unsupported step type '{dto.Type ?? "(missing)"}' (supported: explain, choice, predict-output, write-code, fill-blank).");
             return null;
         }
 
@@ -323,30 +324,99 @@ public static partial class ContentValidator
                 accepted.Add(dto.Accepted[i] ?? "");
             }
 
-            var acceptedNormalised = accepted.Select(AnswerEvaluator.Normalize).ToHashSet();
-            for (var i = 0; i < (dto.Mistakes?.Count ?? 0); i++)
-            {
-                var m = dto.Mistakes![i];
-                var where = $"{label}: mistakes[{i}]";
-                if (IsEmptyEntry(m, where, file, report)) continue;
-                var answers = m.Answers ?? [];
-                if (answers.Count == 0 && string.IsNullOrWhiteSpace(m.Regex))
-                    report.Add(file, $"{where} needs 'answers' and/or 'regex'.");
-                if (string.IsNullOrWhiteSpace(m.Feedback))
-                    report.Add(file, $"{where} needs 'feedback'.");
-                foreach (var a in answers.Where(a => acceptedNormalised.Contains(AnswerEvaluator.Normalize(a))))
-                    report.Add(file, $"{where}: answer '{a}' is also an accepted answer.");
-                if (!string.IsNullOrWhiteSpace(m.Regex))
-                {
-                    try { _ = new Regex(m.Regex); }
-                    catch (ArgumentException ex) { report.Add(file, $"{where}: invalid regex ({ex.Message})"); }
-                }
-                mistakes.Add(new MistakePattern(answers, string.IsNullOrWhiteSpace(m.Regex) ? null : m.Regex, m.Feedback ?? ""));
-            }
+            mistakes = LoadMistakes(dto.Mistakes, accepted, label, file, report);
         }
 
         return report.Errors.Count == errorsBefore
             ? new PredictOutputStep(dto.Id!, dto.Title!, dto.Prompt!, new CodeSnippet(dto.Language ?? "python", dto.Code!), accepted, mistakes, options)
+            : null;
+    }
+
+    /// <summary>Validates typed-answer mistake patterns against the answers the same prompt or blank accepts.</summary>
+    private static List<MistakePattern> LoadMistakes(List<MistakeDto>? dtos, List<string> accepted, string label, string file, ValidationReport report)
+    {
+        var mistakes = new List<MistakePattern>();
+        var acceptedNormalised = accepted.Select(AnswerEvaluator.Normalize).ToHashSet();
+        for (var i = 0; i < (dtos?.Count ?? 0); i++)
+        {
+            var m = dtos![i];
+            var where = $"{label}: mistakes[{i}]";
+            if (IsEmptyEntry(m, where, file, report)) continue;
+            var answers = m.Answers ?? [];
+            if (answers.Count == 0 && string.IsNullOrWhiteSpace(m.Regex))
+                report.Add(file, $"{where} needs 'answers' and/or 'regex'.");
+            if (string.IsNullOrWhiteSpace(m.Feedback))
+                report.Add(file, $"{where} needs 'feedback'.");
+            foreach (var a in answers.Where(a => acceptedNormalised.Contains(AnswerEvaluator.Normalize(a))))
+                report.Add(file, $"{where}: answer '{a}' is also an accepted answer.");
+            if (!string.IsNullOrWhiteSpace(m.Regex))
+            {
+                try { _ = new Regex(m.Regex); }
+                catch (ArgumentException ex) { report.Add(file, $"{where}: invalid regex ({ex.Message})"); }
+            }
+            mistakes.Add(new MistakePattern(answers, string.IsNullOrWhiteSpace(m.Regex) ? null : m.Regex, m.Feedback ?? ""));
+        }
+        return mistakes;
+    }
+
+    private static Step? LoadFillBlank(StepDto dto, string label, string file, ValidationReport report, int errorsBefore)
+    {
+        Require(dto.Prompt, "prompt", file, report, label);
+        Require(dto.Template, "template", file, report, label);
+        var language = dto.Language ?? "python";
+        if (language != "python") report.Add(file, $"{label}: unsupported language '{language}' (supported: python).");
+
+        var blanks = new List<Blank>();
+        var declared = new HashSet<string>(StringComparer.Ordinal);
+        if (dto.Blanks is null or { Count: 0 })
+            report.Add(file, $"{label}: a fill-blank step needs at least one entry in 'blanks'.");
+        else
+            for (var i = 0; i < dto.Blanks.Count; i++)
+            {
+                var b = dto.Blanks[i];
+                if (IsEmptyEntry(b, $"{label}: blanks[{i}]", file, report)) continue;
+                var where = b.Id is null ? $"{label}: blanks[{i}]" : $"{label}: blanks[{i}] ('{b.Id}')";
+                if (string.IsNullOrWhiteSpace(b.Id)) report.Add(file, $"{where}: 'id' is required.");
+                else if (!FillBlankTemplate.IsValidBlankId(b.Id))
+                    report.Add(file, $"{where}: id '{b.Id}' is invalid; use lowercase words joined by '-' (e.g. loop-start).");
+                else if (!declared.Add(b.Id)) report.Add(file, $"{where}: duplicate blank id '{b.Id}'.");
+
+                var accepted = new List<string>();
+                if (b.Accepted is null or { Count: 0 })
+                    report.Add(file, $"{where}: needs at least one accepted answer.");
+                else
+                    for (var j = 0; j < b.Accepted.Count; j++)
+                    {
+                        var answer = b.Accepted[j] ?? "";
+                        var normalised = AnswerEvaluator.Normalize(answer);
+                        if (normalised.Length == 0) report.Add(file, $"{where}: accepted[{j}] is empty.");
+                        else if (normalised.Contains('\n')) report.Add(file, $"{where}: accepted[{j}] spans several lines; a blank is a single line.");
+                        else if (accepted.Any(a => AnswerEvaluator.Normalize(a) == normalised))
+                            report.Add(file, $"{where}: accepted[{j}] repeats another accepted answer.");
+                        accepted.Add(answer);
+                    }
+                var mistakes = LoadMistakes(b.Mistakes, accepted, where, file, report);
+                blanks.Add(new Blank(b.Id ?? "", accepted, mistakes));
+            }
+
+        if (!string.IsNullOrWhiteSpace(dto.Template))
+        {
+            var used = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var marker in FillBlankTemplate.Markers(dto.Template))
+            {
+                if (!FillBlankTemplate.IsValidBlankId(marker))
+                    report.Add(file, $"{label}: template marker '{{{{{marker}}}}}' is not a valid blank; use {{{{blank-id}}}} with lowercase words joined by '-'.");
+                else if (!declared.Contains(marker))
+                    report.Add(file, $"{label}: template uses blank '{marker}' which is not declared in 'blanks'.");
+                else if (!used.Add(marker))
+                    report.Add(file, $"{label}: blank '{marker}' appears more than once in the template.");
+            }
+            foreach (var id in declared.Where(id => !used.Contains(id)))
+                report.Add(file, $"{label}: blank '{id}' is declared but never used in the template.");
+        }
+
+        return report.Errors.Count == errorsBefore
+            ? new FillBlankStep(dto.Id!, dto.Title!, dto.Prompt!, language, dto.Template!, blanks)
             : null;
     }
 
@@ -465,8 +535,11 @@ public static partial class ContentValidator
         public string? Starter { get; set; }
         public string? Entrypoint { get; set; }
         public string? Solution { get; set; }
+        public string? Template { get; set; }
+        public List<BlankDto>? Blanks { get; set; }
         public List<TestDto>? Tests { get; set; }
     }
+    private sealed class BlankDto { public string? Id { get; set; } public List<string>? Accepted { get; set; } public List<MistakeDto>? Mistakes { get; set; } }
     private sealed class TestDto { public string? Input { get; set; } public string? Expected { get; set; } }
     private sealed class MistakeDto { public List<string>? Answers { get; set; } public string? Regex { get; set; } public string? Feedback { get; set; } }
     private sealed class OptionDto { public string? Text { get; set; } public bool? Correct { get; set; } public string? Feedback { get; set; } }

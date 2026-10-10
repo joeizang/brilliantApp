@@ -42,13 +42,19 @@ dotnet build src/Brilliant.App -t:Run -f net10.0-maccatalyst
 
 - Every track, lesson and step has a stable `id` (`track.…`, `lesson.…`, `step.…`; lowercase words joined by `-` or `.`), unique across the pack.
 - `pack.yaml` has an `id` and a `version` like `1.2.3`.
-- Step types so far: `explain`, `choice` and `predict-output`.
+- Step types so far: `explain`, `choice`, `predict-output`, `write-code` and `fill-blank`.
   - `explain` needs `title` and `body` (markdown); `snippets` and a C#↔Python `comparison` are optional but must be complete if present.
   - `choice` needs `title`, `prompt` and at least 2 `options` (`text`, `correct`, optional `feedback`). Exactly one option must be correct unless `multiSelect: true`.
   - `predict-output` shows a `code` snippet (optional `language`, default `python`) and a `prompt`, in one of two variants (exactly one is required):
     - **typed**: `accepted` lists the correct outputs. Optional `mistakes` give specific feedback; each needs `feedback` plus `answers` (exact matches) and/or a `regex`, and must not repeat an accepted answer.
     - **multiple choice**: `options` as for `choice`, with exactly one `correct`; `mistakes` are not allowed (use per-option `feedback`).
     - Answers are compared after normalising: runs of spaces/tabs collapse, lines and ends are trimmed, curly quotes are straightened and `"`/`'` are treated alike. Case still matters. Regexes run against the normalised response.
+  - `fill-blank` shows code that is read-only except at its blanks. It needs `prompt`, a `template` and `blanks` (optional `language`, only `python` for now):
+    - In the `template`, `{{blank-id}}` marks a blank (lowercase words joined by `-`); everything else is read-only code. Every marker must name a declared blank, and every blank must appear exactly once. Literal double braces (an f-string's `{{`) aren't supported in a template.
+    - Each blank has an `id`, one or more `accepted` answers (single-line, no duplicates after normalising) and optional `mistakes` with the same shape and rules as `predict-output` mistakes (`answers` and/or `regex`, plus `feedback`).
+    - Answers are normalised exactly as for `predict-output` (runs of spaces collapse, quotes unify, case still matters), so list spacing variants the learner might reasonably type (`range(1,n)` and `range(1, n)`) or accept them all with a `regex`.
+    - Each blank is judged on its own: the learner sees which are right and any mistake feedback, keeps the right ones and fixes the rest. Attempts are recorded as `StepAnswered` with the text of every blank.
+    - Not yet supported: checking the finished code by running tests, and multi-line blanks.
 - A lesson may declare, alongside `steps`:
   - `concepts`: ideas it teaches (`id: concept.…`, `title`).
   - `reviewItems`: questions Review will resurface later (`id: review.…`, `concept` declared in the same lesson, `step` = a `choice` or `predict-output` step of the same lesson, which is reused as the question).

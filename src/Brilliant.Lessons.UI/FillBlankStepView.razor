@@ -1,0 +1,98 @@
+<article class="fill-step">
+    <h2>@Step.Title</h2>
+    <p class="prompt">@Step.Prompt</p>
+
+    @* Read-only code with an input where each blank goes. Each line is a flex row so the markup's whitespace never shows up as extra spaces. *@
+    <div class="code-block" role="group" aria-label="Code with blanks">
+        @foreach (var line in _lines)
+        {
+            <div class="line">
+                @foreach (var part in line)
+                {
+                    if (part.BlankId is { } id)
+                    {
+                        var blank = Step.Blanks.First(b => b.Id == id);
+                        var number = Step.Blanks.ToList().IndexOf(blank) + 1;
+                        <input class="@BlankClass(id)" type="text" size="@Width(blank)" value="@Value(id)"
+                               aria-label="@($"Blank {number} of {Step.Blanks.Count}")" spellcheck="false" autocomplete="off"
+                               autocapitalize="off" autocorrect="off" disabled="@Locked"
+                               @oninput="e => Set(id, e)" />
+                    }
+                    else
+                    {
+                        <span class="code">@part.Text</span>
+                    }
+                }
+            </div>
+        }
+    </div>
+
+    @if (_result is null)
+    {
+        <button class="primary" disabled="@(!CanCheck)" @onclick="Check">Check</button>
+    }
+    else if (_result.IsCorrect)
+    {
+        <p class="verdict correct" role="status">Correct!</p>
+        <button class="primary" @onclick="() => OnContinue.InvokeAsync()">Continue</button>
+    }
+    else
+    {
+        <p class="verdict incorrect" role="status">
+            @(_result.Blanks.Count(b => !b.IsCorrect) == 1 ? "One blank isn't right yet." : "Some blanks aren't right yet.")
+        </p>
+        @for (var i = 0; i < _result.Blanks.Count; i++)
+        {
+            var blank = _result.Blanks[i];
+            if (!blank.IsCorrect && blank.Feedback is { Length: > 0 })
+            {
+                <p class="mistake-feedback"><strong>Blank @(i + 1):</strong> @blank.Feedback</p>
+            }
+        }
+        <button class="primary" @onclick="TryAgain">Try again</button>
+    }
+</article>
+
+@code {
+    /// <summary>What the learner submitted: the text in each blank (by blank ID) and the verdict.</summary>
+    public sealed record Attempt(FillBlankResult Result, IReadOnlyDictionary<string, string> Responses);
+
+    [Parameter, EditorRequired] public FillBlankStep Step { get; set; } = default!;
+
+    /// <summary>Raised each time the learner checks their answers (correct or not).</summary>
+    [Parameter] public EventCallback<Attempt> OnAnswered { get; set; }
+
+    /// <summary>Raised when the learner continues after every blank is right.</summary>
+    [Parameter] public EventCallback OnContinue { get; set; }
+
+    private readonly Dictionary<string, string> _responses = [];
+    private IReadOnlyList<IReadOnlyList<TemplatePart>> _lines = [];
+    private FillBlankResult? _result;
+
+    private bool Locked => _result is not null;
+    private bool CanCheck => Step.Blanks.All(b => !string.IsNullOrWhiteSpace(Value(b.Id)));
+
+    protected override void OnParametersSet() => _lines = FillBlankTemplate.Lines(Step.Template);
+
+    private void Set(string id, ChangeEventArgs e) => _responses[id] = e.Value?.ToString() ?? "";
+
+    private string Value(string id) => _responses.GetValueOrDefault(id, "");
+
+    // Wide enough for the longest accepted answer plus room to type, so the box hints at the answer's size without giving it away.
+    private static int Width(Blank blank) => Math.Max(4, blank.Accepted.Max(a => a.Length) + 2);
+
+    private string BlankClass(string id)
+    {
+        var verdict = _result?.Blanks.FirstOrDefault(b => b.BlankId == id);
+        return verdict is null ? "blank" : verdict.IsCorrect ? "blank right" : "blank wrong";
+    }
+
+    private async Task Check()
+    {
+        _result = AnswerEvaluator.Evaluate(Step, _responses);
+        await OnAnswered.InvokeAsync(new Attempt(_result, new Dictionary<string, string>(_responses)));
+    }
+
+    // Right answers stay put; the learner edits the wrong ones.
+    private void TryAgain() => _result = null;
+}
