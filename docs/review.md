@@ -117,8 +117,9 @@ the starter instead of the solution the learner saved in the lesson, never overw
 The validator accepts `kind: concept` or `kind: pattern` and rejects anything else (including `resolve`). There are no pattern items
 in Track 1 (it teaches Python syntax); the first arrive with the DSA tracks.
 
+Mastery per concept and track, built on these review items, is in [mastery.md](mastery.md).
+
 ## Not in this slice
 
 A per-learner cap or weights in settings (the options exist, the UI doesn't);
-choosing an easier form of a re-solve on a phone, such as Parsons instead of typing code (story 43); mastery and concept views
-([#21](https://github.com/joeizang/brilliantApp/issues/21)); streaks and the Today screen ([#22](https://github.com/joeizang/brilliantApp/issues/22)).
+choosing an easier form of a re-solve on a phone, such as Parsons instead of typing code (story 43); streaks and the Today screen ([#22](https://github.com/joeizang/brilliantApp/issues/22)).

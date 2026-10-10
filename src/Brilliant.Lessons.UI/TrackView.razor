@@ -2,11 +2,14 @@
 @inject ProgressRecorder Recorder
 
 @{
-    var state = Recorder.Project(Content).Track(Track.Id)!;
+    var learner = Recorder.Project(Content);
+    var state = learner.Track(Track.Id)!;
+    var concepts = learner.ConceptsOf(Track.Id).ToList();
 }
 <div class="crumbs"><button class="link" @onclick="() => OnBack.InvokeAsync()">← Tracks</button></div>
 <h1 class="screen-title">@Track.Title</h1>
 <p class="track-meta">@state.CompletedLessons of @state.TotalLessons lessons complete</p>
+<div class="track-mastery"><MasteryBar Value="learner.TrackMastery(Track.Id)" Label="@("Mastery of " + Track.Title)" Suffix="mastered" /></div>
 
 <ol class="lessons">
     @foreach (var l in state.Lessons)
@@ -37,11 +40,32 @@
     }
 </ol>
 
+@if (concepts.Count > 0)
+{
+    <h2 class="section-title">Concepts</h2>
+    <p class="track-meta">Mastery counts what you can still recall, not what you've merely read.</p>
+    <ul class="concepts">
+        @foreach (var c in concepts)
+        {
+            <li class="concept @c.Level.ToString().ToLowerInvariant()">
+                <button @onclick="() => OnOpenConcept.InvokeAsync(c.Concept.Id)">
+                    <span class="concept-title">@c.Concept.Title</span>
+                    <span class="level">@ConceptText.Level(c.Level)</span>
+                    <MasteryBar Value="c.Mastery" Label="@("Mastery of " + c.Concept.Title)" />
+                </button>
+            </li>
+        }
+    </ul>
+}
+
 @code {
     [Parameter, EditorRequired] public ContentGraph Content { get; set; } = default!;
     [Parameter, EditorRequired] public Track Track { get; set; } = default!;
     [Parameter] public EventCallback OnBack { get; set; }
     [Parameter] public EventCallback<(Lesson Lesson, bool Review)> OnOpenLesson { get; set; }
+
+    /// <summary>A concept was picked; carries its ID.</summary>
+    [Parameter] public EventCallback<string> OnOpenConcept { get; set; }
 
     private static string Icon(LessonStatus s) => s switch
     {

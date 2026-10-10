@@ -1,0 +1,18 @@
+@* A 0–1 mastery value as a bar with its percentage. Exposed to assistive tech as a meter. *@
+@{
+    var pct = (int)Math.Round(100 * Math.Clamp(Value, 0, 1));
+}
+<span class="mastery">
+    <span class="bar" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@pct" aria-label="@(Label ?? "Mastery") @pct percent">
+        <span class="fill" style="width:@pct%"></span>
+    </span>
+    <span class="mastery-pct" aria-hidden="true">@pct%@(Suffix is null ? "" : " " + Suffix)</span>
+</span>
+
+@code {
+    [Parameter, EditorRequired] public double Value { get; set; }
+    [Parameter] public string? Label { get; set; }
+
+    /// <summary>Words after the percentage, e.g. "mastered".</summary>
+    [Parameter] public string? Suffix { get; set; }
+}

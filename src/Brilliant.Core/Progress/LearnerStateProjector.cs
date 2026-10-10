@@ -29,8 +29,45 @@ public static class LearnerStateProjector
         var log = Distinct(events);
         var tracks = content.Tracks.Select(track => ProjectTrack(track, content, log)).ToList();
         var (reviews, answeredToday) = ProjectReviews(tracks, log, now);
-        return new LearnerState(now, tracks, reviews, ReviewQueueBuilder.Build(reviews, now, answeredToday, queueOptions));
+        return new LearnerState(now, tracks, reviews, ReviewQueueBuilder.Build(reviews, now, answeredToday, queueOptions),
+            ProjectConcepts(tracks, reviews, log, now));
     }
+
+    /// <summary>
+    /// Mastery per concept. A concept's evidence is its review items and the answers to their question steps, both in the
+    /// lesson that taught it and in Review; the lesson's own other steps say nothing about it.
+    /// </summary>
+    private static IReadOnlyList<ConceptMastery> ProjectConcepts(
+        IReadOnlyList<TrackState> tracks, IReadOnlyList<ReviewItemState> reviews, IReadOnlyList<ProgressEvent> log, DateTimeOffset now)
+    {
+        var concepts = new List<ConceptMastery>();
+        foreach (var lesson in tracks.SelectMany(t => t.Lessons))
+        {
+            foreach (var concept in lesson.Lesson.Concepts)
+            {
+                var items = reviews.Where(r => r.Lesson.Id == lesson.Lesson.Id && r.Item.ConceptId == concept.Id).ToList();
+                var steps = items.Select(i => i.Item.StepId).ToHashSet(StringComparer.Ordinal);
+                var itemIds = items.Select(i => i.Item.Id).ToHashSet(StringComparer.Ordinal);
+                var history = log
+                    .Select(e => (Event: e, Source: AttemptSourceOf(e, lesson.Lesson.Id, steps, itemIds), Correct: Outcome(e)))
+                    .Where(x => x.Source is not null && x.Correct is not null)
+                    .OrderByDescending(x => x.Event.OccurredAt).ThenBy(x => x.Event.Id, StringComparer.Ordinal)
+                    .Select(x => new ConceptAttempt(x.Event.OccurredAt, x.Source!.Value, x.Event.StepId, x.Correct!.Value))
+                    .ToList();
+                var mastery = MasteryModel.OfConcept(items, now);
+                var level = MasteryModel.LevelOf(lesson.Status == LessonStatus.Completed, items, mastery);
+                concepts.Add(new ConceptMastery(concept, lesson, lesson.Status == LessonStatus.Completed ? mastery : 0, level, items, history));
+            }
+        }
+        return concepts;
+    }
+
+    private static AttemptSource? AttemptSourceOf(ProgressEvent e, string lessonId, HashSet<string> steps, HashSet<string> itemIds) => e.Type switch
+    {
+        ProgressEventTypes.StepAnswered or ProgressEventTypes.CodeSubmitted when e.LessonId == lessonId && steps.Contains(e.StepId) => AttemptSource.Lesson,
+        ProgressEventTypes.ReviewAnswered when e.LessonId == lessonId && ParseReviewItem(e) is { } id && itemIds.Contains(id) => AttemptSource.Review,
+        _ => null,
+    };
 
     /// <summary>The progress of one lesson, for screens that don't need the whole course (e.g. the lesson player).</summary>
     public static LessonProgress ProjectLesson(Lesson lesson, IEnumerable<ProgressEvent> events)
@@ -97,18 +134,27 @@ public static class LearnerStateProjector
     }
 
     /// <summary>A wrong answer or a submission that failed a test. Malformed events are not failures.</summary>
-    private static bool IsFailedAttempt(ProgressEvent e)
+    private static bool IsFailedAttempt(ProgressEvent e) =>
+        e.Type is ProgressEventTypes.StepAnswered or ProgressEventTypes.CodeSubmitted && Outcome(e) == false;
+
+    /// <summary>
+    /// Whether an answer was right: <c>correct</c> for a step answer or review, <c>passed</c> (every test) for a code
+    /// submission. Null for other events and for malformed data.
+    /// </summary>
+    private static bool? Outcome(ProgressEvent e)
     {
-        if (e.Data is null || e.Type is not (ProgressEventTypes.StepAnswered or ProgressEventTypes.CodeSubmitted)) return false;
+        if (e.Data is null || e.Type is not (ProgressEventTypes.StepAnswered or ProgressEventTypes.CodeSubmitted or ProgressEventTypes.ReviewAnswered)) return null;
         try
         {
             using var doc = JsonDocument.Parse(e.Data);
-            return doc.RootElement.ValueKind == JsonValueKind.Object
-                && doc.RootElement.TryGetProperty(e.Type == ProgressEventTypes.CodeSubmitted ? "passed" : "correct", out var ok)
-                && ok.ValueKind == JsonValueKind.False;
+            if (doc.RootElement.ValueKind != JsonValueKind.Object
+                || !doc.RootElement.TryGetProperty(e.Type == ProgressEventTypes.CodeSubmitted ? "passed" : "correct", out var ok)) return null;
+            return ok.ValueKind switch { JsonValueKind.True => true, JsonValueKind.False => false, _ => null };
         }
-        catch (JsonException) { return false; }
+        catch (JsonException) { return null; }
     }
+
+    private static string? ParseReviewItem(ProgressEvent e) => ParseReviewAnswer(e)?.Item;
 
     /// <summary>The rung a HintUsed event reached, and the review item it was asked for (null in a lesson). Malformed events are ignored.</summary>
     private static (int Level, string? Item)? ParseHint(ProgressEvent e)

@@ -1,0 +1,103 @@
+@using Brilliant.Core.Progress
+@using Brilliant.Core.Review
+@inject ProgressRecorder Recorder
+
+@{
+    var learner = Recorder.Project(Content);
+    var concept = learner.Concept(ConceptId);
+}
+<div class="crumbs"><button class="link" @onclick="() => OnBack.InvokeAsync()">← @(concept is null ? "Back" : TrackTitle(learner, concept))</button></div>
+@if (concept is null)
+{
+    <h1 class="screen-title">Concept not found</h1>
+    <p class="track-meta">This concept is no longer part of the course.</p>
+}
+else
+{
+    var offset = learner.AsOf.Offset;
+    var lesson = concept.Lesson;
+    <h1 class="screen-title">@concept.Concept.Title</h1>
+    <section class="concept-head">
+        <p class="concept-level"><span class="level-pill @concept.Level.ToString().ToLowerInvariant()">@ConceptText.Level(concept.Level)</span></p>
+        <MasteryBar Value="concept.Mastery" Label="@("Mastery of " + concept.Concept.Title)" Suffix="mastered" />
+        <p class="track-meta concept-lesson">
+            Taught in <strong>@lesson.Lesson.Title</strong>
+            <button class="secondary revisit" disabled="@(lesson.Status == LessonStatus.Locked)"
+                    @onclick="() => OnOpenLesson.InvokeAsync((lesson.Lesson, lesson.Status == LessonStatus.Completed))">@RevisitText(lesson.Status)</button>
+        </p>
+    </section>
+
+    <h2 class="section-title">Accuracy</h2>
+    <dl class="concept-stats">
+        <div><dt>In the lesson</dt><dd>@concept.LessonCorrect of @concept.LessonAttempts right</dd></div>
+        <div><dt>In review</dt><dd>@concept.ReviewCorrect of @concept.ReviewAttempts right</dd></div>
+        <div><dt>Overall</dt><dd>@(concept.Accuracy is { } a ? $"{(int)Math.Round(100 * a)}%" : "No answers yet")</dd></div>
+    </dl>
+
+    <h2 class="section-title">Review questions</h2>
+    @if (concept.Items.Count == 0)
+    {
+        <p class="track-meta">No review questions test this concept yet, so it can be seen but not mastered.</p>
+    }
+    else
+    {
+        <ul class="concept-items">
+            @foreach (var item in concept.Items)
+            {
+                <li class="concept-item">
+                    <span class="item-title">@item.Question.Title</span>
+                    @if (item.Item.Kind == ReviewKind.Pattern) { <small class="item-kind">Pattern</small> }
+                    <small class="item-due">@DueText(item, learner.AsOf, offset)</small>
+                </li>
+            }
+        </ul>
+    }
+
+    <h2 class="section-title">History</h2>
+    @if (concept.History.Count == 0)
+    {
+        <p class="track-meta">No answers yet.</p>
+    }
+    else
+    {
+        <ol class="attempts">
+            @foreach (var h in concept.History)
+            {
+                <li class="attempt @(h.Correct ? "correct" : "incorrect")">
+                    <span class="attempt-mark" aria-hidden="true">@(h.Correct ? "✓" : "✗")</span>
+                    <span class="attempt-what">@StepTitle(lesson.Lesson, h.StepId)<small>@h.Source · @ConceptText.Day(h.At, offset)</small></span>
+                    <span class="attempt-result">@(h.Correct ? "Correct" : "Incorrect")</span>
+                </li>
+            }
+        </ol>
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public ContentGraph Content { get; set; } = default!;
+    [Parameter, EditorRequired] public string ConceptId { get; set; } = "";
+    [Parameter] public EventCallback OnBack { get; set; }
+
+    /// <summary>Open the lesson that teaches the concept; true to replay it (it is finished).</summary>
+    [Parameter] public EventCallback<(Lesson Lesson, bool Review)> OnOpenLesson { get; set; }
+
+    private static string TrackTitle(LearnerState learner, ConceptMastery c) =>
+        learner.Track(c.Lesson.Lesson.TrackId)?.Track.Title ?? "Back";
+
+    private static string StepTitle(Lesson lesson, string stepId) =>
+        lesson.Steps.FirstOrDefault(s => s.Id == stepId)?.Title ?? stepId;
+
+    private static string RevisitText(LessonStatus s) => s switch
+    {
+        LessonStatus.Completed => "Review lesson",
+        LessonStatus.InProgress => "Continue lesson",
+        LessonStatus.Locked => "Locked",
+        _ => "Start lesson",
+    };
+
+    private static string DueText(ReviewItemState item, DateTimeOffset now, TimeSpan offset) =>
+        !item.IsUnlocked ? "Unlocks when the lesson is finished"
+        : item.Card is null ? "Not reviewed yet"
+        : item.Card.Due <= now ? "Due now"
+        : $"Due {ConceptText.Day(item.Card.Due, offset)}";
+}
