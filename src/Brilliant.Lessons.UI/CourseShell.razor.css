@@ -7,8 +7,9 @@
 @media (min-width: 56rem) {
     .shell { display: flex; min-height: 100vh; }
     .shell-sidebar {
-        display: block; flex: 0 0 15rem; box-sizing: border-box; padding: 1.5rem .8rem;
-        border-right: 1px solid var(--border); background: var(--surface);
+        display: block; flex: 0 0 16rem; box-sizing: border-box; padding: var(--space-lg) .75rem;
+        border-right: 1px solid var(--hairline); background: color-mix(in srgb, var(--surface-raised) 80%, transparent);
+        -webkit-backdrop-filter: blur(1.25rem); backdrop-filter: blur(1.25rem);
         position: sticky; top: 0; align-self: flex-start; max-height: 100vh; overflow-y: auto;
     }
     .shell-main { flex: 1; }

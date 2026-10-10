@@ -87,6 +87,17 @@ Colours live as CSS custom properties in `src/Brilliant.Lessons.UI/wwwroot/theme
 Dark is the default; the light variant applies under `prefers-color-scheme: light`, so the app follows the macOS appearance and updates live.
 Components must use the tokens (`var(--accent)` etc.), never raw colours. Shared button styles (`primary`, `secondary`, `link`) are global in the same file.
 
+### Visual design (Apple-style polish)
+
+`theme.css` is the one design system; component `.razor.css` files only hold layout unique to that screen.
+
+- **Type:** the system font stack (`--font-ui`, SF on Mac) and `--font-mono` for code. Titles are tight and bold, body text is 1.5 line height. Everything is in `rem`, so the whole UI scales with the window and the user's font setting.
+- **Colour:** `--fg` for text and `--fg-secondary` for supporting text (a colour, never `opacity`, so contrast holds: both pass 4.5:1 on `--bg` in dark and light). `--border` is for controls (about 3:1), `--hairline` for decorative edges.
+- **Shape and space:** `--radius-sm/md/lg`, `--space-xs…xl` (4/8/16/24/48 px at the default size), one centred `--content-width` column (42rem, about 680px) for every screen and step.
+- **Controls:** pill buttons at least `--touch` (2.75rem) tall, one filled `primary` per screen; answer options, cards and lessons are raised surfaces. Selection, right and wrong are drawn with a ring (`box-shadow`), so choosing never shifts the layout.
+- **Motion:** a step fades up when it appears, cards lift on hover, progress bars ease. `prefers-reduced-motion` turns all of it off. Keyboard focus shows a visible ring (`:focus-visible`).
+- **Sidebar (wide windows):** translucent, with small-caps track headings and a tinted rounded pill on the current lesson.
+
 ## Code editor and Python runtime (issue #9)
 
 - **Editor:** CodeMirror 6, bundled into `src/Brilliant.Lessons.UI/wwwroot/code-editor.js` (committed). Sources are in
