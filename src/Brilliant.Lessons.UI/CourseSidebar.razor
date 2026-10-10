@@ -1,8 +1,19 @@
 @using Brilliant.Core.Progress
 @inject ProgressRecorder Recorder
 
+@{
+    var learner = Recorder.Project(Content);
+    var due = learner.DueReviews.Count;
+}
 <nav class="sidebar" aria-label="Course">
-    @foreach (var track in Recorder.Project(Content).Tracks)
+    <button class="side-review @(ReviewActive ? "current" : "")" aria-current="@(ReviewActive ? "page" : null)" @onclick="() => OnOpenReview.InvokeAsync()">
+        <span>Review</span>
+        @if (due > 0)
+        {
+            <small class="due-count" aria-label="@due due">@due</small>
+        }
+    </button>
+    @foreach (var track in learner.Tracks)
     {
         <section class="side-track">
             <button class="side-track-title @(track.Track.Id == CurrentTrack?.Id ? "current" : "")" @onclick="() => OnOpenTrack.InvokeAsync(track.Track)">
@@ -32,6 +43,8 @@
     [Parameter] public Track? CurrentTrack { get; set; }
     [Parameter] public Lesson? CurrentLesson { get; set; }
     [Parameter] public EventCallback<Track> OnOpenTrack { get; set; }
+    [Parameter] public bool ReviewActive { get; set; }
+    [Parameter] public EventCallback OnOpenReview { get; set; }
 
     /// <summary>A lesson was picked: its track, the lesson, and whether to replay it (it is already complete).</summary>
     [Parameter] public EventCallback<(Track Track, Lesson Lesson, bool Review)> OnOpenLesson { get; set; }

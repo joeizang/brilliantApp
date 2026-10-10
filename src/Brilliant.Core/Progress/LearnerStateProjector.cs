@@ -1,4 +1,6 @@
+using System.Text.Json;
 using Brilliant.Core.Content;
+using Brilliant.Core.Review;
 
 namespace Brilliant.Core.Progress;
 
@@ -22,7 +24,7 @@ public static class LearnerStateProjector
     {
         var log = Distinct(events);
         var tracks = content.Tracks.Select(track => ProjectTrack(track, content, log)).ToList();
-        return new LearnerState(now, tracks);
+        return new LearnerState(now, tracks, ProjectReviews(tracks, log));
     }
 
     /// <summary>The progress of one lesson, for screens that don't need the whole course (e.g. the lesson player).</summary>
@@ -32,6 +34,52 @@ public static class LearnerStateProjector
         return new LessonProgress(lesson,
             ofLesson.Where(e => e.Type == ProgressEventTypes.StepCompleted).Select(e => e.StepId).ToHashSet(StringComparer.Ordinal),
             ofLesson.Any(e => e.Type == ProgressEventTypes.LessonCompleted));
+    }
+
+    /// <summary>
+    /// Review items of the current content. An item is unlocked once its lesson is completed; its schedule is every
+    /// recorded answer folded through FSRS in time order (ties broken by event ID, so every device agrees).
+    /// An item whose question step has been deleted is retired along with its history.
+    /// </summary>
+    private static IReadOnlyList<ReviewItemState> ProjectReviews(IReadOnlyList<TrackState> tracks, IReadOnlyList<ProgressEvent> log)
+    {
+        var answers = log.Where(e => e.Type == ProgressEventTypes.ReviewAnswered)
+            .Select(e => (Event: e, Answer: ParseReviewAnswer(e)))
+            .Where(x => x.Answer is not null)
+            .OrderBy(x => x.Event.OccurredAt).ThenBy(x => x.Event.Id, StringComparer.Ordinal)
+            .ToLookup(x => x.Answer!.Value.Item, x => (x.Event.OccurredAt, x.Answer!.Value.Rating), StringComparer.Ordinal);
+
+        var reviews = new List<ReviewItemState>();
+        foreach (var lesson in tracks.SelectMany(t => t.Lessons))
+        foreach (var item in lesson.Lesson.ReviewItems)
+        {
+            if (lesson.Lesson.Steps.FirstOrDefault(s => s.Id == item.StepId) is not { } question) continue;
+            CardState? card = null;
+            var count = 0;
+            foreach (var (at, rating) in answers[item.Id])
+            {
+                card = FsrsScheduler.Schedule(card, rating, at);
+                count++;
+            }
+            reviews.Add(new ReviewItemState(lesson.Lesson, item, question, lesson.Status == LessonStatus.Completed, card, count));
+        }
+        return reviews;
+    }
+
+    private static (string Item, Rating Rating)? ParseReviewAnswer(ProgressEvent e)
+    {
+        if (e.Data is null) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(e.Data);
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object
+                || !root.TryGetProperty("item", out var item) || item.ValueKind != JsonValueKind.String
+                || !root.TryGetProperty("rating", out var rating) || !rating.TryGetInt32(out var grade)
+                || grade is < 1 or > 4) return null;
+            return (item.GetString()!, (Rating)grade);
+        }
+        catch (JsonException) { return null; }
     }
 
     /// <summary>Within a track a lesson is unlocked when it is the first or the previous lesson is complete.</summary>

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Brilliant.Core.Content;
+using Brilliant.Core.Review;
 
 namespace Brilliant.Core.Progress;
 
@@ -9,6 +10,9 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
     private readonly TimeProvider _clock = clock ?? TimeProvider.System;
 
     public IProgressEventLog Log => log;
+
+    /// <summary>The recorder's clock, so screens that time the learner use the same one that stamps events.</summary>
+    public DateTimeOffset Now => _clock.GetUtcNow();
 
     /// <summary>The learner's state right now: the whole log projected against <paramref name="content"/>.</summary>
     public LearnerState Project(ContentGraph content) =>
@@ -64,6 +68,19 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
         var progress = LessonProgress.From(lesson, log.ReadAll());
         if (progress.IsComplete && !progress.CompletionRecorded)
             Append(ProgressEventTypes.LessonCompleted, lesson.Id, "", null);
+    }
+
+    /// <summary>Records a review answer with an explicit rating.</summary>
+    public void ReviewAnswered(string lessonId, ReviewItem item, bool correct, int hintsUsed, TimeSpan elapsed, Rating rating) =>
+        Append(ProgressEventTypes.ReviewAnswered, lessonId, item.StepId,
+            JsonSerializer.Serialize(new { item = item.Id, correct, hintsUsed, elapsedMs = (int)elapsed.TotalMilliseconds, rating = (int)rating }));
+
+    /// <summary>Records a review answer, inferring the FSRS rating from correctness, hints and time. Returns the rating.</summary>
+    public Rating ReviewAnswered(ReviewItemState review, bool correct, int hintsUsed, TimeSpan elapsed)
+    {
+        var rating = RatingInference.Infer(correct, hintsUsed, elapsed, review.Question);
+        ReviewAnswered(review.Lesson.Id, review.Item, correct, hintsUsed, elapsed, rating);
+        return rating;
     }
 
     private void Append(string type, string lessonId, string stepId, string? data) =>

@@ -10,6 +10,12 @@ public static class ProgressEventTypes
 
     /// <summary>Recorded once, when the last step of a lesson is completed. Lesson-level events carry an empty StepId.</summary>
     public const string LessonCompleted = "LessonCompleted";
+
+    /// <summary>
+    /// A review item was answered. Data holds the item ID, correctness, hints used, time taken and the FSRS rating
+    /// that was inferred; the rating is stored so the schedule replays identically even if inference is tuned later.
+    /// </summary>
+    public const string ReviewAnswered = "ReviewAnswered";
 }
 
 /// <summary>

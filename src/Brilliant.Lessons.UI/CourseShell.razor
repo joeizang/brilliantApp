@@ -7,11 +7,15 @@
 
 <div class="shell">
     <aside class="shell-sidebar">
-        <CourseSidebar Content="Content" CurrentTrack="_track" CurrentLesson="_lesson"
-                       OnOpenTrack="OpenTrack" OnOpenLesson="OpenLessonFromSidebar" />
+        <CourseSidebar Content="Content" CurrentTrack="_track" CurrentLesson="_lesson" ReviewActive="_reviewing"
+                       OnOpenTrack="OpenTrack" OnOpenLesson="OpenLessonFromSidebar" OnOpenReview="OpenReview" />
     </aside>
     <main class="shell-main">
-        @if (_lesson is { } lesson)
+        @if (_reviewing)
+        {
+            <ReviewView Content="Content" OnExit="BackToTracks" />
+        }
+        else if (_lesson is { } lesson)
         {
             <LessonViewer @key="(lesson.Id, _review)" Lesson="lesson" Review="_review" OnExit="BackToTrack" OnProgress="() => StateHasChanged()" />
         }
@@ -21,7 +25,7 @@
         }
         else
         {
-            <TracksView Content="Content" OnOpenTrack="OpenTrack" />
+            <TracksView Content="Content" OnOpenTrack="OpenTrack" OnOpenReview="OpenReview" />
         }
     </main>
 </div>
@@ -32,6 +36,7 @@
     private Track? _track;
     private Lesson? _lesson;
     private bool _review;
+    private bool _reviewing;
     private IJSObjectReference? _module;
     private DotNetObjectReference<CourseShell>? _self;
     private IDisposable? _shortcuts;
@@ -66,16 +71,18 @@
     // Back is the shell's alone: one step up from wherever the learner is (lesson → track → tracks).
     private Task OnShortcut(StepShortcut s) => s.Command != StepCommand.Back ? Task.CompletedTask : InvokeAsync(() =>
     {
-        if (_lesson is not null) BackToTrack();
+        if (_reviewing) BackToTracks();
+        else if (_lesson is not null) BackToTrack();
         else if (_track is not null) BackToTracks();
         StateHasChanged();
     });
 
-    private void OpenTrack(Track track) => (_track, _lesson) = (track, null);
+    private void OpenTrack(Track track) => (_track, _lesson, _reviewing) = (track, null, false);
     private void OpenLesson((Lesson Lesson, bool Review) target) => (_lesson, _review) = (target.Lesson, target.Review);
-    private void OpenLessonFromSidebar((Track Track, Lesson Lesson, bool Review) target) => (_track, _lesson, _review) = (target.Track, target.Lesson, target.Review);
+    private void OpenLessonFromSidebar((Track Track, Lesson Lesson, bool Review) target) => (_track, _lesson, _review, _reviewing) = (target.Track, target.Lesson, target.Review, false);
+    private void OpenReview() => (_lesson, _track, _reviewing) = (null, null, true);
     private void BackToTrack() => _lesson = null;
-    private void BackToTracks() => (_lesson, _track) = (null, null);
+    private void BackToTracks() => (_lesson, _track, _reviewing) = (null, null, false);
 
     public async ValueTask DisposeAsync()
     {
