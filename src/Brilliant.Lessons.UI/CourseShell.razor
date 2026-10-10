@@ -1,16 +1,29 @@
-@* Root navigation: Tracks → Track → Lesson (play or review). *@
-@if (_lesson is { } lesson)
-{
-    <LessonViewer @key="(lesson.Id, _review)" Lesson="lesson" Review="_review" OnExit="BackToTrack" />
-}
-else if (_track is { } track)
-{
-    <TrackView Content="Content" Track="track" OnBack="BackToTracks" OnOpenLesson="OpenLesson" />
-}
-else
-{
-    <TracksView Content="Content" OnOpenTrack="t => _track = t" />
-}
+@* Root navigation: Tracks → Track → Lesson (play or review). On wide windows a sidebar lists every track and lesson. *@
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject StepShortcuts Shortcuts
+
+<div class="shell">
+    <aside class="shell-sidebar">
+        <CourseSidebar Content="Content" CurrentTrack="_track" CurrentLesson="_lesson"
+                       OnOpenTrack="OpenTrack" OnOpenLesson="OpenLessonFromSidebar" />
+    </aside>
+    <main class="shell-main">
+        @if (_lesson is { } lesson)
+        {
+            <LessonViewer @key="(lesson.Id, _review)" Lesson="lesson" Review="_review" OnExit="BackToTrack" OnProgress="() => StateHasChanged()" />
+        }
+        else if (_track is { } track)
+        {
+            <TrackView Content="Content" Track="track" OnBack="BackToTracks" OnOpenLesson="OpenLesson" />
+        }
+        else
+        {
+            <TracksView Content="Content" OnOpenTrack="OpenTrack" />
+        }
+    </main>
+</div>
 
 @code {
     [Parameter, EditorRequired] public ContentGraph Content { get; set; } = default!;
@@ -18,8 +31,60 @@ else
     private Track? _track;
     private Lesson? _lesson;
     private bool _review;
+    private IJSObjectReference? _module;
+    private DotNetObjectReference<CourseShell>? _self;
+    private IDisposable? _shortcuts;
 
+    protected override void OnInitialized() => _shortcuts = Shortcuts.Subscribe(OnShortcut);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/Brilliant.Lessons.UI/shortcuts.js");
+            _self = DotNetObjectReference.Create(this);
+            await _module.InvokeVoidAsync("attach", _self);
+        }
+        catch (JSException) { }   // the app still works with the mouse if the key listener can't start
+    }
+
+    /// <summary>Called by the page's key listener (shortcuts.js).</summary>
+    [JSInvokable]
+    public Task OnShortcut(string command, int number) => Shortcuts.RaiseAsync(command switch
+    {
+        "run" => new StepShortcut(StepCommand.Run),
+        "advance" => new StepShortcut(StepCommand.Advance),
+        "choose" => new StepShortcut(StepCommand.Choose, number),
+        _ => throw new ArgumentOutOfRangeException(nameof(command), command, "Unknown shortcut."),
+    });
+
+    // Back is the shell's alone: one step up from wherever the learner is (lesson → track → tracks).
+    private Task OnShortcut(StepShortcut s) => s.Command != StepCommand.Back ? Task.CompletedTask : InvokeAsync(() =>
+    {
+        if (_lesson is not null) BackToTrack();
+        else if (_track is not null) BackToTracks();
+        StateHasChanged();
+    });
+
+    private void OpenTrack(Track track) => (_track, _lesson) = (track, null);
     private void OpenLesson((Lesson Lesson, bool Review) target) => (_lesson, _review) = (target.Lesson, target.Review);
+    private void OpenLessonFromSidebar((Track Track, Lesson Lesson, bool Review) target) => (_track, _lesson, _review) = (target.Track, target.Lesson, target.Review);
     private void BackToTrack() => _lesson = null;
     private void BackToTracks() => (_lesson, _track) = (null, null);
+
+    public async ValueTask DisposeAsync()
+    {
+        _shortcuts?.Dispose();
+        try
+        {
+            if (_module is not null)
+            {
+                await _module.InvokeVoidAsync("detach");
+                await _module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException) { }   // the app is shutting down
+        _self?.Dispose();
+    }
 }

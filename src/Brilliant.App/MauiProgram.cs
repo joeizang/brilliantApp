@@ -3,6 +3,7 @@ using Brilliant.Core.Drafts;
 using Brilliant.Core.Progress;
 using Brilliant.Core.Python;
 using Brilliant.Data;
+using Brilliant.Lessons.UI;
 
 namespace Brilliant.App;
 
@@ -36,6 +37,9 @@ public static class MauiProgram
         // Code drafts are mutable (last write wins), so they live apart from the append-only event log.
         builder.Services.AddSingleton<ICodeDraftStore>(_ =>
             new SqliteCodeDraftStore($"Data Source={Path.Combine(dataDir, "drafts.db")}"));
+
+        // Shortcuts and menu commands reach whichever step is on screen through one bus, shared by the webview's key listener and the native menu.
+        builder.Services.AddSingleton<StepShortcuts>();
 
         // The Python runtime talks to the webview it lives in, so it is scoped to the BlazorWebView.
         builder.Services.AddScoped<IPythonRuntime, PyodideRuntime>();

@@ -1,3 +1,6 @@
+@implements IDisposable
+@inject StepShortcuts Shortcuts
+
 <article class="predict-step">
     <h2>@Step.Title</h2>
     <p class="prompt">@Step.Prompt</p>
@@ -62,6 +65,12 @@
     /// <summary>Raised when the learner continues after a correct answer.</summary>
     [Parameter] public EventCallback OnContinue { get; set; }
 
+    private IDisposable? _shortcuts;
+
+    protected override void OnInitialized() => _shortcuts = Shortcuts.Subscribe(OnShortcut);
+
+    public void Dispose() => _shortcuts?.Dispose();
+
     private string _response = "";
     private int? _picked;
     private AnswerResult? _result;
@@ -82,6 +91,26 @@
         _result = null;
         _picked = null; // typed answers stay in the box so the learner can edit them
     }
+
+    private Task OnShortcut(StepShortcut s) => InvokeAsync(async () =>
+    {
+        switch (s.Command)
+        {
+            case StepCommand.Choose when !Step.IsTyped && !Locked && s.Number <= Step.Options.Count:
+                _picked = s.Number - 1;
+                break;
+            case StepCommand.Run or StepCommand.Advance when _result is null:
+                if (CanCheck) await Check();
+                break;
+            case StepCommand.Advance when _result is { IsCorrect: true }:
+                await OnContinue.InvokeAsync();
+                return;
+            case StepCommand.Advance:
+                TryAgain();
+                break;
+        }
+        StateHasChanged();
+    });
 
     private string OptionClass(int index, bool picked)
     {

@@ -15,15 +15,21 @@
     --success: #4cc27f;
     --danger: #ff7b7b;
     --warn-bg: rgba(245, 166, 35, .28);
-    --code-bg: #1e1e2e;
-    --code-fg: #cdd6f4;
-    --code-muted: #9399b2;
-    --selection: rgba(110, 160, 255, .35);
-    --syn-keyword: #cba6f7;
-    --syn-string: #a6e3a1;
-    --syn-number: #fab387;
-    --syn-comment: #9399b2;
-    --syn-definition: #89b4fa;
+    /* Code editor: VS Code Dark+ */
+    --code-bg: #1e1e1e;
+    --code-fg: #d4d4d4;
+    --code-muted: #9a9a9a;
+    --selection: #264f78;
+    --selection-match: rgba(173, 214, 255, .16);
+    --bracket-match: rgba(255, 255, 255, .14);
+    --syn-keyword: #569cd6;
+    --syn-control: #c586c0;
+    --syn-string: #ce9178;
+    --syn-number: #b5cea8;
+    --syn-comment: #7ca668;
+    --syn-function: #dcdcaa;
+    --syn-class: #4ec9b0;
+    --syn-variable: #9cdcfe;
 }
 
 @media (prefers-color-scheme: light) {
@@ -39,15 +45,21 @@
         --success: #1f7a42;
         --danger: #c0322f;
         --warn-bg: rgba(245, 166, 35, .3);
-        --code-bg: #f1f2f6;
-        --code-fg: #1f2330;
+        /* Code editor: VS Code Light+ */
+        --code-bg: #f5f5f5;
+        --code-fg: #1f1f1f;
         --code-muted: #5c6070;
-        --selection: rgba(47, 111, 224, .25);
-        --syn-keyword: #7a3db8;
-        --syn-string: #1f7a42;
-        --syn-number: #b34a00;
-        --syn-comment: #5c6070;
-        --syn-definition: #1f58c0;
+        --selection: #add6ff;
+        --selection-match: rgba(0, 100, 200, .16);
+        --bracket-match: rgba(0, 0, 0, .12);
+        --syn-keyword: #0000ff;
+        --syn-control: #af00db;
+        --syn-string: #a31515;
+        --syn-number: #098658;
+        --syn-comment: #2e7d1e;
+        --syn-function: #795e26;
+        --syn-class: #267f99;
+        --syn-variable: #001080;
     }
 }
 
@@ -67,9 +79,13 @@ button.primary:disabled { opacity: .4; cursor: default; }
 button.secondary { font-size: 1rem; padding: .45rem 1.1rem; border-radius: 8px; border: 2px solid var(--accent); background: none; color: var(--accent); cursor: pointer; }
 button.link { background: none; border: none; color: var(--accent); cursor: pointer; font: inherit; padding: 0; }
 
-/* Syntax colours for the code editor (classes come from CodeMirror's classHighlighter, so this must be global). */
-.tok-keyword, .tok-bool, .tok-null { color: var(--syn-keyword); }
-.tok-string, .tok-string2 { color: var(--syn-string); }
+/* Syntax colours for the code editor (classes come from the tagHighlighter in editor/src/code-editor.js, so this must be global). */
+.tok-keyword { color: var(--syn-keyword); }
+.tok-bool { color: var(--syn-keyword); }
+.tok-control { color: var(--syn-control); }
+.tok-string { color: var(--syn-string); }
 .tok-number { color: var(--syn-number); }
 .tok-comment { color: var(--syn-comment); font-style: italic; }
-.tok-definition, .tok-className, .tok-typeName { color: var(--syn-definition); }
+.tok-function { color: var(--syn-function); }
+.tok-class { color: var(--syn-class); }
+.tok-variable { color: var(--syn-variable); }

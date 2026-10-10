@@ -115,3 +115,18 @@ What a learner types in a write-code step is saved automatically, so leaving the
 - **Editor bundle:** `code-editor.js` was rebuilt (`scripts/build-editor.sh`) for the change notification; edits made by `setCode` (reset) are not reported back.
 
 To wipe drafts while testing, quit the app and delete `drafts.db` from the app data directory (see "Progress storage").
+
+## Keyboard, menu bar and sidebar (issue #15)
+
+| Keys | Does |
+|---|---|
+| <kbd>⌘</kbd><kbd>↩</kbd> | Run the code (write-code), or check the answer (choice, predict-output, fill-blank, Parsons). Never moves to the next step, so pressing it twice is harmless. |
+| <kbd>1</kbd>–<kbd>4</kbd> | Pick (or, in a multi-select, toggle) that answer in a `choice` step, or in a multiple-choice `predict-output`. Ignored while typing in a text box or the editor. |
+| <kbd>↩</kbd> | Continue (or Try again after a wrong answer) outside text boxes. In a typed `predict-output` box <kbd>↩</kbd> still checks. |
+| <kbd>⇧</kbd><kbd>⌘</kbd><kbd>↩</kbd> | Continue, from the **Lesson** menu. |
+| <kbd>⌥</kbd><kbd>⌘</kbd><kbd>←</kbd> | Back one level (lesson → track → tracks), from the **Lesson** menu. |
+
+- **Plumbing:** `wwwroot/shortcuts.js` listens for keys on the page and classifies them (`classify`, node-tested in `tests/js/shortcuts.test.mjs`). It calls `CourseShell.OnShortcut`, which raises the command on the `StepShortcuts` bus. Each mounted step view subscribes, so whichever step is showing acts. The native **Lesson** menu (`MainPage.xaml.cs`) raises on the same bus.
+- **Editor keys** (VS Code style, CodeMirror 6): <kbd>⌘</kbd><kbd>D</kbd> adds the next occurrence of the selection, <kbd>⇧</kbd><kbd>⌘</kbd><kbd>L</kbd> selects all of them, <kbd>⌥</kbd><kbd>⌘</kbd><kbd>↑</kbd>/<kbd>↓</kbd> adds a cursor above/below, <kbd>⌥</kbd>-click or <kbd>⌘</kbd>-click adds a cursor, <kbd>⇧</kbd><kbd>⌥</kbd>-drag selects a column, <kbd>⌥</kbd><kbd>↑</kbd>/<kbd>↓</kbd> moves a line, <kbd>⇧</kbd><kbd>⌥</kbd><kbd>↑</kbd>/<kbd>↓</kbd> copies it, <kbd>⌘</kbd><kbd>/</kbd> comments, <kbd>⇧</kbd><kbd>⌘</kbd><kbd>K</kbd> deletes a line. CodeMirror's own <kbd>⌘</kbd><kbd>↩</kbd> (insert blank line) is removed so that key runs the code.
+- **Theme:** the editor and code blocks use VS Code Dark+ (default) and Light+ colours, defined as `--syn-*` tokens in `theme.css`. The class names come from the `tagHighlighter` in `editor/src/code-editor.js` (rebuild the bundle with `scripts/build-editor.sh` after changing it).
+- **Sidebar:** on windows at least `56rem` wide (about 900 px at the default font size), the course shell shows a sidebar listing every track and its lessons. Locked lessons are disabled, the current lesson is highlighted, and a finished lesson opens in Review. Narrower windows keep the single-column layout.

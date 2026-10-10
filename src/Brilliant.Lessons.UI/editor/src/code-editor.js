@@ -1,17 +1,40 @@
 // CodeMirror 6 behind the C# ICodeEditor interface (see CodeEditor.razor). Bundled by esbuild into
 // ../wwwroot/code-editor.js so it works offline inside BlazorWebView on Mac Catalyst and Android.
-import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, Decoration } from '@codemirror/view';
+import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, rectangularSelection, crosshairCursor, Decoration } from '@codemirror/view';
 import { Annotation, EditorState, StateEffect, StateField } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { bracketMatching, indentOnInput, indentUnit, syntaxHighlighting } from '@codemirror/language';
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { setDiagnostics, lintGutter } from '@codemirror/lint';
-import { classHighlighter } from '@lezer/highlight';
+import { highlightSelectionMatches, selectNextOccurrence, selectSelectionMatches } from '@codemirror/search';
+import { tagHighlighter, tags as t } from '@lezer/highlight';
 import { python } from '@codemirror/lang-python';
 
 const editors = new Map();
 const pending = new Map();      // id -> { timer, notify } for a change the app hasn't been told about yet
 let nextId = 1;
+
+// VS Code-style keys. CodeMirror's default keymap already matches most of them: ⌥↑/↓ move a line, ⇧⌥↑/↓ copy it, ⌘/ comments, ⌘⇧K deletes a line,
+// ⌘L selects it, ⌘[ / ⌘] indent, ⌥⌘↑/↓ add a cursor above/below. We add ⌘D (next occurrence) and ⌘⇧L (all occurrences), and drop ⌘↩, which the
+// app uses to run the code (the page's key listener claims it before the editor sees it, this just keeps the editor from ever binding it).
+const vscodeKeymap = [
+    { key: 'Mod-d', run: selectNextOccurrence, preventDefault: true },
+    { key: 'Mod-Shift-l', run: selectSelectionMatches, preventDefault: true },
+];
+const editorKeymap = defaultKeymap.filter(b => b.key !== 'Mod-Enter');
+
+// Token classes the app's CSS colours (theme.css, the --syn-* tokens). Control flow (if/for/return) gets its own colour, as in VS Code.
+const highlighter = tagHighlighter([
+    { tag: t.controlKeyword, class: 'tok-control' },
+    { tag: [t.keyword, t.self], class: 'tok-keyword' },
+    { tag: [t.bool, t.null], class: 'tok-bool' },
+    { tag: [t.string, t.special(t.string)], class: 'tok-string' },
+    { tag: t.number, class: 'tok-number' },
+    { tag: t.comment, class: 'tok-comment' },
+    { tag: [t.function(t.variableName), t.function(t.definition(t.variableName)), t.definition(t.function(t.variableName)), t.meta], class: 'tok-function' },
+    { tag: [t.className, t.typeName, t.definition(t.className), t.definition(t.typeName)], class: 'tok-class' },
+    { tag: [t.variableName, t.propertyName, t.definition(t.variableName)], class: 'tok-variable' },
+]);
 
 const CHANGE_DELAY_MS = 500;    // how long typing must pause before the app is told (autosave)
 const programmatic = Annotation.define();   // marks edits made by setCode, which the app already knows about
@@ -42,6 +65,9 @@ const theme = EditorView.theme({
     '.cm-gutters': { backgroundColor: 'transparent', color: 'var(--code-muted)', border: 'none' },
     '.cm-activeLine, .cm-activeLineGutter': { backgroundColor: 'var(--surface)' },
     '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': { backgroundColor: 'var(--selection)' },
+    '.cm-selectionMatch': { backgroundColor: 'var(--selection-match)' },
+    '&.cm-focused .cm-matchingBracket': { backgroundColor: 'var(--bracket-match)', outline: '1px solid var(--code-muted)' },
+    '&.cm-focused .cm-nonmatchingBracket': { backgroundColor: 'var(--warn-bg)' },
     '.cm-highlighted-line': { backgroundColor: 'var(--warn-bg)' },
     '.cm-diagnostic': { fontFamily: 'inherit' },
 });
@@ -55,10 +81,15 @@ export function create(element, code, onChanged) {
             doc: code ?? '',
             extensions: [
                 lineNumbers(), highlightActiveLine(), highlightActiveLineGutter(), drawSelection(),
-                history(), indentOnInput(), bracketMatching(), closeBrackets(), lintGutter(),
+                history(), indentOnInput(), bracketMatching(), closeBrackets(), lintGutter(), highlightSelectionMatches(),
                 indentUnit.of('    '), EditorState.tabSize.of(4),
-                keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
-                python(), syntaxHighlighting(classHighlighter),
+                // Multiple cursors: ⌥-click (or ⌘-click) adds one, ⇧⌥-drag selects a column, ⌘D / ⌘⇧L select occurrences.
+                EditorState.allowMultipleSelections.of(true),
+                EditorView.clickAddsSelectionRange.of(e => e.altKey || e.metaKey),
+                rectangularSelection({ eventFilter: e => e.altKey && e.shiftKey && e.button === 0 }),
+                crosshairCursor({ key: 'Alt' }),
+                keymap.of([...closeBracketsKeymap, ...vscodeKeymap, ...editorKeymap, ...historyKeymap, indentWithTab]),
+                python(), syntaxHighlighting(highlighter),
                 EditorView.contentAttributes.of({ 'aria-label': 'Code editor', spellcheck: 'false', autocapitalize: 'off', autocorrect: 'off' }),
                 highlightField, theme,
                 EditorView.updateListener.of(update => {

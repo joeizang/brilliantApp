@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Components.Web;
 
 namespace Brilliant.Lessons.UI.Tests;
 
-public class ParsonsStepViewTests : BunitContext
+public class ParsonsStepViewTests : ShortcutContext
 {
     private static readonly ParsonsStep Step = new("step.p", "Grade", "Order the lines", "python",
     [
