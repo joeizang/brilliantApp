@@ -19,12 +19,17 @@ namespace Brilliant.Core.Progress;
 /// </remarks>
 public static class LearnerStateProjector
 {
-    /// <param name="now">The projection time. Carried on the state so time-based rules (streaks, due reviews) can build on it.</param>
-    public static LearnerState Project(IEnumerable<ProgressEvent> events, ContentGraph content, DateTimeOffset now)
+    /// <param name="now">
+    /// The projection time. Carried on the state so time-based rules (streaks, due reviews) can build on it. Its offset
+    /// defines the learner's day: pass local time and "today" (the daily review cap) rolls over at the learner's midnight.
+    /// </param>
+    /// <param name="queueOptions">The daily review cap and weights; the defaults when omitted.</param>
+    public static LearnerState Project(IEnumerable<ProgressEvent> events, ContentGraph content, DateTimeOffset now, ReviewQueueOptions? queueOptions = null)
     {
         var log = Distinct(events);
         var tracks = content.Tracks.Select(track => ProjectTrack(track, content, log)).ToList();
-        return new LearnerState(now, tracks, ProjectReviews(tracks, log));
+        var (reviews, answeredToday) = ProjectReviews(tracks, log, now);
+        return new LearnerState(now, tracks, reviews, ReviewQueueBuilder.Build(reviews, now, answeredToday, queueOptions));
     }
 
     /// <summary>The progress of one lesson, for screens that don't need the whole course (e.g. the lesson player).</summary>
@@ -37,33 +42,59 @@ public static class LearnerStateProjector
     }
 
     /// <summary>
-    /// Review items of the current content. An item is unlocked once its lesson is completed; its schedule is every
-    /// recorded answer folded through FSRS in time order (ties broken by event ID, so every device agrees).
-    /// An item whose question step has been deleted is retired along with its history.
+    /// Review items of the current content: the ones lessons declare, plus a re-solve for each problem (write-code,
+    /// fill-blank, Parsons) the learner has answered incorrectly. An item is unlocked once its lesson is completed; its
+    /// schedule is every recorded answer folded through FSRS in time order (ties broken by event ID, so every device
+    /// agrees). An item whose question step has been deleted is retired along with its history.
+    /// Also returns how many reviews were answered on the same (local) day as <paramref name="now"/>.
     /// </summary>
-    private static IReadOnlyList<ReviewItemState> ProjectReviews(IReadOnlyList<TrackState> tracks, IReadOnlyList<ProgressEvent> log)
+    private static (IReadOnlyList<ReviewItemState> Reviews, int AnsweredToday) ProjectReviews(
+        IReadOnlyList<TrackState> tracks, IReadOnlyList<ProgressEvent> log, DateTimeOffset now)
     {
-        var answers = log.Where(e => e.Type == ProgressEventTypes.ReviewAnswered)
+        var parsed = log.Where(e => e.Type == ProgressEventTypes.ReviewAnswered)
             .Select(e => (Event: e, Answer: ParseReviewAnswer(e)))
             .Where(x => x.Answer is not null)
             .OrderBy(x => x.Event.OccurredAt).ThenBy(x => x.Event.Id, StringComparer.Ordinal)
-            .ToLookup(x => x.Answer!.Value.Item, x => (x.Event.OccurredAt, x.Answer!.Value.Rating), StringComparer.Ordinal);
+            .ToList();
+        var answers = parsed.ToLookup(x => x.Answer!.Value.Item, x => (x.Event.OccurredAt, x.Answer!.Value.Rating), StringComparer.Ordinal);
+        var answeredToday = parsed.Count(x => x.Event.OccurredAt.ToOffset(now.Offset).Date == now.Date);
+
+        var failed = log.Where(IsFailedAttempt).Select(e => (e.LessonId, e.StepId)).ToHashSet();
 
         var reviews = new List<ReviewItemState>();
         foreach (var lesson in tracks.SelectMany(t => t.Lessons))
-        foreach (var item in lesson.Lesson.ReviewItems)
         {
-            if (lesson.Lesson.Steps.FirstOrDefault(s => s.Id == item.StepId) is not { } question) continue;
-            CardState? card = null;
-            var count = 0;
-            foreach (var (at, rating) in answers[item.Id])
+            var resolves = lesson.Lesson.Steps
+                .Where(s => s is WriteCodeStep or FillBlankStep or ParsonsStep && failed.Contains((lesson.Lesson.Id, s.Id)))
+                .Select(s => new ReviewItem($"resolve.{s.Id}", "", s.Id, ReviewKind.Resolve));
+            foreach (var item in lesson.Lesson.ReviewItems.Concat(resolves))
             {
-                card = FsrsScheduler.Schedule(card, rating, at);
-                count++;
+                if (lesson.Lesson.Steps.FirstOrDefault(s => s.Id == item.StepId) is not { } question) continue;
+                CardState? card = null;
+                var count = 0;
+                foreach (var (at, rating) in answers[item.Id])
+                {
+                    card = FsrsScheduler.Schedule(card, rating, at);
+                    count++;
+                }
+                reviews.Add(new ReviewItemState(lesson.Lesson, item, question, lesson.Status == LessonStatus.Completed, card, count));
             }
-            reviews.Add(new ReviewItemState(lesson.Lesson, item, question, lesson.Status == LessonStatus.Completed, card, count));
         }
-        return reviews;
+        return (reviews, answeredToday);
+    }
+
+    /// <summary>A wrong answer or a submission that failed a test. Malformed events are not failures.</summary>
+    private static bool IsFailedAttempt(ProgressEvent e)
+    {
+        if (e.Data is null || e.Type is not (ProgressEventTypes.StepAnswered or ProgressEventTypes.CodeSubmitted)) return false;
+        try
+        {
+            using var doc = JsonDocument.Parse(e.Data);
+            return doc.RootElement.ValueKind == JsonValueKind.Object
+                && doc.RootElement.TryGetProperty(e.Type == ProgressEventTypes.CodeSubmitted ? "passed" : "correct", out var ok)
+                && ok.ValueKind == JsonValueKind.False;
+        }
+        catch (JsonException) { return false; }
     }
 
     private static (string Item, Rating Rating)? ParseReviewAnswer(ProgressEvent e)

@@ -14,9 +14,12 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
     /// <summary>The recorder's clock, so screens that time the learner use the same one that stamps events.</summary>
     public DateTimeOffset Now => _clock.GetUtcNow();
 
-    /// <summary>The learner's state right now: the whole log projected against <paramref name="content"/>.</summary>
+    /// <summary>
+    /// The learner's state right now: the whole log projected against <paramref name="content"/>. Projected at local time,
+    /// so the daily review cap rolls over at the learner's midnight.
+    /// </summary>
     public LearnerState Project(ContentGraph content) =>
-        LearnerStateProjector.Project(log.ReadAll(), content, _clock.GetUtcNow());
+        LearnerStateProjector.Project(log.ReadAll(), content, _clock.GetLocalNow());
 
     /// <summary>
     /// Records LessonCompleted for lessons that a content change has just completed (the learner's last unfinished

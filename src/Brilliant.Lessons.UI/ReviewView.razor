@@ -1,5 +1,6 @@
 @* Review: the questions FSRS says are due, one at a time. Each first answer is recorded as a ReviewAnswered event. *@
 @using Brilliant.Core.Progress
+@using Brilliant.Core.Python
 @using Brilliant.Core.Review
 @inject ProgressRecorder Recorder
 
@@ -16,6 +17,10 @@
     </div>
 
     <div @key="item.Item.Id">
+        @if (item.Item.Kind != ReviewKind.Concept)
+        {
+            <span class="review-kind">@(item.Item.Kind == ReviewKind.Pattern ? "Pattern" : "Re-solve")</span>
+        }
         @switch (item.Question)
         {
             case ChoiceStep choice:
@@ -23,6 +28,15 @@
                 break;
             case PredictOutputStep predict:
                 <PredictOutputStepView Step="predict" OnAnswered="a => Answered(item, a.Result.IsCorrect)" OnContinue="Next" />
+                break;
+            case FillBlankStep fill:
+                <FillBlankStepView Step="fill" OnAnswered="a => Answered(item, a.Result.IsCorrect)" OnContinue="Next" />
+                break;
+            case ParsonsStep parsons:
+                <ParsonsStepView Step="parsons" OnAnswered="a => Answered(item, a.Result.IsCorrect)" OnContinue="Next" />
+                break;
+            case WriteCodeStep write:
+                <WriteCodeStepView Step="write" OnSubmitted="s => Answered(item, s.Result.Status == TestRunStatus.Passed)" OnContinue="Next" />
                 break;
             default:
                 <p>This kind of question can't be reviewed here yet.</p>
@@ -37,8 +51,12 @@
 }
 else
 {
-    <p class="review-done">@(_queue.Count == 0 && _nextDue is null ? "Nothing to review yet. Finish a lesson and its questions will show up here." : "You're all caught up. 🎉")</p>
-    @if (_nextDue is { } next)
+    <p class="review-done">@(_waiting > 0 ? "That's all for today." : _queue.Count == 0 && _nextDue is null ? "Nothing to review yet. Finish a lesson and its questions will show up here." : "You're all caught up. 🎉")</p>
+    @if (_waiting > 0)
+    {
+        <p class="review-next">@_waiting more @(_waiting == 1 ? "is" : "are") waiting. They'll be in tomorrow's queue, so a missed day never piles up.</p>
+    }
+    else if (_nextDue is { } next)
     {
         <p class="review-next">Next review @Describe(next - Recorder.Now).</p>
     }
@@ -58,19 +76,20 @@ else
     private bool _recorded;
     private DateTimeOffset? _scheduled;
     private DateTimeOffset? _nextDue;
+    private int _waiting;
 
     private ReviewItemState? _current => _index < _queue.Count ? _queue[_index] : null;
 
     protected override void OnInitialized()
     {
-        _queue = Recorder.Project(Content).DueReviews;
+        _queue = Recorder.Project(Content).Queue.Items;
         Show();
     }
 
     private void Show()
     {
         (_recorded, _scheduled, _shownAt) = (false, null, Recorder.Now);
-        _nextDue = _current is null ? NextDue() : null;
+        (_nextDue, _waiting) = _current is null ? Finished() : (null, 0);
     }
 
     // Only the first answer to an item counts: retrying is practice, not a better memory.
@@ -89,10 +108,16 @@ else
         Show();
     }
 
-    private DateTimeOffset? NextDue() => Recorder.Project(Content).Reviews
-        .Where(r => r.IsUnlocked && r.Card is not null)
-        .Select(r => (DateTimeOffset?)r.Card!.Due)
-        .Min();
+    // What to tell the learner at the end of the queue: reviews held back by today's cap, or else when the next one is due.
+    private (DateTimeOffset? NextDue, int Waiting) Finished()
+    {
+        var state = Recorder.Project(Content);
+        var next = state.Reviews
+            .Where(r => r.IsUnlocked && r.Card is not null && r.Card.Due > state.AsOf)
+            .Select(r => (DateTimeOffset?)r.Card!.Due)
+            .Min();
+        return (next, state.Queue.Waiting);
+    }
 
     private static string Describe(TimeSpan wait) =>
         wait < TimeSpan.FromHours(1) ? "within the hour"

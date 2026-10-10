@@ -71,7 +71,7 @@ public class ReviewProjectionTests
 
         Assert.Equal(3, state.Reviews.Count);
         Assert.All(state.Reviews, r => Assert.False(r.IsUnlocked));
-        Assert.Empty(state.DueReviews);
+        Assert.Empty(state.Queue.Items);
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public class ReviewProjectionTests
         Recorder.CompleteStep(One, "step.one.intro");
         Recorder.CompleteStep(One, "step.one.q1");
 
-        Assert.Empty(Project().DueReviews);
+        Assert.Empty(Project().Queue.Items);
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public class ReviewProjectionTests
     {
         Finish(One);
 
-        var due = Project().DueReviews;
+        var due = Project().Queue.Items;
 
         Assert.Equal(["review.one.q1", "review.one.q2"], due.Select(r => r.Item.Id));
         Assert.All(due, r => { Assert.True(r.IsUnlocked); Assert.Null(r.Card); });
@@ -108,9 +108,9 @@ public class ReviewProjectionTests
 
         var card = state.Reviews.Single(r => r.Item.Id == "review.one.q1").Card!;
         Assert.Equal(FsrsScheduler.Schedule(null, Rating.Good, T0.AddHours(1)), card);
-        Assert.Equal(["review.one.q2"], state.DueReviews.Select(r => r.Item.Id));
-        Assert.Contains("review.one.q1", Project(card.Due).DueReviews.Select(r => r.Item.Id));
-        Assert.DoesNotContain("review.one.q1", Project(card.Due.AddMinutes(-1)).DueReviews.Select(r => r.Item.Id));
+        Assert.Equal(["review.one.q2"], state.Queue.Items.Select(r => r.Item.Id));
+        Assert.Contains("review.one.q1", Project(card.Due).Queue.Items.Select(r => r.Item.Id));
+        Assert.DoesNotContain("review.one.q1", Project(card.Due.AddMinutes(-1)).Queue.Items.Select(r => r.Item.Id));
     }
 
     [Fact]
@@ -142,7 +142,7 @@ public class ReviewProjectionTests
         var replayed = LearnerStateProjector.Project(shuffled, Graph(One, Two), T0.AddDays(30));
 
         Assert.Equal(inOrder.Reviews.Select(r => r.Card), replayed.Reviews.Select(r => r.Card));
-        Assert.Equal(inOrder.DueReviews.Select(r => r.Item.Id), replayed.DueReviews.Select(r => r.Item.Id));
+        Assert.Equal(inOrder.Queue.Items.Select(r => r.Item.Id), replayed.Queue.Items.Select(r => r.Item.Id));
     }
 
     [Fact]
@@ -172,7 +172,7 @@ public class ReviewProjectionTests
         Answer("review.one.q1", Rating.Easy, T0.AddDays(-1));   // due T0+15d
         _clock.Now = T0.AddDays(20);
 
-        var order = Project(T0.AddDays(20)).DueReviews.Select(r => r.Item.Id);
+        var order = Project(T0.AddDays(20)).Queue.Items.Select(r => r.Item.Id);
 
         Assert.Equal(["review.one.q2", "review.one.q1", "review.two.q1"], order);
     }
@@ -231,7 +231,7 @@ public class ReviewProjectionTests
         var state = Project(content: Graph(grown, Two));
 
         Assert.Equal(LessonStatus.Completed, state.Lesson(One.Id)!.Status);
-        Assert.Contains("review.one.q3", state.DueReviews.Select(r => r.Item.Id));
+        Assert.Contains("review.one.q3", state.Queue.Items.Select(r => r.Item.Id));
     }
 
     [Fact]
@@ -324,7 +324,7 @@ public class ReviewProjectionTests
     public void The_rating_is_inferred_from_correctness_hints_and_time_when_not_given()
     {
         Finish(One);
-        var item = Project().DueReviews[0];
+        var item = Project().Queue.Items[0];
 
         var easy = Recorder.ReviewAnswered(item, correct: true, hintsUsed: 0, TimeSpan.FromSeconds(2));
         var again = Recorder.ReviewAnswered(item, correct: false, hintsUsed: 0, TimeSpan.FromSeconds(2));

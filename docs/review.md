@@ -1,6 +1,6 @@
-# Review: review items, FSRS scheduling and the Review screen
+# Review: review items, FSRS scheduling, the queue and the Review screen
 
-Issue [#18](https://github.com/joeizang/brilliantApp/issues/18), PRD user stories 35, 38, 39 and 71.
+Issues [#18](https://github.com/joeizang/brilliantApp/issues/18) (PRD user stories 35, 38, 39, 71) and [#19](https://github.com/joeizang/brilliantApp/issues/19) (36, 37, 40).
 
 ## How it fits together
 
@@ -8,7 +8,8 @@ Issue [#18](https://github.com/joeizang/brilliantApp/issues/18), PRD user storie
 lesson.yaml  ──►  ReviewItem(id, concept, step)      declared by the lesson, re-asks one of its choice / predict-output steps
 event log    ──►  ReviewAnswered events              one per first answer: item, correct, hints, time, inferred rating
 projector    ──►  ReviewItemState(card, unlocked)    every answer folded through FSRS, in time order
-Review screen ──► LearnerState.DueReviews            unlocked items that are new or due; answers append ReviewAnswered
+queue builder ──► LearnerState.Queue                 today's due items: capped, overdue first, patterns weighted up
+Review screen ──► Queue.Items                        answers append ReviewAnswered
 ```
 
 Nothing about a schedule is stored. It is always recomputed from the log by `LearnerStateProjector`, so two devices
@@ -35,7 +36,6 @@ The unit tests use numbers worked out independently from the published formulas,
 Reference: [Implementing FSRS in 100 Lines](https://borretti.me/article/implementing-fsrs-in-100-lines) (the FSRS-5 equations and default weights).
 
 Because the minimum interval is one day, an item answered `Again` comes back tomorrow, not later in the same session.
-Bringing wrong answers back sooner is the Review Queue Builder's job ([#19](https://github.com/joeizang/brilliantApp/issues/19)).
 
 ## Rating inference (`RatingInference.Infer`)
 
@@ -73,13 +73,51 @@ Review answers never touch lesson progress: they use a different event type, so 
 ## The Review screen
 
 - **Entry points:** a *Review · N due* card on the Tracks screen (or "No reviews due"), and a *Review* item with a due-count badge in the sidebar.
-- **Queue:** `DueReviews`, snapshotted when the screen opens. Items already scheduled come first, most overdue first; new items follow in content order.
+- **Queue:** `LearnerState.Queue.Items` (see below), snapshotted when the screen opens.
 - **Answering:** only the first check of each item is recorded; trying again is practice. After it, the screen says when the item will return, and the sidebar's due count refreshes.
-- **Question types:** choice and predict-output, the only types a review item may reference today (the validator enforces it).
-- **Caught up:** shows when the next review is due.
+- **Question types:** choice and predict-output for authored items; fill-blank, Parsons and write-code for re-solves. Each is labelled when it isn't an ordinary concept question (*Pattern*, *Re-solve*).
+- **Caught up:** shows when the next review is due. If today's cap held items back, it says how many are waiting for tomorrow instead.
 - The Back shortcut returns to the Tracks screen, as it does from a lesson.
+
+## The daily queue (`ReviewQueueBuilder`)
+
+A pure function of `(review items, now, reviews answered today, options)`. The projector feeds it and exposes the result as
+`LearnerState.Queue` (`Items`, `Waiting`, `DoneToday`).
+
+1. **Due only.** Unlocked items that are new or past their due time.
+2. **Learned before new.** Items that already have a schedule come first, then new ones.
+3. **Most forgotten first.** Among scheduled items the order is `weight × (1 − retrievability)`, using FSRS's own estimate of
+   how likely the learner is to still recall the item. A long-overdue item outranks a fresh one, and an item with a short
+   memory outranks one with a long memory that is the same number of days late.
+4. **Patterns weighted up.** Weights: pattern 2.0, re-solve 1.5, concept 1.0 (`ReviewQueueOptions`). The weight is a multiplier, not
+   a guarantee: an authored pattern item that is just due ranks above a concept item that is a few days late, but not above one
+   that has been forgotten for weeks. New items are ordered heaviest kind first, then in content order.
+5. **Capped.** At most 20 reviews a day (`DailyCap`), *counting those already answered today*. Whatever doesn't fit is `Waiting`:
+   still due, offered when room opens up (normally tomorrow), so a missed week is a normal day, not a mountain.
+
+"Today" is the learner's day: `ProgressRecorder.Project` projects at local time and the projector counts answers whose local date
+matches. (Events are stored in UTC; their local date is taken with the offset of the projection time.)
+
+## Review item kinds
+
+| Kind | Where it comes from | Question types |
+|---|---|---|
+| Concept | `reviewItems:` in `lesson.yaml` (the default) | choice, predict-output |
+| Pattern | the same, with `kind: pattern` ("which pattern fits this problem?") | choice, predict-output |
+| Re-solve | derived by the projector, never authored | write-code, fill-blank, Parsons |
+
+A **re-solve** appears for each problem step (write-code, fill-blank, Parsons) that has at least one failed attempt in the log: a
+`StepAnswered` with `correct: false`, or a `CodeSubmitted` that did not pass. Its ID is `resolve.<step id>`, it unlocks with its
+lesson like any other item, and from then on it is scheduled by FSRS like any other item (answers are `ReviewAnswered` events
+with that item ID). Wrong answers given *during Review* are not lesson attempts, so they don't create more re-solves. A re-solve
+retires if its problem step is deleted. Choice and predict-output steps never get re-solves: the lesson's own review items cover them.
+
+The validator accepts `kind: concept` or `kind: pattern` and rejects anything else (including `resolve`). There are no pattern items
+in Track 1 (it teaches Python syntax); the first arrive with the DSA tracks.
 
 ## Not in this slice
 
-Daily cap, pattern weighting and re-solve items ([#19](https://github.com/joeizang/brilliantApp/issues/19)); hints ([#20](https://github.com/joeizang/brilliantApp/issues/20));
-mastery and concept views ([#21](https://github.com/joeizang/brilliantApp/issues/21)); streaks and the Today screen ([#22](https://github.com/joeizang/brilliantApp/issues/22)).
+Hints that also bring a problem back sooner ([#20](https://github.com/joeizang/brilliantApp/issues/20), PRD story 33: a re-solve
+is created from wrong answers only for now); a per-learner cap or weights in settings (the options exist, the UI doesn't);
+choosing an easier form of a re-solve on a phone, such as Parsons instead of typing code (story 43); mastery and concept views
+([#21](https://github.com/joeizang/brilliantApp/issues/21)); streaks and the Today screen ([#22](https://github.com/joeizang/brilliantApp/issues/22)).
