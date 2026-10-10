@@ -16,6 +16,15 @@ public sealed record TraceLocal(string Name, string Type, string Repr);
 /// <summary>A watched list as recorded at one step: the first cells' reprs, and how many more there were.</summary>
 public sealed record TrackedArray(string Type, IReadOnlyList<string> Cells, int More);
 
+/// <summary>One dict entry or set member as recorded: the repr of the key, and of the value (null for a set).</summary>
+public sealed record TableRow(string Key, string? Value);
+
+/// <summary>
+/// A watched dict or set as recorded at one step. <see cref="Kind"/> is "dict" or "set" (a subclass or a frozenset counts as its base);
+/// <see cref="Type"/> is the actual type name. A set's rows are sorted; a dict's are in insertion order.
+/// </summary>
+public sealed record TrackedTable(string Kind, string Type, IReadOnlyList<TableRow> Rows, int More);
+
 /// <summary>
 /// The state just before <see cref="Line"/> ran (<see cref="Event"/> "line"), or the state the module finished in
 /// (<see cref="Event"/> "return", <see cref="Line"/> null).
@@ -25,7 +34,8 @@ public sealed record TraceFrame(
     int? Line,
     string Function,
     IReadOnlyList<TraceLocal> Locals,
-    IReadOnlyDictionary<string, TrackedArray> Tracked);
+    IReadOnlyDictionary<string, TrackedArray> Tracked,
+    IReadOnlyDictionary<string, TrackedTable>? Tables = null);
 
 /// <summary>What the Python tracer (wwwroot/python/tracer.py) recorded.</summary>
 public sealed record TraceResult(
@@ -48,9 +58,9 @@ public static class TraceResultJson
         JsonSerializer.Deserialize<TraceResult>(json, Options)
         ?? throw new InvalidOperationException("The Python runtime returned an empty trace.");
 
-    /// <summary>The variables the tracer should record as arrays: <c>["nums","grid"]</c>.</summary>
+    /// <summary>The variables the tracer should record (lists, dicts and sets): <c>["nums","counts"]</c>.</summary>
     public static string SerializeWatch(IEnumerable<Visual> visuals) =>
-        JsonSerializer.Serialize(visuals.Where(v => v.As == Visual.Array).Select(v => v.Variable).Distinct());
+        JsonSerializer.Serialize(visuals.Where(v => Visual.Kinds.Contains(v.As)).Select(v => v.Variable).Distinct());
 }
 
 public sealed record LocalView(string Name, string Type, string Value, bool Changed);
@@ -63,8 +73,25 @@ public sealed record PointerView(string Name, int? Index, bool Moved);
 /// <summary><paramref name="More"/> counts the cells beyond the ones recorded.</summary>
 public sealed record ArrayView(string Variable, IReadOnlyList<CellView> Cells, int More, IReadOnlyList<PointerView> Pointers);
 
+/// <summary>How a table row differs from the same row in the previous step.</summary>
+public enum RowChange { None, Added, Updated, Removed }
+
+/// <summary>
+/// A dict entry or set member. <see cref="LookedUpBy"/> names the pointer variables holding this key. A <see cref="RowChange.Removed"/>
+/// row is a ghost of what the previous step had, shown for one step so the learner sees it go; it is never looked up.
+/// </summary>
+public sealed record RowView(string Key, string? Value, RowChange Change, IReadOnlyList<string> LookedUpBy);
+
+/// <summary>
+/// A dict or set drawn as rows. <see cref="Misses"/> names the pointers that exist but hold a key that isn't a row (a failed lookup);
+/// <see cref="More"/> counts the rows beyond the ones recorded.
+/// </summary>
+public sealed record TableView(string Variable, string Kind, IReadOnlyList<RowView> Rows, int More, IReadOnlyList<string> Misses);
+
 /// <summary>One step of the player: what to highlight and draw. <see cref="Line"/> is null on the final state.</summary>
-public sealed record TraceState(int Index, int? Line, string Function, bool IsFinal, IReadOnlyList<LocalView> Locals, IReadOnlyList<ArrayView> Arrays);
+public sealed record TraceState(
+    int Index, int? Line, string Function, bool IsFinal,
+    IReadOnlyList<LocalView> Locals, IReadOnlyList<ArrayView> Arrays, IReadOnlyList<TableView> Tables);
 
 /// <summary>
 /// The Trace Model: turns the raw frames of a run into the states the Trace Player renders, with what changed since the
@@ -76,6 +103,7 @@ public static class TraceModel
     public static IReadOnlyList<TraceState> Build(TraceResult result, IReadOnlyList<Visual> visuals)
     {
         var arrayVisuals = visuals.Where(v => v.As == Visual.Array).ToList();
+        var tableVisuals = visuals.Where(v => v.As is Visual.Dict or Visual.Set).ToList();
         var states = new List<TraceState>(result.Frames.Count);
         TraceFrame? previousFrame = null;
         TraceState? previous = null;
@@ -83,7 +111,7 @@ public static class TraceModel
         {
             var comparable = previous is not null && previousFrame!.Function == frame.Function ? previous : null;
             var state = new TraceState(index, frame.Line, frame.Function, frame.Line is null,
-                Locals(frame, comparable), Arrays(frame, arrayVisuals, comparable));
+                Locals(frame, comparable), Arrays(frame, arrayVisuals, comparable), Tables(frame, tableVisuals, comparable));
             states.Add(state);
             previousFrame = frame;
             previous = state;
@@ -126,5 +154,41 @@ public static class TraceModel
         var local = frame.Locals.FirstOrDefault(l => l.Name == name);
         if (local is not { Type: "int" } || !int.TryParse(local.Repr, out var value)) return null;
         return value >= 0 && value < cellCount ? value : null;
+    }
+
+    private static IReadOnlyList<TableView> Tables(TraceFrame frame, List<Visual> visuals, TraceState? previous)
+    {
+        var views = new List<TableView>();
+        foreach (var visual in visuals)
+        {
+            if (frame.Tables is null || !frame.Tables.TryGetValue(visual.Variable, out var tracked) || tracked.Kind != visual.As) continue;
+            var before = previous?.Tables.FirstOrDefault(t => t.Variable == visual.Variable);
+            // What was really in the table before, not the ghosts of what had already gone.
+            var wasThere = before?.Rows.Where(r => r.Change != RowChange.Removed).ToList();
+
+            var rows = new List<RowView>();
+            var misses = new List<string>();
+            var lookups = visual.Pointers
+                .Select(name => (Name: name, Local: frame.Locals.FirstOrDefault(l => l.Name == name)))
+                .Where(p => p.Local is not null)
+                .Select(p => (p.Name, Key: p.Local!.Repr))
+                .ToList();
+
+            foreach (var row in tracked.Rows)
+            {
+                var was = wasThere?.FirstOrDefault(r => r.Key == row.Key);
+                var change = wasThere is null ? RowChange.None
+                    : was is null ? RowChange.Added
+                    : was.Value != row.Value ? RowChange.Updated
+                    : RowChange.None;
+                rows.Add(new RowView(row.Key, row.Value, change, lookups.Where(l => l.Key == row.Key).Select(l => l.Name).ToList()));
+            }
+            foreach (var gone in wasThere?.Where(w => tracked.Rows.All(r => r.Key != w.Key)) ?? [])
+                rows.Add(new RowView(gone.Key, gone.Value, RowChange.Removed, []));
+
+            misses.AddRange(lookups.Where(l => rows.All(r => r.Change == RowChange.Removed || r.Key != l.Key)).Select(l => l.Name));
+            views.Add(new TableView(visual.Variable, tracked.Kind, rows, tracked.More, misses));
+        }
+        return views;
     }
 }

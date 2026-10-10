@@ -1,15 +1,29 @@
 @* The Trace Player: the example's code (read-only, current line highlighted), the watched lists drawn as cells with named pointers,
-   the locals, and Previous/Next to walk the recorded steps. What changed since the last step is marked, and the pointers slide. *@
+   the watched dicts and sets drawn as tables, the locals, and Previous/Next/Play to walk the recorded steps (also ← → and Space).
+   What changed since the last step is marked, and the pointers slide. *@
 @using Brilliant.Core.Python
+@inject TimeProvider Time
+@inject StepShortcuts Shortcuts
+@implements IDisposable
 
 <div class="trace-player">
     <CodeEditor @ref="_editor" InitialCode="@Code" ReadOnly="true" />
 
     <div class="controls">
-        <button class="secondary prev" disabled="@(_index == 0)" @onclick="() => Go(_index - 1)">← Previous</button>
-        <span class="position" aria-live="polite">Step @(_index + 1) of @States.Count</span>
-        <button class="secondary next" disabled="@(_index >= States.Count - 1)" @onclick="() => Go(_index + 1)">Next →</button>
+        <button class="secondary prev" disabled="@(_index == 0)" @onclick="() => Step(_index - 1)">← Previous</button>
+        <button class="secondary play" disabled="@(States.Count < 2)" aria-pressed="@(Playing ? "true" : "false")" @onclick="TogglePlay">@PlayLabel</button>
+        <button class="secondary next" disabled="@(_index >= States.Count - 1)" @onclick="() => Step(_index + 1)">Next →</button>
     </div>
+    <div class="status">
+        <span class="position" aria-live="polite">Step @(_index + 1) of @States.Count</span>
+        <span class="speeds" role="group" aria-label="Playback speed">
+            @foreach (var speed in Speeds)
+            {
+                <button class="speed" data-speed="@speed.Value" aria-pressed="@(speed.Value == _speed.Value ? "true" : "false")" @onclick="() => SetSpeed(speed)">@speed.Label</button>
+            }
+        </span>
+    </div>
+    <p class="key-hint"><kbd>←</kbd> <kbd>→</kbd> step · <kbd>Space</kbd> play or pause</p>
 
     @foreach (var array in Current.Arrays)
     {
@@ -60,6 +74,11 @@
         </figure>
     }
 
+    @foreach (var table in Current.Tables)
+    {
+        <TraceTable Table="table" Step="Current.Index" @key="table.Variable" />
+    }
+
     @if (Current.Locals.Count > 0)
     {
         <table class="locals">
@@ -86,6 +105,11 @@
 @code {
     private const int CellW = 64, CellH = 48, Pad = 16, CellTop = 22, PointerGap = 4, RowH = 28;
 
+    private sealed record Speed(string Value, string Label, double Factor);
+
+    private static readonly Speed[] Speeds = [new("0.5", "0.5×", 0.5), new("1", "1×", 1), new("2", "2×", 2)];
+    private const int StepMilliseconds = 1000;   // between steps at 1×
+
     [Parameter, EditorRequired] public string Code { get; set; } = "";
 
     /// <summary>The steps to walk, from <see cref="TraceModel.Build"/>. Never empty.</summary>
@@ -99,14 +123,30 @@
     private int _index;
     private bool _highlightShown;
     private int? _highlightedLine;
+    private Speed _speed = Speeds[1];
+    private ITimer? _timer;
+    private IDisposable? _shortcuts;
 
     private TraceState Current => States[_index];
+    private bool Playing => _timer is not null;
+    private bool AtEnd => _index >= States.Count - 1;
+    private string PlayLabel => Playing ? "⏸ Pause" : AtEnd && States.Count > 1 ? "↻ Replay" : "▶ Play";
+    private TimeSpan Interval => TimeSpan.FromMilliseconds(StepMilliseconds / _speed.Factor);
+
+    protected override void OnInitialized() => _shortcuts = Shortcuts.Subscribe(OnShortcut);
 
     protected override void OnParametersSet()
     {
         if (ReferenceEquals(_states, States)) return;
         _states = States;
+        Pause();
         _index = 0;
+    }
+
+    public void Dispose()
+    {
+        _shortcuts?.Dispose();
+        Pause();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -117,7 +157,52 @@
         await _editor.HighlightLineAsync(_highlightedLine);
     }
 
-    private void Go(int index) => _index = Math.Clamp(index, 0, States.Count - 1);
+    // Stepping by hand takes over from playback, so the learner is never fighting the clock.
+    private void Step(int index)
+    {
+        Pause();
+        _index = Math.Clamp(index, 0, States.Count - 1);
+    }
+
+    private void TogglePlay()
+    {
+        if (Playing) { Pause(); return; }
+        if (States.Count < 2) return;
+        if (AtEnd) _index = 0;
+        _timer = Time.CreateTimer(_ => _ = InvokeAsync(Tick), null, Interval, Interval);
+    }
+
+    private void Pause()
+    {
+        _timer?.Dispose();
+        _timer = null;
+    }
+
+    private void Tick()
+    {
+        if (!Playing) return;   // a tick that was already on its way when playback stopped
+        _index++;   // playback always starts short of the end and stops on reaching it
+        if (AtEnd) Pause();
+        StateHasChanged();
+    }
+
+    private void SetSpeed(Speed speed)
+    {
+        _speed = speed;
+        _timer?.Change(Interval, Interval);
+    }
+
+    private Task OnShortcut(StepShortcut shortcut) => InvokeAsync(() =>
+    {
+        switch (shortcut.Command)
+        {
+            case StepCommand.Next: Step(_index + 1); break;
+            case StepCommand.Previous: Step(_index - 1); break;
+            case StepCommand.PlayPause: TogglePlay(); break;
+            default: return;
+        }
+        StateHasChanged();
+    });
 
     private static string Translate(int x, int y) => $"translate({x} {y})";
 

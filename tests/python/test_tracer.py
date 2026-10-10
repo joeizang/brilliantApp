@@ -97,6 +97,74 @@ class TrackedArrays(unittest.TestCase):
         self.assertLessEqual(len(r["frames"][-1]["tracked"]["xs"]["cells"][0]), tracer.MAX_CELL_REPR)
 
 
+class TrackedTables(unittest.TestCase):
+    def test_a_watched_dict_is_recorded_as_rows_in_insertion_order(self):
+        r = trace("d = {'b': 2, 'a': 1}\n", watch=["d"])
+        t = r["frames"][-1]["tables"]["d"]
+        self.assertEqual(t, {"kind": "dict", "type": "dict", "rows": [{"key": "'b'", "value": "2"}, {"key": "'a'", "value": "1"}], "more": 0})
+        self.assertNotIn("d", r["frames"][-1]["tracked"])           # tables are not arrays
+
+    def test_a_watched_set_is_recorded_sorted_so_that_its_order_does_not_jump_around(self):
+        r = trace("s = {30, 1, 20}\n", watch=["s"])
+        t = r["frames"][-1]["tables"]["s"]
+        self.assertEqual((t["kind"], t["type"], [row["key"] for row in t["rows"]]), ("set", "set", ["1", "20", "30"]))
+        self.assertTrue(all("value" not in row for row in t["rows"]))
+
+    def test_a_frozenset_is_a_set_and_a_dict_subclass_is_a_dict(self):
+        r = trace("import collections\nf = frozenset([2, 1])\nc = collections.OrderedDict(a=1)\n", watch=["f", "c"])
+        tables = r["frames"][-1]["tables"]
+        self.assertEqual((tables["f"]["kind"], tables["f"]["type"]), ("set", "frozenset"))
+        self.assertEqual((tables["c"]["kind"], tables["c"]["type"]), ("dict", "OrderedDict"))
+
+    def test_a_set_of_mixed_types_falls_back_to_ordering_by_repr(self):
+        r = trace("s = {1, 'a', (2, 3)}\n", watch=["s"])
+        self.assertEqual([row["key"] for row in r["frames"][-1]["tables"]["s"]["rows"]], ["'a'", "(2, 3)", "1"])
+
+    def test_a_very_large_set_is_cut_without_being_sorted(self):
+        code = ("class K:\n    compared = 0\n    def __lt__(self, other):\n        K.compared += 1\n        return id(self) < id(other)\n"
+                "s = set(map(K.__new__, [K] * 600))\nprint(K.compared)\n")
+        r = trace(code, watch=["s"])
+        table = r["frames"][-1]["tables"]["s"]
+        self.assertEqual((len(table["rows"]), table["more"]), (tracer.MAX_ROWS, 600 - tracer.MAX_ROWS))
+        self.assertEqual(r["stdout"], "0\n")                         # sorting 600 members would have compared them
+
+    def test_a_list_is_not_a_table_and_a_dict_is_not_an_array(self):
+        r = trace("xs = [1]\nd = {}\n", watch=["xs", "d"])
+        last = r["frames"][-1]
+        self.assertEqual(list(last["tracked"]), ["xs"])
+        self.assertEqual(list(last["tables"]), ["d"])
+
+    def test_frames_are_snapshots_of_the_table(self):
+        r = trace("d = {}\nd['a'] = 1\nd['a'] = 2\ndel d['a']\n", watch=["d"])
+        rows = [[(row["key"], row["value"]) for row in f["tables"]["d"]["rows"]] for f in r["frames"] if "d" in f["tables"]]
+        self.assertEqual(rows, [[], [("'a'", "1")], [("'a'", "2")], []])
+
+    def test_long_tables_are_cut_and_the_rest_counted(self):
+        r = trace("d = {i: i for i in range(100)}\ns = set(range(100))\n", watch=["d", "s"])
+        for name in ("d", "s"):
+            t = r["frames"][-1]["tables"][name]
+            self.assertEqual((len(t["rows"]), t["more"]), (tracer.MAX_ROWS, 100 - tracer.MAX_ROWS))
+
+    def test_keys_and_values_are_clipped(self):
+        r = trace("d = {'k' * 100: 'v' * 100}\n", watch=["d"])
+        row = r["frames"][-1]["tables"]["d"]["rows"][0]
+        self.assertLessEqual(len(row["key"]), tracer.MAX_CELL_REPR)
+        self.assertLessEqual(len(row["value"]), tracer.MAX_CELL_REPR)
+
+    def test_a_dict_passed_into_a_function_is_found_by_its_parameter_name(self):
+        r = trace("def size(table):\n    return len(table)\nsize({'a': 1})\n", watch=["table"])
+        inside = next(f for f in r["frames"] if f["function"] == "size")
+        self.assertEqual(inside["tables"]["table"]["rows"], [{"key": "'a'", "value": "1"}])
+
+    def test_a_value_whose_repr_fails_is_still_a_row(self):
+        code = "class Bad:\n    def __repr__(self):\n        raise ValueError\nd = {'x': Bad()}\n"
+        row = trace(code, watch=["d"])["frames"][-1]["tables"]["d"]["rows"][0]
+        self.assertEqual(row["value"], "<unprintable Bad>")
+
+    def test_frames_always_carry_a_tables_object(self):
+        self.assertEqual(trace("x = 1\n")["frames"][0]["tables"], {})
+
+
 class Problems(unittest.TestCase):
     def test_a_syntax_error_has_no_frames_and_a_line(self):
         r = trace("a = (\n")

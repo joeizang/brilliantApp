@@ -7,17 +7,21 @@ trace_code(code, watch_json, max_frames=MAX_FRAMES) -> JSON string:
     {"status": "ok" | "error" | "truncated",
      "frames": [{"event": "line" | "return", "line": int | null, "function": str,
                  "locals": [{"name", "type", "repr"}],
-                 "tracked": {variable: {"type": str, "cells": [str], "more": int}}}],
+                 "tracked": {variable: {"type": str, "cells": [str], "more": int}},
+                 "tables": {variable: {"kind": "dict" | "set", "type": str, "rows": [{"key": str, "value": str}], "more": int}}}],
      "stdout": str, "message": str | null, "traceback": str | null, "errorLine": int | null}
 
 A "line" frame is the state just before that line runs. The last frame is the module's "return": the final
 state, with no line. "error" means the code raised (frames up to the error are kept) or never compiled;
-"truncated" means it ran past max_frames and was stopped. `watch_json` is the list of variable names to record
-as arrays, e.g. ["nums"]; a name is looked up in the current frame's locals, then in the globals, and left out
-while it is not a list or tuple.
+"truncated" means it ran past max_frames and was stopped. `watch_json` is the list of variable names to record,
+e.g. ["nums", "counts"]; a name is looked up in the current frame's locals, then in the globals. A list or tuple is
+recorded in "tracked" (cells); a dict (or subclass) or a set/frozenset in "tables" (rows: a set's rows have no
+"value"). A name that is none of those is left out until it is. A set's rows are sorted, so its order doesn't jump
+around as members are added; a dict's are in insertion order.
 """
 import contextlib
 import io
+import itertools
 import json
 import linecache
 import traceback
@@ -28,7 +32,9 @@ MAX_FRAMES = 300       # steps recorded; more than a learner can usefully click 
 MAX_LOCALS = 24        # variables shown per frame
 MAX_CELLS = 40         # array cells recorded per frame (the rest are counted in "more")
 MAX_REPR = 60          # characters of a variable's repr
-MAX_CELL_REPR = 24     # characters of an array cell's repr
+MAX_ROWS = 20          # dict entries / set members recorded per frame (the rest are counted in "more")
+MAX_SORT = 500         # sets bigger than this are shown in iteration order rather than paying to sort them at every step
+MAX_CELL_REPR = 24     # characters of an array cell's, or a table key's or value's, repr
 MAX_OUTPUT = 4000      # characters of stdout kept
 
 _HIDDEN_TYPES = (type(sys), type(lambda: 0), type, type(len), type(print))   # modules, functions, classes, builtins
@@ -60,16 +66,45 @@ def _locals(frame_locals):
     return shown
 
 
+def _watched(frame, watch):
+    for name in watch:
+        yield name, frame.f_locals[name] if name in frame.f_locals else frame.f_globals.get(name)
+
+
 def _tracked(frame, watch):
     found = {}
-    for name in watch:
-        value = frame.f_locals[name] if name in frame.f_locals else frame.f_globals.get(name)
+    for name, value in _watched(frame, watch):
         if isinstance(value, (list, tuple)):
             found[name] = {
                 "type": type(value).__name__,
                 "cells": [_repr(cell, MAX_CELL_REPR) for cell in value[:MAX_CELLS]],
                 "more": max(0, len(value) - MAX_CELLS),
             }
+    return found
+
+
+def _members(value):
+    if len(value) > MAX_SORT:
+        return list(itertools.islice(value, MAX_ROWS))
+    try:
+        return sorted(value)[:MAX_ROWS]
+    except Exception:           # members that can't be compared (e.g. 1 and 'a')
+        return sorted(value, key=lambda member: _repr(member, MAX_CELL_REPR))[:MAX_ROWS]
+
+
+def _tables(frame, watch):
+    found = {}
+    for name, value in _watched(frame, watch):
+        if isinstance(value, dict):
+            rows = [{"key": _repr(k, MAX_CELL_REPR), "value": _repr(v, MAX_CELL_REPR)}
+                    for k, v in itertools.islice(value.items(), MAX_ROWS)]
+            kind = "dict"
+        elif isinstance(value, (set, frozenset)):
+            rows = [{"key": _repr(member, MAX_CELL_REPR)} for member in _members(value)]
+            kind = "set"
+        else:
+            continue
+        found[name] = {"kind": kind, "type": type(value).__name__, "rows": rows, "more": max(0, len(value) - MAX_ROWS)}
     return found
 
 
@@ -112,7 +147,7 @@ def trace_code(code, watch_json, max_frames=MAX_FRAMES):
         locals_ = frame.f_globals if frame.f_code.co_name == "<module>" else frame.f_locals
         frames.append({
             "event": event, "line": line, "function": frame.f_code.co_name,
-            "locals": _locals(locals_), "tracked": _tracked(frame, watch),
+            "locals": _locals(locals_), "tracked": _tracked(frame, watch), "tables": _tables(frame, watch),
         })
 
     def on_line(frame, event, arg):

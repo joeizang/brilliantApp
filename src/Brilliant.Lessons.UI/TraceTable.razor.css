@@ -1,0 +1,28 @@
+.table { margin: var(--space-md) 0; padding: var(--space-sm) var(--space-md) var(--space-md); background: var(--surface-raised); border: 1px solid var(--hairline); border-radius: var(--radius-md); }
+.table-name { margin-bottom: var(--space-xs); color: var(--fg-secondary); font-size: .9rem; }
+.table-kind { margin-left: .4rem; font-size: .8rem; }
+
+.dict { width: 100%; border-collapse: separate; border-spacing: 0 .25rem; font-size: .95rem; }
+.dict .row > * { padding: .3rem .6rem; text-align: left; background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.dict .row > :first-child { border-left: 1px solid var(--border); border-radius: var(--radius-sm) 0 0 var(--radius-sm); width: 1%; white-space: nowrap; font-weight: 600; }
+.dict .row > :last-child { border-right: 1px solid var(--border); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+.row-value { overflow-wrap: anywhere; }
+.row-lookup { width: 1%; white-space: nowrap; text-align: right; }
+
+.set { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0; padding: 0; list-style: none; }
+.set .row { display: inline-flex; align-items: center; gap: .4rem; padding: .3rem .7rem; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; font-size: .95rem; }
+
+.looked-up-by { padding: .05rem .4rem; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-family: var(--font-mono); font-size: .75rem; font-weight: 600; }
+.row.looked-up > *, .set .row.looked-up { border-color: var(--accent); }
+
+/* A new row fades and grows in, a changed one flashes, and a removed one is struck through and fades away. */
+.row.added { animation: row-in .6s var(--ease); }
+.row.updated > *, .set .row.updated { animation: row-flash .9s var(--ease); }
+.row.removed { animation: row-out .9s var(--ease) forwards; text-decoration: line-through; opacity: .55; }
+.row.removed .looked-up-by { display: none; }
+@keyframes row-in { from { opacity: 0; transform: translateY(-.4rem) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes row-flash { from { background: var(--warn-bg); border-color: var(--accent); } }
+@keyframes row-out { from { opacity: 1; } to { opacity: .55; } }
+
+.table-empty, .table-more, .table-miss { margin: var(--space-xs) 0 0; color: var(--fg-secondary); font-size: .9rem; }
+.table-empty { font-style: italic; }

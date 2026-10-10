@@ -11,6 +11,15 @@ public class TraceTests
         new(line is null ? "return" : "line", line, function, locals ?? [],
             arrays.ToDictionary(a => a.Name, a => new TrackedArray("list", a.Cells, 0)));
 
+    private static TrackedTable Dict(params (string Key, string Value)[] rows) =>
+        new("dict", "dict", rows.Select(r => new TableRow(r.Key, r.Value)).ToList(), 0);
+
+    private static TrackedTable Set(params string[] members) => new("set", "set", members.Select(m => new TableRow(m, null)).ToList(), 0);
+
+    private static TraceFrame TableFrame(int? line, string name, TrackedTable table, params TraceLocal[] locals) =>
+        new(line is null ? "return" : "line", line, "<module>", locals, new Dictionary<string, TrackedArray>(),
+            new Dictionary<string, TrackedTable> { [name] = table });
+
     private static TraceResult Run(params TraceFrame[] frames) => new(TraceStatus.Ok, frames, "", null, null, null);
 
     private static readonly Visual Nums = new("nums", Visual.Array, ["i"]);
@@ -48,11 +57,44 @@ public class TraceTests
     }
 
     [Fact]
-    public void The_watch_list_names_each_variable_once_and_only_for_arrays()
+    public void The_watch_list_names_each_variable_once_and_only_for_drawings_the_player_knows()
     {
         var watch = TraceResultJson.SerializeWatch([Nums, new Visual("nums", Visual.Array, ["j"]), new Visual("tree", "graph", [])]);
 
         Assert.Equal("""["nums"]""", watch);
+    }
+
+    [Fact]
+    public void The_watch_list_includes_dicts_and_sets()
+    {
+        var watch = TraceResultJson.SerializeWatch([Nums, new Visual("counts", Visual.Dict, ["word"]), new Visual("seen", Visual.Set, [])]);
+
+        Assert.Equal("""["nums","counts","seen"]""", watch);
+    }
+
+    [Fact]
+    public void Tables_in_the_tracer_json_parse_with_their_rows()
+    {
+        var json = """
+            {"status": "ok", "frames": [{"event": "line", "line": 1, "function": "<module>", "locals": [], "tracked": {},
+              "tables": {"d": {"kind": "dict", "type": "OrderedDict", "rows": [{"key": "'a'", "value": "1"}], "more": 3},
+                         "s": {"kind": "set", "type": "frozenset", "rows": [{"key": "2"}], "more": 0}}}],
+             "stdout": "", "message": null, "traceback": null, "errorLine": null}
+            """;
+
+        var tables = Assert.Single(TraceResultJson.Parse(json).Frames).Tables!;
+
+        Assert.Equal(("dict", "OrderedDict", 3), (tables["d"].Kind, tables["d"].Type, tables["d"].More));
+        Assert.Equal(new TableRow("'a'", "1"), Assert.Single(tables["d"].Rows));
+        Assert.Equal(new TableRow("2", null), Assert.Single(tables["s"].Rows));
+    }
+
+    [Fact]
+    public void A_trace_recorded_before_tables_existed_still_parses()
+    {
+        var json = """{"status": "ok", "frames": [{"event": "line", "line": 1, "function": "f", "locals": [], "tracked": {}}], "stdout": "", "message": null, "traceback": null, "errorLine": null}""";
+
+        Assert.Empty(Build(TraceResultJson.Parse(json), new Visual("d", Visual.Dict, []))[0].Tables);
     }
 
     // ---- States ----
@@ -271,6 +313,191 @@ public class TraceTests
             Frame(2, locals: [Int("left", 1), Int("right", 3)], arrays: ("nums", ["1", "2", "3", "4"]))), visual);
 
         Assert.Equal([("left", 1, true), ("right", 3, false)], states[1].Arrays[0].Pointers.Select(p => (p.Name, p.Index!.Value, p.Moved)));
+    }
+
+
+    // ---- Tables (dicts and sets) ----
+
+    private static readonly Visual Counts = new("counts", Visual.Dict, ["word"]);
+
+    [Fact]
+    public void A_dict_visual_makes_a_table_with_one_row_per_entry()
+    {
+        var states = Build(Run(TableFrame(1, "counts", Dict(("'a'", "1"), ("'b'", "2")))), Counts);
+
+        var table = Assert.Single(states[0].Tables);
+        Assert.Equal(("counts", "dict"), (table.Variable, table.Kind));
+        Assert.Equal([("'a'", "1"), ("'b'", "2")], table.Rows.Select(r => (r.Key, r.Value!)));
+        Assert.Empty(states[0].Arrays);
+    }
+
+    [Fact]
+    public void A_set_visual_makes_a_table_of_members_with_no_values()
+    {
+        var states = Build(Run(TableFrame(1, "seen", Set("1", "2"))), new Visual("seen", Visual.Set, []));
+
+        var table = Assert.Single(states[0].Tables);
+        Assert.Equal("set", table.Kind);
+        Assert.Equal(["1", "2"], table.Rows.Select(r => r.Key));
+        Assert.All(table.Rows, r => Assert.Null(r.Value));
+    }
+
+    [Fact]
+    public void A_table_is_left_out_while_the_variable_is_not_that_kind_of_collection()
+    {
+        var asSet = Build(Run(TableFrame(1, "counts", Dict(("1", "1")))), new Visual("counts", Visual.Set, []));
+        var asDict = Build(Run(TableFrame(1, "seen", Set("1"))), new Visual("seen", Visual.Dict, []));
+        var absent = Build(Run(Frame(1)), Counts);
+
+        Assert.Empty(asSet[0].Tables);
+        Assert.Empty(asDict[0].Tables);
+        Assert.Empty(absent[0].Tables);
+    }
+
+    [Fact]
+    public void An_array_visual_does_not_draw_a_dict_and_a_dict_visual_does_not_draw_a_list()
+    {
+        var onDict = Build(Run(TableFrame(1, "nums", Dict(("1", "1")))), Nums);
+        var onList = Build(Run(Frame(1, arrays: ("counts", ["1"]))), Counts);
+
+        Assert.Empty(onDict[0].Arrays);
+        Assert.Empty(onList[0].Tables);
+    }
+
+    [Fact]
+    public void Tables_and_arrays_each_follow_the_order_of_their_visuals()
+    {
+        var run = Run(new TraceFrame("line", 1, "<module>", [], new Dictionary<string, TrackedArray>(),
+            new Dictionary<string, TrackedTable> { ["b"] = Set("1"), ["a"] = Dict(("1", "1")) }));
+
+        var states = Build(run, new Visual("a", Visual.Dict, []), new Visual("b", Visual.Set, []));
+
+        Assert.Equal(["a", "b"], states[0].Tables.Select(t => t.Variable));
+    }
+
+    [Fact]
+    public void A_row_added_since_the_previous_step_is_marked_added()
+    {
+        var states = Build(Run(
+            TableFrame(1, "counts", Dict(("'a'", "1"))),
+            TableFrame(2, "counts", Dict(("'a'", "1"), ("'b'", "1")))), Counts);
+
+        Assert.All(states[0].Tables[0].Rows, r => Assert.Equal(RowChange.None, r.Change));
+        Assert.Equal([RowChange.None, RowChange.Added], states[1].Tables[0].Rows.Select(r => r.Change));
+    }
+
+    [Fact]
+    public void A_row_whose_value_differs_is_marked_updated()
+    {
+        var states = Build(Run(
+            TableFrame(1, "counts", Dict(("'a'", "1"), ("'b'", "1"))),
+            TableFrame(2, "counts", Dict(("'a'", "2"), ("'b'", "1")))), Counts);
+
+        Assert.Equal([RowChange.Updated, RowChange.None], states[1].Tables[0].Rows.Select(r => r.Change));
+    }
+
+    [Fact]
+    public void A_row_that_has_gone_is_kept_for_one_step_marked_removed()
+    {
+        var states = Build(Run(
+            TableFrame(1, "counts", Dict(("'a'", "1"), ("'b'", "2"))),
+            TableFrame(2, "counts", Dict(("'b'", "2"))),
+            TableFrame(3, "counts", Dict(("'b'", "2")))), Counts);
+
+        Assert.Equal([("'b'", RowChange.None), ("'a'", RowChange.Removed)], states[1].Tables[0].Rows.Select(r => (r.Key, r.Change)));
+        Assert.Equal("1", states[1].Tables[0].Rows[1].Value);
+        Assert.Equal(["'b'"], states[2].Tables[0].Rows.Select(r => r.Key));      // the ghost lasts a single step
+    }
+
+    [Fact]
+    public void A_removed_set_member_is_marked_removed_too()
+    {
+        var states = Build(Run(TableFrame(1, "s", Set("1", "2")), TableFrame(2, "s", Set("2"))), new Visual("s", Visual.Set, []));
+
+        Assert.Equal([RowChange.None, RowChange.Removed], states[1].Tables[0].Rows.Select(r => r.Change));
+    }
+
+    [Fact]
+    public void A_key_that_returns_after_being_removed_is_added_again()
+    {
+        var states = Build(Run(
+            TableFrame(1, "counts", Dict(("'a'", "1"))),
+            TableFrame(2, "counts", Dict()),
+            TableFrame(3, "counts", Dict(("'a'", "1")))), Counts);
+
+        Assert.Equal([RowChange.Added], states[2].Tables[0].Rows.Select(r => r.Change));
+    }
+
+    [Fact]
+    public void Nothing_in_a_table_is_marked_the_first_time_it_appears_or_across_functions()
+    {
+        var first = Build(Run(Frame(1), TableFrame(2, "counts", Dict(("'a'", "1")))), Counts);
+        var otherFunction = Build(Run(
+            TableFrame(1, "counts", Dict(("'a'", "1"))),
+            new TraceFrame("line", 5, "f", [], new Dictionary<string, TrackedArray>(),
+                new Dictionary<string, TrackedTable> { ["counts"] = Dict(("'z'", "9")) })), Counts);
+
+        Assert.All(first[1].Tables[0].Rows, r => Assert.Equal(RowChange.None, r.Change));
+        Assert.All(otherFunction[1].Tables[0].Rows, r => Assert.Equal(RowChange.None, r.Change));
+    }
+
+    [Fact]
+    public void A_pointer_marks_the_row_whose_key_its_variable_holds()
+    {
+        var states = Build(Run(TableFrame(1, "counts", Dict(("'a'", "1"), ("'b'", "2")), new TraceLocal("word", "str", "'b'"))), Counts);
+
+        var table = states[0].Tables[0];
+        Assert.Empty(table.Rows[0].LookedUpBy);
+        Assert.Equal(["word"], table.Rows[1].LookedUpBy);
+        Assert.Empty(table.Misses);
+    }
+
+    [Fact]
+    public void A_pointer_whose_key_is_not_in_the_table_is_a_miss()
+    {
+        var states = Build(Run(TableFrame(1, "counts", Dict(("'a'", "1")), new TraceLocal("word", "str", "'zzz'"))), Counts);
+
+        Assert.All(states[0].Tables[0].Rows, r => Assert.Empty(r.LookedUpBy));
+        Assert.Equal(["word"], states[0].Tables[0].Misses);
+    }
+
+    [Fact]
+    public void A_pointer_whose_variable_does_not_exist_yet_is_neither_a_lookup_nor_a_miss()
+    {
+        var states = Build(Run(TableFrame(1, "counts", Dict(("'a'", "1")))), Counts);
+
+        Assert.Empty(states[0].Tables[0].Misses);
+        Assert.All(states[0].Tables[0].Rows, r => Assert.Empty(r.LookedUpBy));
+    }
+
+    [Fact]
+    public void Two_pointers_can_look_at_the_same_row_and_a_set_can_be_looked_up_too()
+    {
+        var visual = new Visual("seen", Visual.Set, ["x", "y"]);
+        var states = Build(Run(TableFrame(1, "seen", Set("1", "2"), new TraceLocal("x", "int", "2"), new TraceLocal("y", "int", "2"))), visual);
+
+        Assert.Equal(["x", "y"], states[0].Tables[0].Rows[1].LookedUpBy);
+    }
+
+    [Fact]
+    public void A_ghost_row_is_never_looked_up()
+    {
+        var states = Build(Run(
+            TableFrame(1, "counts", Dict(("'a'", "1"))),
+            TableFrame(2, "counts", Dict(), new TraceLocal("word", "str", "'a'"))), Counts);
+
+        var table = states[1].Tables[0];
+        Assert.Equal(RowChange.Removed, table.Rows[0].Change);
+        Assert.Empty(table.Rows[0].LookedUpBy);
+        Assert.Equal(["word"], table.Misses);
+    }
+
+    [Fact]
+    public void The_count_of_rows_beyond_the_recorded_ones_is_kept()
+    {
+        var frame = TableFrame(1, "counts", Dict(("'a'", "1")) with { More = 7 });
+
+        Assert.Equal(7, Build(Run(frame), Counts)[0].Tables[0].More);
     }
 
     // ---- Content ----

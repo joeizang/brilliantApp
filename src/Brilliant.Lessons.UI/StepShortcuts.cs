@@ -14,6 +14,15 @@ public enum StepCommand
 
     /// <summary>Leave the lesson.</summary>
     Back,
+
+    /// <summary>Step the Trace Player back one step (←).</summary>
+    Previous,
+
+    /// <summary>Step the Trace Player forward one step (→).</summary>
+    Next,
+
+    /// <summary>Start or stop the Trace Player's automatic playback (Space).</summary>
+    PlayPause,
 }
 
 /// <param name="Number">The 1-based answer for <see cref="StepCommand.Choose"/>; 0 otherwise.</param>

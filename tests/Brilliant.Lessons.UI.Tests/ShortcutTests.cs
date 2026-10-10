@@ -234,8 +234,12 @@ public class ShortcutTests : ShortcutContext
         await cut.InvokeAsync(() => cut.Instance.OnShortcut("run", 0));
         await cut.InvokeAsync(() => cut.Instance.OnShortcut("advance", 0));
         await cut.InvokeAsync(() => cut.Instance.OnShortcut("choose", 3));
+        await cut.InvokeAsync(() => cut.Instance.OnShortcut("previous", 0));
+        await cut.InvokeAsync(() => cut.Instance.OnShortcut("next", 0));
+        await cut.InvokeAsync(() => cut.Instance.OnShortcut("playpause", 0));
 
-        Assert.Equal([new(StepCommand.Run), new(StepCommand.Advance), new(StepCommand.Choose, 3)], seen);
+        Assert.Equal([new(StepCommand.Run), new(StepCommand.Advance), new(StepCommand.Choose, 3),
+            new(StepCommand.Previous), new(StepCommand.Next), new(StepCommand.PlayPause)], seen);
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => cut.Instance.OnShortcut("nope", 0));
     }
 }
