@@ -75,7 +75,7 @@ public static class LearnerStateProjector
             var root = doc.RootElement;
             if (root.ValueKind != JsonValueKind.Object
                 || !root.TryGetProperty("item", out var item) || item.ValueKind != JsonValueKind.String
-                || !root.TryGetProperty("rating", out var rating) || !rating.TryGetInt32(out var grade)
+                || !root.TryGetProperty("rating", out var rating) || rating.ValueKind != JsonValueKind.Number || !rating.TryGetInt32(out var grade)
                 || grade is < 1 or > 4) return null;
             return (item.GetString()!, (Rating)grade);
         }

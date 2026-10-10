@@ -251,6 +251,43 @@ public class ReviewProjectionTests
         Assert.All(state.Reviews.Where(r => r.Lesson.Id == One.Id), r => Assert.Null(r.Card));
     }
 
+    [Theory]
+    [InlineData("null")]
+    [InlineData("\"3\"")]
+    [InlineData("true")]
+    [InlineData("[3]")]
+    [InlineData("{}")]
+    [InlineData("3.5")]
+    [InlineData("99999999999")]
+    public void A_rating_that_is_not_a_small_whole_number_is_ignored_rather_than_breaking_projection(string rating)
+    {
+        Finish(One);
+        var bad = new ProgressEvent("x", "d", T0, ProgressEventTypes.ReviewAnswered, One.Id, "step.one.q1", $$"""{"item":"review.one.q1","rating":{{rating}}}""");
+
+        var state = LearnerStateProjector.Project(_log.Items.Concat([bad]), Graph(One, Two), T0.AddDays(1));
+
+        Assert.Null(state.Reviews.Single(r => r.Item.Id == "review.one.q1").Card);
+    }
+
+    [Theory]
+    [InlineData("""{"item":null,"rating":3}""")]
+    [InlineData("""{"item":3,"rating":3}""")]
+    [InlineData("""{"item":["review.one.q1"],"rating":3}""")]
+    [InlineData("""{"rating":3}""")]
+    [InlineData("null")]
+    [InlineData("3")]
+    [InlineData("[]")]
+    [InlineData("\"review.one.q1\"")]
+    public void A_payload_or_item_of_the_wrong_kind_is_ignored(string data)
+    {
+        Finish(One);
+        var bad = new ProgressEvent("x", "d", T0, ProgressEventTypes.ReviewAnswered, One.Id, "step.one.q1", data);
+
+        var state = LearnerStateProjector.Project(_log.Items.Concat([bad]), Graph(One, Two), T0.AddDays(1));
+
+        Assert.All(state.Reviews.Where(r => r.Lesson.Id == One.Id), r => Assert.Null(r.Card));
+    }
+
     [Fact]
     public void Review_answers_never_change_lesson_progress()
     {

@@ -49,6 +49,9 @@ else
     [Parameter, EditorRequired] public ContentGraph Content { get; set; } = default!;
     [Parameter] public EventCallback OnExit { get; set; }
 
+    /// <summary>Raised after an answer is recorded, so whatever shows the due count elsewhere (the sidebar) can refresh.</summary>
+    [Parameter] public EventCallback OnProgress { get; set; }
+
     private IReadOnlyList<ReviewItemState> _queue = [];
     private int _index;
     private DateTimeOffset _shownAt;
@@ -71,12 +74,13 @@ else
     }
 
     // Only the first answer to an item counts: retrying is practice, not a better memory.
-    private void Answered(ReviewItemState item, bool correct)
+    private async Task Answered(ReviewItemState item, bool correct)
     {
         if (_recorded) return;
         _recorded = true;
         Recorder.ReviewAnswered(item, correct, hintsUsed: 0, Recorder.Now - _shownAt);
         _scheduled = Recorder.Project(Content).Reviews.First(r => r.Item.Id == item.Item.Id).Card?.Due;
+        await OnProgress.InvokeAsync();
     }
 
     private void Next()

@@ -13,7 +13,7 @@
     <main class="shell-main">
         @if (_reviewing)
         {
-            <ReviewView Content="Content" OnExit="BackToTracks" />
+            <ReviewView Content="Content" OnExit="BackToTracks" OnProgress="() => StateHasChanged()" />
         }
         else if (_lesson is { } lesson)
         {

@@ -235,4 +235,42 @@ public class ReviewViewTests : ShortcutContext
         cut.Find("button.link").Click();
         Assert.Contains("Tracks", cut.Find("h1.screen-title").TextContent);
     }
+
+    [Fact]
+    public void Answering_in_the_shell_refreshes_the_sidebars_due_count()
+    {
+        FinishLesson();
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        JSInterop.SetupModule("./_content/Brilliant.Lessons.UI/shortcuts.js");
+        var cut = Render<CourseShell>(p => p.Add(c => c.Content, Content));
+        cut.Find("button.review-card").Click();
+        Assert.Equal("2", cut.Find(".due-count").TextContent.Trim());
+
+        var index = cut.FindAll("ul.options li").ToList().FindIndex(li => li.TextContent.Trim() == "right");
+        cut.FindAll("ul.options input")[index].Change(true);
+        cut.Find("button.primary").Click();
+
+        Assert.Equal("1", cut.Find(".due-count").TextContent.Trim());
+    }
+
+    [Fact]
+    public void The_sidebar_badge_disappears_once_the_queue_is_empty()
+    {
+        FinishLesson();
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        JSInterop.SetupModule("./_content/Brilliant.Lessons.UI/shortcuts.js");
+        var cut = Render<CourseShell>(p => p.Add(c => c.Content, Content));
+        cut.Find("button.review-card").Click();
+
+        for (var i = 0; i < 2; i++)
+        {
+            var index = cut.FindAll("ul.options li").ToList().FindIndex(li => li.TextContent.Trim() == "right");
+            cut.FindAll("ul.options input")[index].Change(true);
+            cut.Find("button.primary").Click();   // Check
+            cut.Find("button.primary").Click();   // Continue
+        }
+
+        Assert.Contains("all caught up", cut.Markup);
+        Assert.Empty(cut.FindAll(".due-count"));
+    }
 }

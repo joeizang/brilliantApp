@@ -64,7 +64,8 @@ The rating is stored on the event so history replays identically if these thresh
 ## The `ReviewAnswered` event
 
 `StepId` is the question step; `Data` is `{ "item", "correct", "hintsUsed", "elapsedMs", "rating" }`. Events with
-missing or malformed data, or an unknown item, are ignored. Answers are ordered by `(OccurredAt, event ID)`, so identical
+missing or malformed data are ignored: not JSON, not an object, an `item` that isn't a string, or a `rating` that isn't a JSON number from 1 to 4.
+An unknown item is ignored too. One bad event can never stop the projector. Answers are ordered by `(OccurredAt, event ID)`, so identical
 timestamps from two devices resolve the same way everywhere.
 
 Review answers never touch lesson progress: they use a different event type, so lesson completion and unlocking are unaffected.
@@ -73,7 +74,7 @@ Review answers never touch lesson progress: they use a different event type, so 
 
 - **Entry points:** a *Review · N due* card on the Tracks screen (or "No reviews due"), and a *Review* item with a due-count badge in the sidebar.
 - **Queue:** `DueReviews`, snapshotted when the screen opens. Items already scheduled come first, most overdue first; new items follow in content order.
-- **Answering:** only the first check of each item is recorded; trying again is practice. After it, the screen says when the item will return.
+- **Answering:** only the first check of each item is recorded; trying again is practice. After it, the screen says when the item will return, and the sidebar's due count refreshes.
 - **Question types:** choice and predict-output, the only types a review item may reference today (the validator enforces it).
 - **Caught up:** shows when the next review is due.
 - The Back shortcut returns to the Tracks screen, as it does from a lesson.
