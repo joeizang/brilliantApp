@@ -1,5 +1,6 @@
 using Brilliant.Cli;
 using Brilliant.Core.Content;
+using Brilliant.Core.Python;
 
 namespace Brilliant.Cli.Tests;
 
@@ -374,7 +375,8 @@ public sealed class ValidatorTests : IDisposable
     }
 
     private const string WriteCodeHead = "  - id: step.one.w\n    type: write-code\n    title: W\n    prompt: Write it\n";
-    private const string WriteCodeBody = "    language: python\n    entrypoint: add\n    starter: |\n      def add(a, b):\n          pass\n    tests:\n      - input: \"1, 2\"\n        expected: \"3\"\n";
+    private const string AddSolution = "    solution: |\n      def add(a, b):\n          return a + b\n";
+    private const string WriteCodeBody = "    language: python\n    entrypoint: add\n    starter: |\n      def add(a, b):\n          pass\n" + AddSolution + "    tests:\n      - input: \"1, 2\"\n        expected: \"3\"\n";
 
     [Fact]
     public void Write_code_step_loads_into_the_pack()
@@ -383,7 +385,7 @@ public sealed class ValidatorTests : IDisposable
             + "      - input: \"\"\n        expected: \"0\"\n    hints:\n      - nudge\n");
         var outPath = Path.Combine(_root, "out", "p.zip");
 
-        var report = ContentPacker.Pack(_root, outPath);
+        var report = ContentPacker.Pack(_root, outPath, new FakeRunner(_ => Outcome(TestRunStatus.Passed)));
 
         Assert.True(report.IsValid, string.Join("\n", report.Errors));
         var step = Assert.IsType<WriteCodeStep>(ContentPackFormat.Load(outPath).Get<Step>("step.one.w"));
@@ -400,6 +402,7 @@ public sealed class ValidatorTests : IDisposable
         Assert.Contains(m, x => x.Contains("'prompt' is required"));
         Assert.Contains(m, x => x.Contains("'entrypoint' is required"));
         Assert.Contains(m, x => x.Contains("'language' is required"));
+        Assert.Contains(m, x => x.Contains("'solution' is required"));
         Assert.Contains(m, x => x.Contains("at least one hidden test"));
     }
 
@@ -420,6 +423,110 @@ public sealed class ValidatorTests : IDisposable
         Assert.Contains(m, x => x.Contains("tests[0] needs 'input'"));
         Assert.Contains(m, x => x.Contains("tests[1] needs 'expected'"));
         Assert.Contains(m, x => x.Contains("tests[2]") && x.Contains("entry is empty"));
+    }
+
+    private sealed class FakeRunner(Func<string, TestRunResult> result) : IReferenceSolutionRunner
+    {
+        public List<string> Solutions { get; } = [];
+        public TestRunResult Run(string code, string entrypoint, IReadOnlyList<CodeTest> tests) { Solutions.Add(code); return result(code); }
+    }
+
+    private static TestRunResult Outcome(TestRunStatus status, params TestOutcome[] tests) =>
+        new(status, "", status == TestRunStatus.Error ? "Your code raised an error before the tests could run." : null,
+            status == TestRunStatus.Error ? "NameError: name 'x' is not defined" : null, null, tests);
+
+    private void WriteAddLesson(string solution = AddSolution) =>
+        WriteValidPack(LessonHeader + "steps:\n" + WriteCodeHead
+            + "    language: python\n    entrypoint: add\n" + solution + "    tests:\n      - input: '1, 2'\n        expected: '3'\n");
+
+    [Fact]
+    public void Reference_solutions_are_run_but_never_shipped_in_the_pack()
+    {
+        WriteAddLesson();
+        var runner = new FakeRunner(_ => Outcome(TestRunStatus.Passed));
+        var outPath = Path.Combine(_root, "out", "p.zip");
+
+        var report = ContentPacker.Pack(_root, outPath, runner);
+
+        Assert.True(report.IsValid);
+        Assert.Single(runner.Solutions);
+        Assert.Contains("return a + b", runner.Solutions[0]);
+        using var zip = System.IO.Compression.ZipFile.OpenRead(outPath);
+        foreach (var entry in zip.Entries)
+        {
+            using var reader = new StreamReader(entry.Open());
+            Assert.DoesNotContain("return a + b", reader.ReadToEnd());
+        }
+    }
+
+    [Fact]
+    public void A_failing_reference_solution_is_reported_with_step_test_expected_and_actual_and_blocks_packing()
+    {
+        WriteAddLesson();
+        var runner = new FakeRunner(_ => Outcome(TestRunStatus.Failed,
+            new TestOutcome("add(1, 2)", "3", "-1", false, "", null, null)));
+        var outPath = Path.Combine(_root, "out", "p.zip");
+
+        var report = ContentPacker.Pack(_root, outPath, runner);
+
+        Assert.False(report.IsValid);
+        Assert.False(File.Exists(outPath));
+        var error = Assert.Single(report.Errors);
+        Assert.Contains("lesson.yaml", error.File);
+        Assert.Contains("step.one.w", error.Message);
+        Assert.Contains("test 1: add(1, 2)", error.Message);
+        Assert.Contains("expected: 3", error.Message);
+        Assert.Contains("actual:   -1", error.Message);
+    }
+
+    [Fact]
+    public void A_reference_solution_that_cannot_run_is_reported_with_its_error()
+    {
+        WriteAddLesson();
+        var report = ContentValidator.Validate(_root, new FakeRunner(_ => Outcome(TestRunStatus.Error)));
+        Assert.Contains(report.Errors, e => e.Message.Contains("reference solution is wrong") && e.Message.Contains("NameError"));
+    }
+
+    [Fact]
+    public void Solutions_are_not_run_when_the_content_is_otherwise_invalid()
+    {
+        WriteAddLesson();
+        Write("tracks/t/track.yaml", "id: bad id\ntitle: T\n");
+        var runner = new FakeRunner(_ => Outcome(TestRunStatus.Passed));
+
+        Assert.False(ContentValidator.Validate(_root, runner).IsValid);
+        Assert.Empty(runner.Solutions);
+    }
+
+    [Fact]
+    public void A_missing_python_is_reported_once_with_how_to_fix_it()
+    {
+        WriteAddLesson();
+        var report = ContentValidator.Validate(_root, new CPythonRunner(python: "definitely-not-a-python"));
+        var error = Assert.Single(report.Errors);
+        Assert.Contains("BRILLIANT_PYTHON", error.Message);
+    }
+
+    [Fact]
+    public void Real_cpython_accepts_a_correct_solution_and_rejects_a_wrong_one()
+    {
+        var runner = new CPythonRunner();
+        WriteAddLesson();
+        Assert.True(ContentValidator.Validate(_root, runner).IsValid);
+
+        WriteAddLesson("    solution: |\n      def add(a, b):\n          return a - b\n");
+        var wrong = Assert.Single(ContentValidator.Validate(_root, runner).Errors);
+        Assert.Contains("add(1, 2)", wrong.Message);
+        Assert.Contains("expected: 3", wrong.Message);
+        Assert.Contains("actual:   -1", wrong.Message);
+    }
+
+    [Fact]
+    public void Real_cpython_stops_a_solution_that_never_finishes()
+    {
+        WriteAddLesson("    solution: |\n      def add(a, b):\n          while True:\n              pass\n");
+        var report = ContentValidator.Validate(_root, new CPythonRunner(TimeSpan.FromSeconds(2)));
+        Assert.Contains(report.Errors, e => e.Message.Contains("ran for more than 2 seconds"));
     }
 
     [Fact]

@@ -82,3 +82,9 @@ Components must use the tokens (`var(--accent)` etc.), never raw colours. Shared
   `IPythonRuntime`). The test harness is `wwwroot/python/harness.py`; check it under CPython with
   `python3 -I -m unittest discover -s tests/python`.
 - Known limit until #10: there is no timeout, so an infinite loop in learner code hangs the worker until the app is restarted.
+
+## Reference solutions (issue #11)
+
+Every `write-code` step in `content/` needs a `solution:` (authoring-only, never packed). `validate` and `pack` run each solution
+against the step's tests with the same `harness.py` under CPython (`python3`, or the interpreter in `BRILLIANT_PYTHON`) and refuse to
+produce a pack if any fails, reporting lesson file, step, test, expected and actual.
