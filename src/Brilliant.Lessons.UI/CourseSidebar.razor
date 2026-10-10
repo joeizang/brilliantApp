@@ -1,0 +1,46 @@
+@using Brilliant.Core.Progress
+@inject ProgressRecorder Recorder
+
+<nav class="sidebar" aria-label="Course">
+    @foreach (var track in CourseProgress.From(Content, Recorder.Log.ReadAll()))
+    {
+        <section class="side-track">
+            <button class="side-track-title @(track.Track.Id == CurrentTrack?.Id ? "current" : "")" @onclick="() => OnOpenTrack.InvokeAsync(track.Track)">
+                @track.Track.Title
+                <small>@track.CompletedLessons / @track.TotalLessons</small>
+            </button>
+            <ol>
+                @foreach (var l in track.Lessons)
+                {
+                    <li>
+                        <button class="side-lesson @l.Status.ToString().ToLowerInvariant() @(l.Lesson.Id == CurrentLesson?.Id ? "current" : "")"
+                                disabled="@(l.Status == LessonStatus.Locked)"
+                                aria-current="@(l.Lesson.Id == CurrentLesson?.Id ? "page" : null)"
+                                @onclick="() => OnOpenLesson.InvokeAsync((track.Track, l.Lesson, l.Status == LessonStatus.Completed))">
+                            <span class="status" aria-hidden="true">@Icon(l.Status)</span>
+                            <span>@l.Lesson.Title</span>
+                        </button>
+                    </li>
+                }
+            </ol>
+        </section>
+    }
+</nav>
+
+@code {
+    [Parameter, EditorRequired] public ContentGraph Content { get; set; } = default!;
+    [Parameter] public Track? CurrentTrack { get; set; }
+    [Parameter] public Lesson? CurrentLesson { get; set; }
+    [Parameter] public EventCallback<Track> OnOpenTrack { get; set; }
+
+    /// <summary>A lesson was picked: its track, the lesson, and whether to replay it (it is already complete).</summary>
+    [Parameter] public EventCallback<(Track Track, Lesson Lesson, bool Review)> OnOpenLesson { get; set; }
+
+    private static string Icon(LessonStatus s) => s switch
+    {
+        LessonStatus.Completed => "✓",
+        LessonStatus.Locked => "🔒",
+        LessonStatus.InProgress => "◐",
+        _ => "○",
+    };
+}

@@ -1,3 +1,6 @@
+@implements IDisposable
+@inject StepShortcuts Shortcuts
+
 <article class="choice-step">
     <h2>@Step.Title</h2>
     <p class="prompt">@Step.Prompt</p>
@@ -51,6 +54,12 @@
     /// <summary>Raised when the learner continues after a correct answer.</summary>
     [Parameter] public EventCallback OnContinue { get; set; }
 
+    private IDisposable? _shortcuts;
+
+    protected override void OnInitialized() => _shortcuts = Shortcuts.Subscribe(OnShortcut);
+
+    public void Dispose() => _shortcuts?.Dispose();
+
     private readonly SortedSet<int> _selected = [];
     private ChoiceResult? _result;
     private bool _locked => _result is not null;
@@ -80,6 +89,26 @@
         _result = null;
         _selected.Clear();
     }
+
+    private Task OnShortcut(StepShortcut s) => InvokeAsync(async () =>
+    {
+        switch (s.Command)
+        {
+            case StepCommand.Choose when !_locked && s.Number <= Step.Options.Count:
+                Toggle(s.Number - 1);
+                break;
+            case StepCommand.Run or StepCommand.Advance when _result is null:
+                if (_selected.Count > 0) await Check();
+                break;
+            case StepCommand.Advance when _result is { IsCorrect: true }:
+                await OnContinue.InvokeAsync();
+                return;
+            case StepCommand.Advance:
+                TryAgain();
+                break;
+        }
+        StateHasChanged();
+    });
 
     private string OptionClass(int index, bool picked)
     {

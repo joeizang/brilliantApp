@@ -1,3 +1,6 @@
+@implements IDisposable
+@inject StepShortcuts Shortcuts
+
 <article class="fill-step">
     <h2>@Step.Title</h2>
     <p class="prompt">@Step.Prompt</p>
@@ -71,6 +74,29 @@
 
     private bool Locked => _result is not null;
     private bool CanCheck => Step.Blanks.All(b => !string.IsNullOrWhiteSpace(Value(b.Id)));
+
+    private IDisposable? _shortcuts;
+
+    protected override void OnInitialized() => _shortcuts = Shortcuts.Subscribe(OnShortcut);
+
+    private Task OnShortcut(StepShortcut s) => InvokeAsync(async () =>
+    {
+        switch (s.Command)
+        {
+            case StepCommand.Run or StepCommand.Advance when _result is null:
+                if (CanCheck) await Check();
+                break;
+            case StepCommand.Advance when _result is { IsCorrect: true }:
+                await OnContinue.InvokeAsync();
+                return;
+            case StepCommand.Advance:
+                TryAgain();
+                break;
+        }
+        StateHasChanged();
+    });
+
+    public void Dispose() => _shortcuts?.Dispose();
 
     protected override void OnParametersSet() => _lines = FillBlankTemplate.Lines(Step.Template);
 

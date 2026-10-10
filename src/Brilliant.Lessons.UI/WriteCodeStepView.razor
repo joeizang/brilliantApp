@@ -2,6 +2,8 @@
 @using Brilliant.Core.Python
 @inject IPythonRuntime Runtime
 @inject ICodeDraftStore Drafts
+@inject StepShortcuts Shortcuts
+@implements IDisposable
 
 <article class="write-step">
     <h2>@Step.Title</h2>
@@ -101,7 +103,30 @@
     private TestRunResult? _result;
     private string? _runtimeFailure;
 
-    protected override void OnInitialized() => _initialCode = Drafts.Get(Step.Id) ?? Step.Starter;
+    private IDisposable? _shortcuts;
+
+    protected override void OnInitialized()
+    {
+        _initialCode = Drafts.Get(Step.Id) ?? Step.Starter;
+        _shortcuts = Shortcuts.Subscribe(OnShortcut);
+    }
+
+    public void Dispose() => _shortcuts?.Dispose();
+
+    // ⌘↩ runs the tests (also while they are already running, when it does nothing); Return continues once they pass.
+    private Task OnShortcut(StepShortcut s) => InvokeAsync(async () =>
+    {
+        switch (s.Command)
+        {
+            case StepCommand.Run when !_running:
+                await Submit();
+                break;
+            case StepCommand.Advance when _result is { Status: TestRunStatus.Passed }:
+                await OnContinue.InvokeAsync();
+                return;
+        }
+        StateHasChanged();
+    });
 
     // Code that matches the starter is stored as "no draft", so a later change to the starter still reaches learners who never edited it.
     private void SaveDraft(string code)
@@ -137,6 +162,7 @@
         _running = true;
         _result = null;
         _runtimeFailure = null;
+        StateHasChanged();   // a run started from the keyboard has no click to trigger the render that disables the button
         await _editor.ClearErrorMarkersAsync();
         await _editor.HighlightLineAsync(null);
 

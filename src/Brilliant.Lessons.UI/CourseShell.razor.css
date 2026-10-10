@@ -1,0 +1,15 @@
+/* Narrow windows: just the current screen. Wide windows: sidebar on the left. The query is in rem, which media queries
+   take from the browser default (16px), so ~56rem is ~900px however the app's own type scale has grown. */
+.shell { display: block; }
+.shell-sidebar { display: none; }
+.shell-main { min-width: 0; }
+
+@media (min-width: 56rem) {
+    .shell { display: flex; min-height: 100vh; }
+    .shell-sidebar {
+        display: block; flex: 0 0 15rem; box-sizing: border-box; padding: 1.5rem .8rem;
+        border-right: 1px solid var(--border); background: var(--surface);
+        position: sticky; top: 0; align-self: flex-start; max-height: 100vh; overflow-y: auto;
+    }
+    .shell-main { flex: 1; }
+}

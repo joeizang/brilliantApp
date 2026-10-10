@@ -1,5 +1,7 @@
 @using Brilliant.Core.Progress
+@implements IDisposable
 @inject ProgressRecorder Recorder
+@inject StepShortcuts Shortcuts
 
 <div class="lesson-bar">
     <button class="link" @onclick="() => OnExit.InvokeAsync()">← Back</button>
@@ -65,7 +67,33 @@ else
 
     [Parameter] public EventCallback OnExit { get; set; }
 
+    /// <summary>Raised after a step is completed, so whatever shows progress elsewhere (the sidebar) can refresh.</summary>
+    [Parameter] public EventCallback OnProgress { get; set; }
+
     private int _reviewIndex;
+    private IDisposable? _shortcuts;
+
+    protected override void OnInitialized() => _shortcuts = Shortcuts.Subscribe(OnShortcut);
+
+    public void Dispose() => _shortcuts?.Dispose();
+
+    private Step? CurrentStep =>
+        Review ? Lesson.Steps.ElementAtOrDefault(_reviewIndex) : LessonProgress.From(Lesson, Recorder.Log.ReadAll()).CurrentStep;
+
+    // Steps that have nothing to check (explanations, the finished screen) are moved on from here; the others handle Return themselves.
+    private Task OnShortcut(StepShortcut s) => InvokeAsync(async () =>
+    {
+        switch (s.Command)
+        {
+            case StepCommand.Advance when CurrentStep is null:
+                await OnExit.InvokeAsync();
+                return;
+            case StepCommand.Advance when CurrentStep is ExplainStep explain:
+                await Complete(explain);
+                break;
+        }
+        StateHasChanged();
+    });
 
     private void Answered(PredictOutputStep step, PredictOutputStepView.Attempt a)
     {
@@ -89,9 +117,10 @@ else
         if (!Review) Recorder.CodeSubmitted(Lesson.Id, step.Id, s.Code, s.Result.PassedCount, step.Tests.Count);
     }
 
-    private void Complete(Step step)
+    private async Task Complete(Step step)
     {
         if (Review) _reviewIndex++;
         else Recorder.CompleteStep(Lesson, step.Id);
+        await OnProgress.InvokeAsync();
     }
 }

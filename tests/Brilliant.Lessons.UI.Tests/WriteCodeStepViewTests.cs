@@ -9,7 +9,7 @@ using Microsoft.JSInterop;
 
 namespace Brilliant.Lessons.UI.Tests;
 
-public class WriteCodeStepViewTests : BunitContext
+public class WriteCodeStepViewTests : ShortcutContext
 {
     private static readonly WriteCodeStep Step = new("step.w", "Echo", "Write f", "python", "def f(x):\n    pass\n", "f",
         [new CodeTest("7", "7")]);
@@ -31,7 +31,7 @@ public class WriteCodeStepViewTests : BunitContext
     private readonly MemoryDrafts _drafts = new();
 
     // Renders the step with a stubbed editor module, then returns it (the module is returned so tests can inspect JS calls).
-    private (IRenderedComponent<WriteCodeStepView> Cut, BunitJSModuleInterop Module) Open()
+    private (IRenderedComponent<WriteCodeStepView> Cut, BunitJSModuleInterop Module) Open(Action? onContinue = null)
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         var module = JSInterop.SetupModule("./_content/Brilliant.Lessons.UI/code-editor.js");
@@ -39,7 +39,7 @@ public class WriteCodeStepViewTests : BunitContext
         module.Setup<string>("getCode", _ => true).SetResult("def f(x):\n    return x\n");
         Services.AddSingleton<ICodeDraftStore>(_drafts);
         Services.AddSingleton<IPythonRuntime>(new FakeRuntime(new TestRunResult(TestRunStatus.Passed, "", null, null, null, [])));
-        var cut = Render<WriteCodeStepView>(p => p.Add(c => c.Step, Step));
+        var cut = Render<WriteCodeStepView>(p => p.Add(c => c.Step, Step).Add(c => c.OnContinue, () => onContinue?.Invoke()));
         cut.WaitForAssertion(() => Assert.Single(module.Invocations["create"]));
         return (cut, module);
     }
@@ -116,6 +116,56 @@ public class WriteCodeStepViewTests : BunitContext
         Assert.Contains("was stopped", cut.Find(".verdict").TextContent);
         Assert.Empty(cut.FindAll(".failure"));
         Assert.Equal("Run tests", cut.Find("button.primary").TextContent);
+    }
+
+    [Fact]
+    public async Task Command_return_runs_the_tests_and_Return_then_continues()
+    {
+        var continued = 0;
+        var (cut, _) = Open(() => continued++);
+
+        await Press(StepCommand.Advance);                        // nothing has passed yet
+        Assert.Equal(0, continued);
+
+        await Press(StepCommand.Run);
+        cut.WaitForState(() => cut.FindAll(".verdict").Count > 0);
+        Assert.Contains("tests passed", cut.Find(".verdict").TextContent);
+
+        await Press(StepCommand.Advance);
+        Assert.Equal(1, continued);
+    }
+
+    [Fact]
+    public async Task Run_does_nothing_while_the_tests_are_already_running()
+    {
+        var runs = 0;
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var module = JSInterop.SetupModule("./_content/Brilliant.Lessons.UI/code-editor.js");
+        module.Setup<int>("create", _ => true).SetResult(1);
+        module.Setup<string>("getCode", _ => true).SetResult("code");
+        var release = new TaskCompletionSource<TestRunResult>();
+        Services.AddSingleton<ICodeDraftStore>(_drafts);
+        Services.AddSingleton<IPythonRuntime>(new SlowRuntime(release.Task, () => runs++));
+        var cut = Render<WriteCodeStepView>(p => p.Add(c => c.Step, Step));
+        cut.WaitForAssertion(() => Assert.Single(module.Invocations["create"]));
+
+        var first = Press(StepCommand.Run);
+        cut.WaitForAssertion(() => Assert.Equal(1, runs));
+        await Press(StepCommand.Run);
+
+        Assert.Equal(1, runs);
+        Assert.Equal("Running…", cut.Find("button.primary").TextContent);
+        release.SetResult(new TestRunResult(TestRunStatus.Passed, "", null, null, null, []));
+        await first;
+    }
+
+    private sealed class SlowRuntime(Task<TestRunResult> result, Action onRun) : IPythonRuntime
+    {
+        public Task<TestRunResult> RunTestsAsync(string code, string entrypoint, IReadOnlyList<CodeTest> tests, CancellationToken ct = default)
+        {
+            onRun();
+            return result;
+        }
     }
 
     [Fact]

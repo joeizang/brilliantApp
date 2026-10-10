@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Brilliant.Lessons.UI.Tests;
 
-public class FillBlankStepViewTests : BunitContext
+public class FillBlankStepViewTests : ShortcutContext
 {
     private static readonly FillBlankStep Step = new("step.fb", "Sum it", "Complete the loop", "python",
         "total = 0\nfor i in {{iter}}:\n    total {{op}} i\n",

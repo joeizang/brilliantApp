@@ -1,3 +1,6 @@
+@implements IDisposable
+@inject StepShortcuts Shortcuts
+
 <article class="parsons-step">
     <h2>@Step.Title</h2>
     <p class="prompt">@Step.Prompt</p>
@@ -74,7 +77,34 @@
     private bool Locked => _result is not null;
     private string HelpId => $"{Step.Id}-help";
 
-    protected override void OnInitialized() => _board = ParsonsBoard.Shuffled(Step);
+    private IDisposable? _shortcuts;
+
+    protected override void OnInitialized()
+    {
+        _board = ParsonsBoard.Shuffled(Step);
+        _shortcuts = Shortcuts.Subscribe(OnShortcut);
+    }
+
+    private Task OnShortcut(StepShortcut s) => InvokeAsync(async () =>
+    {
+        switch (s.Command)
+        {
+            case StepCommand.Run or StepCommand.Advance when _result is null:
+                if (true) await Check();
+                break;
+            case StepCommand.Advance when _result is { IsCorrect: true }:
+                await OnContinue.InvokeAsync();
+                return;
+            case StepCommand.Advance:
+                TryAgain();
+                break;
+        }
+        StateHasChanged();
+    });
+
+    public void Dispose() => _shortcuts?.Dispose();
+
+
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
