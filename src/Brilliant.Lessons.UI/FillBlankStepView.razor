@@ -1,15 +1,15 @@
 @implements IDisposable
 @inject StepShortcuts Shortcuts
 
-<article class="fill-step">
+<article class="fill-step lesson-step">
     <h2>@Step.Title</h2>
     <p class="prompt">@Step.Prompt</p>
 
     @* Read-only code with an input where each blank goes. Each line is a flex row so the markup's whitespace never shows up as extra spaces. *@
-    <div class="code-block" role="group" aria-label="Code with blanks">
+    <div class="code-block leading-[1.9]" role="group" aria-label="Code with blanks">
         @foreach (var line in _lines)
         {
-            <div class="line">
+            <div class="line flex min-h-[1.9em] items-baseline">
                 @foreach (var part in line)
                 {
                     if (part.BlankId is { } id)
@@ -23,7 +23,7 @@
                     }
                     else
                     {
-                        <span class="code">@part.Text</span>
+                        <span class="code whitespace-pre">@part.Text</span>
                     }
                 }
             </div>
@@ -32,16 +32,16 @@
 
     @if (_result is null)
     {
-        <button class="primary" disabled="@(!CanCheck)" @onclick="Check">Check</button>
+        <button class="primary btn-primary" disabled="@(!CanCheck)" @onclick="Check">Check</button>
     }
     else if (_result.IsCorrect)
     {
-        <p class="verdict correct" role="status">Correct!</p>
-        <button class="primary" @onclick="() => OnContinue.InvokeAsync()">Continue</button>
+        <p class="verdict correct font-semibold text-success" role="status">Correct!</p>
+        <button class="primary btn-primary" @onclick="() => OnContinue.InvokeAsync()">Continue</button>
     }
     else
     {
-        <p class="verdict incorrect" role="status">
+        <p class="verdict incorrect font-semibold text-danger" role="status">
             @(_result.Blanks.Count(b => !b.IsCorrect) == 1 ? "One blank isn't right yet." : "Some blanks aren't right yet.")
         </p>
         @for (var i = 0; i < _result.Blanks.Count; i++)
@@ -49,10 +49,10 @@
             var blank = _result.Blanks[i];
             if (!blank.IsCorrect && blank.Feedback is { Length: > 0 })
             {
-                <p class="mistake-feedback"><strong>Blank @(i + 1):</strong> @blank.Feedback</p>
+                <p class="mistake-feedback mt-[.4rem] text-[.95rem] text-fg-secondary"><strong>Blank @(i + 1):</strong> @blank.Feedback</p>
             }
         }
-        <button class="primary" @onclick="TryAgain">Try again</button>
+        <button class="primary btn-primary" @onclick="TryAgain">Try again</button>
     }
 </article>
 
@@ -107,10 +107,12 @@
     // Wide enough for the longest accepted answer plus room to type, so the box hints at the answer's size without giving it away.
     private static int Width(Blank blank) => Math.Max(4, blank.Accepted.Max(a => a.Length) + 2);
 
+    private const string BlankBase = "blank font-inherit mx-[.1rem] rounded-sm border border-border bg-surface px-[.4rem] py-[.05rem] leading-[1.3] text-fg outline-none transition-shadow duration-150 ease-app";
+
     private string BlankClass(string id)
     {
         var verdict = _result?.Blanks.FirstOrDefault(b => b.BlankId == id);
-        return verdict is null ? "blank" : verdict.IsCorrect ? "blank right" : "blank wrong";
+        return verdict is null ? BlankBase + " focus:ring-2 focus:ring-accent" : verdict.IsCorrect ? BlankBase + " right ring-2 ring-success" : BlankBase + " wrong ring-2 ring-danger";
     }
 
     private async Task Check()

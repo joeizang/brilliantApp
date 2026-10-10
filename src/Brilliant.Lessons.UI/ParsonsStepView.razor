@@ -1,15 +1,15 @@
 @implements IDisposable
 @inject StepShortcuts Shortcuts
 
-<article class="parsons-step">
+<article class="parsons-step lesson-step">
     <h2>@Step.Title</h2>
     <p class="prompt">@Step.Prompt</p>
-    <p class="hint-text" id="@HelpId">
+    <p class="hint-text text-[.95rem] text-fg-secondary" id="@HelpId">
         Put the lines in order and give each the right indentation. Drag a line, or select it and press
         <kbd>⌥</kbd><kbd>↑</kbd> / <kbd>⌥</kbd><kbd>↓</kbd> to move it and <kbd>⌥</kbd><kbd>←</kbd> / <kbd>⌥</kbd><kbd>→</kbd> to change its indentation.
     </p>
 
-    <ol class="rows" aria-label="Lines of code, in the order you have put them">
+    <ol class="rows my-4 grid list-none gap-[.4rem] p-0" aria-label="Lines of code, in the order you have put them">
         @for (var i = 0; i < _board.Rows.Count; i++)
         {
             var index = i;
@@ -22,18 +22,18 @@
                 @ondragenter="() => _over = index"
                 @ondragover="() => { }" @ondragover:preventDefault
                 @ondrop="() => Drop(index)" @ondrop:preventDefault>
-                <span class="grip" aria-hidden="true">⠿</span>
-                <span class="indent" style="width:@(row.Level * 2)rem" aria-hidden="true"></span>
-                <code class="text">@Step.Lines[row.Piece].Text</code>
-                <span class="controls">
-                    <button type="button" tabindex="-1" aria-label="Move up" disabled="@(Locked || index == 0)" @onclick="() => MoveBy(index, -1)">▲</button>
-                    <button type="button" tabindex="-1" aria-label="Move down" disabled="@(Locked || index == _board.Rows.Count - 1)" @onclick="() => MoveBy(index, 1)">▼</button>
-                    <button type="button" tabindex="-1" aria-label="Outdent" disabled="@(Locked || row.Level == 0)" @onclick="() => IndentBy(index, -1)">⇤</button>
-                    <button type="button" tabindex="-1" aria-label="Indent" disabled="@(Locked || row.Level >= _board.MaxLevel)" @onclick="() => IndentBy(index, 1)">⇥</button>
+                <span class="grip text-code-muted select-none" aria-hidden="true">⠿</span>
+                <span class="indent inline-block h-px flex-none transition-[width] duration-100 ease-[ease]" style="width:@(row.Level * 2)rem" aria-hidden="true"></span>
+                <code class="text flex-1 font-mono text-[.9rem] leading-[normal] whitespace-pre select-none">@Step.Lines[row.Piece].Text</code>
+                <span class="controls inline-flex gap-1">
+                    <button type="button" class="@ControlButton" tabindex="-1" aria-label="Move up" disabled="@(Locked || index == 0)" @onclick="() => MoveBy(index, -1)">▲</button>
+                    <button type="button" class="@ControlButton" tabindex="-1" aria-label="Move down" disabled="@(Locked || index == _board.Rows.Count - 1)" @onclick="() => MoveBy(index, 1)">▼</button>
+                    <button type="button" class="@ControlButton" tabindex="-1" aria-label="Outdent" disabled="@(Locked || row.Level == 0)" @onclick="() => IndentBy(index, -1)">⇤</button>
+                    <button type="button" class="@ControlButton" tabindex="-1" aria-label="Indent" disabled="@(Locked || row.Level >= _board.MaxLevel)" @onclick="() => IndentBy(index, 1)">⇥</button>
                 </span>
                 @if (_result is not null && _result.Rows[index] != RowVerdict.Correct)
                 {
-                    <span class="why">@(_result.Rows[index] == RowVerdict.WrongIndent ? "Right line, wrong indentation" : "A different line goes here")</span>
+                    <span class="why basis-full text-[.85rem] text-danger">@(_result.Rows[index] == RowVerdict.WrongIndent ? "Right line, wrong indentation" : "A different line goes here")</span>
                 }
             </li>
         }
@@ -41,17 +41,17 @@
 
     @if (_result is null)
     {
-        <button class="primary" @onclick="Check">Check</button>
+        <button class="primary btn-primary" @onclick="Check">Check</button>
     }
     else if (_result.IsCorrect)
     {
-        <p class="verdict correct" role="status">Correct!</p>
-        <button class="primary" @onclick="() => OnContinue.InvokeAsync()">Continue</button>
+        <p class="verdict correct font-semibold text-success" role="status">Correct!</p>
+        <button class="primary btn-primary" @onclick="() => OnContinue.InvokeAsync()">Continue</button>
     }
     else
     {
-        <p class="verdict incorrect" role="status">Not quite: @_result.CorrectCount of @_board.Rows.Count lines are right. Have another go.</p>
-        <button class="primary" @onclick="TryAgain">Try again</button>
+        <p class="verdict incorrect font-semibold text-danger" role="status">Not quite: @_result.CorrectCount of @_board.Rows.Count lines are right. Have another go.</p>
+        <button class="primary btn-primary" @onclick="TryAgain">Try again</button>
     }
 </article>
 
@@ -116,12 +116,18 @@
         }
     }
 
+    private const string RowBase = "row flex cursor-grab flex-wrap items-center gap-[.6rem] rounded-sm border border-hairline bg-code-bg px-3 py-[.4rem] text-code-fg transition-shadow duration-150 ease-app focus:outline-none";
+    private const string ControlButton = "min-h-8 min-w-8 cursor-pointer rounded-sm border border-border bg-surface px-2 py-0 font-inherit leading-none text-inherit disabled:cursor-default disabled:opacity-35";
+
+    // The marks are exclusive, in the order they win: a checked row shows its verdict, else the drop target shows where the
+    // dragged line will land, else keyboard focus shows a ring.
     private string RowClass(int index)
     {
-        var classes = new List<string> { "row" };
-        if (_result is not null) classes.Add(_result.Rows[index] == RowVerdict.Correct ? "right" : "wrong");
-        if (_dragging == index) classes.Add("dragging");
-        else if (_dragging is not null && _over == index) classes.Add("over");
+        var classes = new List<string> { RowBase };
+        if (_result is not null) classes.Add(_result.Rows[index] == RowVerdict.Correct ? "right ring-2 ring-success" : "wrong ring-2 ring-danger");
+        else if (_dragging is not null && _dragging != index && _over == index) classes.Add("over shadow-[0_-3px_0_var(--accent)]");
+        else classes.Add("focus:ring-2 focus:ring-accent");
+        if (_dragging == index) classes.Add("dragging opacity-40");
         return string.Join(' ', classes);
     }
 

@@ -1,54 +1,63 @@
-# Styling: theme tokens, scoped CSS and Tailwind
+# Styling: theme tokens and Tailwind
 
-The app has three layers of CSS. Knowing which wins is the whole trick.
+All styling is Tailwind. Components carry utility classes in their markup; there are no per-component CSS files. Two stylesheets make it work:
 
-| Layer | Where | Wins over |
-| --- | --- | --- |
-| Theme tokens and shared rules | `src/Brilliant.Lessons.UI/wwwroot/theme.css` | utilities |
-| Component styles | `*.razor.css` next to each component (Blazor scopes them) | utilities |
-| Tailwind utilities | `wwwroot/tailwind.css`, built from `styles/tailwind.css` | nothing |
+| File | Holds |
+| --- | --- |
+| `src/Brilliant.Lessons.UI/wwwroot/theme.css` | The design tokens as CSS variables (dark default, light under `prefers-color-scheme: light`), the reduced-motion rule and the code-editor token colours (`.tok-*`) |
+| `src/Brilliant.Lessons.UI/styles/tailwind.css` → `wwwroot/tailwind.css` | Tailwind's names for those tokens, the keyframes, base element rules, and a few shared component classes |
 
-Tailwind's output is in a CSS cascade layer (`@layer utilities`); `theme.css` and the scoped files are unlayered, and unlayered CSS beats
-layered CSS whatever the selector. So **a utility only takes effect where no existing rule sets that property**, and adding Tailwind cannot
-change how anything already styled looks. To restyle something that has an old rule, edit the old rule.
+`index.html` links `theme.css` first, then `tailwind.css`. The built `wwwroot/tailwind.css` is committed.
 
 ## Using it
 
-Put utility classes in a `.razor` file:
+Write utilities in a `.razor` (or `.cs`) file, rebuild the stylesheet, and commit it with the markup:
 
 ```razor
-<section class="hint-ladder mx-auto box-border max-w-(--content-width) px-6">
+<button class="primary btn-primary" @onclick="Check">Check</button>
+<li class="@Styling.Option(state)">
 ```
-
-then rebuild the stylesheet, and commit it with the markup:
 
 ```bash
 scripts/build-styles.sh            # rebuild wwwroot/tailwind.css
 scripts/build-styles.sh --check    # fail if the committed file is stale (for CI)
 ```
 
-Tailwind v4 reads class names straight out of `src/Brilliant.Lessons.UI/**/*.razor` and `src/Brilliant.App/**/*.razor`/`index.html`
-(the `@source` lines in `styles/tailwind.css`), so a class that is not written out in full in one of those files is not generated.
-`class="p-@n"` will not work; pick between whole class names instead.
+Tailwind v4 reads class names straight out of `src/Brilliant.Lessons.UI/**/*.razor` and `*.cs`, and `src/Brilliant.App/**/*.razor` / `index.html`
+(the `@source` lines in `styles/tailwind.css`), so a class must be written out **in full** in one of those files. `class="p-@n"` will not
+work; choose between whole class names. State-dependent class lists live in `Styling.cs` or a `private const`/method in the component, and
+should make the choices exclusive (a `text-left` and a `text-right` in one list would both be emitted, and one would win by source order).
 
 ## How it is wired to the design
 
-- **No Preflight.** Only Tailwind's theme and utilities are imported, so it never resets the app's own typography or form styles.
-- **Spacing already matches.** Tailwind's step is `0.25rem`, so `p-1` is `--space-xs`, `p-2` is `--space-sm`, `p-4` is `--space-md`,
-  `p-6` is `--space-lg` and `p-12` is `--space-xl`. Everything stays in `rem`, so the UI still scales as one.
-- **Colours are the tokens.** The default Tailwind palette is removed; `bg-surface`, `bg-surface-raised`, `text-fg`, `text-fg-secondary`,
-  `border-hairline`, `text-accent`, `text-danger` and so on resolve to `var(--surface)`, `var(--fg)`… and so follow light/dark. A raw
-  colour such as `bg-red-500` does not exist, on purpose.
-- **Other tokens** are used with the arbitrary-value syntax: `max-w-(--content-width)`, `rounded-(--radius-md)`.
+- **No Preflight.** Only Tailwind's theme and utilities are imported, so it never resets the browser defaults the app relies on. Base
+  typography (headings, `p`, `kbd`, `code`, focus ring) is in `@layer base` in `tailwind.css`.
+- **Layers.** `theme, base, components, utilities`. The shared component classes sit below utilities, so a utility in the markup
+  (`mt-4`, `rounded-sm`) always wins over what a component class sets. `@apply` cannot take a class defined in `@layer components`; use a selector list.
+- **Spacing is Tailwind's step** (`0.25rem`): `p-1` is 4px at the default size, `p-2` 8, `p-4` 16, `p-6` 24, `p-12` 48. Everything is in `rem`, so the UI scales as one.
+- **Colours are the tokens.** The default palette is removed; `bg-surface`, `bg-surface-raised`, `text-fg`, `text-fg-secondary`, `border-hairline`,
+  `text-accent`, `text-danger` … resolve to `var(--surface)`, `var(--fg)`… and so follow light/dark. A raw colour such as `bg-red-500` does not exist, on purpose.
+  Mixes with another colour (`bg-success-soft`, `bg-accent-wash`…) are named in `@theme`.
+- **Other tokens:** `rounded-sm/md/lg`, `font-ui`/`font-mono`, `ease-app`, `animate-fade-up` etc. are in `@theme`; lengths such as `--content-width` and
+  `--touch` are used as `max-w-(--content-width)`, `min-h-(--touch)`.
+- **Variants.** `hover:` applies on every pointer (as the app always did). `wide:` is a window of about 900px or more (the sidebar), `narrow:` is 600px or less.
+- **Shared component classes** (`tailwind.css`): `content-column`, `lesson-step`, `code-block` (and every `pre`), `option-card`, `panel`, `progress-bar`/`progress-fill`,
+  `btn-primary`, `btn-secondary`, `btn-link`, `btn-reset`, `font-inherit`.
 
-## Build
+## Hook classes
 
-Mirrors the CodeMirror bundle: sources in `src/Brilliant.Lessons.UI/styles/` (a `package.json`, its lockfile and `tailwind.css`), output
-committed as `wwwroot/tailwind.css`, `node_modules` ignored, the folder excluded from the Razor class library's content in the csproj.
-Node is only needed to rebuild; building or running the app needs no Node. `index.html` links `tailwind.css` straight after `theme.css`.
+Tests and the browser select on state words that are not styling: `primary`, `secondary`, `link`, `option right|wrong|selected`, `verdict correct|incorrect`,
+`row added|updated|removed|looked-up`, `pointer moved`, `trace-player`, `hint-*`, `review-*` and so on. They stay in the class list **next to** the utilities.
+Don't remove one without checking the bUnit tests.
 
 ## One trap
 
-Tailwind generates a utility for any word in a scanned file that happens to be one: `block`, `table`, `flex`, `static` and `transform`
-appear in the output just from prose and comments. They do nothing unless an element carries that class, but it means **an app class must
-not be named after a Tailwind utility**. `TraceTable` used `class="table"`, which would have become `display: table`; it is now `trace-table`.
+Tailwind generates a utility for any word in a scanned file that happens to be one: `block`, `table`, `flex`, `static` and `transform` appear in the
+output just from prose and comments. They do nothing unless an element carries that class, but it means **an app class must not be named after a
+Tailwind utility**. `TraceTable` used `class="table"`, which would have become `display: table`; it is now `trace-table`.
+
+## Build
+
+Mirrors the CodeMirror bundle: sources in `src/Brilliant.Lessons.UI/styles/` (a `package.json`, its lockfile and `tailwind.css`), output committed as
+`wwwroot/tailwind.css`, `node_modules` ignored, the folder excluded from the Razor class library's content in the csproj. Node is only needed to
+rebuild; building or running the app needs no Node.

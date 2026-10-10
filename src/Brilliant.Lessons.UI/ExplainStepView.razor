@@ -1,4 +1,4 @@
-<article class="explain-step">
+<article class="explain-step lesson-step">
     <h2>@Step.Title</h2>
 
     <div class="explain-body">@((MarkupString)BodyHtml)</div>
@@ -10,13 +10,13 @@
 
     @if (Step.Comparison is { } cmp)
     {
-        <div class="comparison">
+        <div class="comparison grid grid-cols-[1fr_1fr] gap-4 narrow:grid-cols-[1fr]">
             <section>
-                <h3>C#</h3>
+                <h3 class="mt-0 mb-1 text-[.9rem] font-semibold text-fg-secondary">C#</h3>
                 <pre class="code-block" data-language="csharp"><code>@cmp.CSharp</code></pre>
             </section>
             <section>
-                <h3>Python</h3>
+                <h3 class="mt-0 mb-1 text-[.9rem] font-semibold text-fg-secondary">Python</h3>
                 <pre class="code-block" data-language="python"><code>@cmp.Python</code></pre>
             </section>
         </div>

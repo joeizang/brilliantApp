@@ -5,12 +5,12 @@
 @inject StepShortcuts Shortcuts
 @inject Brilliant.Core.Progress.ProgressRecorder Recorder
 
-<div class="shell">
-    <aside class="shell-sidebar">
+<div class="shell block wide:flex wide:min-h-screen">
+    <aside class="shell-sidebar hidden wide:sticky wide:top-0 wide:block wide:h-screen wide:flex-[0_0_16rem] wide:self-start wide:overflow-y-auto wide:box-border wide:border-r wide:border-hairline wide:bg-surface-raised/80 wide:px-3 wide:py-6 wide:backdrop-blur-[1.25rem]">
         <CourseSidebar Content="Content" CurrentTrack="_track" CurrentLesson="_lesson" ReviewActive="_reviewing" TodayActive="IsToday"
                        OnOpenToday="GoToToday" OnOpenTrack="OpenTrack" OnOpenLesson="OpenLessonFromSidebar" OnOpenReview="OpenReview" />
     </aside>
-    <main class="shell-main">
+    <main class="shell-main min-w-0 wide:flex-1">
         @if (_session)
         {
             <SessionRunner Content="Content" OnExit="GoToToday" OnProgress="() => StateHasChanged()" />

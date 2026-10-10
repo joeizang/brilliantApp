@@ -3,10 +3,10 @@
 @using Brilliant.Core.Progress
 @inject ProgressRecorder Recorder
 
-<ol class="session-steps" aria-label="Session">
-    <li aria-current="@Current(Phase.Review)">Review</li>
-    <li aria-current="@Current(Phase.Lesson)">Lesson</li>
-    <li aria-current="@Current(Phase.Summary)">Summary</li>
+<ol class="session-steps mx-auto mt-2 mb-0 box-border flex max-w-(--content-width) list-none gap-2 px-6 text-[.8rem] font-semibold tracking-[.04em] text-fg-secondary uppercase" aria-label="Session">
+    <li class="@Pill(Phase.Review)" aria-current="@Current(Phase.Review)">Review</li>
+    <li class="@Pill(Phase.Lesson)" aria-current="@Current(Phase.Lesson)">Lesson</li>
+    <li class="@Pill(Phase.Summary)" aria-current="@Current(Phase.Summary)">Summary</li>
 </ol>
 
 @switch (_phase)
@@ -40,6 +40,9 @@
     private TodayState? _today;
 
     private string? Current(Phase phase) => phase == _phase ? "step" : null;
+
+    private string Pill(Phase phase) =>
+        phase == _phase ? "rounded-full bg-accent-tint-strong px-[.7rem] py-[.1rem] text-fg" : "rounded-full bg-surface px-[.7rem] py-[.1rem]";
 
     protected override void OnInitialized()
     {

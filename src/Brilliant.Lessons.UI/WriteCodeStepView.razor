@@ -5,63 +5,63 @@
 @inject StepShortcuts Shortcuts
 @implements IDisposable
 
-<article class="write-step">
+<article class="write-step lesson-step">
     <h2>@Step.Title</h2>
     <p class="prompt">@Step.Prompt</p>
 
     <CodeEditor @ref="_editor" InitialCode="@_initialCode" OnChanged="SaveDraft" />
 
-    <div class="run-row">
-        <button class="primary" disabled="@_running" @onclick="Submit">@(_running ? "Running…" : "Run tests")</button>
+    <div class="run-row mb-4 flex flex-wrap items-center gap-4">
+        <button class="primary btn-primary" disabled="@_running" @onclick="Submit">@(_running ? "Running…" : "Run tests")</button>
         @if (_confirmingReset)
         {
-            <span class="reset-confirm" role="alertdialog" aria-label="Reset code">
-                <span>Replace your code with the starting code? Your changes will be lost.</span>
-                <button class="secondary" @onclick="ResetToStarter">Yes, reset</button>
-                <button class="link" @onclick="() => _confirmingReset = false">Keep my code</button>
+            <span class="reset-confirm flex flex-wrap items-center gap-3" role="alertdialog" aria-label="Reset code">
+                <span class="text-[.95rem]">Replace your code with the starting code? Your changes will be lost.</span>
+                <button class="secondary btn-secondary" @onclick="ResetToStarter">Yes, reset</button>
+                <button class="link btn-link" @onclick="() => _confirmingReset = false">Keep my code</button>
             </span>
         }
         else
         {
-            <button class="link reset" disabled="@_running" @onclick="() => _confirmingReset = true">Reset to starter</button>
+            <button class="link reset btn-link ml-auto" disabled="@_running" @onclick="() => _confirmingReset = true">Reset to starter</button>
         }
         @if (_running && !_warmedUp)
         {
-            <span class="note">Starting Python… the first run takes a few seconds.</span>
+            <span class="note text-[.95rem] text-fg-secondary">Starting Python… the first run takes a few seconds.</span>
         }
     </div>
 
     <div aria-live="polite">
         @if (_runtimeFailure is not null)
         {
-            <p class="verdict incorrect" role="alert">Couldn't run your code: @_runtimeFailure</p>
+            <p class="verdict incorrect font-semibold text-danger" role="alert">Couldn't run your code: @_runtimeFailure</p>
         }
         else if (_result is { } result)
         {
             @switch (result.Status)
             {
                 case TestRunStatus.Passed:
-                    <p class="verdict correct" role="status">All @result.Tests.Count tests passed! 🎉</p>
+                    <p class="verdict correct font-semibold text-success" role="status">All @result.Tests.Count tests passed! 🎉</p>
                     break;
 
                 case TestRunStatus.TimedOut:
-                    <p class="verdict incorrect" role="status">@result.Message</p>
+                    <p class="verdict incorrect font-semibold text-danger" role="status">@result.Message</p>
                     break;
 
                 case TestRunStatus.Error:
-                    <p class="verdict incorrect" role="status">@result.Message</p>
+                    <p class="verdict incorrect font-semibold text-danger" role="status">@result.Message</p>
                     @TracebackBlock(result.Traceback)
                     break;
 
                 default:
                     var failure = result.FirstFailure!;
-                    <p class="verdict incorrect" role="status">Not yet: @result.PassedCount of @result.Tests.Count tests passed.</p>
-                    <section class="failure" aria-label="First failing test">
-                        <h3>First failing test</h3>
-                        <dl>
-                            <dt>Call</dt><dd><code>@failure.Call</code></dd>
-                            <dt>Expected</dt><dd><code>@failure.Expected</code></dd>
-                            <dt>Your code returned</dt><dd>@if (failure.Actual is null) { <em>nothing, it raised an error</em> } else { <code>@failure.Actual</code> }</dd>
+                    <p class="verdict incorrect font-semibold text-danger" role="status">Not yet: @result.PassedCount of @result.Tests.Count tests passed.</p>
+                    <section class="failure mb-4 rounded-md border border-hairline bg-surface-raised px-4 pt-[.6rem] pb-4" aria-label="First failing test">
+                        <h3 class="my-[.4rem] text-[1.05rem]">First failing test</h3>
+                        <dl class="mx-0 mt-0 mb-2 grid grid-cols-[max-content_1fr] gap-x-4 gap-y-[.3rem]">
+                            <dt class="text-fg-secondary">Call</dt><dd class="m-0 overflow-x-auto"><code class="text-[.9rem] whitespace-pre-wrap">@failure.Call</code></dd>
+                            <dt class="text-fg-secondary">Expected</dt><dd class="m-0 overflow-x-auto"><code class="text-[.9rem] whitespace-pre-wrap">@failure.Expected</code></dd>
+                            <dt class="text-fg-secondary">Your code returned</dt><dd class="m-0 overflow-x-auto">@if (failure.Actual is null) { <em>nothing, it raised an error</em> } else { <code class="text-[.9rem] whitespace-pre-wrap">@failure.Actual</code> }</dd>
                         </dl>
                         @TracebackBlock(failure.Traceback)
                     </section>
@@ -76,7 +76,7 @@
 
             @if (result.Status == TestRunStatus.Passed)
             {
-                <button class="primary" @onclick="() => OnContinue.InvokeAsync()">Continue</button>
+                <button class="primary btn-primary" @onclick="() => OnContinue.InvokeAsync()">Continue</button>
             }
         }
     </div>
@@ -207,8 +207,8 @@
 
     // Razor templates (not RenderTreeBuilder) so the component's scoped CSS applies to what they render.
     private static RenderFragment StdoutBlock(string label, string stdout) =>
-        @<text>@if (!string.IsNullOrEmpty(stdout)) { <div class="output"><h4>@label</h4><pre>@stdout</pre></div> }</text>;
+        @<text>@if (!string.IsNullOrEmpty(stdout)) { <div class="output"><h4 class="mt-[.6rem] mb-[.2rem] text-[.9rem] font-semibold text-fg-secondary">@label</h4><pre>@stdout</pre></div> }</text>;
 
     private static RenderFragment TracebackBlock(string? traceback) =>
-        @<text>@if (!string.IsNullOrEmpty(traceback)) { <pre class="traceback" aria-label="Python error">@traceback</pre> }</text>;
+        @<text>@if (!string.IsNullOrEmpty(traceback)) { <pre class="traceback border-l-4 border-l-danger whitespace-pre-wrap" aria-label="Python error">@traceback</pre> }</text>;
 }

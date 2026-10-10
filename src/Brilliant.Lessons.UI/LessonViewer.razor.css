@@ -1,7 +1,0 @@
-.lesson-title { margin-top: var(--space-sm); margin-bottom: 0; }
-.lesson-progress { margin-top: var(--space-sm); font-size: .9rem; }
-.lesson-progress .bar { margin-bottom: var(--space-sm); }
-.step-actions { padding-bottom: var(--space-lg); }
-.lesson-done { margin-top: var(--space-xl); margin-bottom: var(--space-xl); font-size: 1.3rem; }
-.lesson-bar { margin-top: var(--space-sm); display: flex; gap: var(--space-md); align-items: center; font-size: .9rem; }
-.review-badge { background: var(--warn-bg); border-radius: 999px; padding: .2rem .75rem; }

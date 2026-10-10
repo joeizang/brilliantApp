@@ -1,36 +1,36 @@
 @* The end-of-session summary: what was done, how well, what it did to mastery, and where that leaves today's goal. *@
 @using Brilliant.Core.Progress
 
-<div class="summary">
-    <h1 class="summary-title">Session complete</h1>
+<div class="summary mx-auto box-border max-w-(--content-width) px-6 pb-12">
+    <h1 class="summary-title mt-6">Session complete</h1>
 
-    <dl class="summary-stats">
-        <div><dt>Steps</dt><dd>@Summary.Steps</dd></div>
-        <div><dt>Reviews</dt><dd>@Summary.Reviews</dd></div>
-        <div><dt>Accuracy</dt><dd>@(Summary.Accuracy is { } a ? $"{(int)Math.Round(100 * a)}%" : "—")</dd></div>
+    <dl class="summary-stats m-0 grid grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] gap-4">
+        <div class="@StatCard"><dt class="text-[.85rem] text-fg-secondary">Steps</dt><dd class="@StatValue">@Summary.Steps</dd></div>
+        <div class="@StatCard"><dt class="text-[.85rem] text-fg-secondary">Reviews</dt><dd class="@StatValue">@Summary.Reviews</dd></div>
+        <div class="@StatCard"><dt class="text-[.85rem] text-fg-secondary">Accuracy</dt><dd class="@StatValue">@(Summary.Accuracy is { } a ? $"{(int)Math.Round(100 * a)}%" : "—")</dd></div>
     </dl>
 
-    <h2 class="summary-heading">Mastery</h2>
+    <h2 class="summary-heading mt-6 text-[1.2rem]">Mastery</h2>
     @if (Summary.MasteryChanges.Count == 0)
     {
-        <p class="summary-none">No mastery changes this time. Answering questions and reviews moves it.</p>
+        <p class="summary-none text-fg-secondary">No mastery changes this time. Answering questions and reviews moves it.</p>
     }
     else
     {
-        <ul class="summary-changes">
+        <ul class="summary-changes mt-0 mb-4 grid list-none gap-2 p-0">
             @foreach (var c in Summary.MasteryChanges)
             {
                 var delta = Pct(c.After) - Pct(c.Before);
-                <li class="@(c.IsGain ? "up" : "down")">
-                    <span class="change-name">@c.Concept.Title<small>@c.Lesson.Lesson.Title</small></span>
-                    <span class="change-values">@Pct(c.Before)% → @Pct(c.After)%</span>
-                    <span class="change-delta" aria-label="@(c.IsGain ? "up" : "down") @Math.Abs(delta) points">@(c.IsGain ? "▲" : "▼") @Math.Abs(delta)</span>
+                <li class="@(c.IsGain ? "up" : "down") panel flex items-center gap-4 px-5 py-3">
+                    <span class="change-name grid flex-1 font-semibold">@c.Concept.Title<small class="font-normal text-fg-secondary">@c.Lesson.Lesson.Title</small></span>
+                    <span class="change-values text-[.9rem] text-fg-secondary tabular-nums">@Pct(c.Before)% → @Pct(c.After)%</span>
+                    <span class="change-delta min-w-14 text-right font-semibold tabular-nums @(c.IsGain ? "text-success" : "text-danger")" aria-label="@(c.IsGain ? "up" : "down") @Math.Abs(delta) points">@(c.IsGain ? "▲" : "▼") @Math.Abs(delta)</span>
                 </li>
             }
         </ul>
     }
 
-    <p class="summary-goal">
+    <p class="summary-goal mt-4">
         @Today.DoneToday of @Today.GoalSteps steps today@(Today.GoalMet ? " · Goal met ✓" : "").
         @if (Today.Streak > 0)
         {
@@ -38,12 +38,15 @@
         }
     </p>
 
-    <div class="summary-actions">
-        <button class="primary summary-done" @onclick="() => OnDone.InvokeAsync()">Back to Today</button>
+    <div class="summary-actions mt-6">
+        <button class="primary summary-done btn-primary" @onclick="() => OnDone.InvokeAsync()">Back to Today</button>
     </div>
 </div>
 
 @code {
+    private const string StatCard = "panel px-5 py-4 shadow-(--shadow-card)";
+    private const string StatValue = "m-0 text-[1.6rem] font-bold tabular-nums";
+
     [Parameter, EditorRequired] public SessionSummary Summary { get; set; } = default!;
 
     /// <summary>Today as it stands after the session, for the goal and streak line.</summary>

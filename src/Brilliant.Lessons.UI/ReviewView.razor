@@ -4,22 +4,22 @@
 @using Brilliant.Core.Review
 @inject ProgressRecorder Recorder
 
-<div class="review-bar">
-    <button class="link" @onclick="() => OnExit.InvokeAsync()">← Back</button>
+<div class="review-bar mt-2 flex items-center gap-4 text-[.9rem]">
+    <button class="link btn-link" @onclick="() => OnExit.InvokeAsync()">← Back</button>
 </div>
-<h1 class="review-title">Review</h1>
+<h1 class="review-title mt-2 mb-0">Review</h1>
 
 @if (_current is { } item)
 {
-    <div class="review-progress" role="progressbar" aria-valuemin="0" aria-valuemax="@_queue.Count" aria-valuenow="@_index">
-        <div class="bar"><div class="fill" style="width:@(100 * _index / _queue.Count)%"></div></div>
+    <div class="review-progress mt-2 text-[.9rem]" role="progressbar" aria-valuemin="0" aria-valuemax="@_queue.Count" aria-valuenow="@_index">
+        <div class="bar progress-bar mb-2"><div class="fill progress-fill" style="width:@(100 * _index / _queue.Count)%"></div></div>
         <span>@(_index + 1) of @_queue.Count</span>
     </div>
 
     <div @key="item.Item.Id">
         @if (item.Item.Kind != ReviewKind.Concept)
         {
-            <span class="review-kind">@(item.Item.Kind == ReviewKind.Pattern ? "Pattern" : "Re-solve")</span>
+            <span class="review-kind mt-4 inline-block rounded-full bg-surface px-[.6rem] py-[.1rem] text-[.8rem] font-medium text-fg-secondary">@(item.Item.Kind == ReviewKind.Pattern ? "Pattern" : "Re-solve")</span>
         }
         @switch (item.Question)
         {
@@ -40,28 +40,28 @@
                 break;
             default:
                 <p>This kind of question can't be reviewed here yet.</p>
-                <div class="review-actions"><button class="primary" @onclick="Next">Skip</button></div>
+                <div class="review-actions pb-6"><button class="primary btn-primary" @onclick="Next">Skip</button></div>
                 break;
         }
         <HintLadder Hints="item.Question.Hints" Initial="item.AttemptHints" Caption="A hint makes this come back sooner." OnRevealed="level => Hinted(item, level)" />
         @if (_scheduled is { } due)
         {
-            <p class="review-next" role="status">You'll see this again @Describe(due - Recorder.Now).</p>
+            <p class="review-next mt-4 text-[.95rem] text-fg-secondary" role="status">You'll see this again @Describe(due - Recorder.Now).</p>
         }
     </div>
 }
 else
 {
-    <p class="review-done">@(_waiting > 0 ? "That's all for today." : _queue.Count == 0 && _nextDue is null ? "Nothing to review yet. Finish a lesson and its questions will show up here." : "You're all caught up. 🎉")</p>
+    <p class="review-done mt-12 mb-4 text-[1.3rem]">@(_waiting > 0 ? "That's all for today." : _queue.Count == 0 && _nextDue is null ? "Nothing to review yet. Finish a lesson and its questions will show up here." : "You're all caught up. 🎉")</p>
     @if (_waiting > 0)
     {
-        <p class="review-next">@_waiting more @(_waiting == 1 ? "is" : "are") waiting. They'll be in tomorrow's queue, so a missed day never piles up.</p>
+        <p class="review-next mt-4 text-[.95rem] text-fg-secondary">@_waiting more @(_waiting == 1 ? "is" : "are") waiting. They'll be in tomorrow's queue, so a missed day never piles up.</p>
     }
     else if (_nextDue is { } next)
     {
-        <p class="review-next">Next review @Describe(next - Recorder.Now).</p>
+        <p class="review-next mt-4 text-[.95rem] text-fg-secondary">Next review @Describe(next - Recorder.Now).</p>
     }
-    <div class="review-actions"><button class="primary" @onclick="Finish">@(FinishedText ?? "Back to tracks")</button></div>
+    <div class="review-actions pb-6"><button class="primary btn-primary" @onclick="Finish">@(FinishedText ?? "Back to tracks")</button></div>
 }
 
 @code {

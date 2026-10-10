@@ -1,25 +1,25 @@
 @* The hint ladder: a step's hints, gentlest first, revealed one at a time. Each rung used is reported so the host can record it. *@
 @if (Hints.Count > 0)
 {
-    <section class="hint-ladder mx-auto box-border max-w-(--content-width) px-6" aria-label="Hints">
+    <section class="hint-ladder content-column mt-4" aria-label="Hints">
         @if (_revealed > 0)
         {
-            <ol class="hint-list">
+            <ol class="hint-list mt-0 mb-2 grid list-none gap-2 p-0">
                 @for (var i = 0; i < _revealed; i++)
                 {
-                    <li class="hint-rung">
-                        <span class="hint-label">@Label(i)</span>
-                        <div class="hint-text">@((MarkupString)MarkdownHtml.ToHtml(Hints[i]))</div>
+                    <li class="hint-rung rounded-md border border-hairline bg-surface px-4 py-2">
+                        <span class="hint-label mb-[.15rem] block text-[.8rem] font-semibold text-fg-secondary">@Label(i)</span>
+                        <div class="hint-text text-fg-secondary [&_p]:m-0 [&_p+p]:mt-2">@((MarkupString)MarkdownHtml.ToHtml(Hints[i]))</div>
                     </li>
                 }
             </ol>
         }
         @if (_revealed < Hints.Count)
         {
-            <button class="link hint-more" @onclick="Reveal">@(_revealed == 0 ? "Need a hint?" : _revealed == Hints.Count - 1 ? "Show the last hint" : "Show another hint")</button>
+            <button class="link hint-more btn-link" @onclick="Reveal">@(_revealed == 0 ? "Need a hint?" : _revealed == Hints.Count - 1 ? "Show the last hint" : "Show another hint")</button>
             @if (Caption is { Length: > 0 })
             {
-                <span class="hint-caption">@Caption</span>
+                <span class="hint-caption ml-2 text-[.8rem] text-fg-secondary">@Caption</span>
             }
         }
     </section>

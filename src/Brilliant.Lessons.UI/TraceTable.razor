@@ -2,19 +2,19 @@
    (added, updated, removed), and so are the rows the pointer variables are looking up. *@
 @using Brilliant.Core.Python
 
-<figure class="trace-table" data-variable="@Table.Variable">
-    <figcaption class="table-name"><code>@Table.Variable</code> <span class="table-kind">@Table.Kind</span></figcaption>
+<figure class="trace-table mx-0 my-4 rounded-md border border-hairline bg-surface-raised px-4 pt-2 pb-4" data-variable="@Table.Variable">
+    <figcaption class="table-name mb-1 text-[.9rem] text-fg-secondary"><code>@Table.Variable</code> <span class="table-kind ml-[.4rem] text-[.8rem]">@Table.Kind</span></figcaption>
 
     @if (Table.Kind == Visual.Dict)
     {
-        <table class="dict" aria-label="@Describe()">
+        <table class="dict w-full border-separate border-spacing-x-0 border-spacing-y-1 text-[.95rem]" aria-label="@Describe()">
             <tbody>
                 @foreach (var row in Table.Rows)
                 {
                     <tr class="@RowClass(row)" @key="RowKey(row)">
-                        <th scope="row" class="row-key"><code>@row.Key</code></th>
-                        <td class="row-value"><code>@row.Value</code></td>
-                        <td class="row-lookup">@Lookups(row)</td>
+                        <th scope="row" class="row-key @CellClass(row) w-[1%] rounded-l-sm border-l font-semibold whitespace-nowrap"><code>@row.Key</code></th>
+                        <td class="row-value @CellClass(row) [overflow-wrap:anywhere]"><code>@row.Value</code></td>
+                        <td class="row-lookup @CellClass(row) w-[1%] rounded-r-sm border-r whitespace-nowrap">@Lookups(row)</td>
                     </tr>
                 }
             </tbody>
@@ -22,10 +22,10 @@
     }
     else
     {
-        <ul class="set" aria-label="@Describe()">
+        <ul class="set m-0 flex list-none flex-wrap gap-[.4rem] p-0" aria-label="@Describe()">
             @foreach (var row in Table.Rows)
             {
-                <li class="@RowClass(row)" @key="RowKey(row)">
+                <li class="@RowClass(row) @SetMemberClass(row)" @key="RowKey(row)">
                     <code class="row-key">@row.Key</code>@Lookups(row)
                 </li>
             }
@@ -34,15 +34,15 @@
 
     @if (IsEmpty)
     {
-        <p class="table-empty">empty</p>
+        <p class="table-empty mt-1 mb-0 text-[.9rem] text-fg-secondary italic">empty</p>
     }
     @if (Table.More > 0)
     {
-        <p class="table-more">+@Table.More more</p>
+        <p class="table-more mt-1 mb-0 text-[.9rem] text-fg-secondary">+@Table.More more</p>
     }
     @if (Table.Misses.Count > 0)
     {
-        <p class="table-miss">Looking up <code>@string.Join(", ", Table.Misses)</code> finds no such @Noun.</p>
+        <p class="table-miss mt-1 mb-0 text-[.9rem] text-fg-secondary">Looking up <code>@string.Join(", ", Table.Misses)</code> finds no such @Noun.</p>
     }
 </figure>
 
@@ -56,13 +56,25 @@
 
     private bool IsEmpty => Table.More == 0 && Table.Rows.All(r => r.Change == RowChange.Removed);
 
+    // The state words stay as hooks. A dict row's cells carry its look (a table row can't be a pill), so a flash goes on them;
+    // a set member is the pill itself, so a flash goes on it.
     private static string RowClass(RowView row) => (row.Change switch
     {
-        RowChange.Added => "row added",
+        RowChange.Added => "row added animate-row-in",
         RowChange.Updated => "row updated",
-        RowChange.Removed => "row removed",
+        RowChange.Removed => "row removed animate-row-out line-through opacity-55 [&_.looked-up-by]:hidden",
         _ => "row",
     }) + (row.LookedUpBy.Count > 0 ? " looked-up" : "");
+
+    private static string CellClass(RowView row) =>
+        "border-y bg-surface px-[.6rem] py-[.3rem] text-left "
+        + (row.LookedUpBy.Count > 0 ? "border-accent" : "border-border")
+        + (row.Change == RowChange.Updated ? " animate-row-flash" : "");
+
+    private static string SetMemberClass(RowView row) =>
+        "inline-flex items-center gap-[.4rem] rounded-full border bg-surface px-[.7rem] py-[.3rem] text-[.95rem] "
+        + (row.LookedUpBy.Count > 0 ? "border-accent" : "border-border")
+        + (row.Change == RowChange.Updated ? " animate-row-flash" : "");
 
     private string RowKey(RowView row) => row.Change == RowChange.None ? row.Id : $"{row.Id}@{Step}";
 
@@ -71,7 +83,7 @@
         foreach (var name in row.LookedUpBy)
         {
             builder.OpenElement(0, "span");
-            builder.AddAttribute(1, "class", "looked-up-by");
+            builder.AddAttribute(1, "class", "looked-up-by rounded-full bg-accent px-[.4rem] py-[.05rem] font-mono text-[.75rem] font-semibold text-on-accent");
             builder.AddContent(2, name);
             builder.CloseElement();
         }

@@ -1,29 +1,29 @@
 @implements IDisposable
 @inject StepShortcuts Shortcuts
 
-<article class="choice-step">
+<article class="choice-step lesson-step">
     <h2>@Step.Title</h2>
     <p class="prompt">@Step.Prompt</p>
     @if (Step.MultiSelect)
     {
-        <p class="hint">Select all that apply.</p>
+        <p class="hint -mt-2 text-fg-secondary">Select all that apply.</p>
     }
 
-    <ul class="options">
+    <ul class="options my-4 grid list-none gap-2 p-0">
         @for (var i = 0; i < Step.Options.Count; i++)
         {
             var index = i;
             var option = Step.Options[index];
             var picked = _selected.Contains(index);
             <li class="@OptionClass(index, picked)">
-                <label>
+                <label class="flex min-h-6 cursor-pointer items-center gap-3">
                     <input type="@(Step.MultiSelect ? "checkbox" : "radio")" name="@Step.Id" checked="@picked"
                            disabled="@_locked" @onchange="() => Toggle(index)" />
                     @option.Text
                 </label>
                 @if (_result is not null && picked && option.Feedback is { Length: > 0 })
                 {
-                    <div class="option-feedback">@option.Feedback</div>
+                    <div class="option-feedback mt-[.4rem] text-[.9rem] text-fg-secondary">@option.Feedback</div>
                 }
             </li>
         }
@@ -31,17 +31,17 @@
 
     @if (_result is null)
     {
-        <button class="primary" disabled="@(_selected.Count == 0)" @onclick="Check">Check</button>
+        <button class="primary btn-primary" disabled="@(_selected.Count == 0)" @onclick="Check">Check</button>
     }
     else if (_result.IsCorrect)
     {
-        <p class="verdict correct" role="status">Correct!</p>
-        <button class="primary" @onclick="() => OnContinue.InvokeAsync()">Continue</button>
+        <p class="verdict correct font-semibold text-success" role="status">Correct!</p>
+        <button class="primary btn-primary" @onclick="() => OnContinue.InvokeAsync()">Continue</button>
     }
     else
     {
-        <p class="verdict incorrect" role="status">Not quite. Have another go.</p>
-        <button class="primary" @onclick="TryAgain">Try again</button>
+        <p class="verdict incorrect font-semibold text-danger" role="status">Not quite. Have another go.</p>
+        <button class="primary btn-primary" @onclick="TryAgain">Try again</button>
     }
 </article>
 
@@ -112,8 +112,8 @@
 
     private string OptionClass(int index, bool picked)
     {
-        if (_result is null) return picked ? "option selected" : "option";
-        if (picked) return Step.Options[index].Correct ? "option right" : "option wrong";
-        return "option";
+        if (_result is null) return Styling.Option(picked ? OptionState.Selected : OptionState.Idle);
+        if (picked) return Styling.Option(Step.Options[index].Correct ? OptionState.Right : OptionState.Wrong);
+        return Styling.Option(OptionState.Idle);
     }
 }
