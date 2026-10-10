@@ -9,9 +9,17 @@
     /// <summary>The code the editor starts with. Later changes go through <see cref="SetCodeAsync"/>.</summary>
     [Parameter] public string InitialCode { get; set; } = "";
 
+    /// <summary>
+    /// Called with the full text shortly after the learner stops typing (not for <see cref="SetCodeAsync"/>), and once
+    /// more when the editor is disposed if an edit hadn't been reported yet. A plain delegate rather than an EventCallback
+    /// so reporting an edit doesn't re-render the parent.
+    /// </summary>
+    [Parameter] public Action<string>? OnChanged { get; set; }
+
     private ElementReference _host;
     private IJSObjectReference? _module;
     private int _id;
+    private DotNetObjectReference<CodeEditor>? _self;
     private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -20,7 +28,8 @@
         try
         {
             _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/Brilliant.Lessons.UI/code-editor.js");
-            _id = await _module.InvokeAsync<int>("create", _host, InitialCode);
+            _self = DotNetObjectReference.Create(this);
+            _id = await _module.InvokeAsync<int>("create", _host, InitialCode, _self);
             _ready.SetResult();
         }
         catch (Exception ex)
@@ -47,14 +56,21 @@
 
     public async ValueTask HighlightLineAsync(int? line) => await (await ModuleAsync()).InvokeVoidAsync("highlightLine", _id, line);
 
+    [JSInvokable] public void OnJsChanged(string code) => OnChanged?.Invoke(code);
+
     public async ValueTask DisposeAsync()
     {
         if (_module is null) return;
         try
         {
+            await _module.InvokeVoidAsync("flush", _id);   // don't lose the last second of typing when the learner navigates away
             await _module.InvokeVoidAsync("dispose", _id);
             await _module.DisposeAsync();
         }
         catch (JSDisconnectedException) { } // the app is shutting down; nothing left to clean up
+        finally
+        {
+            _self?.Dispose();
+        }
     }
 }
