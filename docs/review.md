@@ -58,7 +58,8 @@ The learner never grades themselves. `Infer(correct, hintsUsed, elapsed, step)`:
 | parsons | 30 s | 150 s |
 | write-code | 90 s | 420 s |
 
-The hint ladder arrives with [#20](https://github.com/joeizang/brilliantApp/issues/20); until then Review records `hintsUsed = 0`.
+Hints come from the [hint ladder](hints.md): each rung used before the first answer lowers the rating (1–2 hints → Hard, 3 or more → Again), and
+Review stores that count in `hintsUsed`.
 The rating is stored on the event so history replays identically if these thresholds are tuned later.
 
 ## The `ReviewAnswered` event
@@ -118,7 +119,7 @@ in Track 1 (it teaches Python syntax); the first arrive with the DSA tracks.
 
 ## Not in this slice
 
-Hints that also bring a problem back sooner ([#20](https://github.com/joeizang/brilliantApp/issues/20), PRD story 33: a re-solve
-is created from wrong answers only for now); a per-learner cap or weights in settings (the options exist, the UI doesn't);
+A re-solve created from hints used in a lesson (a re-solve comes from wrong answers only; hints used in a lesson are recorded but
+only hints asked in Review change a rating, see [hints.md](hints.md)); a per-learner cap or weights in settings (the options exist, the UI doesn't);
 choosing an easier form of a re-solve on a phone, such as Parsons instead of typing code (story 43); mastery and concept views
 ([#21](https://github.com/joeizang/brilliantApp/issues/21)); streaks and the Today screen ([#22](https://github.com/joeizang/brilliantApp/issues/22)).

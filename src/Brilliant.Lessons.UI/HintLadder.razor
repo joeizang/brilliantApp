@@ -1,0 +1,51 @@
+@* The hint ladder: a step's hints, gentlest first, revealed one at a time. Each rung used is reported so the host can record it. *@
+@if (Hints.Count > 0)
+{
+    <section class="hint-ladder" aria-label="Hints">
+        @if (_revealed > 0)
+        {
+            <ol class="hint-list">
+                @for (var i = 0; i < _revealed; i++)
+                {
+                    <li class="hint-rung">
+                        <span class="hint-label">@Label(i)</span>
+                        <div class="hint-text">@((MarkupString)MarkdownHtml.ToHtml(Hints[i]))</div>
+                    </li>
+                }
+            </ol>
+        }
+        @if (_revealed < Hints.Count)
+        {
+            <button class="link hint-more" @onclick="Reveal">@(_revealed == 0 ? "Need a hint?" : _revealed == Hints.Count - 1 ? "Show the last hint" : "Show another hint")</button>
+            @if (Caption is { Length: > 0 })
+            {
+                <span class="hint-caption">@Caption</span>
+            }
+        }
+    </section>
+}
+
+@code {
+    /// <summary>The step's authored hints, gentlest first.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<string> Hints { get; set; } = [];
+
+    /// <summary>Raised with the 1-based level each time a hint is revealed.</summary>
+    [Parameter] public EventCallback<int> OnRevealed { get; set; }
+
+    /// <summary>Optional small print beside the button, e.g. what using a hint costs.</summary>
+    [Parameter] public string? Caption { get; set; }
+
+    private static readonly string[] Names = ["Nudge", "Pattern hint", "Partial code", "Full solution"];
+
+    private int _revealed;
+
+    // Only a full four-rung ladder has the standard rung names; a shorter one is just numbered.
+    private string Label(int index) => Hints.Count == Names.Length ? Names[index] : $"Hint {index + 1} of {Hints.Count}";
+
+    private async Task Reveal()
+    {
+        if (_revealed >= Hints.Count) return;
+        _revealed++;
+        await OnRevealed.InvokeAsync(_revealed);
+    }
+}

@@ -61,6 +61,14 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
         Append(ProgressEventTypes.CodeSubmitted, lessonId, stepId,
             JsonSerializer.Serialize(new { code, passed = totalTests > 0 && passedTests == totalTests, passedTests, totalTests }));
 
+    /// <summary>
+    /// Records that the learner revealed hint <paramref name="level"/> (1 = the gentlest nudge) of a step. Pass
+    /// <paramref name="reviewItemId"/> when the question was asked by Review, so a lesson attempt and a review attempt stay apart.
+    /// </summary>
+    public void HintUsed(string lessonId, string stepId, int level, string? reviewItemId = null) =>
+        Append(ProgressEventTypes.HintUsed, lessonId, stepId,
+            JsonSerializer.Serialize(new { level, item = reviewItemId }));
+
     public void StepCompleted(string lessonId, string stepId) =>
         Append(ProgressEventTypes.StepCompleted, lessonId, stepId, null);
 

@@ -26,9 +26,5 @@
 @code {
     [Parameter, EditorRequired] public ExplainStep Step { get; set; } = default!;
 
-    // Body is author-controlled markdown from the validated Content Pack; raw HTML is disabled anyway.
-    private static readonly Markdig.MarkdownPipeline Pipeline =
-        Markdig.MarkdownExtensions.DisableHtml(new Markdig.MarkdownPipelineBuilder()).Build();
-
-    private string BodyHtml => Markdig.Markdown.ToHtml(Step.Body, Pipeline);
+    private string BodyHtml => MarkdownHtml.ToHtml(Step.Body);
 }
