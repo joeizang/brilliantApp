@@ -1,0 +1,139 @@
+@* The Trace Player: the example's code (read-only, current line highlighted), the watched lists drawn as cells with named pointers,
+   the locals, and Previous/Next to walk the recorded steps. What changed since the last step is marked, and the pointers slide. *@
+@using Brilliant.Core.Python
+
+<div class="trace-player">
+    <CodeEditor @ref="_editor" InitialCode="@Code" ReadOnly="true" />
+
+    <div class="controls">
+        <button class="secondary prev" disabled="@(_index == 0)" @onclick="() => Go(_index - 1)">← Previous</button>
+        <span class="position" aria-live="polite">Step @(_index + 1) of @States.Count</span>
+        <button class="secondary next" disabled="@(_index >= States.Count - 1)" @onclick="() => Go(_index + 1)">Next →</button>
+    </div>
+
+    @foreach (var array in Current.Arrays)
+    {
+        var onCells = array.Pointers.Where(p => p.Index is not null).ToList();
+        var offCells = array.Pointers.Where(p => p.Index is null).ToList();
+        var shown = array.Cells.Count + (array.More > 0 ? 1 : 0);
+        var rows = onCells.Count == 0 ? 0 : onCells.GroupBy(p => p.Index).Max(g => g.Count());
+        var width = 2 * Pad + shown * CellW;
+        var height = CellTop + CellH + (rows == 0 ? Pad : PointerGap + rows * RowH + Pad / 2);
+        <figure class="array" @key="array.Variable">
+            <figcaption class="array-name"><code>@array.Variable</code></figcaption>
+            <div class="array-scroll">
+                <svg class="array-svg" role="img" aria-label="@Describe(array)" width="@width" height="@height" viewBox="0 0 @width @height">
+                    @for (var i = 0; i < array.Cells.Count; i++)
+                    {
+                        var cell = array.Cells[i];
+                        var index = i;
+                        <g class="@(cell.Changed ? "cell changed" : "cell")" data-index="@index" transform="@Translate(Pad + index * CellW, CellTop)" @key="CellKey(array, index)">
+                            <title>@cell.Text</title>
+                            <text class="cell-index" x="@(CellW / 2)" y="-6" text-anchor="middle">@index</text>
+                            <rect class="cell-box" width="@(CellW - 4)" height="@CellH" rx="6" />
+                            <text class="cell-text" x="@(CellW / 2 - 2)" y="@(CellH / 2)" text-anchor="middle" dominant-baseline="central">@Clip(cell.Text)</text>
+                        </g>
+                    }
+                    @if (array.More > 0)
+                    {
+                        <g class="cell more" transform="@Translate(Pad + array.Cells.Count * CellW, CellTop)" @key="@("more")">
+                            <text class="more-text" x="@(CellW / 2 - 2)" y="@(CellH / 2)" text-anchor="middle" dominant-baseline="central">+@array.More more</text>
+                        </g>
+                    }
+                    @foreach (var pointer in onCells)
+                    {
+                        var row = onCells.TakeWhile(p => p != pointer).Count(p => p.Index == pointer.Index);
+                        <g class="@(pointer.Moved ? "pointer moved" : "pointer")" data-name="@pointer.Name" data-index="@pointer.Index" data-row="@row"
+                           style="@PointerStyle(pointer.Index!.Value, row)" @key="@((array.Variable, pointer.Name))">
+                            <path class="pointer-arrow" d="M0 0 L-6 8 L6 8 Z" />
+                            <text class="pointer-label" y="22" text-anchor="middle">@pointer.Name</text>
+                        </g>
+                    }
+                </svg>
+            </div>
+            @if (offCells.Count > 0)
+            {
+                <p class="off-array">
+                    @string.Join(", ", offCells.Select(p => p.Name)) @(offCells.Count == 1 ? "is" : "are") not on a cell right now.
+                </p>
+            }
+        </figure>
+    }
+
+    @if (Current.Locals.Count > 0)
+    {
+        <table class="locals">
+            <caption>Variables</caption>
+            <tbody>
+                @foreach (var local in Current.Locals)
+                {
+                    <tr class="@(local.Changed ? "local changed" : "local")" data-name="@local.Name" @key="@(local.Changed ? local.Name + "@" + Current.Index : local.Name)">
+                        <th scope="row"><code>@local.Name</code></th>
+                        <td class="local-value"><code>@local.Value</code></td>
+                        <td class="local-type">@local.Type</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @if (_index == States.Count - 1)
+    {
+        <TraceEnding Result="Result" />
+    }
+</div>
+
+@code {
+    private const int CellW = 64, CellH = 48, Pad = 16, CellTop = 22, PointerGap = 4, RowH = 28;
+
+    [Parameter, EditorRequired] public string Code { get; set; } = "";
+
+    /// <summary>The steps to walk, from <see cref="TraceModel.Build"/>. Never empty.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<TraceState> States { get; set; } = default!;
+
+    /// <summary>How the run ended (output, error or cut short), shown on the last step.</summary>
+    [Parameter, EditorRequired] public TraceResult Result { get; set; } = default!;
+
+    private CodeEditor _editor = default!;
+    private IReadOnlyList<TraceState>? _states;
+    private int _index;
+    private bool _highlightShown;
+    private int? _highlightedLine;
+
+    private TraceState Current => States[_index];
+
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(_states, States)) return;
+        _states = States;
+        _index = 0;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_highlightShown && _highlightedLine == Current.Line) return;
+        _highlightShown = true;
+        _highlightedLine = Current.Line;
+        await _editor.HighlightLineAsync(_highlightedLine);
+    }
+
+    private void Go(int index) => _index = Math.Clamp(index, 0, States.Count - 1);
+
+    private static string Translate(int x, int y) => $"translate({x} {y})";
+
+    // A pointer is placed with CSS (not the transform attribute) so that moving it can be a transition.
+    private static string PointerStyle(int index, int row) =>
+        $"transform: translate({Pad + index * CellW + CellW / 2 - 2}px, {CellTop + CellH + PointerGap + row * RowH}px)";
+
+    // A changed cell is a new element, so that its flash plays again on every step it changes in.
+    private string CellKey(ArrayView array, int index) => array.Cells[index].Changed ? $"{index}@{Current.Index}" : index.ToString();
+
+    private static string Clip(string text) => text.Length <= 7 ? text : text[..6] + "…";
+
+    private static string Describe(ArrayView array)
+    {
+        var cells = string.Join(", ", array.Cells.Select(c => c.Text)) + (array.More > 0 ? $" and {array.More} more" : "");
+        var pointers = array.Pointers.Select(p => p.Index is { } i ? $"{p.Name} at index {i}" : $"{p.Name} not on a cell");
+        return $"{array.Variable}: {cells}" + (array.Pointers.Count > 0 ? "; " + string.Join(", ", pointers) : "");
+    }
+}

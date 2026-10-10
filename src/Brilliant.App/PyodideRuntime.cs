@@ -24,6 +24,14 @@ public sealed class PyodideRuntime(IJSRuntime js) : IPythonRuntime, IAsyncDispos
         return TestRunResultJson.Parse(json);
     }
 
+    public async Task<TraceResult> TraceAsync(string code, IReadOnlyList<Visual> visuals, CancellationToken cancellationToken = default)
+    {
+        _module ??= await js.InvokeAsync<IJSObjectReference>("import", cancellationToken, "./python-runtime.js");
+        var json = await _module.InvokeAsync<string>("trace", cancellationToken, code,
+            TraceResultJson.SerializeWatch(visuals), (int)RunTimeout.TotalMilliseconds);
+        return TraceResultJson.Parse(json);
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_module is null) return;

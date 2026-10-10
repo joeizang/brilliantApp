@@ -56,6 +56,24 @@ steps:
         nums = [10, 20, 30]
         first = nums[0]
         count = len(nums)
+  - id: step.lists.trace-walk
+    type: trace
+    title: Watch an index walk a list
+    body: |
+      Step through this loop. The arrow labelled `i` sits on the cell `nums[i]` reads, and `total` grows by that
+      cell each time. Notice that `i` stops at `3`, one past the last cell: `nums[3]` would be an `IndexError`.
+    code: |
+      nums = [4, 8, 15]
+      total = 0
+      i = 0
+      while i < len(nums):
+          total += nums[i]
+          i += 1
+      print(total)
+    visualise:
+      - variable: nums
+        as: array
+        pointers: [i]
   - id: step.lists.check-index-error
     type: choice
     title: Check your understanding

@@ -558,6 +558,7 @@ public sealed class ValidatorTests : IDisposable
     {
         public List<string> Solutions { get; } = [];
         public TestRunResult Run(string code, string entrypoint, IReadOnlyList<CodeTest> tests) { Solutions.Add(code); return result(code); }
+        public TraceResult Trace(string code, IReadOnlyList<Visual> visuals) => throw new NotSupportedException("These tests have no trace steps.");
     }
 
     private static TestRunResult Outcome(TestRunStatus status, params TestOutcome[] tests) =>
@@ -681,8 +682,8 @@ public sealed class ValidatorTests : IDisposable
             Assert.NotEmpty(lesson.ReviewItems);
             Assert.Contains(lesson.Steps, s => s is PredictOutputStep);
             Assert.Contains(lesson.Steps, s => s is ChoiceStep);
-            // Every question carries a hint ladder.
-            Assert.All(lesson.Steps.Where(s => s is not ExplainStep), s => Assert.NotEmpty(s.Hints));
+            // Every question carries a hint ladder (explanations and traces are not questions).
+            Assert.All(lesson.Steps.Where(s => s is not (ExplainStep or TraceStep)), s => Assert.NotEmpty(s.Hints));
             // Every declared concept is exercised by at least one review item.
             Assert.All(lesson.Concepts, c => Assert.Contains(lesson.ReviewItems, r => r.ConceptId == c.Id));
         }

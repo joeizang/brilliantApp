@@ -1,0 +1,2 @@
+.trace-body { margin-bottom: var(--space-md); }
+.trace-failure { color: var(--danger); font-weight: 500; }

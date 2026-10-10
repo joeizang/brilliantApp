@@ -1,0 +1,30 @@
+.trace-player { margin: var(--space-md) 0; }
+.controls { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); margin: var(--space-md) 0; }
+.position { color: var(--fg-secondary); font-variant-numeric: tabular-nums; }
+button.secondary:disabled { opacity: .45; cursor: default; }
+
+.array { margin: var(--space-md) 0; padding: var(--space-sm) var(--space-md) var(--space-md); background: var(--surface-raised); border: 1px solid var(--hairline); border-radius: var(--radius-md); }
+.array-name { margin-bottom: var(--space-xs); color: var(--fg-secondary); font-size: .9rem; }
+.array-scroll { overflow-x: auto; }
+.array-svg { display: block; max-width: none; overflow: visible; }
+
+.cell-box { fill: var(--surface); stroke: var(--border); stroke-width: 2; }
+.cell-text { fill: var(--fg); font-family: var(--font-mono); font-size: 1rem; }
+.cell-index, .more-text { fill: var(--fg-secondary); font-family: var(--font-mono); font-size: .8rem; }
+.cell.changed .cell-box { animation: cell-flash .9s var(--ease); }
+@keyframes cell-flash { from { fill: var(--warn-bg); stroke: var(--accent); } to { fill: var(--surface); stroke: var(--border); } }
+
+/* Moving a pointer is a transition on its transform, so it slides from the old cell to the new one. */
+.pointer { transition: transform .45s var(--ease); }
+.pointer-arrow { fill: var(--accent); }
+.pointer-label { fill: var(--accent); font-family: var(--font-mono); font-size: .95rem; font-weight: 600; }
+.off-array { margin: var(--space-sm) 0 0; color: var(--fg-secondary); font-size: .9rem; }
+
+.locals { width: 100%; border-collapse: collapse; margin: var(--space-md) 0; font-size: .95rem; }
+.locals caption { text-align: left; margin-bottom: var(--space-xs); color: var(--fg-secondary); font-size: .9rem; }
+.locals th, .locals td { padding: .3rem .6rem; text-align: left; border-bottom: 1px solid var(--hairline); }
+.locals th { font-weight: 600; width: 1%; white-space: nowrap; }
+.local-value { overflow-wrap: anywhere; }
+.local-type { color: var(--fg-secondary); text-align: right; width: 1%; white-space: nowrap; }
+.local.changed { animation: local-flash .9s var(--ease); }
+@keyframes local-flash { from { background: var(--warn-bg); } to { background: transparent; } }

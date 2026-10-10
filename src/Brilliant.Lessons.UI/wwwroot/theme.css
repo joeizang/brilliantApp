@@ -109,11 +109,11 @@ p { margin: 0 0 var(--space-md); }
 
 /* Every screen and step sits in the same centred column. */
 .screen-title, .track-meta, .crumbs, .cards, .lessons, .lesson-title, .lesson-bar, .lesson-progress, .step-actions, .lesson-done,
-.explain-step, .choice-step, .predict-step, .write-step, .fill-step, .parsons-step {
+.explain-step, .trace-step, .choice-step, .predict-step, .write-step, .fill-step, .parsons-step {
     max-width: var(--content-width); margin-left: auto; margin-right: auto; padding-left: var(--space-lg); padding-right: var(--space-lg);
     box-sizing: border-box;
 }
-.explain-step, .choice-step, .predict-step, .write-step, .fill-step, .parsons-step { padding-top: var(--space-lg); padding-bottom: var(--space-lg); }
+.explain-step, .trace-step, .choice-step, .predict-step, .write-step, .fill-step, .parsons-step { padding-top: var(--space-lg); padding-bottom: var(--space-lg); }
 .cards, .lessons { padding-left: var(--space-lg); padding-right: var(--space-lg); }
 
 /* Secondary text uses a colour, never opacity, so it keeps its contrast. */
@@ -121,7 +121,7 @@ p { margin: 0 0 var(--space-md); }
 
 /* A step arrives with a short fade; nothing moves for people who ask for less motion. */
 @keyframes fade-up { from { opacity: 0; transform: translateY(.75rem); } to { opacity: 1; transform: none; } }
-.explain-step, .choice-step, .predict-step, .write-step, .fill-step, .parsons-step { animation: fade-up .35s var(--ease) both; }
+.explain-step, .trace-step, .choice-step, .predict-step, .write-step, .fill-step, .parsons-step { animation: fade-up .35s var(--ease) both; }
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
 }

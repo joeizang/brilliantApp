@@ -72,8 +72,11 @@ const theme = EditorView.theme({
     '.cm-diagnostic': { fontFamily: 'inherit' },
 });
 
-/** onChanged: optional DotNetObjectReference whose OnJsChanged(code) is called, debounced, after the learner edits. */
-export function create(element, code, onChanged) {
+/**
+ * onChanged: optional DotNetObjectReference whose OnJsChanged(code) is called, debounced, after the learner edits.
+ * readOnly: show the code without letting it be edited or focused (the Trace Player's view of the example).
+ */
+export function create(element, code, onChanged, readOnly) {
     let id;
     const view = new EditorView({
         parent: element,
@@ -92,6 +95,7 @@ export function create(element, code, onChanged) {
                 python(), syntaxHighlighting(highlighter),
                 EditorView.contentAttributes.of({ 'aria-label': 'Code editor', spellcheck: 'false', autocapitalize: 'off', autocorrect: 'off' }),
                 highlightField, theme,
+                ...(readOnly ? [EditorState.readOnly.of(true), EditorView.editable.of(false)] : []),
                 EditorView.updateListener.of(update => {
                     if (!onChanged || !update.docChanged || update.transactions.some(t => t.annotation(programmatic))) return;
                     const notify = () => { pending.delete(id); return onChanged.invokeMethodAsync('OnJsChanged', update.view.state.doc.toString()); };

@@ -14,6 +14,8 @@
   <ItemGroup>
     <!-- The same harness the app runs under Pyodide; the validator runs it under CPython to prove reference solutions. -->
     <EmbeddedResource Include="..\..\src\Brilliant.App\wwwroot\python\harness.py" LogicalName="harness.py" />
+    <!-- ...and the trace recorder, to prove a trace step's code runs and draws what the lesson says it does. -->
+    <EmbeddedResource Include="..\..\src\Brilliant.App\wwwroot\python\tracer.py" LogicalName="tracer.py" />
   </ItemGroup>
 
   <ItemGroup>

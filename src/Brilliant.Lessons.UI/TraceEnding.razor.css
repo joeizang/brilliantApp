@@ -1,0 +1,7 @@
+.trace-ending:empty { display: none; }
+.trace-ending { margin-top: var(--space-md); }
+.trace-output h4 { margin: .6rem 0 .2rem; font-size: .9rem; font-weight: 600; color: var(--fg-secondary); }
+.trace-output pre, pre.traceback { margin: 0; padding: var(--space-sm) var(--space-md); background: var(--code-bg); color: var(--code-fg); border-radius: var(--radius-sm); overflow-x: auto; font-family: var(--font-mono); font-size: .9rem; white-space: pre-wrap; }
+pre.traceback { border-left: .25rem solid var(--danger); }
+.verdict.incorrect { color: var(--danger); font-weight: 500; }
+.trace-note { color: var(--fg-secondary); }
