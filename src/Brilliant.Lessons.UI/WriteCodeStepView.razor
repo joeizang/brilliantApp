@@ -91,6 +91,7 @@
     private CodeEditor _editor = default!;
     private string _initialCode = "";
     private bool _confirmingReset;
+    private bool _resetting;
     private bool _running;
     private bool _warmedUp;
     private TestRunResult? _result;
@@ -101,6 +102,7 @@
     // Code that matches the starter is stored as "no draft", so a later change to the starter still reaches learners who never edited it.
     private void SaveDraft(string code)
     {
+        if (_resetting) return;   // an edit reported while a reset is in flight is the text being replaced
         if (code == Step.Starter) Drafts.Reset(Step.Id);
         else Drafts.Save(Step.Id, code);
     }
@@ -108,12 +110,22 @@
     private async Task ResetToStarter()
     {
         _confirmingReset = false;
-        Drafts.Reset(Step.Id);
         _result = null;
         _runtimeFailure = null;
-        await _editor.SetCodeAsync(Step.Starter);
-        await _editor.ClearErrorMarkersAsync();
-        await _editor.HighlightLineAsync(null);
+        _resetting = true;
+        try
+        {
+            Drafts.Reset(Step.Id);
+            await _editor.SetCodeAsync(Step.Starter);
+            await _editor.ClearErrorMarkersAsync();
+            await _editor.HighlightLineAsync(null);
+        }
+        finally
+        {
+            // Whatever autosave callbacks arrived during the JS round trips were ignored; the reset has the last word.
+            Drafts.Reset(Step.Id);
+            _resetting = false;
+        }
     }
 
     private async Task Submit()

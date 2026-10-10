@@ -182,4 +182,31 @@ public class WriteCodeStepViewTests : BunitContext
 
         run.WaitForAssertion(() => Assert.Empty(run.FindAll(".verdict")));
     }
+
+    [Fact]
+    public void An_autosave_arriving_while_a_reset_is_in_flight_does_not_bring_the_draft_back()
+    {
+        _drafts.Saved[Step.Id] = "mine";
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var module = JSInterop.SetupModule("./_content/Brilliant.Lessons.UI/code-editor.js");
+        module.Setup<int>("create", _ => true).SetResult(1);
+        var setCode = module.SetupVoid("setCode", _ => true);   // stays pending until we complete it
+        Services.AddSingleton<ICodeDraftStore>(_drafts);
+        Services.AddSingleton<IPythonRuntime>(new FakeRuntime(new TestRunResult(TestRunStatus.Passed, "", null, null, null, [])));
+        var cut = Render<WriteCodeStepView>(p => p.Add(c => c.Step, Step));
+        cut.WaitForAssertion(() => Assert.Single(module.Invocations["create"]));
+
+        cut.Find("button.reset").Click();
+        cut.FindAll(".reset-confirm button").Single(b => b.TextContent == "Yes, reset").Click();
+        cut.WaitForAssertion(() => Assert.Single(module.Invocations["setCode"]));
+
+        Type(module, "my draft");      // the old document's debounced callback lands mid-reset
+        setCode.SetVoidResult();
+
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".reset-confirm")));
+        Assert.False(_drafts.Saved.ContainsKey(Step.Id));
+
+        Type(module, "typed after the reset");   // normal autosave resumes afterwards
+        Assert.Equal("typed after the reset", _drafts.Saved[Step.Id]);
+    }
 }
