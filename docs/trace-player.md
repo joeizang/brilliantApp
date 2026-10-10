@@ -52,7 +52,7 @@ no line). A frame holds the function name, the locals (name, type, clipped repr)
 Limits keep a runaway example from hanging or flooding the UI: 300 frames (then `status: "truncated"`), 24 locals, 40 cells per list (the
 rest are counted as *+N more*), reprs clipped, 4000 characters of output. Modules, functions, classes and dunder names are hidden from the
 locals. An exception ends the trace with `status: "error"`, keeping the frames recorded so far and the traceback, so the learner still sees
-how far it got. The JS bridge (`python-runtime.js`) applies the same run timeout as tests: a hang terminates and recreates the worker.
+how far it got. The JS bridge (`python-runtime.js`) applies the same run timeout as tests: a hang terminates and recreates the worker. Only the request that timed out gets its own kind of timeout result; any other request pending on the same worker is rejected ("Python was restarted because another run took too long") rather than handed a result of the wrong shape.
 
 ## The Trace Model (`Brilliant.Core/Python/Trace.cs`)
 

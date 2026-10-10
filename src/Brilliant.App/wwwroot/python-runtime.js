@@ -24,14 +24,19 @@ function start() {
     worker.onerror = e => stop(new Error('The Python worker failed: ' + (e.message || 'unknown error')));
 }
 
-// Terminates the worker and settles every outstanding request with `outcome` (an Error rejects, anything else resolves).
-function stop(outcome) {
+// Terminates the worker and settles every outstanding request. An Error `outcome` rejects them all. Otherwise `outcome` is
+// the timeout result of the request `ownerId`, which resolves with it; the other requests were not the ones that ran too
+// long and a result shaped for another kind of request would be wrong for them, so they are rejected and can be retried.
+function stop(outcome, ownerId) {
     const dead = worker;
     worker = null; // the next run starts a fresh worker
     dead?.terminate();
-    for (const [, request] of pending) {
+    const restarted = new Error('Python was restarted because another run took too long. Try again.');
+    for (const [id, request] of pending) {
         request.finish();
-        outcome instanceof Error ? request.reject(outcome) : request.resolve(outcome);
+        if (outcome instanceof Error) request.reject(outcome);
+        else if (id === ownerId) request.resolve(outcome);
+        else request.reject(restarted);
     }
     pending.clear();
 }
@@ -61,7 +66,7 @@ function request(message, runTimeoutMs, onTimeout) {
             finish: () => clearTimeout(timer),
             startRun: () => {
                 clearTimeout(timer);
-                timer = setTimeout(() => stop(onTimeout(runTimeoutMs / 1000)), runTimeoutMs);
+                timer = setTimeout(() => stop(onTimeout(runTimeoutMs / 1000), id), runTimeoutMs);
             },
         });
         worker.postMessage({ id, ...message });

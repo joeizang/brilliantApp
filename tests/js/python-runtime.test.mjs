@@ -76,3 +76,32 @@ test('a trace that never finishes comes back as an error trace with no frames', 
     assert.match(result.message, /more than 0.05 seconds/);
     assert.equal(workers.at(-1).terminated, true);
 });
+
+// A timeout terminates the shared worker, which takes any other pending request down with it. Only the request that
+// timed out gets its own kind of timeout result; the others did nothing wrong and must not be handed a result of the wrong shape.
+test('when a trace times out, a test run pending beside it is rejected, not given the trace result', async () => {
+    FakeWorker.next = 'hang';
+    const [traced, tested] = await Promise.allSettled([trace('while True: pass', '[]', 50), runTests('def f(): pass', 'f', '[]', 5000)]);
+
+    assert.equal(traced.status, 'fulfilled');
+    assert.equal(JSON.parse(traced.value).status, 'error');
+    assert.equal(tested.status, 'rejected');
+    assert.match(tested.reason.message, /another run took too long/);
+});
+
+test('when a test run times out, a trace pending beside it is rejected, not given the timedOut result', async () => {
+    FakeWorker.next = 'hang';
+    const [tested, traced] = await Promise.allSettled([runTests('while True: pass', 'f', '[]', 50), trace('x = 1', '[]', 5000)]);
+
+    assert.equal(tested.status, 'fulfilled');
+    assert.equal(JSON.parse(tested.value).status, 'timedOut');
+    assert.equal(traced.status, 'rejected');
+    assert.match(traced.reason.message, /another run took too long/);
+});
+
+test('the run after a mixed timeout gets a fresh worker', async () => {
+    const before = workers.length;
+    FakeWorker.next = 'ok';
+    assert.equal(JSON.parse(await runTests('x', 'f', '[]', 50)).status, 'passed');
+    assert.equal(workers.length, before + 1);
+});
