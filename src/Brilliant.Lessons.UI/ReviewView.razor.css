@@ -1,0 +1,7 @@
+.review-bar { margin-top: var(--space-sm); display: flex; gap: var(--space-md); align-items: center; font-size: .9rem; }
+.review-title { margin-top: var(--space-sm); margin-bottom: 0; }
+.review-progress { margin-top: var(--space-sm); font-size: .9rem; }
+.review-progress .bar { margin-bottom: var(--space-sm); }
+.review-next { margin-top: var(--space-md); color: var(--fg-secondary); font-size: .95rem; }
+.review-done { margin-top: var(--space-xl); margin-bottom: var(--space-md); font-size: 1.3rem; }
+.review-actions { padding-bottom: var(--space-lg); }

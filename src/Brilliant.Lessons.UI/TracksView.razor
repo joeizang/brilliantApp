@@ -1,9 +1,24 @@
 @using Brilliant.Core.Progress
 @inject ProgressRecorder Recorder
 
+@{
+    var learner = Recorder.Project(Content);
+    var due = learner.DueReviews.Count;
+}
 <h1 class="screen-title">Tracks</h1>
+@if (due > 0)
+{
+    <button class="review-card" @onclick="() => OnOpenReview.InvokeAsync()">
+        <span class="card-title">Review</span>
+        <span class="card-meta">@due due</span>
+    </button>
+}
+else
+{
+    <p class="review-none">No reviews due.</p>
+}
 <ul class="cards">
-    @foreach (var state in Recorder.Project(Content).Tracks)
+    @foreach (var state in learner.Tracks)
     {
         var pct = state.TotalLessons == 0 ? 0 : 100 * state.CompletedLessons / state.TotalLessons;
         <li>
@@ -19,4 +34,5 @@
 @code {
     [Parameter, EditorRequired] public ContentGraph Content { get; set; } = default!;
     [Parameter] public EventCallback<Track> OnOpenTrack { get; set; }
+    [Parameter] public EventCallback OnOpenReview { get; set; }
 }

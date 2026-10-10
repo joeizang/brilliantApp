@@ -1,0 +1,101 @@
+@* Review: the questions FSRS says are due, one at a time. Each first answer is recorded as a ReviewAnswered event. *@
+@using Brilliant.Core.Progress
+@using Brilliant.Core.Review
+@inject ProgressRecorder Recorder
+
+<div class="review-bar">
+    <button class="link" @onclick="() => OnExit.InvokeAsync()">← Back</button>
+</div>
+<h1 class="review-title">Review</h1>
+
+@if (_current is { } item)
+{
+    <div class="review-progress" role="progressbar" aria-valuemin="0" aria-valuemax="@_queue.Count" aria-valuenow="@_index">
+        <div class="bar"><div class="fill" style="width:@(100 * _index / _queue.Count)%"></div></div>
+        <span>@(_index + 1) of @_queue.Count</span>
+    </div>
+
+    <div @key="item.Item.Id">
+        @switch (item.Question)
+        {
+            case ChoiceStep choice:
+                <ChoiceStepView Step="choice" OnAnswered="r => Answered(item, r.IsCorrect)" OnContinue="Next" />
+                break;
+            case PredictOutputStep predict:
+                <PredictOutputStepView Step="predict" OnAnswered="a => Answered(item, a.Result.IsCorrect)" OnContinue="Next" />
+                break;
+            default:
+                <p>This kind of question can't be reviewed here yet.</p>
+                <div class="review-actions"><button class="primary" @onclick="Next">Skip</button></div>
+                break;
+        }
+        @if (_scheduled is { } due)
+        {
+            <p class="review-next" role="status">You'll see this again @Describe(due - Recorder.Now).</p>
+        }
+    </div>
+}
+else
+{
+    <p class="review-done">@(_queue.Count == 0 && _nextDue is null ? "Nothing to review yet. Finish a lesson and its questions will show up here." : "You're all caught up. 🎉")</p>
+    @if (_nextDue is { } next)
+    {
+        <p class="review-next">Next review @Describe(next - Recorder.Now).</p>
+    }
+    <div class="review-actions"><button class="primary" @onclick="() => OnExit.InvokeAsync()">Back to tracks</button></div>
+}
+
+@code {
+    [Parameter, EditorRequired] public ContentGraph Content { get; set; } = default!;
+    [Parameter] public EventCallback OnExit { get; set; }
+
+    /// <summary>Raised after an answer is recorded, so whatever shows the due count elsewhere (the sidebar) can refresh.</summary>
+    [Parameter] public EventCallback OnProgress { get; set; }
+
+    private IReadOnlyList<ReviewItemState> _queue = [];
+    private int _index;
+    private DateTimeOffset _shownAt;
+    private bool _recorded;
+    private DateTimeOffset? _scheduled;
+    private DateTimeOffset? _nextDue;
+
+    private ReviewItemState? _current => _index < _queue.Count ? _queue[_index] : null;
+
+    protected override void OnInitialized()
+    {
+        _queue = Recorder.Project(Content).DueReviews;
+        Show();
+    }
+
+    private void Show()
+    {
+        (_recorded, _scheduled, _shownAt) = (false, null, Recorder.Now);
+        _nextDue = _current is null ? NextDue() : null;
+    }
+
+    // Only the first answer to an item counts: retrying is practice, not a better memory.
+    private async Task Answered(ReviewItemState item, bool correct)
+    {
+        if (_recorded) return;
+        _recorded = true;
+        Recorder.ReviewAnswered(item, correct, hintsUsed: 0, Recorder.Now - _shownAt);
+        _scheduled = Recorder.Project(Content).Reviews.First(r => r.Item.Id == item.Item.Id).Card?.Due;
+        await OnProgress.InvokeAsync();
+    }
+
+    private void Next()
+    {
+        _index++;
+        Show();
+    }
+
+    private DateTimeOffset? NextDue() => Recorder.Project(Content).Reviews
+        .Where(r => r.IsUnlocked && r.Card is not null)
+        .Select(r => (DateTimeOffset?)r.Card!.Due)
+        .Min();
+
+    private static string Describe(TimeSpan wait) =>
+        wait < TimeSpan.FromHours(1) ? "within the hour"
+        : wait < TimeSpan.FromDays(1) ? $"in {(int)wait.TotalHours} hours"
+        : $"in {(int)Math.Round(wait.TotalDays)} {((int)Math.Round(wait.TotalDays) == 1 ? "day" : "days")}";
+}
