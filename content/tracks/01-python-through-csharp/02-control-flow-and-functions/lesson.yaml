@@ -268,6 +268,22 @@ steps:
         feedback: Not an empty string; it's `None`.
     hints:
       - Recall what `print(...)` handed back in the previous lesson.
+  - id: step.control-flow.order-grade
+    type: parsons
+    title: Put the function in order
+    prompt: |
+      Arrange these lines into a function `grade(score)` that returns `"pass"` for a score of 50 or more, and `"fail"` otherwise.
+      Indentation matters: it decides which lines belong inside the `if` and which inside the `else`.
+    solution: |
+      def grade(score):
+          if score >= 50:
+              return "pass"
+          else:
+              return "fail"
+    hints:
+      - The `def` line comes first. Everything else belongs inside the function, so it is indented.
+      - "`if` and `else` line up with each other. The `return` under each is indented one level further."
+      - "Order: `def`, `if`, `return \"pass\"`, `else`, `return \"fail\"`. Indent the two `return` lines twice, and `if` and `else` once."
   - id: step.control-flow.write-clamp
     type: write-code
     title: Write a function

@@ -32,6 +32,7 @@ public sealed record Comparison(string CSharp, string Python);
 [JsonDerivedType(typeof(PredictOutputStep), "predict-output")]
 [JsonDerivedType(typeof(WriteCodeStep), "write-code")]
 [JsonDerivedType(typeof(FillBlankStep), "fill-blank")]
+[JsonDerivedType(typeof(ParsonsStep), "parsons")]
 public abstract record Step(string Id, string Title) : ContentItem(Id)
 {
     /// <summary>
@@ -118,5 +119,19 @@ public sealed record FillBlankStep(
     string Language,
     string Template,
     IReadOnlyList<Blank> Blanks) : Step(Id, Title);
+
+/// <summary>One line of a Parsons solution: its code without indentation, and how many levels it is indented.</summary>
+public sealed record ParsonsLine(string Text, int Level);
+
+/// <summary>
+/// A Parsons problem: the learner is shown the <see cref="Lines"/> of a program shuffled and must put them back in order
+/// with the right indentation. <see cref="Lines"/> is the solution, top to bottom.
+/// </summary>
+public sealed record ParsonsStep(
+    string Id,
+    string Title,
+    string Prompt,
+    string Language,
+    IReadOnlyList<ParsonsLine> Lines) : Step(Id, Title);
 
 public sealed record PackManifest(string PackId, string Version, int FormatVersion);

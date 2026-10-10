@@ -1,0 +1,146 @@
+<article class="parsons-step">
+    <h2>@Step.Title</h2>
+    <p class="prompt">@Step.Prompt</p>
+    <p class="hint-text" id="@HelpId">
+        Put the lines in order and give each the right indentation. Drag a line, or select it and press
+        <kbd>⌥</kbd><kbd>↑</kbd> / <kbd>⌥</kbd><kbd>↓</kbd> to move it and <kbd>⌥</kbd><kbd>←</kbd> / <kbd>⌥</kbd><kbd>→</kbd> to change its indentation.
+    </p>
+
+    <ol class="rows" aria-label="Lines of code, in the order you have put them">
+        @for (var i = 0; i < _board.Rows.Count; i++)
+        {
+            var index = i;
+            var row = _board.Rows[i];
+            <li @key="_board.Rows[i].Piece" @ref="_items[row.Piece]" class="@RowClass(index)" tabindex="0" draggable="@(Locked ? "false" : "true")"
+                aria-describedby="@HelpId" aria-label="@RowLabel(index)"
+                @onkeydown="e => KeyDown(index, e)"
+                @ondragstart="() => _dragging = index"
+                @ondragend="EndDrag"
+                @ondragenter="() => _over = index"
+                @ondragover="() => { }" @ondragover:preventDefault
+                @ondrop="() => Drop(index)" @ondrop:preventDefault>
+                <span class="grip" aria-hidden="true">⠿</span>
+                <span class="indent" style="width:@(row.Level * 2)rem" aria-hidden="true"></span>
+                <code class="text">@Step.Lines[row.Piece].Text</code>
+                <span class="controls">
+                    <button type="button" tabindex="-1" aria-label="Move up" disabled="@(Locked || index == 0)" @onclick="() => MoveBy(index, -1)">▲</button>
+                    <button type="button" tabindex="-1" aria-label="Move down" disabled="@(Locked || index == _board.Rows.Count - 1)" @onclick="() => MoveBy(index, 1)">▼</button>
+                    <button type="button" tabindex="-1" aria-label="Outdent" disabled="@(Locked || row.Level == 0)" @onclick="() => IndentBy(index, -1)">⇤</button>
+                    <button type="button" tabindex="-1" aria-label="Indent" disabled="@(Locked || row.Level >= _board.MaxLevel)" @onclick="() => IndentBy(index, 1)">⇥</button>
+                </span>
+                @if (_result is not null && _result.Rows[index] != RowVerdict.Correct)
+                {
+                    <span class="why">@(_result.Rows[index] == RowVerdict.WrongIndent ? "Right line, wrong indentation" : "A different line goes here")</span>
+                }
+            </li>
+        }
+    </ol>
+
+    @if (_result is null)
+    {
+        <button class="primary" @onclick="Check">Check</button>
+    }
+    else if (_result.IsCorrect)
+    {
+        <p class="verdict correct" role="status">Correct!</p>
+        <button class="primary" @onclick="() => OnContinue.InvokeAsync()">Continue</button>
+    }
+    else
+    {
+        <p class="verdict incorrect" role="status">Not quite: @_result.CorrectCount of @_board.Rows.Count lines are right. Have another go.</p>
+        <button class="primary" @onclick="TryAgain">Try again</button>
+    }
+</article>
+
+@code {
+    /// <summary>What the learner submitted: the arrangement (line + indentation, top to bottom) and the verdict.</summary>
+    public sealed record Attempt(ParsonsResult Result, IReadOnlyList<ParsonsPlacement> Arrangement);
+
+    [Parameter, EditorRequired] public ParsonsStep Step { get; set; } = default!;
+
+    /// <summary>Raised each time the learner checks their arrangement (correct or not).</summary>
+    [Parameter] public EventCallback<Attempt> OnAnswered { get; set; }
+
+    /// <summary>Raised when the learner continues after a correct arrangement.</summary>
+    [Parameter] public EventCallback OnContinue { get; set; }
+
+    private ParsonsBoard _board = default!;
+    private readonly Dictionary<int, ElementReference> _items = [];
+    private ParsonsResult? _result;
+    private int? _dragging;
+    private int? _over;
+    private int? _refocus;   // the line that was just moved and should keep keyboard focus
+
+    private bool Locked => _result is not null;
+    private string HelpId => $"{Step.Id}-help";
+
+    protected override void OnInitialized() => _board = ParsonsBoard.Shuffled(Step);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Moving a keyed element in the DOM drops its focus, so give it back to the line the learner is working on.
+        if (_refocus is { } piece && _items.TryGetValue(piece, out var item))
+        {
+            _refocus = null;
+            await item.FocusAsync();
+        }
+    }
+
+    private string RowClass(int index)
+    {
+        var classes = new List<string> { "row" };
+        if (_result is not null) classes.Add(_result.Rows[index] == RowVerdict.Correct ? "right" : "wrong");
+        if (_dragging == index) classes.Add("dragging");
+        else if (_dragging is not null && _over == index) classes.Add("over");
+        return string.Join(' ', classes);
+    }
+
+    private string RowLabel(int index) =>
+        $"Line {index + 1} of {_board.Rows.Count}, indented {_board.Rows[index].Level} levels: {Step.Lines[_board.Rows[index].Piece].Text}";
+
+    private void MoveBy(int index, int delta)
+    {
+        if (Locked) return;
+        var piece = _board.Rows[index].Piece;
+        if (_board.Move(index, index + delta)) _refocus = piece;
+    }
+
+    private void IndentBy(int index, int delta)
+    {
+        if (Locked) return;
+        var piece = _board.Rows[index].Piece;
+        if (_board.Indent(index, delta)) _refocus = piece;
+    }
+
+    private void KeyDown(int index, KeyboardEventArgs e)
+    {
+        if (!e.AltKey) return;
+        switch (e.Key)
+        {
+            case "ArrowUp": MoveBy(index, -1); break;
+            case "ArrowDown": MoveBy(index, 1); break;
+            case "ArrowLeft": IndentBy(index, -1); break;
+            case "ArrowRight": IndentBy(index, 1); break;
+        }
+    }
+
+    private void Drop(int target)
+    {
+        var from = _dragging;
+        EndDrag();
+        if (Locked || from is null) return;
+        var piece = _board.Rows[from.Value].Piece;
+        if (_board.Move(from.Value, target)) _refocus = piece;
+    }
+
+    private void EndDrag() => (_dragging, _over) = (null, null);
+
+    private async Task Check()
+    {
+        _result = _board.Check();
+        await OnAnswered.InvokeAsync(new Attempt(_result, _board.Rows.ToList()));
+    }
+
+    // The learner keeps their arrangement and fixes what's wrong.
+    private void TryAgain() => _result = null;
+}
