@@ -3,7 +3,7 @@
 
 <h1 class="screen-title">Tracks</h1>
 <ul class="cards">
-    @foreach (var state in CourseProgress.From(Content, Recorder.Log.ReadAll()))
+    @foreach (var state in Recorder.Project(Content).Tracks)
     {
         var pct = state.TotalLessons == 0 ? 0 : 100 * state.CompletedLessons / state.TotalLessons;
         <li>

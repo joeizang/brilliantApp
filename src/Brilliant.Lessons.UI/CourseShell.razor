@@ -3,6 +3,7 @@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 @inject StepShortcuts Shortcuts
+@inject Brilliant.Core.Progress.ProgressRecorder Recorder
 
 <div class="shell">
     <aside class="shell-sidebar">
@@ -36,6 +37,9 @@
     private IDisposable? _shortcuts;
 
     protected override void OnInitialized() => _shortcuts = Shortcuts.Subscribe(OnShortcut);
+
+    // A content update can complete a lesson (its last unfinished step was deleted). Record that once, so a later update can't undo it.
+    protected override void OnParametersSet() => Recorder.RecordCompletionsFrom(Content);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

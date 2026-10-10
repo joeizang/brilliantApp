@@ -2,7 +2,7 @@
 @inject ProgressRecorder Recorder
 
 @{
-    var state = CourseProgress.From(Content, Recorder.Log.ReadAll()).First(t => t.Track.Id == Track.Id);
+    var state = Recorder.Project(Content).Track(Track.Id)!;
 }
 <div class="crumbs"><button class="link" @onclick="() => OnBack.InvokeAsync()">← Tracks</button></div>
 <h1 class="screen-title">@Track.Title</h1>
@@ -21,6 +21,10 @@
             {
                 case LessonStatus.Locked:
                     <button class="primary" disabled>Locked</button>
+                    break;
+                case LessonStatus.Completed when l.NewStepCount > 0:
+                    <button class="primary" @onclick="() => OnOpenLesson.InvokeAsync((l.Lesson, false))">@(l.NewStepCount == 1 ? "Play new step" : "Play new steps")</button>
+                    <button class="secondary" @onclick="() => OnOpenLesson.InvokeAsync((l.Lesson, true))">Review</button>
                     break;
                 case LessonStatus.Completed:
                     <button class="secondary" @onclick="() => OnOpenLesson.InvokeAsync((l.Lesson, true))">Review</button>
@@ -49,6 +53,7 @@
 
     private static string Caption(LessonState l) => l.Status switch
     {
+        LessonStatus.Completed when l.NewStepCount > 0 => $"Completed · {l.NewStepCount} new {(l.NewStepCount == 1 ? "step" : "steps")}",
         LessonStatus.Completed => "Completed",
         LessonStatus.Locked => "Finish the previous lesson to unlock",
         LessonStatus.InProgress => $"{l.Progress.Remaining} of {l.Progress.TotalSteps} steps remaining",
