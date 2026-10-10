@@ -46,14 +46,34 @@ internal static class ParsonsSolution
 
         for (var i = 1; i < lines.Count; i++)
         {
-            var opens = lines[i - 1].Text.EndsWith(':');
+            var opens = OpensBlock(lines[i - 1].Text);
             if (opens && lines[i].Level != lines[i - 1].Level + 1)
                 error($"'solution' line {numbers[i - 1]} ends with ':' so line {numbers[i]} must be indented one level deeper.");
             else if (!opens && lines[i].Level > lines[i - 1].Level)
                 error($"'solution' line {numbers[i]} is indented deeper than the line before it, which doesn't end with ':'.");
         }
-        if (lines[^1].Text.EndsWith(':')) error($"'solution' ends with ':' on line {numbers[^1]} but nothing follows it.");
+        if (OpensBlock(lines[^1].Text)) error($"'solution' ends with ':' on line {numbers[^1]} but nothing follows it.");
         if (lines.Select(l => l.Text).Distinct().Count() < 2) error("'solution' has only one distinct line, so there is nothing to put in order.");
         return lines;
+    }
+
+    // A line opens a block when it ends with ':' once any trailing comment is ignored, so `if ok:  # note` counts and `x = 1  # why:` doesn't.
+    // The '#' only starts a comment outside a string literal.
+    internal static bool OpensBlock(string line)
+    {
+        char? quote = null;
+        var end = line.Length;
+        for (var i = 0; i < line.Length; i++)
+        {
+            var c = line[i];
+            if (quote is not null)
+            {
+                if (c == '\\') i++;
+                else if (c == quote) quote = null;
+            }
+            else if (c is '"' or '\'') quote = c;
+            else if (c == '#') { end = i; break; }
+        }
+        return line[..end].TrimEnd().EndsWith(':');
     }
 }

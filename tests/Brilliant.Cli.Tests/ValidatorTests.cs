@@ -712,6 +712,18 @@ public sealed class ValidatorTests : IDisposable
     }
 
     [Fact]
+    public void Parsons_block_headers_may_carry_a_trailing_comment()
+    {
+        var valid = ParsonsErrors(Solution("def grade(score):  # pass mark is 50", "    if score >= 50:  # the pass case", "        return 'pass'", "    return 'fail'"));
+        Assert.Empty(valid);
+
+        // The '#' in a string isn't a comment, and a ':' inside a comment doesn't open a block.
+        Assert.Empty(ParsonsErrors(Solution("if x == '#':", "    y = 1")));
+        Assert.Empty(ParsonsErrors(Solution("x = 1  # note:", "y = 2")));
+        Assert.Contains(ParsonsErrors(Solution("if x:  # note", "y = 2")), e => e.Contains("line 1 ends with ':' so line 2 must be indented one level deeper"));
+    }
+
+    [Fact]
     public void Parsons_language_must_be_python()
     {
         var m = ParsonsErrors("    language: ruby\n" + Solution("x = 1", "y = 2"));
