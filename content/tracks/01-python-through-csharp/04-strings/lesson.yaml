@@ -1,0 +1,417 @@
+id: lesson.strings
+title: Strings
+concepts:
+  - id: concept.string-indexing
+    title: Strings are sequences
+  - id: concept.string-immutability
+    title: Strings are immutable
+  - id: concept.split-join
+    title: split and join
+  - id: concept.string-iteration
+    title: Iterating over characters
+  - id: concept.ord-chr
+    title: ord and chr
+reviewItems:
+  - id: review.strings.index-slice
+    concept: concept.string-indexing
+    step: step.strings.predict-index
+  - id: review.strings.no-item-assignment
+    concept: concept.string-immutability
+    step: step.strings.check-immutable
+  - id: review.strings.method-returns-new
+    concept: concept.string-immutability
+    step: step.strings.predict-upper
+  - id: review.strings.split-join
+    concept: concept.split-join
+    step: step.strings.predict-split-join
+  - id: review.strings.split-whitespace
+    concept: concept.split-join
+    step: step.strings.predict-split-spaces
+  - id: review.strings.iteration
+    concept: concept.string-iteration
+    step: step.strings.check-iteration
+  - id: review.strings.ord-difference
+    concept: concept.ord-chr
+    step: step.strings.predict-ord
+  - id: review.strings.chr
+    concept: concept.ord-chr
+    step: step.strings.predict-chr
+steps:
+  - id: step.strings.sequences
+    type: explain
+    title: Strings are sequences
+    body: |
+      A Python `str` behaves like a read-only list of characters. Everything you just learned about lists applies:
+      `len(s)`, `s[0]`, `s[-1]` and slices like `s[1:4]` or `s[::-1]`. You can also ask `"ab" in s`.
+
+      One difference from C#: **there is no `char` type**. `s[0]` is a `str` of length 1. Single quotes and double
+      quotes are the same thing, and `+` joins strings.
+    comparison:
+      csharp: |
+        string s = "python";
+        char first = s[0];
+        string middle = s.Substring(1, 3);
+        bool has = s.Contains("th");
+      python: |
+        s = "python"
+        first = s[0]
+        middle = s[1:4]
+        has = "th" in s
+  - id: step.strings.predict-index
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      s = "python"
+      print(s[0], s[-1], s[1:4])
+    accepted:
+      - "p n yth"
+    mistakes:
+      - answers:
+          - "p n ytho"
+        feedback: The stop index of a slice is excluded, so `s[1:4]` stops before index 4.
+      - answers:
+          - "p n pyt"
+        feedback: The slice starts at index 1 (the "y"), not at 0.
+      - answers:
+          - "p o yth"
+        feedback: "`s[-1]` is the *last* character, which is \"n\"."
+      - regex: "^'p' 'n' 'yth'$"
+        feedback: "`print` shows strings without their quotes."
+    hints:
+      - Indexing a string works just like indexing a list.
+      - "`s[-1]` is the last character. `s[1:4]` is the characters at indexes 1, 2 and 3."
+      - 'The string is p-y-t-h-o-n at indexes 0 to 5.'
+  - id: step.strings.immutability
+    type: explain
+    title: Strings are immutable
+    body: |
+      Like in C#, a string can never be changed once it exists. You can't write `s[0] = "J"`; that raises a `TypeError`.
+      Every "modifying" method, such as `upper()`, `replace()` and `strip()`, **returns a new string** and leaves the
+      original alone.
+
+      So you must keep the result: `s = s.upper()`.
+
+      This also matters for building text in a loop. `result += ch` makes a brand-new string every time. Python
+      has no `StringBuilder`; the usual pattern is to collect the pieces in a **list** and `"".join(...)` them once at the end.
+    comparison:
+      csharp: |
+        s = s.ToUpper();
+
+        var sb = new StringBuilder();
+        foreach (var w in words) sb.Append(w);
+        string joined = sb.ToString();
+      python: |
+        s = s.upper()
+
+        parts = []
+        for w in words:
+            parts.append(w)
+        joined = "".join(parts)
+  - id: step.strings.check-immutable
+    type: choice
+    title: Check your understanding
+    prompt: Which of these lines raises an error?
+    options:
+      - text: s[0] = "J"
+        correct: true
+        feedback: A string can't be changed in place, so item assignment raises a TypeError.
+      - text: s = s + "!"
+        correct: false
+        feedback: This builds a new string and rebinds the name `s`. The old string is untouched.
+      - text: t = s.upper()
+        correct: false
+        feedback: "`upper()` returns a new string. Nothing is modified."
+      - text: s += "!"
+        correct: false
+        feedback: "`+=` on a string is the same as `s = s + \"!\"`. It creates a new string and rebinds `s`."
+    hints:
+      - Which line tries to change a character inside the existing string?
+      - The others all make a new string and attach the name to it.
+  - id: step.strings.predict-upper
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      s = "hello"
+      s.upper()
+      print(s)
+    accepted:
+      - "hello"
+    mistakes:
+      - answers:
+          - "HELLO"
+        feedback: "`upper()` returns a new string, and here that string is thrown away. `s` still refers to the original."
+      - answers:
+          - "'hello'"
+        feedback: "`print` shows a string without quotes."
+      - regex: "(?i)error"
+        feedback: Calling `upper()` and ignoring the result is legal. It just has no useful effect.
+    hints:
+      - Is the result of `s.upper()` stored anywhere?
+      - Strings are immutable, so a method can't change `s` itself.
+  - id: step.strings.split-join
+    type: explain
+    title: split and join
+    body: |
+      `split` turns a string into a **list** of pieces, and `join` glues a list of strings into one string.
+
+      - `"a,b,c".split(",")` gives `["a", "b", "c"]`
+      - `s.split()` with **no argument** splits on any run of whitespace and drops empty pieces
+      - `", ".join(items)` puts the separator between the items
+
+      Notice that `join` is a method of the **separator**, not of the list, so it reads backwards compared with C#.
+      The items must all be strings.
+    comparison:
+      csharp: |
+        string[] parts = "a,b,c".Split(',');
+        string line = string.Join(", ", parts);
+      python: |
+        parts = "a,b,c".split(",")
+        line = ", ".join(parts)
+  - id: step.strings.predict-split-join
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: print("-".join("a b c".split()))
+    accepted:
+      - "a-b-c"
+    mistakes:
+      - answers:
+          - "a b c"
+        feedback: The words are split apart first, then joined with `-`, so the spaces are replaced.
+      - answers:
+          - "['a', 'b', 'c']"
+        feedback: "`join` produces one string, not a list."
+      - answers:
+          - "a-b-c-"
+        feedback: "`join` puts the separator only *between* items, never after the last one."
+    hints:
+      - Work from the inside out. What does `"a b c".split()` return?
+      - It returns the list `["a", "b", "c"]`.
+      - "`\"-\".join(...)` puts `-` between the items."
+  - id: step.strings.predict-split-spaces
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: print(len("  one   two ".split()))
+    options:
+      - text: "2"
+        correct: true
+        feedback: "`split()` with no argument ignores runs of whitespace, so the pieces are just `\"one\"` and `\"two\"`."
+      - text: "3"
+        correct: false
+        feedback: "Without an argument, `split()` doesn't produce empty pieces for the leading and trailing spaces."
+      - text: "6"
+        correct: false
+        feedback: "`len` is applied to the list of pieces, not to the string. Count the words."
+      - text: "7"
+        correct: false
+        feedback: "`split()` with no argument treats every run of spaces as one separator."
+    hints:
+      - "`len` is applied to the result of `split()`. What does that return?"
+      - "`split()` with no argument breaks on whitespace and skips the empty pieces."
+  - id: step.strings.fill-split-join
+    type: fill-blank
+    title: Complete the code
+    prompt: Fill in the blanks so that this prints `red, green, blue`.
+    template: |
+      words = "red green blue".{{split}}()
+      line = ", ".{{join}}(words)
+      print(line)
+    blanks:
+      - id: split
+        accepted:
+          - split
+        mistakes:
+          - answers:
+              - join
+            feedback: "`join` glues pieces together. Here you need to break the string apart into words."
+      - id: join
+        accepted:
+          - join
+        mistakes:
+          - answers:
+              - split
+            feedback: "`split` breaks a string apart. Here you need to glue the words back together."
+          - answers:
+              - Join
+            feedback: Python method names are lower case, and case matters.
+    hints:
+      - First the string must become a list of words. Which method does that?
+      - Then a method of the separator, `", "`, glues the list back together.
+  - id: step.strings.write-reverse-words
+    type: write-code
+    title: Write a function
+    prompt: |
+      Write `reverse_words(sentence)`, which returns the words of `sentence` in reverse order, separated by single
+      spaces. For example `reverse_words("the sky is blue")` is `"blue is sky the"`.
+    language: python
+    entrypoint: reverse_words
+    starter: |
+      def reverse_words(sentence):
+          pass
+    solution: |
+      def reverse_words(sentence):
+          return " ".join(sentence.split()[::-1])
+    tests:
+      - input: "'the sky is blue'"
+        expected: "'blue is sky the'"
+      - input: "'hello'"
+        expected: "'hello'"
+      - input: "'a  b'"
+        expected: "'b a'"
+      - input: "''"
+        expected: "''"
+    hints:
+      - Split into words, reverse them, then join them again.
+      - "`split()` returns a list, and a list can be reversed with the slice `[::-1]`."
+      - "`\" \".join(...)` turns the reversed list back into a string."
+  - id: step.strings.iteration
+    type: explain
+    title: Iterating over characters
+    body: |
+      A `for` loop over a string visits one character at a time, and each one is a **one-character string**
+      (not a `char`). It's what `foreach (char c in s)` does in C#.
+
+      - `for ch in s:` for the characters
+      - `for i, ch in enumerate(s):` when you also need the index
+      - `ch in "aeiou"` is a quick membership test, handy for checking whether a character belongs to a group
+    comparison:
+      csharp: |
+        int vowels = 0;
+        foreach (char c in s)
+        {
+            if ("aeiou".Contains(c)) vowels++;
+        }
+      python: |
+        vowels = 0
+        for ch in s:
+            if ch in "aeiou":
+                vowels += 1
+  - id: step.strings.check-iteration
+    type: choice
+    title: Check your understanding
+    prompt: |
+      What is `ch` each time round the loop `for ch in "abc":`?
+    options:
+      - text: A string of length 1, such as "a"
+        correct: true
+        feedback: Right. Python has no separate character type, so each character is a one-character `str`.
+      - text: A char, such as 'a', which is not a string
+        correct: false
+        feedback: Python has no `char` type. A single character is still a `str`.
+      - text: The index of the character (0, then 1, then 2)
+        correct: false
+        feedback: A plain `for` gives you the items. Use `enumerate(s)` if you want the index as well.
+      - text: The number code of the character
+        correct: false
+        feedback: Characters are not turned into numbers automatically. That is what `ord` is for.
+    hints:
+      - What did the previous step say about C#'s `char`?
+      - A `for` loop yields the items of the sequence.
+  - id: step.strings.order-vowels
+    type: parsons
+    title: Put the function in order
+    prompt: |
+      Arrange these lines into a function `count_vowels(s)` that returns how many of the characters in `s` are one of `aeiou`.
+    solution: |
+      def count_vowels(s):
+          count = 0
+          for ch in s:
+              if ch in "aeiou":
+                  count += 1
+          return count
+    hints:
+      - Start the counter before the loop, and return it after the loop.
+      - "The `if` is inside the `for`, and `count += 1` is inside the `if`."
+      - "Order: `def`, `count = 0`, `for`, `if`, `count += 1`, `return count`. Indent `for` once, `if` twice, and `count += 1` three times."
+  - id: step.strings.ord-chr
+    type: explain
+    title: ord and chr
+    body: |
+      Every character has a number. `ord(ch)` gives the number of a one-character string, and `chr(n)` goes back.
+      They are the equivalent of casting between `char` and `int` in C#.
+
+      The classic trick is **letter arithmetic**: `ord(ch) - ord("a")` maps `"a"` to 0, `"b"` to 1, and so on up to `"z"` = 25.
+      That number is a ready-made index for a list of 26 counters, and the basis of ciphers and anagram checks.
+    comparison:
+      csharp: |
+        int code = 'c';
+        char letter = (char)(code + 1);
+        int slot = 'c' - 'a';
+      python: |
+        code = ord("c")
+        letter = chr(code + 1)
+        slot = ord("c") - ord("a")
+  - id: step.strings.predict-ord
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: print(ord("c") - ord("a"))
+    accepted:
+      - "2"
+    mistakes:
+      - answers:
+          - "3"
+        feedback: '"c" is the third letter, but the difference between positions is 2: a=0, b=1, c=2.'
+      - answers:
+          - "99"
+        feedback: 99 is `ord("c")` alone. Here the code of "a" (97) is subtracted from it.
+      - answers:
+          - "c"
+        feedback: "`ord` turns a character into a number, so the result is a number."
+    hints:
+      - "`ord` returns a number for each character. The letters' codes are consecutive."
+      - The code of "c" is two more than the code of "a".
+  - id: step.strings.predict-chr
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: print(chr(ord("a") + 3))
+    accepted:
+      - "d"
+    mistakes:
+      - answers:
+          - "c"
+        feedback: Count three letters on from "a" (b, c, d).
+      - answers:
+          - "'d'"
+        feedback: "`print` shows a string without its quotes."
+      - answers:
+          - "100"
+        feedback: "`chr` turns the number back into a character, so the result is a letter."
+    hints:
+      - Work from the inside out. What is `ord("a") + 3`?
+      - Then `chr` converts that number back into a character.
+      - "Three letters after \"a\" is \"d\"."
+  - id: step.strings.write-shift-letter
+    type: write-code
+    title: Write a function
+    prompt: |
+      Write `shift_letter(ch, k)`, which moves the lowercase letter `ch` forward `k` places in the alphabet,
+      wrapping from `"z"` back to `"a"`. For example `shift_letter("c", 2)` is `"e"` and `shift_letter("z", 1)` is `"a"`.
+    language: python
+    entrypoint: shift_letter
+    starter: |
+      def shift_letter(ch, k):
+          pass
+    solution: |
+      def shift_letter(ch, k):
+          return chr((ord(ch) - ord("a") + k) % 26 + ord("a"))
+    tests:
+      - input: "'a', 1"
+        expected: "'b'"
+      - input: "'c', 2"
+        expected: "'e'"
+      - input: "'z', 1"
+        expected: "'a'"
+      - input: "'c', 25"
+        expected: "'b'"
+      - input: "'m', 0"
+        expected: "'m'"
+    hints:
+      - Turn the letter into a number from 0 to 25, move it, turn it back.
+      - "`ord(ch) - ord(\"a\")` is the letter's position in the alphabet."
+      - Add `k`, then use `% 26` to wrap past `"z"`. Add `ord("a")` back before calling `chr`.
+      - '`chr((ord(ch) - ord("a") + k) % 26 + ord("a"))`'
