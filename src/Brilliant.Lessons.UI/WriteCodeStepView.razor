@@ -42,6 +42,10 @@
                     <p class="verdict correct" role="status">All @result.Tests.Count tests passed! 🎉</p>
                     break;
 
+                case TestRunStatus.TimedOut:
+                    <p class="verdict incorrect" role="status">@result.Message</p>
+                    break;
+
                 case TestRunStatus.Error:
                     <p class="verdict incorrect" role="status">@result.Message</p>
                     @TracebackBlock(result.Traceback)

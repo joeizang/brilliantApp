@@ -81,7 +81,8 @@ Components must use the tokens (`var(--accent)` etc.), never raw colours. Shared
 - **Python:** the bundled Pyodide runs in a Web Worker (`wwwroot/python-worker.js`, bridged by `python-runtime.js`, exposed to the UI as
   `IPythonRuntime`). The test harness is `wwwroot/python/harness.py`; check it under CPython with
   `python3 -I -m unittest discover -s tests/python`.
-- Known limit until #10: there is no timeout, so an infinite loop in learner code hangs the worker until the app is restarted.
+- Runs are limited to 5 seconds (`PyodideRuntime.RunTimeout`). A run that exceeds it is stopped by terminating the worker; the next run starts a fresh one.
+  JS bridge logic is tested with `node --test tests/js/python-runtime.test.mjs`.
 
 ## Code drafts (issue #12)
 

@@ -5,8 +5,9 @@ namespace Brilliant.Core.Python;
 /// <summary>
 /// Whether the tests could run at all. <see cref="Error"/> means the learner's code never got as far as the
 /// tests (syntax error, an exception while loading, or the required function is missing).
+/// <see cref="TimedOut"/> means the run was stopped for taking too long (e.g. an infinite loop); no test results exist.
 /// </summary>
-public enum TestRunStatus { Passed, Failed, Error }
+public enum TestRunStatus { Passed, Failed, Error, TimedOut }
 
 /// <summary>
 /// The outcome of one hidden test. <see cref="Call"/> is the call that was made (e.g. <c>min_max([3, 1, 2])</c>);
