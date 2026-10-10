@@ -1,14 +1,28 @@
+@using Brilliant.Core.Drafts
 @using Brilliant.Core.Python
 @inject IPythonRuntime Runtime
+@inject ICodeDraftStore Drafts
 
 <article class="write-step">
     <h2>@Step.Title</h2>
     <p class="prompt">@Step.Prompt</p>
 
-    <CodeEditor @ref="_editor" InitialCode="@Step.Starter" />
+    <CodeEditor @ref="_editor" InitialCode="@_initialCode" OnChanged="SaveDraft" />
 
     <div class="run-row">
         <button class="primary" disabled="@_running" @onclick="Submit">@(_running ? "Running…" : "Run tests")</button>
+        @if (_confirmingReset)
+        {
+            <span class="reset-confirm" role="alertdialog" aria-label="Reset code">
+                <span>Replace your code with the starting code? Your changes will be lost.</span>
+                <button class="secondary" @onclick="ResetToStarter">Yes, reset</button>
+                <button class="link" @onclick="() => _confirmingReset = false">Keep my code</button>
+            </span>
+        }
+        else
+        {
+            <button class="link reset" disabled="@_running" @onclick="() => _confirmingReset = true">Reset to starter</button>
+        }
         @if (_running && !_warmedUp)
         {
             <span class="note">Starting Python… the first run takes a few seconds.</span>
@@ -75,10 +89,44 @@
     [Parameter] public EventCallback OnContinue { get; set; }
 
     private CodeEditor _editor = default!;
+    private string _initialCode = "";
+    private bool _confirmingReset;
+    private bool _resetting;
     private bool _running;
     private bool _warmedUp;
     private TestRunResult? _result;
     private string? _runtimeFailure;
+
+    protected override void OnInitialized() => _initialCode = Drafts.Get(Step.Id) ?? Step.Starter;
+
+    // Code that matches the starter is stored as "no draft", so a later change to the starter still reaches learners who never edited it.
+    private void SaveDraft(string code)
+    {
+        if (_resetting) return;   // an edit reported while a reset is in flight is the text being replaced
+        if (code == Step.Starter) Drafts.Reset(Step.Id);
+        else Drafts.Save(Step.Id, code);
+    }
+
+    private async Task ResetToStarter()
+    {
+        _confirmingReset = false;
+        _result = null;
+        _runtimeFailure = null;
+        _resetting = true;
+        try
+        {
+            Drafts.Reset(Step.Id);
+            await _editor.SetCodeAsync(Step.Starter);
+            await _editor.ClearErrorMarkersAsync();
+            await _editor.HighlightLineAsync(null);
+        }
+        finally
+        {
+            // Whatever autosave callbacks arrived during the JS round trips were ignored; the reset has the last word.
+            Drafts.Reset(Step.Id);
+            _resetting = false;
+        }
+    }
 
     private async Task Submit()
     {
