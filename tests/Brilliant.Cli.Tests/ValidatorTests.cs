@@ -772,6 +772,106 @@ public sealed class ValidatorTests : IDisposable
         Assert.True(ContentValidator.Validate(_root).IsValid);
     }
 
+    // --- Phone layouts: largeScreenPreferred and phoneAlternative -----------------------------------------------------
+
+    private const string AltParsons = "    phoneAlternative:\n      id: step.one.w-tap\n      type: parsons\n      title: Arrange it\n      prompt: Put these in order\n"
+        + "      solution: |\n        def add(a, b):\n            return a + b\n";
+
+    private static string WriteStep(string extra) => LessonHeader + "steps:\n" + WriteCodeHead + WriteCodeBody + extra;
+
+    [Fact]
+    public void A_large_screen_step_with_a_phone_alternative_loads_and_packs()
+    {
+        WriteValidPack(WriteStep("    largeScreenPreferred: true\n" + AltParsons));
+        var outPath = Path.Combine(_root, "out", "p.zip");
+
+        var report = ContentPacker.Pack(_root, outPath);
+
+        Assert.True(report.IsValid, string.Join("\n", report.Errors));
+        var step = Assert.IsType<WriteCodeStep>(ContentPackFormat.Load(outPath).Get<Step>("step.one.w"));
+        Assert.True(step.LargeScreenPreferred);
+        var alternative = Assert.IsType<ParsonsStep>(step.PhoneAlternative);
+        Assert.Equal("step.one.w-tap", alternative.Id);
+        Assert.False(alternative.LargeScreenPreferred);
+        Assert.Null(alternative.PhoneAlternative);
+    }
+
+    [Fact]
+    public void A_large_screen_step_needs_no_alternative_and_other_steps_are_unflagged()
+    {
+        WriteValidPack(WriteStep("    largeScreenPreferred: true\n"));
+        var outPath = Path.Combine(_root, "out", "p.zip");
+        Assert.True(ContentPacker.Pack(_root, outPath).IsValid);
+        var step = ContentPackFormat.Load(outPath).Get<Step>("step.one.w");
+        Assert.True(step.LargeScreenPreferred);
+        Assert.Null(step.PhoneAlternative);
+
+        WriteValidPack(WriteStep(""));
+        Assert.True(ContentPacker.Pack(_root, outPath).IsValid);
+        Assert.False(ContentPackFormat.Load(outPath).Get<Step>("step.one.w").LargeScreenPreferred);
+    }
+
+    [Fact]
+    public void A_phone_alternative_needs_largeScreenPreferred()
+    {
+        Assert.Contains(LessonErrors(WriteStep(AltParsons)), x => x.Contains("only a step with 'largeScreenPreferred: true' has a phone alternative"));
+    }
+
+    [Fact]
+    public void A_phone_alternative_must_be_a_parsons_or_fill_blank_step()
+    {
+        var m = LessonErrors(WriteStep("    largeScreenPreferred: true\n    phoneAlternative:\n      id: step.one.w-tap\n      type: write-code\n      title: T\n"));
+        Assert.Contains(m, x => x.Contains("must be a tap-friendly step: parsons or fill-blank (found 'write-code')"));
+    }
+
+    [Fact]
+    public void A_phone_alternative_is_checked_like_any_step()
+    {
+        var m = LessonErrors(WriteStep("    largeScreenPreferred: true\n    phoneAlternative:\n      id: step.one.w-tap\n      type: parsons\n      title: Arrange it\n"));
+        Assert.Contains(m, x => x.Contains("phoneAlternative") && x.Contains("'prompt' is required"));
+        Assert.Contains(m, x => x.Contains("phoneAlternative") && x.Contains("'solution' is required"));
+    }
+
+    [Fact]
+    public void A_phone_alternative_needs_an_id_of_its_own()
+    {
+        var m = LessonErrors(WriteStep("    largeScreenPreferred: true\n" + AltParsons.Replace("step.one.w-tap", "step.one.w")));
+        Assert.Contains(m, x => x.Contains("step.one.w") && x.Contains("already used"));
+    }
+
+    [Fact]
+    public void A_phone_alternative_cannot_itself_be_large_screen_or_have_an_alternative()
+    {
+        var m = LessonErrors(WriteStep("    largeScreenPreferred: true\n" + AltParsons + "      largeScreenPreferred: true\n"));
+        Assert.Contains(m, x => x.Contains("can't be 'largeScreenPreferred' itself"));
+
+        var nested = LessonErrors(WriteStep("    largeScreenPreferred: true\n" + AltParsons
+            + "      phoneAlternative:\n        id: step.one.w-deeper\n        type: parsons\n        title: T\n"));
+        Assert.Contains(nested, x => x.Contains("can't have a phone alternative of its own"));
+    }
+
+    [Fact]
+    public void Only_questions_can_be_large_screen_preferred()
+    {
+        var m = LessonErrors(LessonHeader + "steps:\n" + ExplainOnly + "    largeScreenPreferred: true\n");
+        Assert.Contains(m, x => x.Contains("'largeScreenPreferred' only applies to questions"));
+    }
+
+    [Fact]
+    public void Shipped_write_code_steps_are_flagged_for_larger_screens_and_most_have_a_phone_alternative()
+    {
+        var report = ContentValidator.Load(FindRepoContent(), out var content);
+        Assert.True(report.IsValid, string.Join("\n", report.Errors));
+
+        var writeCode = content!.Lessons.SelectMany(l => l.Steps).OfType<WriteCodeStep>().ToList();
+        Assert.NotEmpty(writeCode);
+        Assert.All(writeCode, s => Assert.True(s.LargeScreenPreferred, $"{s.Id} asks for typing a function, so it should be flagged largeScreenPreferred."));
+
+        // Not every solution fits a phone (too long or too wide to arrange), but most should offer the tap-friendly form.
+        var withAlternative = writeCode.Count(s => s.PhoneAlternative is ParsonsStep or FillBlankStep);
+        Assert.True(withAlternative * 3 >= writeCode.Count, $"only {withAlternative} of {writeCode.Count} write-code steps have a phone alternative.");
+    }
+
     private static string FindRepoContent()
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)

@@ -310,6 +310,7 @@ steps:
       every pair of words to find the anagrams would be `O(n²)`.
   - id: step.grouping.write-group-anagrams
     type: write-code
+    largeScreenPreferred: true
     title: Group the anagrams yourself
     prompt: |
       Write `group_anagrams(words)`, which returns a list of lists. Words that are anagrams of each other go in the same
@@ -359,8 +360,31 @@ steps:
 
         A dict keeps keys in the order they first appeared, so `groups.values()` gives the groups in the order the problem
         asks for. Each word was sorted once and dropped into a dict, so no word was ever compared with another.
+    phoneAlternative:
+      id: step.grouping.write-group-anagrams.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `group_anagrams(words)`, which returns a list of lists. Words that are anagrams of each other go in the same
+        list. Order groups by the first time any of their words appears, and keep the words in each group in their original order.
+        For example `group_anagrams(["eat", "tea", "tan", "ate", "nat"])` is `[["eat", "tea", "ate"], ["tan", "nat"]]`.
+        Arrange the lines instead of typing them.
+      solution: |
+        def group_anagrams(words):
+            groups = {}
+            for w in words:
+                key = "".join(sorted(w))
+                if key not in groups:
+                    groups[key] = []
+                groups[key].append(w)
+            return list(groups.values())
+      hints:
+        - Each word needs a key that is the same for its anagrams. Sorting the letters gives one.
+        - "`sorted(w)` is a list, which can't be a dict key. `\"\".join(sorted(w))` is a string, which can."
+        - Make a dict from key to a list of words, add each word to its key's list, then return the lists with `list(groups.values())`.
   - id: step.grouping.write-group-by-length
     type: write-code
+    largeScreenPreferred: true
     title: Group by length
     prompt: |
       Write `group_by_length(words)`, which returns a dict from each length to the list of words of that length, in their
@@ -405,3 +429,22 @@ steps:
 
         The key `n` and the word `w` are different things. The dict holds the words, and the keys are only how they are
         sorted into piles.
+    phoneAlternative:
+      id: step.grouping.write-group-by-length.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `group_by_length(words)`, which returns a dict from each length to the list of words of that length, in their
+        original order. For example `group_by_length(["to", "at", "cat"])` is `{2: ["to", "at"], 3: ["cat"]}`.
+        Arrange the lines instead of typing them.
+      solution: |
+        def group_by_length(words):
+            groups = {}
+            for w in words:
+                n = len(w)
+                groups.setdefault(n, []).append(w)
+            return groups
+      hints:
+        - The key is the word's length, `len(w)`.
+        - Each key needs a list. `groups.setdefault(key, [])` gives you the list, creating it if it is missing.
+        - Append the word to that list. A dict you return with no entries is just `{}`.

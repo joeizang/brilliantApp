@@ -135,6 +135,8 @@ Every `write-code` step in `content/` needs a `solution:` (authoring-only, never
 against the step's tests with the same `harness.py` under CPython (`python3`, or the interpreter in `BRILLIANT_PYTHON`) and refuse to
 produce a pack if any fails, reporting lesson file, step, test, expected and actual.
 
+Steps that need typing code on a keyboard carry `largeScreenPreferred: true`, and most have a tap-friendly `phoneAlternative` (Parsons or fill-blank). `validate` checks the rules and the unique id; see [responsive-layouts.md](responsive-layouts.md).
+
 ## Code drafts (issue #12)
 
 What a learner types in a write-code step is saved automatically, so leaving the step, the lesson or the app doesn't lose it.

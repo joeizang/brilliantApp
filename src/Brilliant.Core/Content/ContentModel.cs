@@ -61,6 +61,23 @@ public abstract record Step(string Id, string Title) : ContentItem(Id)
     /// When present, the step has at most three <see cref="Hints"/>: the walkthrough is the fourth rung.
     /// </summary>
     public Walkthrough? Walkthrough { get; init; }
+
+    /// <summary>
+    /// The step is awkward to do on a phone (it asks the learner to type a lot of code), so a phone says "best on a larger screen".
+    /// Authored as <c>largeScreenPreferred</c>. Has no effect on any other screen.
+    /// </summary>
+    public bool LargeScreenPreferred { get; init; }
+
+    /// <summary>
+    /// A tap-friendly form of the same question (a Parsons or fill-in-the-blank step) for a phone, authored as <c>phoneAlternative</c>
+    /// on a large-screen step. It is not a step of the lesson: it has no place in <c>Lesson.Steps</c> and its progress is
+    /// the step's own. Doing it completes the step, and what it records (answers, hints, review answers) is recorded against the
+    /// step's ID, so a phone and a laptop agree about what was done whichever form was used.
+    /// </summary>
+    public Step? PhoneAlternative { get; init; }
+
+    /// <summary>The form of this question to put in front of the learner on a screen of this class: the phone alternative on a phone, else the step itself.</summary>
+    public Step For(ScreenClass screen) => screen == ScreenClass.Phone && PhoneAlternative is { } alt ? alt : this;
 }
 
 /// <summary>

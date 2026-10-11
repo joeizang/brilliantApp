@@ -298,6 +298,7 @@ steps:
       - "`return sums` comes last."
   - id: step.window.write-max-sum
     type: write-code
+    largeScreenPreferred: true
     title: Largest sum of k in a row
     prompt: |
       Write `max_window_sum(nums, k)`, which returns the largest sum of any `k` consecutive items. Assume `1 <= k <= len(nums)`. The
@@ -336,6 +337,7 @@ steps:
       - "Update `best` after each slide and return it at the end."
   - id: step.window.write-average
     type: write-code
+    largeScreenPreferred: true
     title: Windows that average enough
     prompt: |
       Write `count_good(nums, k, threshold)`, which returns **how many** windows of `k` consecutive items have an average of at
@@ -373,6 +375,7 @@ steps:
       - "Slide as before, and add one to `count` whenever the current total is big enough."
   - id: step.window.write-nearby
     type: write-code
+    largeScreenPreferred: true
     title: Duplicates close together
     prompt: |
       Write `contains_nearby_duplicate(nums, k)`, which returns `True` if the same value appears twice at positions that are at
@@ -427,8 +430,31 @@ steps:
 
         When the second `4` arrives it is no longer in `seen`, so it is not counted as a close duplicate (it is three places from
         the first one, and `k` is only `2`). Each value is added once and removed once, so the work is `O(n)`.
+    phoneAlternative:
+      id: step.window.write-nearby.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `contains_nearby_duplicate(nums, k)`, which returns `True` if the same value appears twice at positions that are at
+        most `k` apart. For example `contains_nearby_duplicate([1, 2, 3, 1], 3)` is `True` (positions 0 and 3), and
+        `contains_nearby_duplicate([1, 2, 3, 1, 2, 3], 2)` is `False`.
+        Arrange the lines instead of typing them.
+      solution: |
+        def contains_nearby_duplicate(nums, k):
+            seen = set()
+            for right in range(len(nums)):
+                if nums[right] in seen:
+                    return True
+                seen.add(nums[right])
+                if len(seen) > k:
+                    seen.remove(nums[right - k])
+            return False
+      hints:
+        - "Keep a set of the last `k` values. A repeat inside that set is a close duplicate."
+        - "After adding the new value, if the set holds more than `k` values, remove the one that just left the window: `nums[right - k]`."
   - id: step.window.write-permutation
     type: write-code
+    largeScreenPreferred: true
     title: A permutation inside a string
     prompt: |
       Write `contains_permutation(s, p)`, which returns `True` if some window of `s` holds exactly the letters of `p` in any order

@@ -8,12 +8,16 @@ public abstract class ShortcutContext : BunitContext
 {
     protected StepShortcuts Shortcuts { get; } = new();
 
+    /// <summary>Which kind of screen the components think they are on; desktop until a test says otherwise.</summary>
+    protected ScreenInfo Screen { get; } = new();
+
     /// <summary>The clock the Trace Player's playback runs on; it only moves when a test ticks it.</summary>
     protected ManualTimeProvider PlaybackClock { get; } = new();
 
     protected ShortcutContext()
     {
         Services.AddSingleton(Shortcuts);
+        Services.AddSingleton(Screen);
         Services.AddSingleton<TimeProvider>(PlaybackClock);
     }
 

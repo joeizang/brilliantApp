@@ -325,6 +325,7 @@ steps:
       - "`b = a` copies the *reference*, not the contents."
   - id: step.lists.write-rotate
     type: write-code
+    largeScreenPreferred: true
     title: Write a function
     prompt: |
       Write `rotate_left(nums)`, which returns the list with its first item moved to the end.
@@ -445,6 +446,7 @@ steps:
       - "Order: `def`, `result = []`, `for`, `if`, `result.append(n)`, `return result`. The `append` is indented under the `if`, which is indented under the `for`."
   - id: step.lists.write-squares-of-evens
     type: write-code
+    largeScreenPreferred: true
     title: Write a comprehension
     prompt: |
       Write `squares_of_evens(nums)`, which returns a list of the squares of the even numbers in `nums`, in their

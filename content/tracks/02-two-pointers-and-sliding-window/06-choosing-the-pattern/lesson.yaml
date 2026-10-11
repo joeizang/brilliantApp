@@ -263,6 +263,7 @@ steps:
       - "The `return` of the pair goes inside the `if`."
   - id: step.choose.write-three
     type: write-code
+    largeScreenPreferred: true
     title: Three numbers that add up to zero
     prompt: |
       Write `three_sum(nums)`, which returns every **distinct** triple of numbers from the list that adds up to `0`. Each triple is a
@@ -326,6 +327,7 @@ steps:
         The `continue` and the extra `while` skip repeated values so that the same triple is not reported twice.
   - id: step.choose.write-subarrays
     type: write-code
+    largeScreenPreferred: true
     title: Subarrays with a given sum
     prompt: |
       Write `count_subarrays(nums, k)`, where `nums` **may contain negative numbers**. Return how many stretches of one or more items
@@ -365,8 +367,32 @@ steps:
       - "Keep a running `prefix` total and a dict that counts how many times each prefix value has been seen. Start it with `{0: 1}` (the empty start)."
       - "A stretch ending here has the total `k` if an earlier prefix equals `prefix - k`. Add that count."
       - "Then record the current prefix in the dict."
+    phoneAlternative:
+      id: step.choose.write-subarrays.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `count_subarrays(nums, k)`, where `nums` **may contain negative numbers**. Return how many stretches of one or more items
+        in a row have a total of exactly `k`. A window can't do this, but prefix sums and a dict (Track 1) can. For example
+        `count_subarrays([1, -1, 0], 0)` is `3`.
+        Arrange the lines instead of typing them.
+      solution: |
+        def count_subarrays(nums, k):
+            count = 0
+            prefix = 0
+            seen = {0: 1}
+            for n in nums:
+                prefix += n
+                count += seen.get(prefix - k, 0)
+                seen[prefix] = seen.get(prefix, 0) + 1
+            return count
+      hints:
+        - "Keep a running `prefix` total and a dict that counts how many times each prefix value has been seen. Start it with `{0: 1}` (the empty start)."
+        - "A stretch ending here has the total `k` if an earlier prefix equals `prefix - k`. Add that count."
+        - "Then record the current prefix in the dict."
   - id: step.choose.write-palindromes
     type: write-code
+    largeScreenPreferred: true
     title: Pointers that move apart
     prompt: |
       One more direction: pointers that start together in the **middle** and move **apart**. Write `count_palindromes(s)`, which

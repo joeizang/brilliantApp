@@ -3,6 +3,7 @@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 @inject StepShortcuts Shortcuts
+@inject ScreenInfo Screen
 @inject Brilliant.Core.Progress.ProgressRecorder Recorder
 @inject IServiceProvider Services
 
@@ -11,7 +12,7 @@
         <CourseSidebar Content="Content" CurrentTrack="_track" CurrentLesson="_lesson" ReviewActive="_reviewing" FlaggedActive="_flagged" SyncActive="_sync" TodayActive="IsToday"
                        OnOpenToday="GoToToday" OnOpenTrack="OpenTrack" OnOpenLesson="OpenLessonFromSidebar" OnOpenReview="OpenReview" OnOpenFlagged="OpenFlagged" OnOpenSync="OpenSync" />
     </aside>
-    <main class="shell-main min-w-0 wide:flex-1">
+    <main class="@("shell-main min-w-0 wide:flex-1" + (ShowPhoneNav ? " pb-20 wide:pb-0" : ""))">
         @if (_session)
         {
             <SessionRunner Content="Content" OnExit="GoToToday" OnProgress="() => StateHasChanged()" />
@@ -49,6 +50,10 @@
             <TodayView Content="Content" OnStart="StartSession" OnBrowse="BackToTracks" OnOpenReview="OpenReview" />
         }
     </main>
+    @if (ShowPhoneNav)
+    {
+        <PhoneNav Content="Content" Active="NavPlace" OnOpenToday="GoToToday" OnOpenTracks="BackToTracks" OnOpenReview="OpenReview" OnOpenSync="OpenSync" />
+    }
 </div>
 
 @code {
@@ -66,6 +71,7 @@
     private IJSObjectReference? _module;
     private DotNetObjectReference<CourseShell>? _self;
     private IDisposable? _shortcuts;
+    private IAsyncDisposable? _screenWatch;
 
     private Brilliant.Core.Sync.SyncService? _syncService;
     private int _syncRevision;
@@ -101,6 +107,9 @@
             await _module.InvokeVoidAsync("attach", _self);
         }
         catch (JSException) { }   // the app still works with the mouse if the key listener can't start
+
+        // Which screen this is (phone, tablet, desktop). If it can't be found out the app stays on the desktop forms.
+        _screenWatch = await Screen.WatchAsync(JS);
     }
 
     /// <summary>Called by the page's key listener (shortcuts.js).</summary>
@@ -115,6 +124,15 @@
         "playpause" => new StepShortcut(StepCommand.PlayPause),
         _ => throw new ArgumentOutOfRangeException(nameof(command), command, "Unknown shortcut."),
     });
+
+    // The bottom tabs are for moving between places; inside a lesson, session or review the screen is for the task and has its own Back.
+    private bool ShowPhoneNav => !_session && !_reviewing && _lesson is null;
+
+    private PhoneNav.Place NavPlace =>
+        _sync ? PhoneNav.Place.Sync
+        : IsToday ? PhoneNav.Place.Today
+        : _browsing ? PhoneNav.Place.Tracks
+        : PhoneNav.Place.Other;
 
     private bool IsToday => !_session && !_reviewing && !_flagged && !_sync && !_browsing && _track is null && _lesson is null && _concept is null;
 
@@ -159,5 +177,6 @@
         }
         catch (JSDisconnectedException) { }   // the app is shutting down
         _self?.Dispose();
+        if (_screenWatch is not null) await _screenWatch.DisposeAsync();
     }
 }

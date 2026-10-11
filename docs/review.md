@@ -73,10 +73,11 @@ Review answers never touch lesson progress: they use a different event type, so 
 
 ## The Review screen
 
-- **Entry points:** a *Review · N due* card on the Tracks screen (or "No reviews due"), and a *Review* item with a due-count badge in the sidebar.
+- **Entry points:** a *Review · N due* card on the Tracks screen (or "No reviews due"), and a *Review* item with a due-count badge in the sidebar (the bottom tab bar on narrow screens).
 - **Queue:** `LearnerState.Queue.Items` (see below), snapshotted when the screen opens.
 - **Answering:** only the first check of each item is recorded; trying again is practice. After it, the screen says when the item will return, and the sidebar's due count refreshes.
 - **Question types:** choice and predict-output for authored items; fill-blank, Parsons and write-code for re-solves. Each is labelled when it isn't an ordinary concept question (*Pattern*, *Re-solve*).
+- **On a phone:** a re-solve of a step flagged `largeScreenPreferred` is presented as its Parsons or fill-blank alternative when it has one, else with a "best on a larger screen" note. Only the presented question changes, not the item, its schedule or the event; see [responsive-layouts.md](responsive-layouts.md).
 - **Caught up:** shows when the next review is due. If today's cap held items back, it says how many are waiting for tomorrow instead.
 - The Back shortcut returns to the Tracks screen, as it does from a lesson.
 
@@ -121,5 +122,4 @@ Mastery per concept and track, built on these review items, is in [mastery.md](m
 
 ## Not in this slice
 
-A per-learner cap or weights in settings (the options exist, the UI doesn't);
-choosing an easier form of a re-solve on a phone, such as Parsons instead of typing code (story 43). Streaks and the Today screen landed in [#22](https://github.com/joeizang/brilliantApp/issues/22); see [today.md](today.md).
+A per-learner cap or weights in settings (the options exist, the UI doesn't). Streaks and the Today screen landed in [#22](https://github.com/joeizang/brilliantApp/issues/22); see [today.md](today.md).

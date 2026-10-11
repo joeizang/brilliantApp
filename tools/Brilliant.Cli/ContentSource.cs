@@ -217,10 +217,39 @@ public static partial class ContentValidator
 
     private const int MaxHints = 4;
 
+    private static readonly string[] QuestionTypes = ["choice", "predict-output", "write-code", "fill-blank", "parsons"];
+
     private static Step? LoadStep(StepDto dto, string where, string file, ValidationReport report,
-        Dictionary<string, string> seenIds)
+        Dictionary<string, string> seenIds, bool isAlternative = false)
     {
         var label = dto.Id is null ? where : $"{where} ('{dto.Id}')";
+        var step = LoadStepBody(dto, label, file, report, seenIds);
+
+        var preferred = dto.LargeScreenPreferred ?? false;
+        if (preferred && !QuestionTypes.Contains(dto.Type))
+            report.Add(file, $"{label}: 'largeScreenPreferred' only applies to questions (choice, predict-output, write-code, fill-blank or parsons).");
+        if (isAlternative && preferred)
+            report.Add(file, $"{label}: a phone alternative is for phones; it can't be 'largeScreenPreferred' itself.");
+
+        Step? alternative = null;
+        if (dto.PhoneAlternative is { } altDto)
+        {
+            var altWhere = $"{label}: phoneAlternative";
+            if (isAlternative) report.Add(file, $"{altWhere}: a phone alternative can't have a phone alternative of its own.");
+            else if (!preferred) report.Add(file, $"{altWhere}: only a step with 'largeScreenPreferred: true' has a phone alternative.");
+            if (altDto.Type is not ("parsons" or "fill-blank"))
+                report.Add(file, $"{altWhere}: the alternative must be a tap-friendly step: parsons or fill-blank (found '{altDto.Type ?? "(missing)"}').");
+            // Loaded either way, so a mistake inside it is reported now rather than after the first one is fixed.
+            alternative = LoadStep(altDto, altWhere, file, report, seenIds, isAlternative: true);
+        }
+
+        if (step is null || (!preferred && alternative is null)) return step;
+        return step with { LargeScreenPreferred = preferred, PhoneAlternative = alternative };
+    }
+
+    private static Step? LoadStepBody(StepDto dto, string label, string file, ValidationReport report,
+        Dictionary<string, string> seenIds)
+    {
         var before = report.Errors.Count;
 
         CheckId(dto.Id, "step", file, report, seenIds, label);
@@ -666,6 +695,8 @@ public static partial class ContentValidator
         public List<TestDto>? Tests { get; set; }
         public List<VisualDto>? Visualise { get; set; }
         public WalkthroughDto? Walkthrough { get; set; }
+        public bool? LargeScreenPreferred { get; set; }
+        public StepDto? PhoneAlternative { get; set; }
     }
     private sealed class WalkthroughDto { public string? Call { get; set; } public List<VisualDto>? Visualise { get; set; } public string? Explanation { get; set; } }
     private sealed class VisualDto { public string? Variable { get; set; } public string? As { get; set; } public List<string>? Pointers { get; set; } }

@@ -24,12 +24,14 @@ public static class LearnerStateProjector
     /// defines the learner's day: pass local time and "today" (the daily review cap) rolls over at the learner's midnight.
     /// </param>
     /// <param name="queueOptions">The daily review cap and weights; the defaults when omitted.</param>
-    public static LearnerState Project(IEnumerable<ProgressEvent> events, ContentGraph content, DateTimeOffset now, ReviewQueueOptions? queueOptions = null)
+    /// <param name="screen">The screen the review queue is for. It changes only the form of each queued question, never the learner's progress.</param>
+    public static LearnerState Project(IEnumerable<ProgressEvent> events, ContentGraph content, DateTimeOffset now, ReviewQueueOptions? queueOptions = null,
+        ScreenClass screen = ScreenClass.Desktop)
     {
         var log = Distinct(events);
         var tracks = content.Tracks.Select(track => ProjectTrack(track, content, log)).ToList();
         var (reviews, answeredToday) = ProjectReviews(tracks, log, now);
-        var queue = ReviewQueueBuilder.Build(reviews, now, answeredToday, queueOptions);
+        var queue = ReviewQueueBuilder.Build(reviews, now, answeredToday, queueOptions, screen);
         return new LearnerState(now, tracks, reviews, queue, ProjectConcepts(tracks, reviews, log, now), ProjectToday(tracks, queue, log, now));
     }
 

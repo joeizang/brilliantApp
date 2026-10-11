@@ -303,6 +303,7 @@ steps:
       pass is enough.
   - id: step.frequency.write-can-build
     type: write-code
+    largeScreenPreferred: true
     title: Can you build the note?
     prompt: |
       A ransom note can be built from a magazine if every letter in the note can be matched with a *different* letter in the
@@ -353,8 +354,32 @@ steps:
         The first `a` finds a count of 1 and uses it up, taking `a` to 0. The second `a` finds 0, so no unused `a` is left
         and the function returns `False`. Counting the magazine once means each note letter is a single lookup, so the whole
         thing is `O(n + m)`.
+    phoneAlternative:
+      id: step.frequency.write-can-build.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        A ransom note can be built from a magazine if every letter in the note can be matched with a *different* letter in the
+        magazine (each magazine letter used at most once). Write `can_build(note, magazine)`, which returns `True` or `False`.
+        For example `can_build("aa", "aab")` is `True`, but `can_build("aa", "ab")` is `False`.
+        Arrange the lines instead of typing them.
+      solution: |
+        def can_build(note, magazine):
+            have = {}
+            for ch in magazine:
+                have[ch] = have.get(ch, 0) + 1
+            for ch in note:
+                if have.get(ch, 0) == 0:
+                    return False
+                have[ch] -= 1
+            return True
+      hints:
+        - Count the letters available in the magazine first.
+        - Then go through the note. Each letter needs at least one left in the table, and uses one up.
+        - If a letter's count is `0` (or it isn't there), you can return `False` straight away.
   - id: step.frequency.write-most-common
     type: write-code
+    largeScreenPreferred: true
     title: The most common word
     prompt: |
       Write `most_common_word(words)`, which returns the word that appears most often in the list. If several words tie,

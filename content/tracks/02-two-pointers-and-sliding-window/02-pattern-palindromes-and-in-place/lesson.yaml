@@ -290,6 +290,7 @@ steps:
       - "`return True` comes last and lines up with `while`. Only after every pair matched can you say yes."
   - id: step.palindrome.write-palindrome
     type: write-code
+    largeScreenPreferred: true
     title: Valid palindrome
     prompt: |
       Write `is_palindrome(s)`, which returns `True` if `s` reads the same forwards and backwards when you **ignore every
@@ -334,6 +335,7 @@ steps:
       - "Compare the two characters with `.lower()`. If they differ, return `False`. If the loop finishes, return `True`."
   - id: step.palindrome.write-almost
     type: write-code
+    largeScreenPreferred: true
     title: One deletion allowed
     prompt: |
       Write `almost_palindrome(s)`, which returns `True` if `s` is a palindrome **or becomes one after deleting exactly one
@@ -397,6 +399,7 @@ steps:
         whole function is still `O(n)`.
   - id: step.palindrome.write-reverse-vowels
     type: write-code
+    largeScreenPreferred: true
     title: Reverse only the vowels
     prompt: |
       Write `reverse_vowels(s)`, which returns `s` with its **vowels** (`a e i o u`, in either case) in reverse order and every other

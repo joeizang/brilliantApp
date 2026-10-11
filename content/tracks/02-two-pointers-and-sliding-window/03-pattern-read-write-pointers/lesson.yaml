@@ -311,6 +311,7 @@ steps:
       - "Instead of copying, this version *swaps*, so the zeros pile up behind the writer."
   - id: step.readwrite.write-dedupe
     type: write-code
+    largeScreenPreferred: true
     title: Remove duplicates
     prompt: |
       Write `remove_duplicates(nums)`, which takes a **sorted** list and removes the duplicate values **in place**, using a reader
@@ -347,8 +348,31 @@ steps:
       - "An empty list has nothing to keep. For anything else the first value is always kept, so `write` starts at `1`."
       - "Walk `read` from `1`. When `nums[read]` differs from the last kept value (`nums[write - 1]`), copy it to `nums[write]` and move `write` on."
       - "Return `nums[:write]`."
+    phoneAlternative:
+      id: step.readwrite.write-dedupe.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `remove_duplicates(nums)`, which takes a **sorted** list and removes the duplicate values **in place**, using a reader
+        and a writer. Return `nums[:write]`, the kept part of the list. For example `remove_duplicates([1, 1, 2])` is `[1, 2]`.
+        Arrange the lines instead of typing them.
+      solution: |
+        def remove_duplicates(nums):
+            if not nums:
+                return []
+            write = 1
+            for read in range(1, len(nums)):
+                if nums[read] != nums[write - 1]:
+                    nums[write] = nums[read]
+                    write += 1
+            return nums[:write]
+      hints:
+        - "An empty list has nothing to keep. For anything else the first value is always kept, so `write` starts at `1`."
+        - "Walk `read` from `1`. When `nums[read]` differs from the last kept value (`nums[write - 1]`), copy it to `nums[write]` and move `write` on."
+        - "Return `nums[:write]`."
   - id: step.readwrite.write-twice
     type: write-code
+    largeScreenPreferred: true
     title: At most twice
     prompt: |
       Write `keep_twice(nums)`, which takes a **sorted** list and keeps each value **at most twice**, in place. Return
@@ -385,6 +409,7 @@ steps:
       - "Keep the item when `write < 2` or when it differs from `nums[write - 2]`."
   - id: step.readwrite.write-subsequence
     type: write-code
+    largeScreenPreferred: true
     title: Is it a subsequence?
     prompt: |
       Write `is_subsequence(s, t)`, which returns `True` if the letters of `s` appear in `t` **in the same order**, though not
@@ -421,8 +446,29 @@ steps:
       - "One pointer walks through `s`, and the loop walks through `t`. The pointer only moves when `t` offers the next letter of `s` that is still needed."
       - "If the current letter of `t` equals `s[i]`, move `i` on. Otherwise skip that letter of `t`."
       - "At the end, `s` was found completely if `i` reached `len(s)`."
+    phoneAlternative:
+      id: step.readwrite.write-subsequence.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `is_subsequence(s, t)`, which returns `True` if the letters of `s` appear in `t` **in the same order**, though not
+        necessarily next to each other. For example `is_subsequence("ace", "abcde")` is `True`, and `is_subsequence("aec",
+        "abcde")` is `False`. The empty string is a subsequence of anything.
+        Arrange the lines instead of typing them.
+      solution: |
+        def is_subsequence(s, t):
+            i = 0
+            for ch in t:
+                if i < len(s) and ch == s[i]:
+                    i += 1
+            return i == len(s)
+      hints:
+        - "One pointer walks through `s`, and the loop walks through `t`. The pointer only moves when `t` offers the next letter of `s` that is still needed."
+        - "If the current letter of `t` equals `s[i]`, move `i` on. Otherwise skip that letter of `t`."
+        - "At the end, `s` was found completely if `i` reached `len(s)`."
   - id: step.readwrite.write-merge
     type: write-code
+    largeScreenPreferred: true
     title: Merge two sorted lists
     prompt: |
       Write `merge_sorted(a, b)`, which takes two **sorted** lists and returns one new sorted list with every item from both. Use

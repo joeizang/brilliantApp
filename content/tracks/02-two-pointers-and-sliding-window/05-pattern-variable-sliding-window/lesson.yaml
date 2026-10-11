@@ -301,6 +301,7 @@ steps:
       - "Inside the `while`: record the length, then drop the left item. The last line reports `0` if no window was ever big enough."
   - id: step.varwindow.write-ones
     type: write-code
+    largeScreenPreferred: true
     title: Flip at most k zeros
     prompt: |
       Write `longest_ones(nums, k)`, where `nums` holds only `0`s and `1`s. Return the length of the longest stretch that contains
@@ -346,6 +347,7 @@ steps:
       - "After the window is valid again, its length is `right - left + 1`. Keep the largest."
   - id: step.varwindow.write-distinct
     type: write-code
+    largeScreenPreferred: true
     title: At most k different letters
     prompt: |
       Write `longest_k_distinct(s, k)`, which returns the length of the longest stretch of `s` with **at most `k` different
@@ -404,6 +406,7 @@ steps:
         because `len(counts)` is how the rule is checked. Both pointers only ever move forward, so the work is `O(n)`.
   - id: step.varwindow.write-count
     type: write-code
+    largeScreenPreferred: true
     title: Counting every window
     prompt: |
       Write `count_below(nums, limit)`, where `nums` holds **positive** numbers and `limit >= 1`. Return how many stretches (of one

@@ -293,6 +293,7 @@ steps:
       If you cannot say what you are remembering, you haven't found the pattern yet.
   - id: step.capstone.write-count-pairs
     type: write-code
+    largeScreenPreferred: true
     title: How many pairs?
     prompt: |
       Write `count_pairs(nums, target)`, which returns how many pairs of positions `i < j` have `nums[i] + nums[j] == target`.
@@ -344,8 +345,30 @@ steps:
         finds two (two more pairs). That is `1 + 1 + 2 = 4`.
 
         Each number cost one lookup, so the whole function is `O(n)` instead of comparing every pair.
+    phoneAlternative:
+      id: step.capstone.write-count-pairs.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `count_pairs(nums, target)`, which returns how many pairs of positions `i < j` have `nums[i] + nums[j] == target`.
+        For example `count_pairs([1, 5, 3, 3, 3], 6)` is `4`: one pair from `1 + 5`, and three pairs from the three `3`s.
+        Arrange the lines instead of typing them.
+      solution: |
+        def count_pairs(nums, target):
+            seen = {}
+            count = 0
+            for n in nums:
+                need = target - n
+                count += seen.get(need, 0)
+                seen[n] = seen.get(n, 0) + 1
+            return count
+      hints:
+        - "For each number, the partner it needs is `target - n`. Ask a dict how many of that partner came *earlier*."
+        - Store a count for each number, not just that it exists, since repeats make extra pairs.
+        - "Add to the answer *before* recording the current number, so a number never pairs with itself."
   - id: step.capstone.write-anagram-groups
     type: write-code
+    largeScreenPreferred: true
     title: How many families?
     prompt: |
       Write `count_anagram_groups(words)`, which returns how many different **groups of anagrams** the list contains. Two
@@ -380,8 +403,29 @@ steps:
       - "Words are in the same group when they share a *key*. What do all anagrams of a word have in common?"
       - "`\"\".join(sorted(word))` is the same string for every anagram, and it can be a dict key."
       - The number of groups is the number of distinct keys. A `dict` or a `set` of keys works, and you don't need the lists themselves.
+    phoneAlternative:
+      id: step.capstone.write-anagram-groups.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `count_anagram_groups(words)`, which returns how many different **groups of anagrams** the list contains. Two
+        words are in the same group if they have the same letters, in any order. For example
+        `count_anagram_groups(["eat", "tea", "tan", "ate", "nat", "bat"])` is `3`.
+        Arrange the lines instead of typing them.
+      solution: |
+        def count_anagram_groups(words):
+            groups = {}
+            for w in words:
+                key = "".join(sorted(w))
+                groups.setdefault(key, []).append(w)
+            return len(groups)
+      hints:
+        - "Words are in the same group when they share a *key*. What do all anagrams of a word have in common?"
+        - "`\"\".join(sorted(word))` is the same string for every anagram, and it can be a dict key."
+        - The number of groups is the number of distinct keys. A `dict` or a `set` of keys works, and you don't need the lists themselves.
   - id: step.capstone.write-top-k
     type: write-code
+    largeScreenPreferred: true
     title: The k favourites
     prompt: |
       Write `top_k(nums, k)`, which returns a list of the `k` numbers that appear most often, most frequent first. If two
@@ -417,6 +461,7 @@ steps:
       - "Slice the sorted list with `[:k]`. Slicing past the end is fine."
   - id: step.capstone.write-count-splits
     type: write-code
+    largeScreenPreferred: true
     title: Where can it split?
     prompt: |
       Write `count_splits(nums)`, which returns the number of positions where the list can be cut into a non-empty left part
@@ -471,3 +516,26 @@ steps:
         cut. The loop stops before the last item, because a cut after it would leave nothing on the right.
 
         No inner loop re-adds anything, so the function is `O(n)`.
+    phoneAlternative:
+      id: step.capstone.write-count-splits.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `count_splits(nums)`, which returns the number of positions where the list can be cut into a non-empty left part
+        and a non-empty right part with **equal sums**. For example `count_splits([1, 2, 3])` is `1`, because `[1, 2]` and `[3]`
+        both add up to `3`.
+        Arrange the lines instead of typing them.
+      solution: |
+        def count_splits(nums):
+            total = sum(nums)
+            left = 0
+            count = 0
+            for i in range(len(nums) - 1):
+                left += nums[i]
+                if left == total - left:
+                    count += 1
+            return count
+      hints:
+        - "A cut after position `i` splits the list into the first `i + 1` numbers and the rest. The left sum is a running total, which is a prefix sum."
+        - "The right sum is `total - left`, where `total = sum(nums)` is worked out once."
+        - "Cut positions run from after the first item to before the last, so the loop stops one short of the end."

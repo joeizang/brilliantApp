@@ -320,6 +320,7 @@ steps:
       - "The empty prefix has a total of `0`, and it has happened once."
   - id: step.prefix.write-pivot
     type: write-code
+    largeScreenPreferred: true
     title: The balance point
     prompt: |
       Write `pivot_index(nums)`, which returns the first index where the sum of the numbers to its **left** equals the sum
@@ -368,8 +369,31 @@ steps:
 
         At `i = 0` the left is `0` and the right is `27`. At `i = 1` the left is `1` and the right is `20`. The sums are `11`
         and `11` at `i = 3`, so that is the balance point. Each position cost two additions, so the whole function is `O(n)`.
+    phoneAlternative:
+      id: step.prefix.write-pivot.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `pivot_index(nums)`, which returns the first index where the sum of the numbers to its **left** equals the sum
+        of the numbers to its **right**. The item at the index itself is in neither sum. Return `-1` if there is no such index.
+        For example `pivot_index([1, 7, 3, 6, 5, 6])` is `3`, because `1 + 7 + 3 = 5 + 6 = 11`.
+        Arrange the lines instead of typing them.
+      solution: |
+        def pivot_index(nums):
+            total = sum(nums)
+            left = 0
+            for i in range(len(nums)):
+                if left == total - left - nums[i]:
+                    return i
+                left += nums[i]
+            return -1
+      hints:
+        - Work out the total of the whole list once. Then the sum on the right of `i` is whatever is left of the total.
+        - Keep `left`, the running sum of everything before `i`. The right side is `total - left - nums[i]`.
+        - Check for a balance before you add `nums[i]` into `left`, because the item itself belongs to neither side.
   - id: step.prefix.write-count-subarrays
     type: write-code
+    largeScreenPreferred: true
     title: Count the stretches
     prompt: |
       Write `count_subarrays(nums, k)`, which returns how many **contiguous stretches** of `nums` add up to `k`. The numbers

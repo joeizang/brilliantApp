@@ -2,16 +2,18 @@
 @using Brilliant.Core.Progress
 @using Brilliant.Core.Python
 @using Brilliant.Core.Review
+@implements IDisposable
 @inject ProgressRecorder Recorder
+@inject ScreenInfo Screen
 
-<div class="review-bar mt-2 flex items-center gap-4 text-[.9rem]">
+<div class="review-bar content-column mt-2 flex items-center gap-4 text-[.9rem]">
     <button class="link btn-link" @onclick="() => OnExit.InvokeAsync()">← Back</button>
 </div>
-<h1 class="review-title mt-2 mb-0">Review</h1>
+<h1 class="review-title content-column mt-2 mb-0">Review</h1>
 
 @if (_current is { } item)
 {
-    <div class="review-progress mt-2 text-[.9rem]" role="progressbar" aria-valuemin="0" aria-valuemax="@_queue.Count" aria-valuenow="@_index">
+    <div class="review-progress content-column mt-2 text-[.9rem]" role="progressbar" aria-valuemin="0" aria-valuemax="@_queue.Count" aria-valuenow="@_index">
         <div class="bar progress-bar mb-2"><div class="fill progress-fill" style="width:@(100 * _index / _queue.Count)%"></div></div>
         <span>@(_index + 1) of @_queue.Count</span>
     </div>
@@ -19,9 +21,13 @@
     <div @key="item.Item.Id">
         @if (item.Item.Kind != ReviewKind.Concept)
         {
-            <span class="review-kind mt-4 inline-block rounded-full bg-surface px-[.6rem] py-[.1rem] text-[.8rem] font-medium text-fg-secondary">@(item.Item.Kind == ReviewKind.Pattern ? "Pattern" : "Re-solve")</span>
+            <div class="content-column"><span class="review-kind mt-4 inline-block rounded-full bg-surface px-[.6rem] py-[.1rem] text-[.8rem] font-medium text-fg-secondary">@(item.Item.Kind == ReviewKind.Pattern ? "Pattern" : "Re-solve")</span></div>
         }
-        @switch (item.Question)
+        @if (item.NeedsLargeScreen && Screen.IsPhone)
+        {
+            <div class="content-column"><p class="large-screen-note mt-4 rounded-lg border border-hairline bg-surface-raised px-4 py-3 text-[.95rem]" role="note">This question is best on a larger screen, where you can type the code. You can still answer it here.</p></div>
+        }
+        @switch (item.Presented)
         {
             case ChoiceStep choice:
                 <ChoiceStepView Step="choice" OnAnswered="r => Answered(item, r.IsCorrect)" OnContinue="Next" />
@@ -40,29 +46,29 @@
                 break;
             default:
                 <p>This kind of question can't be reviewed here yet.</p>
-                <div class="review-actions pb-6"><button class="primary btn-primary" @onclick="Next">Skip</button></div>
+                <div class="review-actions content-column pb-6"><button class="primary btn-primary" @onclick="Next">Skip</button></div>
                 break;
         }
-        <HintLadder Hints="item.Question.Hints" Walkthrough="item.Question.Walkthrough" Initial="item.AttemptHints" Caption="A hint makes this come back sooner." OnRevealed="level => Hinted(item, level)" />
-        <FlagStep LessonId="@item.Lesson.Id" StepId="@item.Question.Id" />
+        <HintLadder Hints="item.Presented.Hints" Walkthrough="item.Presented.Walkthrough" Initial="item.AttemptHints" Caption="A hint makes this come back sooner." OnRevealed="level => Hinted(item, level)" />
+        <FlagStep LessonId="@item.Lesson.Id" StepId="@item.Item.StepId" />
         @if (_scheduled is { } due)
         {
-            <p class="review-next mt-4 text-[.95rem] text-fg-secondary" role="status">You'll see this again @Describe(due - Recorder.Now).</p>
+            <p class="review-next content-column mt-4 text-[.95rem] text-fg-secondary" role="status">You'll see this again @Describe(due - Recorder.Now).</p>
         }
     </div>
 }
 else
 {
-    <p class="review-done mt-12 mb-4 text-[1.3rem]">@(_waiting > 0 ? "That's all for today." : _queue.Count == 0 && _nextDue is null ? "Nothing to review yet. Finish a lesson and its questions will show up here." : "You're all caught up. 🎉")</p>
+    <p class="review-done content-column mt-12 mb-4 text-[1.3rem]">@(_waiting > 0 ? "That's all for today." : _queue.Count == 0 && _nextDue is null ? "Nothing to review yet. Finish a lesson and its questions will show up here." : "You're all caught up. 🎉")</p>
     @if (_waiting > 0)
     {
-        <p class="review-next mt-4 text-[.95rem] text-fg-secondary">@_waiting more @(_waiting == 1 ? "is" : "are") waiting. They'll be in tomorrow's queue, so a missed day never piles up.</p>
+        <p class="review-next content-column mt-4 text-[.95rem] text-fg-secondary">@_waiting more @(_waiting == 1 ? "is" : "are") waiting. They'll be in tomorrow's queue, so a missed day never piles up.</p>
     }
     else if (_nextDue is { } next)
     {
-        <p class="review-next mt-4 text-[.95rem] text-fg-secondary">Next review @Describe(next - Recorder.Now).</p>
+        <p class="review-next content-column mt-4 text-[.95rem] text-fg-secondary">Next review @Describe(next - Recorder.Now).</p>
     }
-    <div class="review-actions pb-6"><button class="primary btn-primary" @onclick="Finish">@(FinishedText ?? "Back to tracks")</button></div>
+    <div class="review-actions content-column pb-6"><button class="primary btn-primary" @onclick="Finish">@(FinishedText ?? "Back to tracks")</button></div>
 }
 
 @code {
@@ -96,10 +102,20 @@ else
 
     protected override void OnInitialized()
     {
+        Screen.Changed += OnScreenChanged;
         _seenRevision = SyncRevision;
-        _queue = Recorder.Project(Content).Queue.Items;
+        _queue = Recorder.Project(Content, Screen.Class).Queue.Items;
         Show();
     }
+
+    public void Dispose() => Screen.Changed -= OnScreenChanged;
+
+    // Turning the phone or resizing the window changes the form later questions are asked in. The one being answered stays as it is.
+    private void OnScreenChanged() => _ = InvokeAsync(() =>
+    {
+        _queue = [.. _queue.Select((q, i) => i <= _index ? q : q.For(Screen.Class))];
+        StateHasChanged();
+    });
 
     // Synced progress can unlock or schedule questions. Where the learner is looking at "nothing to review" or "all caught up", start over from
     // what is due now. Mid-queue, leave the question (and any answer in progress) alone and pick the new ones up when they move on.
@@ -109,7 +125,7 @@ else
         _seenRevision = SyncRevision;
         if (_current is null)
         {
-            _queue = Recorder.Project(Content).Queue.Items;
+            _queue = Recorder.Project(Content, Screen.Class).Queue.Items;
             _index = 0;
             Show();
         }
@@ -120,7 +136,7 @@ else
     private void AddNewlyDue()
     {
         var known = _queue.Select(q => q.Item.Id).ToHashSet();
-        _queue = [.. _queue, .. Recorder.Project(Content).Queue.Items.Where(q => !known.Contains(q.Item.Id))];
+        _queue = [.. _queue, .. Recorder.Project(Content, Screen.Class).Queue.Items.Where(q => !known.Contains(q.Item.Id))];
     }
 
     private void Show()
@@ -135,7 +151,7 @@ else
         if (_recorded) return;
         _recorded = true;
         Recorder.ReviewAnswered(item, correct, item.HintsBefore(_hintsUsed), Recorder.Now - _shownAt);
-        _scheduled = Recorder.Project(Content).Reviews.First(r => r.Item.Id == item.Item.Id).Card?.Due;
+        _scheduled = Recorder.Project(Content, Screen.Class).Reviews.First(r => r.Item.Id == item.Item.Id).Card?.Due;
         await OnProgress.InvokeAsync();
     }
 
@@ -167,7 +183,7 @@ else
     // What to tell the learner at the end of the queue: reviews held back by today's cap, or else when the next one is due.
     private (DateTimeOffset? NextDue, int Waiting) Finished()
     {
-        var state = Recorder.Project(Content);
+        var state = Recorder.Project(Content, Screen.Class);
         var next = state.Reviews
             .Where(r => r.IsUnlocked && r.Card is not null && r.Card.Due > state.AsOf)
             .Select(r => (DateTimeOffset?)r.Card!.Due)

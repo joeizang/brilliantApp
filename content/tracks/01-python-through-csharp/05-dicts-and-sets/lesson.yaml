@@ -358,6 +358,7 @@ steps:
       - "Order: `def`, `counts = {}`, `for`, the `counts[w] = ...` line (indented under the `for`), then `return counts`."
   - id: step.dicts.write-word-counts
     type: write-code
+    largeScreenPreferred: true
     title: Write a function
     prompt: |
       Write `word_counts(words)`, which returns a dict mapping each word in the list to how many times it appears.
@@ -398,8 +399,27 @@ steps:
 
         The arrow marks the word being looked up. `red` finds no row at first, so a row appears with `1`; the second `red` finds
         it and the count becomes `2`. The empty list works with no special case: the loop never runs and the empty dict comes back.
+    phoneAlternative:
+      id: step.dicts.write-word-counts.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `word_counts(words)`, which returns a dict mapping each word in the list to how many times it appears.
+        For example `word_counts(["a", "b", "a"])` is `{"a": 2, "b": 1}`. An empty list gives an empty dict.
+        Arrange the lines instead of typing them.
+      solution: |
+        def word_counts(words):
+            counts = {}
+            for word in words:
+                counts[word] = counts.get(word, 0) + 1
+            return counts
+      hints:
+        - Start with an empty dict and look at each word in turn.
+        - "For each word, the new count is the old count plus one. `counts.get(word, 0)` gives the old count, or 0 if the word is new."
+        - "`counts[word] = counts.get(word, 0) + 1`, then return `counts` after the loop."
   - id: step.dicts.write-shared
     type: write-code
+    largeScreenPreferred: true
     title: Write a function with sets
     prompt: |
       Write `shared(a, b)`, which returns a **sorted list** of the values that appear in both lists, each once.
@@ -435,3 +455,18 @@ steps:
         set `both`, which you can see appear on the last line of the function.
 
         A set has no order, so `sorted(both)` turns it into a list in ascending order. That also makes the answer the same every time.
+    phoneAlternative:
+      id: step.dicts.write-shared.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `shared(a, b)`, which returns a **sorted list** of the values that appear in both lists, each once.
+        For example `shared([1, 2, 2, 3], [2, 3, 4])` is `[2, 3]`.
+        Arrange the lines instead of typing them.
+      solution: |
+        def shared(a, b):
+            both = set(a) & set(b)
+            return sorted(both)
+      hints:
+        - Sets can answer "which items are in both?" in one operation.
+        - "`set(a) & set(b)` is the items in both. A set has no order, so use `sorted(...)` to get a list."
