@@ -29,8 +29,14 @@ public static class MauiProgram
 
         // Progress lives in an append-only event log in on-device SQLite.
         var dataDir = FileSystem.AppDataDirectory;
-        builder.Services.AddSingleton<IProgressEventLog>(_ =>
-            new SqliteProgressEventLog($"Data Source={Path.Combine(dataDir, "brilliant.db")}"));
+        builder.Services.AddSingleton<IProgressEventLog>(sp =>
+        {
+#if DEBUG
+            // BRILLIANT_DEV_START_AT=<lesson id> opens the app at that lesson on a throwaway in-memory log (see DevProgress).
+            if (DevProgress.TryCreate(sp.GetRequiredService<ContentGraph>()) is { } scratch) return scratch;
+#endif
+            return new SqliteProgressEventLog($"Data Source={Path.Combine(dataDir, "brilliant.db")}");
+        });
         builder.Services.AddSingleton(sp =>
             new ProgressRecorder(sp.GetRequiredService<IProgressEventLog>(), DeviceId.GetOrCreate(dataDir)));
 
