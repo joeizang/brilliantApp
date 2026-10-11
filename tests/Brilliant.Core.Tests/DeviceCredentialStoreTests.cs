@@ -20,6 +20,9 @@ public class DeviceCredentialStoreTests : IDisposable
         public DeviceCredentials? Held;
         public bool Available = true;
 
+        /// <summary>Clear says it worked and does nothing, as the platform's Remove does when it returns false instead of throwing.</summary>
+        public bool ClearDoesNothing;
+
         private void Check()
         {
             if (!Available) throw new InvalidOperationException("MissingEntitlement");
@@ -27,7 +30,7 @@ public class DeviceCredentialStoreTests : IDisposable
 
         public Task<DeviceCredentials?> LoadAsync(CancellationToken ct = default) { Check(); return Task.FromResult(Held); }
         public Task SaveAsync(DeviceCredentials credentials, CancellationToken ct = default) { Check(); Held = credentials; return Task.CompletedTask; }
-        public Task ClearAsync(CancellationToken ct = default) { Check(); Held = null; return Task.CompletedTask; }
+        public Task ClearAsync(CancellationToken ct = default) { Check(); if (!ClearDoesNothing) Held = null; return Task.CompletedTask; }
     }
 
     // A new instance over the same file and keystore is what an app restart looks like.
@@ -169,17 +172,81 @@ public class DeviceCredentialStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task Forgetting_with_a_working_keystore_leaves_nothing_behind()
+    public async Task Forgetting_with_a_working_keystore_empties_it_and_stays_forgotten()
     {
         var keystore = new Keystore { Held = Creds };
         await Store(keystore).ClearAsync();
         Assert.Null(keystore.Held);
-        Assert.False(File.Exists(FilePath));
         Assert.Null(await Store(keystore).LoadAsync());
     }
 
     [Fact]
-    public async Task Forgetting_a_fallback_pairing_clears_the_file()
+    public async Task A_keystore_that_reports_a_removal_it_did_not_make_cannot_bring_the_old_pairing_back()
+    {
+        // The platform's Remove returns false rather than throwing when the keychain query fails, so Clear "succeeds" and the token survives.
+        var keystore = new Keystore { Held = Device("old"), ClearDoesNothing = true };
+
+        await Store(keystore).ClearAsync();
+
+        Assert.Equal(Device("old"), keystore.Held);
+        Assert.Null(await Store(keystore).LoadAsync());
+        Assert.Null(await Store(keystore).LoadAsync());   // and after a restart
+    }
+
+    [Fact]
+    public async Task A_cancelled_replacement_after_a_forget_leaves_the_forget_in_place()
+    {
+        var keystore = new Keystore { Held = Device("old"), Available = false };
+        await Store(keystore).ClearAsync();
+        keystore.Available = true;
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Store(keystore).SaveAsync(Device("new"), cancelled.Token));
+
+        Assert.IsType<FileState.Forgotten>(await new FileDeviceCredentialStore(FilePath).ReadAsync());
+        Assert.Null(await Store(keystore).LoadAsync());
+    }
+
+    [Fact]
+    public async Task A_replacement_that_neither_place_accepts_leaves_the_forget_in_place()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        var keystore = new Keystore { Held = Device("old"), Available = false };
+        await Store(keystore).ClearAsync();
+        var folder = Path.GetDirectoryName(FilePath)!;
+        File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserExecute);   // the file can no longer be replaced
+        try
+        {
+            await Assert.ThrowsAnyAsync<Exception>(() => Store(keystore).SaveAsync(Device("new")));
+        }
+        finally { File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); }
+
+        keystore.Available = true;
+        Assert.IsType<FileState.Forgotten>(await new FileDeviceCredentialStore(FilePath).ReadAsync());
+        Assert.Null(await Store(keystore).LoadAsync());   // the old token the keystore kept stays suppressed
+        Assert.Empty(Directory.GetFiles(folder, "*.tmp"));
+    }
+
+    [Fact]
+    public async Task A_write_that_fails_leaves_the_credentials_the_file_already_held()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        var file = new FileDeviceCredentialStore(FilePath);
+        await file.SaveAsync(Device("old"));
+        var folder = Path.GetDirectoryName(FilePath)!;
+        File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+        try
+        {
+            await Assert.ThrowsAnyAsync<Exception>(() => file.SaveAsync(Device("new")));
+        }
+        finally { File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); }
+
+        Assert.Equal(Device("old"), await file.LoadAsync());
+    }
+
+    [Fact]
+    public async Task Forgetting_a_fallback_pairing_replaces_it_with_the_forget()
     {
         var keystore = new Keystore { Available = false };
         await Store(keystore).SaveAsync(Creds);
@@ -187,7 +254,7 @@ public class DeviceCredentialStoreTests : IDisposable
 
         await Store(keystore).ClearAsync();
 
-        Assert.False(File.Exists(FilePath));
+        Assert.IsType<FileState.Forgotten>(await new FileDeviceCredentialStore(FilePath).ReadAsync());
         Assert.Null(await Store(keystore).LoadAsync());
     }
 

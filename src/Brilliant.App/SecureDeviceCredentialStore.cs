@@ -34,9 +34,11 @@ public sealed class SecureDeviceCredentialStore : IDeviceCredentialStore
     public Task SaveAsync(DeviceCredentials credentials, CancellationToken ct = default) =>
         SecureStorage.Default.SetAsync(Key, JsonSerializer.Serialize(new Stored(credentials.Server.ToString(), credentials.DeviceId, credentials.Token)));
 
-    public Task ClearAsync(CancellationToken ct = default)
+    public async Task ClearAsync(CancellationToken ct = default)
     {
-        SecureStorage.Default.Remove(Key);
-        return Task.CompletedTask;
+        // Remove reports a failed keychain query as false rather than throwing, and false also means "nothing there", so look again.
+        if (SecureStorage.Default.Remove(Key)) return;
+        if (!string.IsNullOrEmpty(await SecureStorage.Default.GetAsync(Key)))
+            throw new InvalidOperationException("The secure store did not let go of the device token.");
     }
 }

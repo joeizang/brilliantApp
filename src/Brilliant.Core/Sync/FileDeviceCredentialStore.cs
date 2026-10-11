@@ -53,20 +53,34 @@ public sealed class FileDeviceCredentialStore(string path) : IDeviceCredentialSt
 
     private async Task WriteAsync(Stored stored, CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
 
-        // Create the file private from the start, so the token is never readable by others, not even briefly.
+        // Write beside the real file and move it into place, so a write that fails or is cancelled part-way leaves the last
+        // authoritative contents untouched. It is created private from the start, so the token is never readable by others.
+        var temp = path + ".tmp";
         var options = new FileStreamOptions { Mode = FileMode.Create, Access = FileAccess.Write, Share = FileShare.None };
         if (!OperatingSystem.IsWindows()) options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
-        await using var stream = new FileStream(path, options);
-        await JsonSerializer.SerializeAsync(stream, stored, cancellationToken: ct);
+        try
+        {
+            await using (var stream = new FileStream(temp, options))
+                await JsonSerializer.SerializeAsync(stream, stored, cancellationToken: ct);
+            File.Move(temp, path, overwrite: true);
+        }
+        catch
+        {
+            try { File.Delete(temp); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            throw;
+        }
     }
 }
 
 /// <summary>
 /// Uses <paramref name="primary"/> (the platform's secure storage) when it works and the <paramref name="fallback"/> file when it doesn't.
-/// The file is authoritative whenever it says anything: it is only written when the secure store failed, and any later save empties it
-/// first, so a copy the secure store kept through an outage can never override a newer pairing or a deliberate forget once it recovers.
+/// The file is authoritative whenever it says anything, and it is only ever replaced by something that has been committed:
+/// a pairing the secure store accepted empties it, one it refused is written into it, and a failed or cancelled save leaves it as it was.
+/// Forgetting always leaves a "forgotten" marker, because the platform can report a failed removal as a plain false (or nothing at all)
+/// rather than throwing, so a copy the secure store kept can never come back to override a deliberate forget or a newer pairing.
 /// </summary>
 public sealed class FallbackDeviceCredentialStore(IDeviceCredentialStore primary, FileDeviceCredentialStore fallback) : IDeviceCredentialStore
 {
@@ -84,7 +98,9 @@ public sealed class FallbackDeviceCredentialStore(IDeviceCredentialStore primary
 
     public async Task SaveAsync(DeviceCredentials credentials, CancellationToken ct = default)
     {
-        await fallback.ClearAsync(ct);
+        ct.ThrowIfCancellationRequested();
+
+        // Whatever the file says stays until one of the two places has accepted the replacement.
         try
         {
             await primary.SaveAsync(credentials, ct);
@@ -92,21 +108,21 @@ public sealed class FallbackDeviceCredentialStore(IDeviceCredentialStore primary
         catch (Exception e) when (e is not OperationCanceledException)
         {
             await fallback.SaveAsync(credentials, ct);
+            return;
         }
+
+        // The secure store holds the new pairing; the file must now stop speaking for an older one.
+        await fallback.ClearAsync(ct);
     }
 
     public async Task ClearAsync(CancellationToken ct = default)
     {
-        try
-        {
-            await primary.ClearAsync(ct);
-        }
-        catch (Exception e) when (e is not OperationCanceledException)
-        {
-            // We can't tell whether the secure store let go, so make "forgotten" durable instead of claiming it: if this write fails too, the failure reaches the screen.
-            await fallback.MarkForgottenAsync(ct);
-            return;
-        }
-        await fallback.ClearAsync(ct);
+        ct.ThrowIfCancellationRequested();
+
+        // Ask the secure store to let go, but don't trust the answer; the marker is what makes the forget durable.
+        // If the marker can't be written the failure reaches the screen rather than a false success.
+        try { await primary.ClearAsync(ct); }
+        catch (Exception e) when (e is not OperationCanceledException) { }
+        await fallback.MarkForgottenAsync(ct);
     }
 }
