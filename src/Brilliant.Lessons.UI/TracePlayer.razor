@@ -6,24 +6,24 @@
 @inject StepShortcuts Shortcuts
 @implements IDisposable
 
-<div class="trace-player">
+<div class="trace-player my-4">
     <CodeEditor @ref="_editor" InitialCode="@ShownCode" ReadOnly="true" />
 
-    <div class="controls">
-        <button class="secondary prev" disabled="@(_index == 0)" @onclick="() => Step(_index - 1)">← Previous</button>
-        <button class="secondary play" disabled="@(States.Count < 2)" aria-pressed="@(Playing ? "true" : "false")" @onclick="TogglePlay">@PlayLabel</button>
-        <button class="secondary next" disabled="@(_index >= States.Count - 1)" @onclick="() => Step(_index + 1)">Next →</button>
+    <div class="controls mt-4 mb-2 flex items-center justify-between gap-4">
+        <button class="secondary prev @NavButton" disabled="@(_index == 0)" @onclick="() => Step(_index - 1)">← Previous</button>
+        <button class="secondary play min-w-32 @NavButton" disabled="@(States.Count < 2)" aria-pressed="@(Playing ? "true" : "false")" @onclick="TogglePlay">@PlayLabel</button>
+        <button class="secondary next @NavButton" disabled="@(_index >= States.Count - 1)" @onclick="() => Step(_index + 1)">Next →</button>
     </div>
-    <div class="status">
-        <span class="position" aria-live="polite">Step @(_index + 1) of @States.Count</span>
-        <span class="speeds" role="group" aria-label="Playback speed">
+    <div class="status mb-1 flex flex-wrap items-center justify-between gap-2">
+        <span class="position text-fg-secondary tabular-nums" aria-live="polite">Step @(_index + 1) of @States.Count</span>
+        <span class="speeds inline-flex gap-1" role="group" aria-label="Playback speed">
             @foreach (var speed in Speeds)
             {
-                <button class="speed" data-speed="@speed.Value" aria-pressed="@(speed.Value == _speed.Value ? "true" : "false")" @onclick="() => SetSpeed(speed)">@speed.Label</button>
+                <button class="speed cursor-pointer rounded-full border border-border bg-transparent px-[.6rem] py-[.2rem] text-[.85rem] text-fg-secondary aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-on-accent" data-speed="@speed.Value" aria-pressed="@(speed.Value == _speed.Value ? "true" : "false")" @onclick="() => SetSpeed(speed)">@speed.Label</button>
             }
         </span>
     </div>
-    <p class="key-hint"><kbd>←</kbd> <kbd>→</kbd> step · <kbd>Space</kbd> play or pause</p>
+    <p class="key-hint text-[.8rem] text-fg-secondary [&_kbd]:rounded-sm [&_kbd]:px-[.4rem] [&_kbd]:py-[.05rem] [&_kbd]:text-[.75rem]"><kbd>←</kbd> <kbd>→</kbd> step · <kbd>Space</kbd> play or pause</p>
 
     @foreach (var array in Current.Arrays)
     {
@@ -33,41 +33,41 @@
         var rows = onCells.Count == 0 ? 0 : onCells.GroupBy(p => p.Index).Max(g => g.Count());
         var width = 2 * Pad + shown * CellW;
         var height = CellTop + CellH + (rows == 0 ? Pad : PointerGap + rows * RowH + Pad / 2);
-        <figure class="array" @key="array.Variable">
-            <figcaption class="array-name"><code>@array.Variable</code></figcaption>
-            <div class="array-scroll">
-                <svg class="array-svg" role="img" aria-label="@Describe(array)" width="@width" height="@height" viewBox="0 0 @width @height">
+        <figure class="array mx-0 my-4 rounded-md border border-hairline bg-surface-raised px-4 pt-2 pb-4" @key="array.Variable">
+            <figcaption class="array-name mb-1 text-[.9rem] text-fg-secondary"><code>@array.Variable</code></figcaption>
+            <div class="array-scroll overflow-x-auto">
+                <svg class="array-svg block max-w-none overflow-visible" role="img" aria-label="@Describe(array)" width="@width" height="@height" viewBox="0 0 @width @height">
                     @for (var i = 0; i < array.Cells.Count; i++)
                     {
                         var cell = array.Cells[i];
                         var index = i;
                         <g class="@(cell.Changed ? "cell changed" : "cell")" data-index="@index" transform="@Translate(Pad + index * CellW, CellTop)" @key="CellKey(array, index)">
                             <title>@cell.Text</title>
-                            <text class="cell-index" x="@(CellW / 2)" y="-6" text-anchor="middle">@index</text>
-                            <rect class="cell-box" width="@(CellW - 4)" height="@CellH" rx="6" />
-                            <text class="cell-text" x="@(CellW / 2 - 2)" y="@(CellH / 2)" text-anchor="middle" dominant-baseline="central">@Clip(cell.Text)</text>
+                            <text class="cell-index fill-fg-secondary font-mono text-[.8rem]" x="@(CellW / 2)" y="-6" text-anchor="middle">@index</text>
+                            <rect class="cell-box fill-surface stroke-border stroke-2 @(cell.Changed ? "animate-cell-flash" : "")" width="@(CellW - 4)" height="@CellH" rx="6" />
+                            <text class="cell-text fill-fg font-mono text-[1rem]" x="@(CellW / 2 - 2)" y="@(CellH / 2)" text-anchor="middle" dominant-baseline="central">@Clip(cell.Text)</text>
                         </g>
                     }
                     @if (array.More > 0)
                     {
                         <g class="cell more" transform="@Translate(Pad + array.Cells.Count * CellW, CellTop)" @key="@("more")">
-                            <text class="more-text" x="@(CellW / 2 - 2)" y="@(CellH / 2)" text-anchor="middle" dominant-baseline="central">+@array.More more</text>
+                            <text class="more-text fill-fg-secondary font-mono text-[.8rem]" x="@(CellW / 2 - 2)" y="@(CellH / 2)" text-anchor="middle" dominant-baseline="central">+@array.More more</text>
                         </g>
                     }
                     @foreach (var pointer in onCells)
                     {
                         var row = onCells.TakeWhile(p => p != pointer).Count(p => p.Index == pointer.Index);
-                        <g class="@(pointer.Moved ? "pointer moved" : "pointer")" data-name="@pointer.Name" data-index="@pointer.Index" data-row="@row"
+                        <g class="@(pointer.Moved ? "pointer moved" : "pointer") transition-transform duration-450 ease-app" data-name="@pointer.Name" data-index="@pointer.Index" data-row="@row"
                            style="@PointerStyle(pointer.Index!.Value, row)" @key="@((array.Variable, pointer.Name))">
-                            <path class="pointer-arrow" d="M0 0 L-6 8 L6 8 Z" />
-                            <text class="pointer-label" y="22" text-anchor="middle">@pointer.Name</text>
+                            <path class="pointer-arrow fill-accent" d="M0 0 L-6 8 L6 8 Z" />
+                            <text class="pointer-label fill-accent font-mono text-[.95rem] font-semibold" y="22" text-anchor="middle">@pointer.Name</text>
                         </g>
                     }
                 </svg>
             </div>
             @if (offCells.Count > 0)
             {
-                <p class="off-array">
+                <p class="off-array mt-2 mb-0 text-[.9rem] text-fg-secondary">
                     @string.Join(", ", offCells.Select(p => p.Name)) @(offCells.Count == 1 ? "is" : "are") not on a cell right now.
                 </p>
             }
@@ -81,15 +81,15 @@
 
     @if (Current.Locals.Count > 0)
     {
-        <table class="locals">
-            <caption>Variables</caption>
+        <table class="locals my-4 w-full border-collapse text-[.95rem]">
+            <caption class="mb-1 text-left text-[.9rem] text-fg-secondary">Variables</caption>
             <tbody>
                 @foreach (var local in Current.Locals)
                 {
-                    <tr class="@(local.Changed ? "local changed" : "local")" data-name="@local.Name" @key="@(local.Changed ? local.Name + "@" + Current.Index : local.Name)">
-                        <th scope="row"><code>@local.Name</code></th>
-                        <td class="local-value"><code>@local.Value</code></td>
-                        <td class="local-type">@local.Type</td>
+                    <tr class="@(local.Changed ? "local changed animate-local-flash" : "local")" data-name="@local.Name" @key="@(local.Changed ? local.Name + "@" + Current.Index : local.Name)">
+                        <th scope="row" class="@LocalCell w-[1%] font-semibold whitespace-nowrap"><code>@local.Name</code></th>
+                        <td class="local-value @LocalCell [overflow-wrap:anywhere]"><code>@local.Value</code></td>
+                        <td class="local-type @LocalCell w-[1%] whitespace-nowrap text-fg-secondary">@local.Type</td>
                     </tr>
                 }
             </tbody>
@@ -103,6 +103,9 @@
 </div>
 
 @code {
+    private const string NavButton = "btn-secondary disabled:cursor-default disabled:opacity-45";
+    private const string LocalCell = "border-b border-hairline px-[.6rem] py-[.3rem] text-left";
+
     private const int CellW = 64, CellH = 48, Pad = 16, CellTop = 22, PointerGap = 4, RowH = 28;
 
     private sealed record Speed(string Value, string Label, double Factor);

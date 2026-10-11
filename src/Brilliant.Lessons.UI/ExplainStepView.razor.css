@@ -1,3 +1,0 @@
-.comparison { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md); }
-.comparison h3 { margin: 0 0 var(--space-xs); font-size: .9rem; font-weight: 600; color: var(--fg-secondary); }
-@media (max-width: 600px) { .comparison { grid-template-columns: 1fr; } }

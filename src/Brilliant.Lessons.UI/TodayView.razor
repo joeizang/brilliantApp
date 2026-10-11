@@ -6,10 +6,10 @@
     var today = Recorder.Project(Content).Today;
     var pct = Math.Min(100, 100 * today.DoneToday / today.GoalSteps);
 }
-<div class="today">
-    <h1 class="today-title">Today</h1>
+<div class="today mx-auto box-border grid max-w-(--content-width) gap-4 px-6 pb-12">
+    <h1 class="today-title mt-6 mb-0">Today</h1>
 
-    <p class="today-streak">
+    <p class="today-streak m-0 flex flex-wrap items-baseline gap-2 text-[1.1rem]">
         <span class="streak-flame" aria-hidden="true">🔥</span>
         @if (today.Streak == 0)
         {
@@ -20,60 +20,62 @@
             <strong>@(today.Streak)-day streak</strong>
             @if (!today.GoalMet)
             {
-                <span class="streak-hint">Meet today's goal to keep it going.</span>
+                <span class="streak-hint text-[.95rem] text-fg-secondary">Meet today's goal to keep it going.</span>
             }
         }
     </p>
 
-    <section class="today-goal" aria-label="Daily goal">
-        <div class="goal-head">
-            <span class="goal-text">@today.DoneToday of @today.GoalSteps steps@(today.GoalMet ? " · Goal met ✓" : "")</span>
-            <span class="goal-stepper">
-                <button class="goal-down" aria-label="Lower the daily goal" disabled="@(today.GoalSteps <= MinGoal)" @onclick="() => SetGoal(today.GoalSteps - Step)">−</button>
-                <button class="goal-up" aria-label="Raise the daily goal" disabled="@(today.GoalSteps >= MaxGoal)" @onclick="() => SetGoal(today.GoalSteps + Step)">+</button>
+    <section class="today-goal panel grid gap-2 px-6 py-5 shadow-(--shadow-card)" aria-label="Daily goal">
+        <div class="goal-head flex items-center justify-between gap-4">
+            <span class="goal-text text-[1.1rem] font-semibold tabular-nums">@today.DoneToday of @today.GoalSteps steps@(today.GoalMet ? " · Goal met ✓" : "")</span>
+            <span class="goal-stepper flex gap-2">
+                <button class="goal-down @StepperButton" aria-label="Lower the daily goal" disabled="@(today.GoalSteps <= MinGoal)" @onclick="() => SetGoal(today.GoalSteps - Step)">−</button>
+                <button class="goal-up @StepperButton" aria-label="Raise the daily goal" disabled="@(today.GoalSteps >= MaxGoal)" @onclick="() => SetGoal(today.GoalSteps + Step)">+</button>
             </span>
         </div>
-        <div class="bar" role="progressbar" aria-label="Today's progress" aria-valuemin="0" aria-valuemax="@today.GoalSteps" aria-valuenow="@today.DoneToday">
-            <span class="fill" style="width:@pct%"></span>
+        <div class="bar progress-bar" role="progressbar" aria-label="Today's progress" aria-valuemin="0" aria-valuemax="@today.GoalSteps" aria-valuenow="@today.DoneToday">
+            <span class="fill progress-fill" style="width:@pct%"></span>
         </div>
-        <p class="goal-note">A step is a lesson step finished or a review answered.</p>
+        <p class="goal-note m-0 text-[.85rem] text-fg-secondary">A step is a lesson step finished or a review answered.</p>
     </section>
 
     @if (today.ReviewsDue > 0)
     {
-        <button class="review-card" @onclick="() => OnOpenReview.InvokeAsync()">
-            <span class="card-title">Review</span>
-            <span class="card-meta">@today.ReviewsDue @(today.ReviewsDue == 1 ? "review" : "reviews") due</span>
+        <button class="@Styling.ReviewCard" @onclick="() => OnOpenReview.InvokeAsync()">
+            <span class="card-title text-[1.2rem] font-semibold tracking-[-.01em]">Review</span>
+            <span class="card-meta text-[.9rem] text-fg-secondary">@today.ReviewsDue @(today.ReviewsDue == 1 ? "review" : "reviews") due</span>
         </button>
     }
 
     @if (today.NextLesson is { } next)
     {
-        <section class="today-next">
-            <span class="next-label">Up next</span>
-            <span class="next-title">@next.Lesson.Title</span>
-            <span class="next-meta">@TrackTitle(next) · @Caption(next)</span>
+        <section class="today-next panel grid gap-[.2rem] px-6 py-5 shadow-(--shadow-card)">
+            <span class="next-label text-[.8rem] font-semibold tracking-[.04em] text-fg-secondary uppercase">Up next</span>
+            <span class="next-title text-[1.2rem] font-semibold tracking-[-.01em]">@next.Lesson.Title</span>
+            <span class="next-meta text-[.9rem] text-fg-secondary">@TrackTitle(next) · @Caption(next)</span>
         </section>
     }
 
     @* An open session keeps its button even when the last step or answer used up all the work: its summary is still to be seen. *@
     @if (today.HasWork || today.Session is not null)
     {
-        <div class="today-actions">
-            <button class="primary start-session" @onclick="() => OnStart.InvokeAsync()">@(today.Session is not null ? "Resume session" : today.GoalMet ? "Do another session" : "Start today's session")</button>
-            <button class="secondary browse" @onclick="() => OnBrowse.InvokeAsync()">Browse tracks</button>
+        <div class="today-actions mt-2 flex flex-wrap gap-4">
+            <button class="primary start-session btn-primary" @onclick="() => OnStart.InvokeAsync()">@(today.Session is not null ? "Resume session" : today.GoalMet ? "Do another session" : "Start today's session")</button>
+            <button class="secondary browse btn-secondary" @onclick="() => OnBrowse.InvokeAsync()">Browse tracks</button>
         </div>
     }
     else
     {
-        <p class="today-empty">You're all caught up. Nothing is due and every lesson is finished.</p>
-        <div class="today-actions">
-            <button class="secondary browse" @onclick="() => OnBrowse.InvokeAsync()">Browse tracks</button>
+        <p class="today-empty mt-4 mb-0 text-[1.2rem]">You're all caught up. Nothing is due and every lesson is finished.</p>
+        <div class="today-actions mt-2 flex flex-wrap gap-4">
+            <button class="secondary browse btn-secondary" @onclick="() => OnBrowse.InvokeAsync()">Browse tracks</button>
         </div>
     }
 </div>
 
 @code {
+    private const string StepperButton = "h-(--touch) w-(--touch) cursor-pointer rounded-[50%] border border-border bg-surface text-center text-[1.25rem] leading-none text-fg transition-[background-color] duration-150 ease-app hover:enabled:bg-accent-tint disabled:cursor-default disabled:opacity-40";
+
     private const int Step = 5;
     private const int MinGoal = 5;
     private const int MaxGoal = 100;

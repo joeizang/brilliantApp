@@ -3,14 +3,14 @@
 @inject ProgressRecorder Recorder
 @inject StepShortcuts Shortcuts
 
-<div class="lesson-bar">
-    <button class="link" @onclick="() => OnExit.InvokeAsync()">← Back</button>
+<div class="lesson-bar content-column mt-2 flex items-center gap-4 text-[.9rem]">
+    <button class="link btn-link" @onclick="() => OnExit.InvokeAsync()">← Back</button>
     @if (Review)
     {
-        <span class="review-badge">Review mode: your progress won't change</span>
+        <span class="review-badge rounded-full bg-warn px-3 py-[.2rem]">Review mode: your progress won't change</span>
     }
 </div>
-<h1 class="lesson-title">@Lesson.Title</h1>
+<h1 class="lesson-title content-column mt-2 mb-0">@Lesson.Title</h1>
 
 @{
     var progress = LearnerStateProjector.ProjectLesson(Lesson, Recorder.Log.ReadAll());
@@ -20,8 +20,8 @@
     var newSteps = Review ? 0 : progress.NewSteps.Count;
 }
 
-<div class="lesson-progress" role="progressbar" aria-valuemin="0" aria-valuemax="@total" aria-valuenow="@done">
-    <div class="bar"><div class="fill" style="width:@(total == 0 ? 0 : 100 * done / total)%"></div></div>
+<div class="lesson-progress content-column mt-2 text-[.9rem] text-fg-secondary" role="progressbar" aria-valuemin="0" aria-valuemax="@total" aria-valuenow="@done">
+    <div class="bar progress-bar mb-2"><div class="fill progress-fill" style="width:@(total == 0 ? 0 : 100 * done / total)%"></div></div>
     <span>@(step is null ? (Review ? "Review finished" : "Lesson complete") : newSteps > 0 ? $"{newSteps} new {(newSteps == 1 ? "step" : "steps")} since you finished" : $"{total - done} of {total} steps remaining")</span>
 </div>
 
@@ -32,11 +32,11 @@
         {
             case ExplainStep explain:
                 <ExplainStepView Step="explain" />
-                <div class="step-actions"><button class="primary" @onclick="() => Complete(step)">Continue</button></div>
+                <div class="step-actions content-column pb-6"><button class="primary btn-primary" @onclick="() => Complete(step)">Continue</button></div>
                 break;
             case TraceStep trace:
                 <TraceStepView Step="trace" />
-                <div class="step-actions"><button class="primary continue" @onclick="() => Complete(step)">Continue</button></div>
+                <div class="step-actions content-column pb-6"><button class="primary continue btn-primary" @onclick="() => Complete(step)">Continue</button></div>
                 break;
             case ChoiceStep choice:
                 <ChoiceStepView Step="choice"
@@ -61,8 +61,8 @@
 }
 else
 {
-    <p class="lesson-done">@(Review ? "That's the whole lesson." : "You've finished this lesson. 🎉")</p>
-    <div class="step-actions"><button class="primary" @onclick="Finish">@(FinishedText ?? "Back to track")</button></div>
+    <p class="lesson-done content-column mt-12 mb-12 text-[1.3rem]">@(Review ? "That's the whole lesson." : "You've finished this lesson. 🎉")</p>
+    <div class="step-actions content-column pb-6"><button class="primary btn-primary" @onclick="Finish">@(FinishedText ?? "Back to track")</button></div>
 }
 
 @code {

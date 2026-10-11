@@ -85,11 +85,11 @@ sqlite3 ~/Library/Containers/com.joeizang.brilliantapp/Data/Library/brilliant.db
 
 Colours live as CSS custom properties in `src/Brilliant.Lessons.UI/wwwroot/theme.css` (served at `_content/Brilliant.Lessons.UI/theme.css`).
 Dark is the default; the light variant applies under `prefers-color-scheme: light`, so the app follows the macOS appearance and updates live.
-Components must use the tokens (`var(--accent)` etc.), never raw colours. Shared button styles (`primary`, `secondary`, `link`) are global in the same file.
+Components must use the tokens (`bg-accent`, `text-fg-secondary`, … or `var(--accent)`), never raw colours. Shared button styles are the `btn-primary`, `btn-secondary` and `btn-link` classes in `styles/tailwind.css`.
 
 ### Visual design (Apple-style polish)
 
-`theme.css` is the one design system; component `.razor.css` files only hold layout unique to that screen.
+`theme.css` holds the design tokens and `styles/tailwind.css` maps them to utilities and shared component classes; each component's layout is Tailwind classes in its own markup (there are no per-component CSS files).
 
 - **Type:** the system font stack (`--font-ui`, SF on Mac) and `--font-mono` for code. Titles are tight and bold, body text is 1.5 line height. Everything is in `rem`, so the whole UI scales with the window and the user's font setting.
 - **Colour:** `--fg` for text and `--fg-secondary` for supporting text (a colour, never `opacity`, so contrast holds: both pass 4.5:1 on `--bg` in dark and light). `--border` is for controls (about 3:1), `--hairline` for decorative edges.
@@ -100,7 +100,7 @@ Components must use the tokens (`var(--accent)` etc.), never raw colours. Shared
 
 ## Styling and Tailwind
 
-CSS is theme tokens, scoped `.razor.css` files and Tailwind utilities (`wwwroot/tailwind.css`, committed). After adding a utility class to a
+CSS is theme tokens (`theme.css`) and Tailwind (`wwwroot/tailwind.css`, committed); components are styled with utility classes in their markup. After adding a utility class to a
 `.razor` file run `scripts/build-styles.sh` (needs Node) and commit the result; `scripts/build-styles.sh --check` verifies it is current.
 See [styling.md](styling.md).
 

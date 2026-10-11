@@ -1,26 +1,39 @@
 /*
- * Tailwind entry point. Only the theme and the utilities are imported: no Preflight, so Tailwind never resets the
- * app's own styles. Utilities land in a cascade layer, and the app's CSS (theme.css, the scoped .razor.css files) is
- * unlayered, so wherever both set the same property the app's rule wins. A utility only takes effect where nothing
- * else styles that property.
+ * The app's styling. Components carry Tailwind utility classes in their markup; this file holds what utilities can't say
+ * on their own: the design tokens' Tailwind names, the keyframes, element rules for markdown-rendered content, and a few
+ * named utilities for patterns that repeat. theme.css (linked first) holds the colour/size tokens as CSS variables so
+ * they follow light/dark; nothing here hard-codes a colour.
+ *
+ * Only the theme and the utilities are imported: no Preflight, so Tailwind never resets the browser defaults the app
+ * relies on. Build with scripts/build-styles.sh; the output (wwwroot/tailwind.css) is committed.
  */
-@layer theme, utilities;
+@layer theme, base, components, utilities;
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 
 /* Scan the markup that can carry classes. */
 @source "../**/*.razor";
+@source "../**/*.cs";
 @source "../../Brilliant.App/**/*.razor";
 @source "../../Brilliant.App/wwwroot/index.html";
 
+/* Hover applies on every pointer, as it always has in this app; Tailwind's default would wrap it in (hover: hover). */
+@custom-variant hover (&:hover);
+/* A wide window gets the sidebar. The query is in rem, which media queries take from the browser default (16px), so ~56rem is
+   ~900px however far the app's own type scale has grown. */
+@custom-variant wide (@media (width >= 56rem));
+/* The explanation's side-by-side comparison stacks in a narrow window. The query is in px, so it ignores the type scale. */
+@custom-variant narrow (@media (max-width: 600px));
+
 /*
- * The design tokens, so `bg-surface` and `text-fg-secondary` mean the same thing as var(--surface) and
- * var(--fg-secondary) and follow light/dark. Only the colours are mapped; spacing already matches: Tailwind's
- * step is 0.25rem, so `p-1` is --space-xs, `p-2` --space-sm, `p-4` --space-md, `p-6` --space-lg, `p-12` --space-xl.
- * `inline` makes the utility emit var(--bg) itself rather than a Tailwind variable that would not change with the theme.
+ * Design tokens. `inline` makes a utility emit var(--bg) itself, so `bg-surface` follows light/dark (theme.css redefines the
+ * variable). Only the app's colours exist: `--color-*: initial` removes Tailwind's palette.
  */
 @theme inline {
     --color-*: initial;
+    --color-transparent: transparent;
+    --color-current: currentColor;
+    --color-inherit: inherit;
     --color-bg: var(--bg);
     --color-surface: var(--surface);
     --color-surface-raised: var(--surface-raised);
@@ -28,10 +41,138 @@
     --color-fg-secondary: var(--fg-secondary);
     --color-border: var(--border);
     --color-hairline: var(--hairline);
+    --color-track: var(--track);
     --color-accent: var(--accent);
     --color-on-accent: var(--on-accent);
     --color-success: var(--success);
     --color-danger: var(--danger);
-    --color-transparent: transparent;
-    --color-current: currentColor;
+    --color-warn: var(--warn-bg);
+    --color-code-bg: var(--code-bg);
+    --color-code-fg: var(--code-fg);
+    --color-code-muted: var(--code-muted);
+    /* Tints for answer states and pills: a mix with another colour, not with transparency, so they get their own names. */
+    --color-success-soft: color-mix(in srgb, var(--success) 14%, var(--surface-raised));
+    --color-danger-soft: color-mix(in srgb, var(--danger) 14%, var(--surface-raised));
+    --color-success-tint: color-mix(in srgb, var(--success) 20%, var(--surface));
+    --color-accent-tint: color-mix(in srgb, var(--accent) 18%, var(--surface));
+    --color-accent-tint-strong: color-mix(in srgb, var(--accent) 22%, var(--surface));
+    --color-accent-wash: color-mix(in srgb, var(--accent) 16%, var(--surface-raised));
+}
+
+/* Shape, type and motion. `static` always emits them, since some are only referenced from other variables. */
+@theme static {
+    --radius-*: initial;
+    --radius-sm: .5rem;
+    --radius-md: .75rem;
+    --radius-lg: 1.1rem;
+    --font-*: initial;
+    --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --font-mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    --ease-*: initial;
+    --ease-app: cubic-bezier(.25, .1, .25, 1);
+    --animate-*: initial;
+    --animate-fade-up: fade-up .35s var(--ease-app) both;
+    --animate-cell-flash: cell-flash .9s var(--ease-app);
+    --animate-local-flash: local-flash .9s var(--ease-app);
+    --animate-row-in: row-in .6s var(--ease-app);
+    --animate-row-flash: row-flash .9s var(--ease-app);
+    --animate-row-out: row-out .9s var(--ease-app) forwards;
+
+    /* A step arrives with a short fade; nothing moves for people who ask for less motion (theme.css). */
+    @keyframes fade-up {
+        from { opacity: 0; transform: translateY(.75rem); }
+        to { opacity: 1; transform: none; }
+    }
+    @keyframes cell-flash {
+        from { fill: var(--warn-bg); stroke: var(--accent); }
+        to { fill: var(--surface); stroke: var(--border); }
+    }
+    @keyframes local-flash {
+        from { background: var(--warn-bg); }
+        to { background: transparent; }
+    }
+    /* A new row fades and grows in, a changed one flashes, and a removed one is struck through and fades away. */
+    @keyframes row-in {
+        from { opacity: 0; transform: translateY(-.4rem) scale(.96); }
+        to { opacity: 1; transform: none; }
+    }
+    @keyframes row-flash {
+        from { background: var(--warn-bg); border-color: var(--accent); }
+    }
+    @keyframes row-out {
+        from { opacity: 1; }
+        to { opacity: .55; }
+    }
+}
+
+/*
+ * Fluid type scale. Every size in the app is in rem, so scaling the root scales text, spacing and the content column
+ * together. The size grows with the viewport width (CSS px): 1rem on a phone (~412px), ~1.2rem on a laptop, ~1.5rem on a
+ * 2560px-wide screen, capped at 1.875rem on ultrawides. rem (not px) keeps the user's own font-size preference in play.
+ */
+@layer base {
+    html { font-size: clamp(1rem, .875rem + .4vw, 1.875rem); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+    html, body { margin: 0; background: var(--bg); color: var(--fg); }
+    body { font-family: var(--font-ui); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+
+    h1, h2, h3 { line-height: 1.2; letter-spacing: -.02em; }
+    h1 { font-size: 2rem; font-weight: 700; margin: 0 0 .5rem; }
+    h2 { font-size: 1.5rem; font-weight: 650; margin: 0 0 1rem; }
+    h3 { font-size: 1.1rem; font-weight: 600; }
+    p { margin: 0 0 1rem; }
+
+    /* Keyboard focus is always visible, and never shown for mouse clicks. */
+    :focus-visible { outline: .15rem solid var(--accent); outline-offset: .15rem; }
+
+    button { font-family: inherit; }
+
+    /* Code in rendered markdown (explanations, hints) and in lesson templates. (`pre` itself is styled with .code-block below.) */
+    code { font-family: var(--font-mono); }
+    .explain-body code:not(pre code) { background: var(--surface); border-radius: .3rem; padding: .1em .35em; font-size: .9em; }
+    kbd { font: .85em var(--font-mono); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: .3rem; padding: 0 .35em; margin: 0 .1em; background: var(--surface); }
+}
+
+/*
+ * Component classes for patterns that repeat. They sit in the `components` layer, below the utilities, so a utility in the
+ * markup (`mt-4`, `text-fg-secondary`) always wins over what they set.
+ */
+@layer components {
+    /* Every screen and step sits in the same centred column. */
+    .content-column, .lesson-step { @apply mx-auto box-border max-w-(--content-width) px-6; }
+    /* A lesson step: the column, vertical padding and the fade in. */
+    .lesson-step { @apply animate-fade-up py-6; }
+
+    /* Code on a lesson page (explanations, predict-output, fill-in-the-blank, test output) and markdown's own <pre>. */
+    pre, .code-block {
+        @apply mt-0 mb-4 overflow-x-auto rounded-md border border-hairline bg-code-bg px-[1.1rem] py-[.85rem] font-mono text-code-fg;
+        font-size: .9rem; line-height: 1.6;
+    }
+
+    /* An answer option. Its background and state ring come from the utilities Styling.Option adds. */
+    .option-card { @apply box-border min-h-(--touch) rounded-md border border-hairline px-4 py-3 transition-[box-shadow,background-color] duration-150 ease-app; }
+
+    /* A raised card: the surface of nearly every list item and stat. */
+    .panel { @apply rounded-lg border border-hairline bg-surface-raised; }
+
+    /* Progress bars (track cards, lesson header, mastery). */
+    .progress-bar { @apply block h-[.375rem] overflow-hidden rounded-full bg-track; }
+    .progress-fill { @apply block h-full rounded-full bg-accent transition-[width] duration-400 ease-app; }
+
+    /* A native button or input restyled by its own classes takes the surrounding type (`font: inherit`); a card-like button (btn-reset) also sits left-aligned. */
+    .font-inherit, .btn-reset, .btn-link { font-family: inherit; font-size: inherit; font-weight: inherit; line-height: inherit; }
+    .btn-reset, .btn-link { cursor: pointer; }
+    .btn-reset { text-align: left; }
+
+    /* Shared controls. One filled button per screen; the rest are quieter. */
+    .btn-primary, .btn-secondary { @apply min-h-(--touch) cursor-pointer rounded-full px-6 text-[1rem] font-medium transition-[scale,filter,background-color] duration-200 ease-app; }
+    .btn-primary { @apply border-0 bg-accent text-on-accent; }
+    .btn-primary:hover:not(:disabled) { @apply scale-[1.02] brightness-[1.08]; }
+    .btn-primary:active:not(:disabled) { @apply scale-[.98]; }
+    .btn-primary:disabled { @apply cursor-default opacity-40; }
+    .btn-secondary { @apply border-2 border-accent bg-transparent text-accent; }
+    .btn-secondary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+    .btn-secondary:active:not(:disabled) { @apply scale-[.98]; }
+    .btn-link { @apply min-h-(--touch) border-0 bg-transparent px-0 py-2 text-accent; }
+    .btn-link:hover:not(:disabled) { @apply underline; }
+    .btn-link:disabled { @apply cursor-default opacity-50; }
 }

@@ -2,11 +2,11 @@
 @{
     var pct = (int)Math.Round(100 * Math.Clamp(Value, 0, 1));
 }
-<span class="mastery">
-    <span class="bar" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@pct" aria-label="@(Label ?? "Mastery") @pct percent">
-        <span class="fill" style="width:@pct%"></span>
+<span class="mastery flex items-center gap-4">
+    <span class="bar progress-bar flex-1" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@pct" aria-label="@(Label ?? "Mastery") @pct percent">
+        <span class="fill progress-fill bg-success" style="width:@pct%"></span>
     </span>
-    <span class="mastery-pct" aria-hidden="true">@pct%@(Suffix is null ? "" : " " + Suffix)</span>
+    <span class="mastery-pct min-w-14 text-right text-[.85rem] whitespace-nowrap text-fg-secondary tabular-nums" aria-hidden="true">@pct%@(Suffix is null ? "" : " " + Suffix)</span>
 </span>
 
 @code {

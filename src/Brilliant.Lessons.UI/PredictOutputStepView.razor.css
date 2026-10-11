@@ -1,3 +1,0 @@
-.answer-input { width: 100%; box-sizing: border-box; font: 1rem var(--font-mono); padding: .75rem 1rem; background: var(--surface); color: var(--fg); border: 1px solid var(--border); border-radius: var(--radius-md); margin-bottom: var(--space-md); resize: vertical; transition: box-shadow .15s var(--ease); }
-.answer-input:focus { outline: none; box-shadow: 0 0 0 2px var(--accent); }
-.mistake-feedback { margin-top: .4rem; font-size: .95rem; }

@@ -37,9 +37,7 @@ public class HintLadderTests : ShortcutContext
         var cut = Ladder(["a nudge"]);
 
         var classes = cut.Find("section.hint-ladder").ClassList;
-        Assert.Contains("mx-auto", classes);
-        Assert.Contains("max-w-(--content-width)", classes);
-        Assert.Contains("px-6", classes);
+        Assert.Contains("content-column", classes); // the class every screen and step shares (tailwind.css)
     }
 
     private static string[] Shown(IRenderedComponent<HintLadder> cut) => cut.FindAll(".hint-text").Select(t => t.TextContent.Trim()).ToArray();
