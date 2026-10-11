@@ -2,6 +2,7 @@ using Brilliant.Core.Content;
 using Brilliant.Core.Drafts;
 using Brilliant.Core.Progress;
 using Brilliant.Core.Python;
+using Brilliant.Core.Sync;
 using Brilliant.Data;
 using Brilliant.Lessons.UI;
 
@@ -47,6 +48,13 @@ public static class MauiProgram
         // Shortcuts and menu commands reach whichever step is on screen through one bus, shared by the webview's key listener and the native menu.
         builder.Services.AddSingleton<StepShortcuts>();
         builder.Services.AddSingleton(TimeProvider.System);   // the Trace Player's playback timer
+
+        // Pairing with the household server over plain HTTP on the LAN; the token it returns goes in the platform's secure storage.
+        // An unsigned Mac build has no keychain entitlement (MissingEntitlement), so the token falls back to a private file in the app's sandbox.
+        builder.Services.AddSingleton<IDeviceCredentialStore>(_ => new FallbackDeviceCredentialStore(
+            new SecureDeviceCredentialStore(), new FileDeviceCredentialStore(Path.Combine(dataDir, "device-credentials.json"))));
+        builder.Services.AddSingleton(_ => new PairingClient(new HttpClient { Timeout = TimeSpan.FromSeconds(10) }));
+        builder.Services.AddSingleton<PairingService>();
 
         // The Python runtime talks to the webview it lives in, so it is scoped to the BlazorWebView.
         builder.Services.AddScoped<IPythonRuntime, PyodideRuntime>();
