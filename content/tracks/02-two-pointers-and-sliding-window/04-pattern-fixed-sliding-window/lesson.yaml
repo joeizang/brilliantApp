@@ -433,7 +433,7 @@ steps:
     prompt: |
       Write `contains_permutation(s, p)`, which returns `True` if some window of `s` holds exactly the letters of `p` in any order
       (a window has `len(p)` letters). For example `contains_permutation("eidbaooo", "ab")` is `True`, because `"ba"` is a
-      permutation of `"ab"`.
+      permutation of `"ab"`. An empty `p` is a permutation of the empty window, so it is always `True`.
     language: python
     entrypoint: contains_permutation
     starter: |
@@ -442,6 +442,8 @@ steps:
     solution: |
       def contains_permutation(s, p):
           k = len(p)
+          if k == 0:
+              return True
           if k > len(s):
               return False
           need = {}
@@ -472,6 +474,10 @@ steps:
       - input: '"hello", "ll"'
         expected: "True"
       - input: '"aab", "aba"'
+        expected: "True"
+      - input: '"a", ""'
+        expected: "True"
+      - input: '"", ""'
         expected: "True"
     hints:
       - "Count the letters of `p` in a dict. Keep another dict for the letters in the current window of `len(p)` letters."
