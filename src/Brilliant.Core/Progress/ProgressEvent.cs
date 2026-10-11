@@ -34,6 +34,12 @@ public static class ProgressEventTypes
 
     /// <summary>The learner reached the end-of-session summary.</summary>
     public const string SessionCompleted = "SessionCompleted";
+
+    /// <summary>
+    /// The learner marked a step as confusing or wrong. Data holds the optional <c>note</c>. It has no effect on progress;
+    /// <see cref="FlaggedSteps"/> reads these back for the author.
+    /// </summary>
+    public const string StepFlagged = "StepFlagged";
 }
 
 /// <summary>

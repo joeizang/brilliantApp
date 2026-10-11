@@ -1,0 +1,68 @@
+@* The author's list of flagged steps, with the Markdown export to copy. *@
+@using Brilliant.Core.Progress
+@using Microsoft.JSInterop
+@inject ProgressRecorder Recorder
+@inject IJSRuntime JS
+
+@{
+    var flags = FlaggedSteps.From(Recorder.Log.ReadAll(), Content);
+    var markdown = FlaggedSteps.ToMarkdown(flags);
+}
+@if (OnBack.HasDelegate)
+{
+    <div class="crumbs content-column"><button class="link btn-link" @onclick="() => OnBack.InvokeAsync()">← Today</button></div>
+}
+<h1 class="screen-title content-column mt-6">Flagged steps</h1>
+@if (flags.Count == 0)
+{
+    <p class="flagged-none content-column mt-4 text-fg-secondary">Nothing flagged yet. Use "Flag this step" under any step that is confusing or wrong.</p>
+}
+else
+{
+    <ul class="flagged-list content-column mt-4 grid list-none gap-3 p-0">
+        @foreach (var f in flags)
+        {
+            <li class="flagged-item rounded-md border border-hairline bg-surface-raised px-4 py-3">
+                <div class="font-semibold">@f.StepTitle</div>
+                <div class="text-[.85rem] text-fg-secondary">@f.LessonTitle · <code>@f.StepId</code> · @f.FlaggedAt.ToLocalTime().ToString("d MMM yyyy")@(f.Step is null ? " · step no longer exists" : "")</div>
+                @if (f.Note is not null)
+                {
+                    <p class="flagged-note mt-2 mb-0 whitespace-pre-wrap">@f.Note</p>
+                }
+            </li>
+        }
+    </ul>
+    <div class="content-column mt-4 mb-6 flex items-center gap-4">
+        <button class="copy-export primary btn-primary" @onclick="() => Copy(markdown)">Copy as Markdown</button>
+        @if (_copyMessage is not null)
+        {
+            <span class="copy-status text-[.9rem] text-fg-secondary" role="status">@_copyMessage</span>
+        }
+    </div>
+    <details class="content-column mb-6">
+        <summary class="cursor-pointer text-[.9rem] text-fg-secondary">Preview the export</summary>
+        <pre class="export-preview mt-2 overflow-x-auto rounded-md border border-hairline bg-surface p-4 text-[.85rem]">@markdown</pre>
+    </details>
+}
+
+@code {
+    [Parameter, EditorRequired] public ContentGraph Content { get; set; } = default!;
+
+    /// <summary>Back to Today.</summary>
+    [Parameter] public EventCallback OnBack { get; set; }
+
+    private string? _copyMessage;
+
+    private async Task Copy(string markdown)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", markdown);
+            _copyMessage = "Copied.";
+        }
+        catch (JSException)
+        {
+            _copyMessage = "Couldn't reach the clipboard. Open the preview and copy from there.";
+        }
+    }
+}
