@@ -75,6 +75,90 @@ public class ReviewViewTests : ShortcutContext
         Assert.Empty(cut.FindAll("ul.options"));
     }
 
+    // Progress arriving from another device (sync) bumps SyncRevision; these cover what the screen does with that.
+    private static readonly Lesson Second = new("lesson.m", "More", "track.t",
+        [new ExplainStep("step.intro2", "Intro", "b", [], null), Q("step.q3")])
+    {
+        Concepts = [new Concept("concept.d", "D")],
+        ReviewItems = [new ReviewItem("review.q3", "concept.d", "step.q3")],
+    };
+
+    private static readonly ContentGraph Both = new(new PackManifest("pack.t", "1.0.0", 1), [new Track("track.t", "T", [Lesson.Id, Second.Id])], [Lesson, Second]);
+
+    private IRenderedComponent<ReviewView> OpenBoth(int revision = 0) =>
+        Render<ReviewView>(p => p.Add(c => c.Content, Both).Add(c => c.SyncRevision, revision));
+
+    private static void Synced(IRenderedComponent<ReviewView> cut, int revision) =>
+        cut.Render(p => p.Add(c => c.Content, Both).Add(c => c.SyncRevision, revision));
+
+    [Fact]
+    public void An_empty_Review_fills_in_when_synced_progress_unlocks_questions()
+    {
+        var cut = OpenBoth();
+        Assert.Contains("Nothing to review yet", cut.Markup);
+
+        FinishLesson();   // as if pulled from the other device
+        Synced(cut, 1);
+
+        Assert.Contains("Question step.q1", cut.Markup);
+        Assert.Contains("1 of 2", cut.Find(".review-progress").TextContent);
+    }
+
+    [Fact]
+    public void A_finished_Review_picks_up_newly_due_questions_when_synced_progress_arrives()
+    {
+        FinishLesson();
+        var cut = OpenBoth();
+        Pick(cut, "right"); cut.Find("button.primary").Click();
+        Pick(cut, "right"); cut.Find("button.primary").Click();
+        Assert.Contains("all caught up", cut.Markup);
+
+        foreach (var s in Second.Steps) _recorder.CompleteStep(Second, s.Id);
+        Synced(cut, 1);
+
+        Assert.Contains("Question step.q3", cut.Markup);
+        Assert.Contains("1 of 1", cut.Find(".review-progress").TextContent);
+    }
+
+    [Fact]
+    public void Synced_progress_does_not_disturb_a_question_being_answered_and_joins_the_queue_after_it()
+    {
+        FinishLesson();
+        var cut = OpenBoth();
+        var options = cut.FindAll("ul.options input");
+        options[1].Change(true);   // an answer chosen but not yet checked
+        Assert.Contains("Question step.q1", cut.Markup);
+
+        foreach (var s in Second.Steps) _recorder.CompleteStep(Second, s.Id);
+        Synced(cut, 1);
+
+        Assert.Contains("Question step.q1", cut.Markup);
+        Assert.Contains("1 of 2", cut.Find(".review-progress").TextContent);   // not reshuffled under the learner
+        Assert.True(((AngleSharp.Html.Dom.IHtmlInputElement)cut.FindAll("ul.options input")[1]).IsChecked);   // the chosen option is still chosen
+
+        Pick(cut, "right");
+        cut.Find("button.primary").Click();   // Continue to q2
+        Assert.Contains("2 of 3", cut.Find(".review-progress").TextContent);
+        Pick(cut, "right");
+        cut.Find("button.primary").Click();
+        Assert.Contains("Question step.q3", cut.Markup);
+        Assert.Contains("3 of 3", cut.Find(".review-progress").TextContent);
+    }
+
+    [Fact]
+    public void A_sync_that_changes_nothing_about_the_queue_leaves_it_as_it_was()
+    {
+        FinishLesson();
+        var cut = OpenBoth();
+        Pick(cut, "right"); cut.Find("button.primary").Click();
+
+        Synced(cut, 1);
+        Pick(cut, "right"); cut.Find("button.primary").Click();
+
+        Assert.Contains("all caught up", cut.Markup);
+        Assert.Equal(2, Answers.Count());
+    }
+
     [Fact]
     public void A_finished_lesson_puts_its_items_in_the_queue_one_at_a_time()
     {

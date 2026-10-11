@@ -24,6 +24,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Brilliant.Server\Brilliant.Server.csproj" />
+    <ProjectReference Include="..\..\src\Brilliant.Data\Brilliant.Data.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- One definition of "the same learner state", shared with the Core tests. -->
+    <Compile Include="..\Brilliant.Core.Tests\LearnerStateFingerprint.cs" Link="LearnerStateFingerprint.cs" />
   </ItemGroup>
 
 </Project>

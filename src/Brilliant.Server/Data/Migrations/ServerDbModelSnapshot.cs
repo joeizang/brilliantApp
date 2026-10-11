@@ -55,6 +55,59 @@ namespace Brilliant.Server.Data.Migrations
                     b.ToTable("Devices");
                 });
 
+            modelBuilder.Entity("Brilliant.Server.Data.EventRecord", b =>
+                {
+                    b.Property<long>("Seq")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Seq"));
+
+                    b.Property<string>("Data")
+                        .HasColumnType("text");
+
+                    b.Property<string>("DeviceId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Id")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("LessonId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<long>("OccurredAtTicks")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("PushedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ReceivedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("StepId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Seq");
+
+                    b.HasIndex("Id")
+                        .IsUnique();
+
+                    b.ToTable("Events");
+                });
+
             modelBuilder.Entity("Brilliant.Server.Data.PairingCode", b =>
                 {
                     b.Property<string>("Hash")

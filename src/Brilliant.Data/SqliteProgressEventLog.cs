@@ -9,6 +9,9 @@ public sealed class SqliteProgressEventLog : IProgressEventLog, IDisposable
 {
     private readonly LocalStoreContext _db;
 
+    // The context is not thread-safe, and a background sync appends while screens read.
+    private readonly object _gate = new();
+
     /// <param name="connectionString">e.g. <c>Data Source=/path/brilliant.db</c> or <c>Data Source=:memory:</c>.</param>
     public SqliteProgressEventLog(string connectionString)
     {
@@ -28,6 +31,11 @@ public sealed class SqliteProgressEventLog : IProgressEventLog, IDisposable
     }
 
     public bool Append(ProgressEvent e)
+    {
+        lock (_gate) return AppendLocked(e);
+    }
+
+    private bool AppendLocked(ProgressEvent e)
     {
         if (_db.Events.AsNoTracking().Any(x => x.Id == e.Id)) return false;
         _db.Events.Add(new EventRow
@@ -56,10 +64,18 @@ public sealed class SqliteProgressEventLog : IProgressEventLog, IDisposable
 
     public EventPage ReadSince(long cursor)
     {
+        lock (_gate) return ReadSinceLocked(cursor);
+    }
+
+    private EventPage ReadSinceLocked(long cursor)
+    {
         var rows = _db.Events.AsNoTracking().Where(x => x.Seq > cursor).OrderBy(x => x.Seq).ToList();
         var events = rows.Select(r => new ProgressEvent(r.Id, r.DeviceId, r.OccurredAt, r.Type, r.LessonId, r.StepId, r.Data)).ToList();
         return new EventPage(events, rows.Count == 0 ? cursor : rows[^1].Seq);
     }
 
-    public void Dispose() => _db.Dispose();
+    public void Dispose()
+    {
+        lock (_gate) _db.Dispose();
+    }
 }

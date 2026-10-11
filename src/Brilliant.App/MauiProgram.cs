@@ -56,12 +56,27 @@ public static class MauiProgram
         builder.Services.AddSingleton(_ => new PairingClient(new HttpClient { Timeout = TimeSpan.FromSeconds(10) }));
         builder.Services.AddSingleton<PairingService>();
 
+        // Sync keeps the event log in step with the server: at start, every couple of minutes, and on demand from the Sync screen.
+        // The server being away never matters to the learner; the app runs from its local log.
+        builder.Services.AddSingleton(_ => new SyncClient(new HttpClient { Timeout = TimeSpan.FromSeconds(15) }));
+        builder.Services.AddSingleton<ISyncStateStore>(_ => new FileSyncStateStore(Path.Combine(dataDir, "sync-state.json")));
+        builder.Services.AddSingleton(sp => new SyncService(
+            sp.GetRequiredService<IProgressEventLog>(), DeviceId.GetOrCreate(dataDir),
+            sp.GetRequiredService<IDeviceCredentialStore>(), sp.GetRequiredService<SyncClient>(), sp.GetRequiredService<ISyncStateStore>()));
+        builder.Services.AddSingleton(sp => new SyncScheduler(sp.GetRequiredService<SyncService>(), TimeSpan.FromMinutes(2)));
+
         // The Python runtime talks to the webview it lives in, so it is scoped to the BlazorWebView.
         builder.Services.AddScoped<IPythonRuntime, PyodideRuntime>();
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();
 #endif
-        return builder.Build();
+        var app = builder.Build();
+#if DEBUG
+        // The throwaway log of BRILLIANT_DEV_START_AT must never be synced to the household server.
+        if (Environment.GetEnvironmentVariable("BRILLIANT_DEV_START_AT") is null)
+#endif
+            app.Services.GetRequiredService<SyncScheduler>().Start();
+        return app;
     }
 }

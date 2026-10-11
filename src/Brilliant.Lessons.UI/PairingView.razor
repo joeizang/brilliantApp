@@ -1,6 +1,9 @@
 @* Connect this device to the household server: where it lives and the one-time code it printed. Once paired, shows where, with a way to forget it. *@
 @using Brilliant.Core.Sync
+@implements IDisposable
 @inject PairingService Pairing
+@inject SyncService Sync
+@inject TimeProvider Clock
 
 @if (OnBack.HasDelegate)
 {
@@ -16,6 +19,24 @@ else if (_paired is { } paired)
 {
     <div class="paired content-column mt-4 grid gap-3">
         <p class="paired-status m-0">✓ Paired with <strong class="paired-server">@paired.Server.Authority</strong></p>
+        <div class="sync-status grid gap-2" role="status">
+            <p class="last-synced m-0">@LastSyncedText(paired)</p>
+            @if (Sync.RejectedCount(paired.DeviceId) is var held and > 0)
+            {
+                <p class="sync-held m-0 text-[.9rem] text-fg-secondary">
+                    @held @(held == 1 ? "item" : "items") from this device @(held == 1 ? "is" : "are") too large for the server and @(held == 1 ? "stays" : "stay") on this device only, so other devices won't see @(held == 1 ? "it" : "them").
+                </p>
+            }
+            @if (Sync.Last is { Failure: { } failure })
+            {
+                <p class="sync-error m-0 text-danger" role="alert">@FailureText(failure)</p>
+                @if (Sync.Last.Detail is not null)
+                {
+                    <p class="sync-detail m-0 text-[.85rem] text-fg-secondary">@Sync.Last.Detail</p>
+                }
+            }
+            <div><button class="sync-now primary btn-primary" @onclick="SyncNow" disabled="@Sync.IsSyncing">@(Sync.IsSyncing ? "Syncing…" : "Sync now")</button></div>
+        </div>
         <p class="m-0 text-[.9rem] text-fg-secondary">This device is on the server's list. To disconnect it for good, revoke it on the server; forgetting only clears it here.</p>
         @if (_error is not null)
         {
@@ -74,9 +95,36 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        Sync.StatusChanged += OnStatusChanged;
         _paired = await Pairing.CurrentAsync();
         _loading = false;
     }
+
+    public void Dispose() => Sync.StatusChanged -= OnStatusChanged;
+
+    // Raised from whichever thread the sync runs on.
+    private void OnStatusChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private Task SyncNow() => Sync.SyncAsync();
+
+    private string LastSyncedText(DeviceCredentials paired)
+    {
+        if (Sync.LastSyncedAt(paired.DeviceId) is not { } at) return Sync.IsSyncing ? "Syncing for the first time…" : "Not synced yet.";
+        var ago = Clock.GetUtcNow() - at;
+        return "Last synced " + (ago < TimeSpan.FromMinutes(1) ? "just now"
+            : ago < TimeSpan.FromHours(1) ? $"{(int)ago.TotalMinutes} min ago"
+            : ago < TimeSpan.FromDays(1) ? $"{(int)ago.TotalHours} h ago"
+            : at.ToLocalTime().ToString("d MMM yyyy, HH:mm")) + ".";
+    }
+
+    private static string FailureText(SyncFailure failure) => failure switch
+    {
+        SyncFailure.Unreachable => "Couldn't reach the server. Your progress is safe on this device and will sync when it's back.",
+        SyncFailure.Unauthorized => "The server no longer accepts this device; it may have been revoked. Forget it here and pair again.",
+        SyncFailure.NotPaired => "This device isn't paired with a server.",
+        SyncFailure.LocalError => "Couldn't read or write progress on this device while syncing.",
+        _ => "The server ran into a problem. Your progress is safe here; try again later.",
+    };
 
     private async Task Pair()
     {
@@ -97,6 +145,7 @@ else
             {
                 _paired = credentials;
                 _code = "";
+                _ = Sync.SyncAsync();   // start right away; the screen shows how it goes
             }
             else
             {

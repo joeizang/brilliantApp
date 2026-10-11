@@ -25,8 +25,11 @@ public static class FlaggedSteps
             .Select((id, index) => (id, index))
             .ToDictionary(x => x.id, x => x.index);
 
+        // Distinct by ID and in a fixed order first, so the same events give the same list however they arrived (sync delivers them from any device in any order).
         return events
             .Where(e => e.Type == ProgressEventTypes.StepFlagged)
+            .DistinctBy(e => e.Id)
+            .OrderBy(e => e.OccurredAt).ThenBy(e => e.Id, StringComparer.Ordinal)
             .Select(e =>
             {
                 content.TryGet<Lesson>(e.LessonId, out var lesson);

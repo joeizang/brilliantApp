@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Brilliant.Core.Progress;
 using Brilliant.Core.Sync;
 using Brilliant.Server.Data;
 using Brilliant.Server.Pairing;
@@ -24,6 +25,67 @@ public static class Endpoints
         authed.MapPost("/pairing-codes", MintPairingCode);
         authed.MapGet("/devices", ListDevices);
         authed.MapDelete("/devices/{id:guid}", RevokeDevice);
+        authed.MapPost("/events", PushEvents);
+        authed.MapGet("/events", PullEvents);
+    }
+
+    // Serialises pushes so sequence numbers become visible in the order they are handed out. Without it a reader could pull past
+    // number 6 while number 5 was still uncommitted, and never see 5.
+    public const long PushLock = 2_900_001;
+
+    private static async Task<IResult> PushEvents(PushEventsRequest request, ClaimsPrincipal user, ServerDb db, TimeProvider clock, CancellationToken ct)
+    {
+        var events = request.Events;
+        if (events is null || events.Count > EventLimits.MaxBatch || events.Any(e => e is null))
+            return Results.BadRequest(new { error = $"Send between 0 and {EventLimits.MaxBatch} events at a time." });
+
+        // An event that breaks the limits is refused by name; it must not hold up the valid ones sent with it, or one bad event
+        // would block a device's whole backlog for good.
+        var rejected = new List<RejectedEvent>();
+        var valid = new List<ProgressEvent>();
+        foreach (var e in events)
+        {
+            if (EventLimits.Problem(e) is { } why) rejected.Add(new RejectedEvent(e.Id ?? "", why));
+            else valid.Add(e);
+        }
+        if (valid.Count == 0) return Results.Ok(new PushEventsResponse(0, 0, rejected));
+
+        var pushedBy = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var now = clock.GetUtcNow();
+
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await db.Database.ExecuteSqlRawAsync($"SELECT pg_advisory_xact_lock({PushLock})", ct);
+
+        var ids = valid.Select(e => e.Id).Distinct().ToList();
+        var known = (await db.Events.AsNoTracking().Where(e => ids.Contains(e.Id)).Select(e => e.Id).ToListAsync(ct)).ToHashSet();
+        var accepted = 0;
+        foreach (var e in valid)
+        {
+            if (!known.Add(e.Id)) continue;
+            db.Events.Add(new EventRecord
+            {
+                Id = e.Id, DeviceId = e.DeviceId, OccurredAtTicks = e.OccurredAt.UtcTicks, Type = e.Type,
+                LessonId = e.LessonId ?? "", StepId = e.StepId ?? "", Data = e.Data, PushedBy = pushedBy, ReceivedAt = now,
+            });
+            accepted++;
+        }
+        await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+        return Results.Ok(new PushEventsResponse(accepted, valid.Count - accepted, rejected));
+    }
+
+    private static async Task<IResult> PullEvents(long? after, int? limit, ServerDb db, CancellationToken ct)
+    {
+        var cursor = after ?? 0;
+        if (cursor < 0) return Results.BadRequest(new { error = "after must not be negative." });
+        var take = Math.Clamp(limit ?? EventLimits.MaxBatch, 1, EventLimits.MaxPullPage);
+
+        var rows = await db.Events.AsNoTracking().Where(e => e.Seq > cursor).OrderBy(e => e.Seq).Take(take + 1).ToListAsync(ct);
+        var hasMore = rows.Count > take;
+        if (hasMore) rows.RemoveAt(rows.Count - 1);
+
+        var events = rows.Select(r => new ProgressEvent(r.Id, r.DeviceId, new DateTimeOffset(r.OccurredAtTicks, TimeSpan.Zero), r.Type, r.LessonId, r.StepId, r.Data)).ToList();
+        return Results.Ok(new PullEventsResponse(events, rows.Count == 0 ? cursor : rows[^1].Seq, hasMore));
     }
 
     private static async Task<IResult> Pair(PairRequest request, PairingCodes codes, ServerDb db, TimeProvider clock, CancellationToken ct)

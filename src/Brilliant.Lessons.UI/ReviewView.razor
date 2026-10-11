@@ -78,6 +78,9 @@ else
     /// <summary>Raised after an answer is recorded, so whatever shows the due count elsewhere (the sidebar) can refresh.</summary>
     [Parameter] public EventCallback OnProgress { get; set; }
 
+    /// <summary>Changes when progress arrives from another device (sync). The queue is read once when the screen opens, so this is what makes it look again.</summary>
+    [Parameter] public int SyncRevision { get; set; }
+
     private IReadOnlyList<ReviewItemState> _queue = [];
     private int _index;
     private DateTimeOffset _shownAt;
@@ -86,13 +89,38 @@ else
     private DateTimeOffset? _scheduled;
     private DateTimeOffset? _nextDue;
     private int _waiting;
+    private int _seenRevision;
+    private bool _stale;
 
     private ReviewItemState? _current => _index < _queue.Count ? _queue[_index] : null;
 
     protected override void OnInitialized()
     {
+        _seenRevision = SyncRevision;
         _queue = Recorder.Project(Content).Queue.Items;
         Show();
+    }
+
+    // Synced progress can unlock or schedule questions. Where the learner is looking at "nothing to review" or "all caught up", start over from
+    // what is due now. Mid-queue, leave the question (and any answer in progress) alone and pick the new ones up when they move on.
+    protected override void OnParametersSet()
+    {
+        if (SyncRevision == _seenRevision) return;
+        _seenRevision = SyncRevision;
+        if (_current is null)
+        {
+            _queue = Recorder.Project(Content).Queue.Items;
+            _index = 0;
+            Show();
+        }
+        else _stale = true;
+    }
+
+    // Questions that became due since the queue was read join the end of it, so the bar only ever grows.
+    private void AddNewlyDue()
+    {
+        var known = _queue.Select(q => q.Item.Id).ToHashSet();
+        _queue = [.. _queue, .. Recorder.Project(Content).Queue.Items.Where(q => !known.Contains(q.Item.Id))];
     }
 
     private void Show()
@@ -128,6 +156,11 @@ else
     private void Next()
     {
         _index++;
+        if (_stale)
+        {
+            _stale = false;
+            AddNewlyDue();
+        }
         Show();
     }
 
