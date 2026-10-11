@@ -1,0 +1,497 @@
+id: lesson.pattern-read-write-pointers
+title: "Pattern: a reader and a writer"
+concepts:
+  - id: concept.read-write-pointers
+    title: "One pointer reads, one marks where to write"
+  - id: concept.compact-in-place
+    title: Compacting a list in place
+  - id: concept.merge-two-sorted
+    title: Walking two sorted lists at once
+reviewItems:
+  - id: review.readwrite.which-pattern
+    concept: concept.read-write-pointers
+    step: step.readwrite.check-which-pattern
+    kind: pattern
+  - id: review.readwrite.safe-overwrite
+    concept: concept.read-write-pointers
+    step: step.readwrite.check-safe-overwrite
+  - id: review.readwrite.predict-dedupe
+    concept: concept.compact-in-place
+    step: step.readwrite.predict-dedupe
+  - id: review.readwrite.predict-leftover
+    concept: concept.compact-in-place
+    step: step.readwrite.predict-leftover
+  - id: review.readwrite.tail
+    concept: concept.compact-in-place
+    step: step.readwrite.check-tail
+  - id: review.readwrite.predict-merge
+    concept: concept.merge-two-sorted
+    step: step.readwrite.predict-merge
+steps:
+  - id: step.readwrite.pattern
+    type: explain
+    title: Two pointers, same direction
+    body: |
+      In the last two lessons the pointers started at opposite ends. Here both start at the **front** and move the same way, but
+      they do different jobs.
+
+      - The **reader** visits every item once.
+      - The **writer** marks the next slot that is free to be overwritten.
+
+      The reader runs ahead, or at the same spot. When it finds an item worth keeping, it copies it to the writer's slot and the
+      writer steps forward. Anything not worth keeping is simply never copied. When the reader reaches the end, the first `write`
+      slots hold the answer, and the list was changed **in place**, with no second list.
+
+      The writer can never get ahead of the reader, so a write never destroys an item that hasn't been read yet.
+    comparison:
+      csharp: |
+        // Keep only the values that are not `val`, in place
+        int write = 0;
+        for (int read = 0; read < nums.Length; read++)
+        {
+            if (nums[read] != val)
+            {
+                nums[write] = nums[read];
+                write++;
+            }
+        }
+        return write; // the new length
+      python: |
+        # Keep only the values that are not `val`, in place
+        write = 0
+        for read in range(len(nums)):
+            if nums[read] != val:
+                nums[write] = nums[read]
+                write += 1
+        return write  # the new length
+  - id: step.readwrite.trace-dedupe
+    type: trace
+    title: Removing duplicates from a sorted list
+    body: |
+      The list is sorted, so equal values sit side by side. The first value is always kept, so `write` starts at `1`. The reader
+      then walks from index `1`, and copies a value to the writer's slot whenever it differs from the last value kept
+      (`nums[write - 1]`). Watch the writer fall behind the reader as duplicates are skipped.
+    code: |
+      nums = [1, 1, 2, 2, 3]
+      write = 1
+      for read in range(1, len(nums)):
+          if nums[read] != nums[write - 1]:
+              nums[write] = nums[read]
+              write += 1
+    visualise:
+      - variable: nums
+        as: array
+        pointers: [read, write]
+  - id: step.readwrite.trace-merge
+    type: trace
+    title: Merging two sorted lists
+    body: |
+      Same direction, but now the two pointers are on **two different lists**. `i` is on `a` and `j` is on `b`. Each step takes the
+      smaller of the two front items into `out` and moves only that pointer. The other list's pointer waits for its turn.
+    code: |
+      a = [1, 4, 7]
+      b = [2, 3, 9]
+      out = []
+      i = 0
+      j = 0
+      while i < len(a) and j < len(b):
+          if a[i] <= b[j]:
+              out.append(a[i])
+              i += 1
+          else:
+              out.append(b[j])
+              j += 1
+    visualise:
+      - variable: a
+        as: array
+        pointers: [i]
+      - variable: b
+        as: array
+        pointers: [j]
+      - variable: out
+        as: array
+  - id: step.readwrite.predict-dedupe
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      nums = [1, 1, 2, 2, 3]
+      write = 1
+      for read in range(1, len(nums)):
+          if nums[read] != nums[write - 1]:
+              nums[write] = nums[read]
+              write += 1
+      print(write)
+      print(nums[:write])
+    accepted:
+      - "3\n[1, 2, 3]"
+    mistakes:
+      - answers:
+          - "5\n[1, 1, 2, 2, 3]"
+        feedback: "The loop does change the list. Each time the reader finds a value different from the last one kept, it copies it to `nums[write]`."
+      - answers:
+          - "2\n[1, 2]"
+        feedback: "`write` starts at `1` because the first value is kept. Then `2` and `3` each add one, so it ends at `3`, not `2`."
+    hints:
+      - "The first `1` is already kept (that's why `write` starts at `1`). Which values differ from the last one kept?"
+      - "The kept values are `1`, `2` and `3`. `write` counts them."
+  - id: step.readwrite.predict-leftover
+    type: predict-output
+    title: What is left behind?
+    prompt: |
+      This keeps every value that isn't `val`. Look closely at the list at the end, not only at the count. What does it print?
+    code: |
+      nums = [3, 2, 2, 3]
+      val = 3
+      write = 0
+      for read in range(len(nums)):
+          if nums[read] != val:
+              nums[write] = nums[read]
+              write += 1
+      print(write, nums)
+    accepted:
+      - "2 [2, 2, 2, 3]"
+    mistakes:
+      - answers:
+          - "2 [2, 2]"
+        feedback: "The list is still four long. The code only *copies* kept values to the front. The slots after `write` are never touched, so the old values stay there."
+      - answers:
+          - "4 [2, 2, 2, 3]"
+        feedback: "`write` counts the values copied. Only the two `2`s were kept, so `write` is `2`."
+    hints:
+      - "Follow the copies. `nums[0]` is replaced by `2` (from index 1), then `nums[1]` by `2` (from index 2)."
+      - "Indexes 2 and 3 are never written to. What did they hold at the start?"
+  - id: step.readwrite.predict-merge
+    type: predict-output
+    title: When one list runs out
+    prompt: |
+      This is the merge loop from the trace. What does it print?
+    code: |
+      a = [1, 4, 7]
+      b = [2, 3, 9]
+      out = []
+      i = 0
+      j = 0
+      while i < len(a) and j < len(b):
+          if a[i] <= b[j]:
+              out.append(a[i])
+              i += 1
+          else:
+              out.append(b[j])
+              j += 1
+      print(out)
+      print(i, j)
+    accepted:
+      - "[1, 2, 3, 4, 7]\n3 2"
+    mistakes:
+      - answers:
+          - "[1, 2, 3, 4, 7, 9]\n3 3"
+        feedback: "The loop stops as soon as *either* list is used up. `a` runs out after `7`, so the `9` in `b` is never copied. Merging fully means copying what is left over after the loop."
+      - answers:
+          - "[1, 2, 3, 4, 7]\n2 3"
+        feedback: "Count the moves: the `a` pointer took `1`, `4` and `7`, which is three moves, and the `b` pointer took `2` and `3`, which is two."
+    hints:
+      - "Trace it: 1 vs 2 takes `1`; 4 vs 2 takes `2`; 4 vs 3 takes `3`; 4 vs 9 takes `4`; 7 vs 9 takes `7`."
+      - "After `7` is taken, `i` is `3`, which equals `len(a)`. What does the `while` condition do then?"
+  - id: step.readwrite.check-which-pattern
+    type: choice
+    title: Which problem needs a reader and a writer?
+    prompt: |
+      Which of these is best solved by a pointer that reads and a pointer that writes, both moving forward?
+    options:
+      - text: Remove the duplicates from a sorted list, in place.
+        correct: true
+        feedback: Right. The reader scans, and the writer marks where the next kept value goes. The sorted order keeps duplicates together.
+      - text: Check whether a sorted list has two numbers that add up to a target.
+        correct: false
+        feedback: That is the converging pattern. The sum tells you which end to move.
+      - text: Reverse a list in place.
+        correct: false
+        feedback: Reversing swaps the two ends and walks inwards, which is the converging pattern again.
+      - text: Check whether a string is a palindrome.
+        correct: false
+        feedback: Palindromes compare the two ends and walk inwards.
+    hints:
+      - "Look for the task that *keeps some items and drops others* while changing the list itself."
+      - The other three each start at both ends of the data.
+  - id: step.readwrite.check-safe-overwrite
+    type: choice
+    title: Is it safe to overwrite?
+    prompt: |
+      `nums[write] = nums[read]` overwrites a cell while the loop is still working through the list. Why doesn't that lose data
+      that is still needed?
+    options:
+      - text: "`write` is never ahead of `read`, so the cell being overwritten has already been read."
+        correct: true
+        feedback: Right. The writer only moves when the reader has found something to keep, so it can match the reader but never pass it.
+      - text: Python makes a copy of the list before the loop starts.
+        correct: false
+        feedback: It doesn't. The list really is changed, and the unwritten cells hold their old values.
+      - text: Because the list is sorted.
+        correct: false
+        feedback: The same reasoning works on an unsorted list (for example, removing every `3`). Sorting is only needed for the duplicate check.
+      - text: Because `write` moves faster than `read`.
+        correct: false
+        feedback: It's the other way round. `write` moves at most as fast as `read`, which is exactly what makes the overwrite safe.
+    hints:
+      - How often does `write` move compared with `read`?
+      - "Can `write` ever be larger than `read`?"
+  - id: step.readwrite.check-tail
+    type: choice
+    title: What does the count mean?
+    prompt: |
+      After compacting `[3, 2, 2, 3]` with `val = 3`, the function returns `2` and the list is `[2, 2, 2, 3]`. What should the
+      caller do with this?
+    options:
+      - text: Use only the first `2` items. The cells after that hold leftover values and mean nothing.
+        correct: true
+        feedback: Right. The returned count is the new length. Everything from index `write` onwards is leftover.
+      - text: Use the whole list. The extra `2, 3` are part of the answer.
+        correct: false
+        feedback: Only the first `write` items were kept. The tail is whatever happened to be there before.
+      - text: Pop items off the end until the list is clean, inside the loop.
+        correct: false
+        feedback: Removing items from a list while looping over it shifts indexes and costs `O(n)` each. The count (or a slice at the end) is simpler.
+      - text: Fill the tail with zeros, inside the loop.
+        correct: false
+        feedback: That isn't needed. The count already tells the caller where the real data ends.
+    hints:
+      - What does the return value tell you about how much of the list is real?
+      - "A slice such as `nums[:write]` gives exactly the kept part."
+  - id: step.readwrite.fill-remove
+    type: fill-blank
+    title: Complete the function
+    prompt: |
+      Fill in the blanks so that `remove_value` keeps every number that isn't `val`, in the same order, and returns how many were
+      kept.
+    template: |
+      def remove_value(nums, val):
+          write = 0
+          for read in range({{size}}):
+              if nums[read] {{op}} val:
+                  nums[write] = nums[read]
+                  write += 1
+          return write
+    blanks:
+      - id: size
+        accepted:
+          - "len(nums)"
+        mistakes:
+          - answers:
+              - "len(nums) - 1"
+              - "len(nums)-1"
+            feedback: "`range(len(nums) - 1)` stops one short, so the last item is never read."
+      - id: op
+        accepted:
+          - "!="
+        mistakes:
+          - answers:
+              - "=="
+            feedback: "`==` would keep only the values you wanted to remove. We keep the ones that are *not* `val`."
+    hints:
+      - "The reader must visit every index, from `0` to the last one."
+      - "A value is copied forward when it is *not* the one to remove."
+  - id: step.readwrite.order-move-zeros
+    type: parsons
+    title: Move the zeros to the end
+    prompt: |
+      Arrange these lines into `move_zeros(nums)`, which moves every `0` to the end of the list while keeping the other numbers
+      in order. It works in place and returns the list.
+    solution: |
+      def move_zeros(nums):
+          write = 0
+          for read in range(len(nums)):
+              if nums[read] != 0:
+                  nums[write], nums[read] = nums[read], nums[write]
+                  write += 1
+          return nums
+    hints:
+      - "`write` is set up before the loop. `return nums` comes last."
+      - "The swap and `write += 1` are both inside the `if`."
+      - "Instead of copying, this version *swaps*, so the zeros pile up behind the writer."
+  - id: step.readwrite.write-dedupe
+    type: write-code
+    title: Remove duplicates
+    prompt: |
+      Write `remove_duplicates(nums)`, which takes a **sorted** list and removes the duplicate values **in place**, using a reader
+      and a writer. Return `nums[:write]`, the kept part of the list. For example `remove_duplicates([1, 1, 2])` is `[1, 2]`.
+    language: python
+    entrypoint: remove_duplicates
+    starter: |
+      def remove_duplicates(nums):
+          pass
+    solution: |
+      def remove_duplicates(nums):
+          if not nums:
+              return []
+          write = 1
+          for read in range(1, len(nums)):
+              if nums[read] != nums[write - 1]:
+                  nums[write] = nums[read]
+                  write += 1
+          return nums[:write]
+    tests:
+      - input: "[1, 1, 2]"
+        expected: "[1, 2]"
+      - input: "[0, 0, 1, 1, 1, 2, 2, 3, 3, 4]"
+        expected: "[0, 1, 2, 3, 4]"
+      - input: "[]"
+        expected: "[]"
+      - input: "[5]"
+        expected: "[5]"
+      - input: "[1, 2, 3]"
+        expected: "[1, 2, 3]"
+      - input: "[2, 2, 2, 2]"
+        expected: "[2]"
+    hints:
+      - "An empty list has nothing to keep. For anything else the first value is always kept, so `write` starts at `1`."
+      - "Walk `read` from `1`. When `nums[read]` differs from the last kept value (`nums[write - 1]`), copy it to `nums[write]` and move `write` on."
+      - "Return `nums[:write]`."
+  - id: step.readwrite.write-twice
+    type: write-code
+    title: At most twice
+    prompt: |
+      Write `keep_twice(nums)`, which takes a **sorted** list and keeps each value **at most twice**, in place. Return
+      `nums[:write]`. For example `keep_twice([1, 1, 1, 2, 2, 3])` is `[1, 1, 2, 2, 3]`.
+    language: python
+    entrypoint: keep_twice
+    starter: |
+      def keep_twice(nums):
+          pass
+    solution: |
+      def keep_twice(nums):
+          write = 0
+          for read in range(len(nums)):
+              if write < 2 or nums[read] != nums[write - 2]:
+                  nums[write] = nums[read]
+                  write += 1
+          return nums[:write]
+    tests:
+      - input: "[1, 1, 1, 2, 2, 3]"
+        expected: "[1, 1, 2, 2, 3]"
+      - input: "[0, 0, 1, 1, 1, 1, 2, 3, 3]"
+        expected: "[0, 0, 1, 1, 2, 3, 3]"
+      - input: "[]"
+        expected: "[]"
+      - input: "[7]"
+        expected: "[7]"
+      - input: "[1, 1, 1]"
+        expected: "[1, 1]"
+      - input: "[1, 2, 3]"
+        expected: "[1, 2, 3]"
+    hints:
+      - "The first two items are always kept. After that, compare with the item **two** places behind the writer."
+      - "If `nums[read]` equals `nums[write - 2]`, then (because the list is sorted) the last two kept values are the same as it, so a third copy would be too many."
+      - "Keep the item when `write < 2` or when it differs from `nums[write - 2]`."
+  - id: step.readwrite.write-subsequence
+    type: write-code
+    title: Is it a subsequence?
+    prompt: |
+      Write `is_subsequence(s, t)`, which returns `True` if the letters of `s` appear in `t` **in the same order**, though not
+      necessarily next to each other. For example `is_subsequence("ace", "abcde")` is `True`, and `is_subsequence("aec",
+      "abcde")` is `False`. The empty string is a subsequence of anything.
+    language: python
+    entrypoint: is_subsequence
+    starter: |
+      def is_subsequence(s, t):
+          pass
+    solution: |
+      def is_subsequence(s, t):
+          i = 0
+          for ch in t:
+              if i < len(s) and ch == s[i]:
+                  i += 1
+          return i == len(s)
+    tests:
+      - input: '"abc", "ahbgdc"'
+        expected: "True"
+      - input: '"axc", "ahbgdc"'
+        expected: "False"
+      - input: '"", "abc"'
+        expected: "True"
+      - input: '"a", ""'
+        expected: "False"
+      - input: '"", ""'
+        expected: "True"
+      - input: '"aaa", "aa"'
+        expected: "False"
+      - input: '"ace", "abcde"'
+        expected: "True"
+    hints:
+      - "One pointer walks through `s`, and the loop walks through `t`. The pointer only moves when `t` offers the next letter of `s` that is still needed."
+      - "If the current letter of `t` equals `s[i]`, move `i` on. Otherwise skip that letter of `t`."
+      - "At the end, `s` was found completely if `i` reached `len(s)`."
+  - id: step.readwrite.write-merge
+    type: write-code
+    title: Merge two sorted lists
+    prompt: |
+      Write `merge_sorted(a, b)`, which takes two **sorted** lists and returns one new sorted list with every item from both. Use
+      one pointer on each list. For example `merge_sorted([1, 4, 7], [2, 3, 9])` is `[1, 2, 3, 4, 7, 9]`.
+    language: python
+    entrypoint: merge_sorted
+    starter: |
+      def merge_sorted(a, b):
+          pass
+    solution: |
+      def merge_sorted(a, b):
+          out = []
+          i = 0
+          j = 0
+          while i < len(a) and j < len(b):
+              if a[i] <= b[j]:
+                  out.append(a[i])
+                  i += 1
+              else:
+                  out.append(b[j])
+                  j += 1
+          out.extend(a[i:])
+          out.extend(b[j:])
+          return out
+    tests:
+      - input: "[1, 4, 7], [2, 3, 9]"
+        expected: "[1, 2, 3, 4, 7, 9]"
+      - input: "[], []"
+        expected: "[]"
+      - input: "[1], []"
+        expected: "[1]"
+      - input: "[], [2]"
+        expected: "[2]"
+      - input: "[1, 2, 3], [4, 5]"
+        expected: "[1, 2, 3, 4, 5]"
+      - input: "[4, 5], [1, 2, 3]"
+        expected: "[1, 2, 3, 4, 5]"
+      - input: "[1, 3, 5], [1, 3, 5]"
+        expected: "[1, 1, 3, 3, 5, 5]"
+      - input: "[-2, 0], [-3, 1]"
+        expected: "[-3, -2, 0, 1]"
+    hints:
+      - "While both lists still have items, take the smaller front item and move only that pointer."
+      - "When the loop ends, one list is used up. The other may still have items, so add them: `out.extend(a[i:])` and `out.extend(b[j:])`."
+    walkthrough:
+      call: result = merge_sorted([1, 4, 7], [2, 3, 9])
+      visualise:
+        - variable: a
+          as: array
+          pointers: [i]
+        - variable: b
+          as: array
+          pointers: [j]
+        - variable: out
+          as: array
+      explanation: |
+        Each pass compares the two front items and takes the smaller one, moving only that list's pointer. Nothing is ever compared twice,
+        so the loop makes at most `len(a) + len(b)` passes.
+
+        When `a` runs out (after `7`), the loop ends with `9` still waiting in `b`. Because `b` is sorted and everything in `out` is no
+        bigger than `9`, the leftover items can be added as they are. That is what the two `extend` calls are for. The total work is
+        `O(len(a) + len(b))`.
+  - id: step.readwrite.variation
+    type: explain
+    title: What if the window has a size?
+    body: |
+      So far each pointer pair answered a question about **single items**: this one, then that one. Many problems ask about a
+      **stretch** of items instead: the best five days in a row, the longest run without a repeat.
+
+      Two pointers still work. They mark the **edges of a window**: `left` is the first item in the stretch and `right` is the last.
+      Moving `right` forward adds an item, and moving `left` forward drops one. The window slides along the data, and each item
+      enters and leaves it at most once. That is a **sliding window**, the subject of the next lessons.
