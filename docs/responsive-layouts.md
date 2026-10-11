@@ -37,6 +37,8 @@ The trace player is a container-query grid. When its own box is wide enough (`3x
 The browser's drag-and-drop doesn't start from a finger in a WebView, so `wwwroot/parsons-touch.js` follows pointer events itself. Touching a row's grip (the `⠿` handle) lifts the row; it follows the finger, the row it would land on is highlighted, the page scrolls near the top and bottom edges, and on release the step is told to move the line (`ParsonsStepView.MoveTo(from, to)`, which calls the same `Board.Move` as the buttons and keyboard). Mouse pointers are left to the native drag. Points worth knowing:
 
 - The drop target is where the finger **lifted**, measured against the rows' resting positions (the lifted row is measured where it started, or it would always be its own target).
+- The row's current transform is what gets taken off its box when measuring, not the offset the finger implies: on release the two can differ until the next frame paints.
+- Removing the step mid-drag (a rotation or resize swaps it for another form) cancels the drag: auto-scroll stops, the row is put back and nothing is moved.
 - A locked board (after the answer is checked) ignores touch.
 - The arrow and indent buttons stay, and grow to touch size, for anyone who would rather tap. On a phone the help text names the handle and the buttons instead of the Mac's ⌥ keys.
 

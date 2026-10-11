@@ -47,23 +47,25 @@ export function attach(list, ref) {
         const row = grip.closest('li');
         const from = Number(row.dataset.row);
         grip.setPointerCapture(e.pointerId);
-        drag = { grip, row, from, to: from, id: e.pointerId, startY: e.clientY, startScroll: window.scrollY, y: e.clientY, timer: null };
+        drag = { grip, row, from, to: from, id: e.pointerId, startY: e.clientY, startScroll: window.scrollY, y: e.clientY, applied: 0, timer: null };
         row.dataset.touchDrag = 'true';
         e.preventDefault();
     };
 
     const mark = to => rows().forEach((r, i) => { if (i === to && i !== drag.from) r.dataset.touchOver = 'true'; else delete r.dataset.touchOver; });
 
-    // The dragged row is measured where it started, or it would always be the row the finger is over.
-    // How far the line has been moved: with the finger, plus however far the page has scrolled under it since.
+    // How far the line should be from where it rests: with the finger, plus however far the page has scrolled under it since.
     const offset = () => drag.y - drag.startY + (window.scrollY - drag.startScroll);
-    const target = () => dropIndex(restingRects(rows().map(r => r.getBoundingClientRect()), drag.from, offset()), drag.y);
+    // The dragged row is measured where it rests, or it would always be the row the finger is over. `applied` is the offset the row's
+    // transform has right now, which is what has to be taken off its box (it lags `offset()` until the next frame is painted).
+    const target = () => dropIndex(restingRects(rows().map(r => r.getBoundingClientRect()), drag.from, drag.applied), drag.y);
 
     const follow = () => {
         if (!drag) return;
         const delta = scrollDelta(drag.y, window.innerHeight);
         if (delta) window.scrollBy(0, delta);
-        drag.row.style.transform = `translateY(${offset()}px)`;
+        drag.applied = offset();
+        drag.row.style.transform = `translateY(${drag.applied}px)`;
         drag.to = target();
         mark(drag.to);
         drag.timer = delta ? requestAnimationFrame(follow) : null;
@@ -75,22 +77,27 @@ export function attach(list, ref) {
         if (drag.timer === null) follow();   // while auto-scrolling, the animation loop is already following drag.y
     };
 
-    const finish = commit => e => {
-        if (!drag || e.pointerId !== drag.id) return;
+    // Ends the drag in progress, if any: stops auto-scrolling, puts the row back and, when `commit`, moves the line to where the finger is.
+    const end = commit => {
+        if (!drag) return;
         const { row, from, timer, grip, id } = drag;
         if (timer !== null) cancelAnimationFrame(timer);
-        // Where the finger lifted is where the line lands: the last pointermove can be a frame or two behind it.
-        if (commit) drag.y = e.clientY;
-        const to = commit ? target() : drag.to;
         row.style.transform = '';
+        drag.applied = 0;
+        const to = commit ? target() : from;
         delete row.dataset.touchDrag;
         rows().forEach(r => delete r.dataset.touchOver);
-        try { grip.releasePointerCapture(id); } catch { /* already released */ }
+        try { grip.releasePointerCapture(id); } catch { /* already released or the grip is gone */ }
         drag = null;
-        if (commit && to !== from) ref.invokeMethodAsync('MoveTo', from, to);
+        if (to !== from) ref.invokeMethodAsync('MoveTo', from, to);
     };
-    const onUp = finish(true);
-    const onCancel = finish(false);
+
+    const onUp = e => {
+        if (!drag || e.pointerId !== drag.id) return;
+        drag.y = e.clientY;   // where the finger lifted is where the line lands: the last pointermove can be a frame or two behind it
+        end(true);
+    };
+    const onCancel = e => { if (drag && e.pointerId === drag.id) end(false); };
 
     list.addEventListener('pointerdown', onPointerDownCapture, true);
     list.addEventListener('dragstart', onDragStart, true);
@@ -99,6 +106,7 @@ export function attach(list, ref) {
     list.addEventListener('pointerup', onUp);
     list.addEventListener('pointercancel', onCancel);
     active.set(list, () => {
+        end(false);   // the step can be replaced mid-drag (a rotation, a resize): nothing may keep scrolling or hold the row
         list.removeEventListener('pointerdown', onPointerDownCapture, true);
         list.removeEventListener('dragstart', onDragStart, true);
         list.removeEventListener('pointerdown', onDown);
