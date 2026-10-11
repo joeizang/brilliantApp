@@ -65,7 +65,7 @@ dotnet build src/Brilliant.App -t:Run -f net10.0-maccatalyst
 - A lesson may declare, alongside `steps`:
   - `concepts`: ideas it teaches (`id: concept.…`, `title`).
   - `reviewItems`: questions Review will resurface later (`id: review.…`, `concept` declared in the same lesson, `step` = a `choice` or `predict-output` step of the same lesson, which is reused as the question).
-  - Question steps (`choice`, `predict-output`) may carry `hints`: up to 4, gentlest first (nudge → pattern hint → partial → full walkthrough). Hints and review items are authored and validated now; the app shows/schedules them in later issues.
+  - Question steps (`choice`, `predict-output`) may carry `hints`: up to 4, gentlest first (nudge → pattern hint → partial → full solution). A write-code, fill-blank, parsons or predict-output step may instead end with a `walkthrough:` (animated full solution plus explanation, see [hints.md](hints.md)), leaving room for 3 hints. Hints and review items are authored and validated now; the app shows/schedules them in later issues.
 - Lessons in a track are ordered by folder name (`01-…`, `02-…`) and unlock in that order.
 - Unknown YAML fields are errors, so typos aren't silently ignored.
 

@@ -55,7 +55,20 @@ public abstract record Step(string Id, string Title) : ContentItem(Id)
     /// Revealed one rung at a time by the hint ladder; each rung used lowers the rating Review infers.
     /// </summary>
     public IReadOnlyList<string> Hints { get; init; } = [];
+
+    /// <summary>
+    /// The reference solution played in the trace player, as the ladder's last rung (the "full solution"). Null when the step has none.
+    /// When present, the step has at most three <see cref="Hints"/>: the walkthrough is the fourth rung.
+    /// </summary>
+    public Walkthrough? Walkthrough { get; init; }
 }
+
+/// <summary>
+/// A reference solution to walk through: the <see cref="Code"/> to run and record (the solution plus a call that exercises it),
+/// the <see cref="Visuals"/> to draw while it runs (may be none: the variables table still shows), and the markdown
+/// <see cref="Explanation"/> of why it works, shown beside the player.
+/// </summary>
+public sealed record Walkthrough(string Code, IReadOnlyList<Visual> Visuals, string Explanation);
 
 /// <summary>Text (markdown), optional code snippets and an optional side-by-side C#↔Python comparison.</summary>
 public sealed record ExplainStep(

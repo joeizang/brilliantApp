@@ -56,7 +56,7 @@
                 <ParsonsStepView Step="parsons" OnAnswered="a => Answered(parsons, a)" OnContinue="() => Complete(step)" />
                 break;
         }
-        <HintLadder Hints="step.Hints" OnRevealed="level => Hinted(step, level)" />
+        <HintLadder Hints="step.Hints" Walkthrough="step.Walkthrough" OnRevealed="level => Hinted(step, level)" />
     </div>
 }
 else

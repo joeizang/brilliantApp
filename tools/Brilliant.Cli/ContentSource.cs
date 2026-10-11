@@ -205,8 +205,11 @@ public static partial class ContentValidator
         if (hints.Count == 0) return [];
         if (dto.Type is not ("choice" or "predict-output" or "write-code" or "fill-blank" or "parsons"))
             report.Add(file, $"{label}: 'hints' only apply to questions (choice, predict-output, write-code, fill-blank or parsons).");
-        if (hints.Count > MaxHints)
-            report.Add(file, $"{label}: at most {MaxHints} hints (nudge, pattern hint, partial, full walkthrough); found {hints.Count}.");
+        var max = dto.Walkthrough is null ? MaxHints : MaxHints - 1;
+        if (hints.Count > max)
+            report.Add(file, dto.Walkthrough is null
+                ? $"{label}: at most {MaxHints} hints (nudge, pattern hint, partial, full solution); found {hints.Count}."
+                : $"{label}: at most {max} hints when there is a 'walkthrough', which is the fourth rung (full solution); found {hints.Count}.");
         for (var i = 0; i < hints.Count; i++)
             if (string.IsNullOrWhiteSpace(hints[i])) report.Add(file, $"{label}: hints[{i}] is empty.");
         return hints.Select(h => h ?? "").ToList();
@@ -224,12 +227,12 @@ public static partial class ContentValidator
         Require(dto.Title, "title", file, report, label);
 
         var hints = LoadHints(dto, label, file, report);
-        if (dto.Type == "choice") return WithHints(LoadChoice(dto, label, file, report, before), hints);
-        if (dto.Type == "predict-output") return WithHints(LoadPredictOutput(dto, label, file, report, before), hints);
-        if (dto.Type == "write-code") return WithHints(LoadWriteCode(dto, label, file, report, before), hints);
-        if (dto.Type == "fill-blank") return WithHints(LoadFillBlank(dto, label, file, report, before), hints);
-        if (dto.Type == "parsons") return WithHints(LoadParsons(dto, label, file, report, before), hints);
-        if (dto.Type == "trace") return LoadTrace(dto, label, file, report, before);
+        if (dto.Type == "choice") return WithHints(RejectWalkthrough(dto, label, file, report, LoadChoice(dto, label, file, report, before)), hints);
+        if (dto.Type == "predict-output") return WithHints(WithWalkthrough(LoadPredictOutput(dto, label, file, report, before), dto, label, file, report), hints);
+        if (dto.Type == "write-code") return WithHints(WithWalkthrough(LoadWriteCode(dto, label, file, report, before), dto, label, file, report), hints);
+        if (dto.Type == "fill-blank") return WithHints(WithWalkthrough(LoadFillBlank(dto, label, file, report, before), dto, label, file, report), hints);
+        if (dto.Type == "parsons") return WithHints(WithWalkthrough(LoadParsons(dto, label, file, report, before), dto, label, file, report), hints);
+        if (dto.Type == "trace") return RejectWalkthrough(dto, label, file, report, LoadTrace(dto, label, file, report, before));
 
         if (dto.Type != "explain")
         {
@@ -237,6 +240,7 @@ public static partial class ContentValidator
             return null;
         }
 
+        RejectWalkthrough(dto, label, file, report, null);
         Require(dto.Body, "body", file, report, label);
 
         var snippets = new List<CodeSnippet>();
@@ -268,6 +272,46 @@ public static partial class ContentValidator
         if (entry is not null) return false;
         report.Add(file, $"{where}: entry is empty; remove the stray '-' or fill it in.");
         return true;
+    }
+
+    /// <summary>Steps that have no solution to run (explanations, choices, traces) can't carry a walkthrough.</summary>
+    private static Step? RejectWalkthrough(StepDto dto, string label, string file, ValidationReport report, Step? step)
+    {
+        if (dto.Walkthrough is not null)
+            report.Add(file, $"{label}: 'walkthrough' only applies to predict-output, write-code, fill-blank or parsons steps, which have code to walk through.");
+        return step;
+    }
+
+    /// <summary>
+    /// Adds the full-solution rung: the step's own reference code (a write-code solution, a Parsons ordering, a fill-in-the-blank
+    /// template with its first accepted answers, a predict-output's code), plus the optional <c>call</c> that exercises it, and
+    /// queues it to be run once so a walkthrough that fails can't ship.
+    /// </summary>
+    private static Step? WithWalkthrough(Step? step, StepDto dto, string label, string file, ValidationReport report)
+    {
+        if (dto.Walkthrough is not { } w || step is null) return step;
+        var where = $"{label}: walkthrough";
+
+        Require(w.Explanation, "explanation", file, report, where);
+        var call = w.Call?.Trim() ?? "";
+        if (step is WriteCodeStep && call.Length == 0)
+            report.Add(file, $"{where}: a write-code walkthrough needs a 'call' that runs the solution, e.g. {dto.Entrypoint}(...).");
+
+        var visuals = LoadVisuals(w.Visualise, where, file, report, missing: null);
+        var reference = step switch
+        {
+            WriteCodeStep => dto.Solution ?? "",
+            ParsonsStep p => string.Join('\n', p.Lines.Select(l => new string(' ', 4 * l.Level) + l.Text)),
+            FillBlankStep f => FillBlankTemplate.Fill(f.Template, id => f.Blanks.First(b => b.Id == id).Accepted[0]),
+            PredictOutputStep predict => predict.Code.Code,
+            _ => "",
+        };
+        if (step is PredictOutputStep { Code.Language: not "python" })
+            report.Add(file, $"{where}: only python code can be walked through.");
+
+        var code = reference.TrimEnd() + "\n" + (call.Length > 0 ? "\n" + call + "\n" : "");
+        report.TraceChecks.Add(new TraceCheck(file, where, code, visuals));
+        return step with { Walkthrough = new Walkthrough(code, visuals, w.Explanation ?? "") };
     }
 
     private static Step? WithHints(Step? step, List<string> hints) =>
@@ -455,13 +499,26 @@ public static partial class ContentValidator
         Require(dto.Body, "body", file, report, label);
         Require(dto.Code, "code", file, report, label);
 
+        var visuals = LoadVisuals(dto.Visualise, label, file, report,
+            missing: $"{label}: a trace step needs at least one entry in 'visualise' (which variable to draw, and how).");
+
+        if (report.Errors.Count != errorsBefore) return null;
+        report.TraceChecks.Add(new TraceCheck(file, label, dto.Code!, visuals));
+        return new TraceStep(dto.Id!, dto.Title!, dto.Body!, dto.Code!, visuals);
+    }
+
+    /// <summary>Reads a <c>visualise</c> list. <paramref name="missing"/> is the error to report when the list is empty, or null when drawing nothing is fine.</summary>
+    private static List<Visual> LoadVisuals(List<VisualDto>? list, string label, string file, ValidationReport report, string? missing)
+    {
         var visuals = new List<Visual>();
-        if (dto.Visualise is null or { Count: 0 })
-            report.Add(file, $"{label}: a trace step needs at least one entry in 'visualise' (which variable to draw, and how).");
+        if (list is null or { Count: 0 })
+        {
+            if (missing is not null) report.Add(file, missing);
+        }
         else
-            for (var i = 0; i < dto.Visualise.Count; i++)
+            for (var i = 0; i < list.Count; i++)
             {
-                var v = dto.Visualise[i];
+                var v = list[i];
                 var where = $"{label}: visualise[{i}]";
                 if (IsEmptyEntry(v, where, file, report)) continue;
                 Require(v.Variable, "variable", file, report, where);
@@ -486,9 +543,7 @@ public static partial class ContentValidator
                 visuals.Add(new Visual(v.Variable ?? "", v.As ?? "", pointers));
             }
 
-        if (report.Errors.Count != errorsBefore) return null;
-        report.TraceChecks.Add(new TraceCheck(file, label, dto.Code!, visuals));
-        return new TraceStep(dto.Id!, dto.Title!, dto.Body!, dto.Code!, visuals);
+        return visuals;
     }
 
     private static readonly Regex PythonIdentifier = new("^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.Compiled);
@@ -497,7 +552,7 @@ public static partial class ContentValidator
     {
         Require(dto.Prompt, "prompt", file, report, label);
         Require(dto.Entrypoint, "entrypoint", file, report, label);
-        Require(dto.Solution, "solution", file, report, label); // authoring-only: proved against the tests, never packed
+        Require(dto.Solution, "solution", file, report, label); // proved against the tests; packed only as part of a 'walkthrough', if the step has one
         if (dto.Language is null) report.Add(file, $"{label}: 'language' is required (supported: python).");
         else if (dto.Language != "python") report.Add(file, $"{label}: unsupported language '{dto.Language}' (supported: python).");
         if (!string.IsNullOrWhiteSpace(dto.Entrypoint) && !PythonIdentifier.IsMatch(dto.Entrypoint))
@@ -610,7 +665,9 @@ public static partial class ContentValidator
         public List<BlankDto>? Blanks { get; set; }
         public List<TestDto>? Tests { get; set; }
         public List<VisualDto>? Visualise { get; set; }
+        public WalkthroughDto? Walkthrough { get; set; }
     }
+    private sealed class WalkthroughDto { public string? Call { get; set; } public List<VisualDto>? Visualise { get; set; } public string? Explanation { get; set; } }
     private sealed class VisualDto { public string? Variable { get; set; } public string? As { get; set; } public List<string>? Pointers { get; set; } }
     private sealed class BlankDto { public string? Id { get; set; } public List<string>? Accepted { get; set; } public List<MistakeDto>? Mistakes { get; set; } }
     private sealed class TestDto { public string? Input { get; set; } public string? Expected { get; set; } }

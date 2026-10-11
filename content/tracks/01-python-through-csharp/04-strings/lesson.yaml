@@ -267,6 +267,13 @@ steps:
       - Split into words, reverse them, then join them again.
       - "`split()` returns a list, and a list can be reversed with the slice `[::-1]`."
       - "`\" \".join(...)` turns the reversed list back into a string."
+    walkthrough:
+      call: result = reverse_words("the sky is blue")
+      explanation: |
+        `sentence.split()` turns the string into a list of words, and splitting on whitespace also swallows any extra spaces between them.
+        `[::-1]` reads that list backwards. `" ".join(...)` glues the words back together with a single space between each.
+
+        Strings are immutable, so every step builds a new value rather than changing the old one.
   - id: step.strings.iteration
     type: explain
     title: Iterating over characters
@@ -434,4 +441,11 @@ steps:
       - Turn the letter into a number from 0 to 25, move it, turn it back.
       - "`ord(ch) - ord(\"a\")` is the letter's position in the alphabet."
       - Add `k`, then use `% 26` to wrap past `"z"`. Add `ord("a")` back before calling `chr`.
-      - '`chr((ord(ch) - ord("a") + k) % 26 + ord("a"))`'
+    walkthrough:
+      call: result = shift_letter("z", 1)
+      explanation: |
+        `ord` turns a letter into its character code, and subtracting `ord("a")` turns that into a position from 0 (`a`) to 25 (`z`).
+        For `"z"` that is `25`.
+
+        Adding `k` gives `26`, which is off the end of the alphabet. `% 26` wraps it back round to `0`. Adding `ord("a")` turns the position
+        into a character code again, and `chr` turns that into the letter: `"a"`.

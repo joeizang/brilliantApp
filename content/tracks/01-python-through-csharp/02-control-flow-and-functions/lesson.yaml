@@ -128,6 +128,14 @@ steps:
       - You need to visit each number from 1 to `n`. Which loop does that?
       - "`range(1, n + 1)` stops *before* its end, so go one past `n`."
       - "`for i in range(1, n + 1): total += i`"
+    walkthrough:
+      call: result = sum_to(4)
+      explanation: |
+        `total` starts at `0` and acts as the running sum. `range(1, n + 1)` produces `1, 2, 3, 4` for `n = 4`: it stops *before* its end,
+        so the `+ 1` is what lets `n` itself be included.
+
+        Each time round the loop, `i` takes the next number and `total += i` adds it on. After the last number the loop ends and `return total`
+        hands back `10`. For `n = 0` the range is empty, the loop body never runs, and `total` stays `0`.
   - id: step.control-flow.while-loops
     type: explain
     title: while loops
@@ -315,6 +323,14 @@ steps:
       - There are three cases. What does the function return in each?
       - Use `if` / `elif` / `else`, and remember `return` hands the value back.
       - "`if value < low: return low`, then `if value > high: return high`, then `return value`."
+    walkthrough:
+      call: result = clamp(15, 0, 10)
+      explanation: |
+        Each `if` guards one way the value can be out of bounds, and `return` leaves the function the moment one of them matches.
+        With `15`, the first test (`15 < 0`) is false, so the code moves on. The second (`15 > 10`) is true, so `10` is returned
+        and the last line never runs.
+
+        A value that is already in range fails both tests and falls through to `return value`. Try the same code with `5` or `-3` to see the other paths.
   - id: step.control-flow.tuples
     type: explain
     title: Tuples
