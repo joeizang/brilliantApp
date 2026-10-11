@@ -45,6 +45,8 @@
   <PropertyGroup>
     <ContentRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..', 'content'))</ContentRoot>
     <ContentPackPath>$(MSBuildThisFileDirectory)Resources\Raw\track-1.pack.zip</ContentPackPath>
+    <!-- Lists the input files, so deleting or renaming one changes an input and the pack is rebuilt (a deleted file is simply absent from @(ContentPackInput), which MSBuild alone can't see). -->
+    <ContentManifestPath>$(BaseIntermediateOutputPath)content-pack.inputs.txt</ContentManifestPath>
     <ContentCliProject>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '..', '..', 'tools', 'Brilliant.Cli', 'Brilliant.Cli.csproj'))</ContentCliProject>
   </PropertyGroup>
 
@@ -57,7 +59,11 @@
     </ItemGroup>
   </Target>
 
-  <Target Name="PackContentCore" Inputs="@(ContentPackInput)" Outputs="$(ContentPackPath)">
+  <Target Name="PackContentManifest">
+    <WriteLinesToFile File="$(ContentManifestPath)" Lines="@(ContentPackInput)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+  </Target>
+
+  <Target Name="PackContentCore" DependsOnTargets="PackContentManifest" Inputs="@(ContentPackInput);$(ContentManifestPath)" Outputs="$(ContentPackPath)">
     <Exec Command="dotnet run --no-launch-profile --project &quot;$(ContentCliProject)&quot; -- pack &quot;$(ContentRoot)&quot; -o &quot;$(ContentPackPath)&quot;" />
   </Target>
 
