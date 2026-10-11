@@ -109,7 +109,7 @@ steps:
     comparison:
       csharp: |
         // A missing key throws on a Dictionary indexer...
-        int n = counts["z"];                    // KeyNotFoundException
+        int n = counts['z'];                    // KeyNotFoundException
 
         // ...so you ask first
         int n2 = counts.GetValueOrDefault('z'); // 0
