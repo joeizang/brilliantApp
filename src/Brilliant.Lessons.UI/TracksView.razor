@@ -35,11 +35,16 @@ else
         </li>
     }
 </ul>
+@if (OnOpenFlagged.HasDelegate)
+{
+    <div class="content-column mb-6"><button class="flagged-link link btn-link text-fg-secondary" @onclick="() => OnOpenFlagged.InvokeAsync()">Flagged steps</button></div>
+}
 
 @code {
     [Parameter, EditorRequired] public ContentGraph Content { get; set; } = default!;
     [Parameter] public EventCallback<Track> OnOpenTrack { get; set; }
     [Parameter] public EventCallback OnOpenReview { get; set; }
+    [Parameter] public EventCallback OnOpenFlagged { get; set; }
 
     /// <summary>Back to Today, when Tracks is reached from there.</summary>
     [Parameter] public EventCallback OnBack { get; set; }

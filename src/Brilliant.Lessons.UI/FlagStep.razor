@@ -1,0 +1,50 @@
+@* A small "flag this step" control under a step. Opens a note box, records StepFlagged on save, and forgets nothing: flags are
+   read back (and exported) from the Flagged steps screen. *@
+@using Brilliant.Core.Progress
+@inject ProgressRecorder Recorder
+
+<div class="flag-step content-column pb-6 text-[.9rem]">
+    @if (_state == FlagState.Saved)
+    {
+        <p class="flag-saved m-0 text-fg-secondary" role="status">⚑ Flagged. It's on the Flagged steps list.</p>
+    }
+    else if (_state == FlagState.Writing)
+    {
+        <div class="flag-form grid gap-2">
+            <label class="font-semibold text-fg-secondary" for="flag-note-@StepId">What's confusing or wrong? (optional)</label>
+            <textarea id="flag-note-@StepId" class="flag-note box-border w-full resize-y rounded-md border border-border bg-surface px-3 py-2 text-[.95rem] leading-[normal] text-fg transition-shadow duration-150 ease-app focus:ring-2 focus:ring-accent focus:outline-none"
+                      rows="3" @bind="_note" @bind:event="oninput"></textarea>
+            <div class="flex items-center gap-4">
+                <button class="flag-save btn-secondary" @onclick="Save">Flag this step</button>
+                <button class="flag-cancel link btn-link" @onclick="Cancel">Cancel</button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <button class="flag-open link btn-link text-fg-secondary" @onclick="() => _state = FlagState.Writing">⚑ Flag this step</button>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string LessonId { get; set; } = default!;
+    [Parameter, EditorRequired] public string StepId { get; set; } = default!;
+
+    private enum FlagState { Idle, Writing, Saved }
+
+    private FlagState _state;
+    private string _note = "";
+
+    private void Save()
+    {
+        Recorder.StepFlagged(LessonId, StepId, _note);
+        _note = "";
+        _state = FlagState.Saved;
+    }
+
+    private void Cancel()
+    {
+        _note = "";
+        _state = FlagState.Idle;
+    }
+}

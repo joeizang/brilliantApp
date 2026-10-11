@@ -57,6 +57,7 @@
                 break;
         }
         <HintLadder Hints="step.Hints" Walkthrough="step.Walkthrough" OnRevealed="level => Hinted(step, level)" />
+        <FlagStep LessonId="@Lesson.Id" StepId="@step.Id" />
     </div>
 }
 else

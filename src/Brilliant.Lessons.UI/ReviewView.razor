@@ -44,6 +44,7 @@
                 break;
         }
         <HintLadder Hints="item.Question.Hints" Walkthrough="item.Question.Walkthrough" Initial="item.AttemptHints" Caption="A hint makes this come back sooner." OnRevealed="level => Hinted(item, level)" />
+        <FlagStep LessonId="@item.Lesson.Id" StepId="@item.Question.Id" />
         @if (_scheduled is { } due)
         {
             <p class="review-next mt-4 text-[.95rem] text-fg-secondary" role="status">You'll see this again @Describe(due - Recorder.Now).</p>

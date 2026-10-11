@@ -105,6 +105,11 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
     /// <summary>Records the start of a daily session that continues with <paramref name="lessonId"/> (null when there is no lesson left).</summary>
     public void StartSession(string? lessonId) => Append(ProgressEventTypes.SessionStarted, lessonId ?? "", "", null);
 
+    /// <summary>Flags a step as confusing or wrong, with an optional note (blank notes are stored as none).</summary>
+    public void StepFlagged(string lessonId, string stepId, string? note = null) =>
+        Append(ProgressEventTypes.StepFlagged, lessonId, stepId,
+            JsonSerializer.Serialize(new { note = string.IsNullOrWhiteSpace(note) ? null : note.Trim() }));
+
     public void CompleteSession() => Append(ProgressEventTypes.SessionCompleted, "", "", null);
 
     private void Append(string type, string lessonId, string stepId, string? data) =>
