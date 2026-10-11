@@ -87,6 +87,39 @@ public class ReviewViewTests : ShortcutContext
     }
 
     [Fact]
+    public void A_review_question_can_be_flagged_against_its_step_without_answering_it()
+    {
+        FinishLesson();
+        var cut = Open();
+
+        cut.Find("button.flag-open").Click();
+        cut.Find("textarea.flag-note").Input("both options look right");
+        cut.Find("button.flag-save").Click();
+
+        var flag = Assert.Single(_log.Items, e => e.Type == ProgressEventTypes.StepFlagged);
+        Assert.Equal(("lesson.l", "step.q1"), (flag.LessonId, flag.StepId));
+        Assert.Equal("both options look right", Data(flag).GetProperty("note").GetString());
+        Assert.Empty(Answers);
+        Assert.Contains("Flagged", cut.Find(".flag-saved").TextContent);
+    }
+
+    [Fact]
+    public void Moving_to_the_next_review_question_offers_a_fresh_flag_control()
+    {
+        FinishLesson();
+        var cut = Open();
+        cut.Find("button.flag-open").Click();
+        cut.Find("button.flag-save").Click();
+
+        Pick(cut, "right");
+        cut.Find("button.primary").Click();   // Continue
+
+        Assert.Contains("Question step.q2", cut.Markup);
+        Assert.NotEmpty(cut.FindAll("button.flag-open"));
+        Assert.Empty(cut.FindAll(".flag-saved"));
+    }
+
+    [Fact]
     public void A_quick_correct_answer_is_recorded_as_easy_and_not_as_lesson_progress()
     {
         FinishLesson();
