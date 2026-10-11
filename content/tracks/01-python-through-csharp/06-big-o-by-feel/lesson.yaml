@@ -1,0 +1,378 @@
+id: lesson.big-o-by-feel
+title: Big-O by feel
+concepts:
+  - id: concept.growth-rate
+    title: How work grows with the input
+  - id: concept.nested-loops
+    title: Nested loops multiply
+  - id: concept.membership-cost
+    title: in on a list vs a set
+  - id: concept.hashable
+    title: Hashable keys
+reviewItems:
+  - id: review.bigo.doubling
+    concept: concept.growth-rate
+    step: step.bigo.check-doubling
+  - id: review.bigo.nested-square
+    concept: concept.nested-loops
+    step: step.bigo.predict-nested
+  - id: review.bigo.triangle
+    concept: concept.nested-loops
+    step: step.bigo.predict-triangle
+  - id: review.bigo.which-quadratic
+    concept: concept.nested-loops
+    step: step.bigo.check-quadratic
+  - id: review.bigo.many-lookups
+    concept: concept.membership-cost
+    step: step.bigo.check-many-lookups
+    kind: pattern
+  - id: review.bigo.unhashable
+    concept: concept.hashable
+    step: step.bigo.check-unhashable
+steps:
+  - id: step.bigo.steps
+    type: explain
+    title: Count steps, not seconds
+    body: |
+      How fast is a piece of code? Stopwatch time depends on the machine, so we count **steps** instead and ask one
+      question: *when the input gets bigger, how fast does the number of steps grow?*
+
+      Call the size of the input `n`. Three shapes cover most of what you'll meet in interviews:
+
+      - **Constant, `O(1)`**: the work doesn't depend on `n`. `nums[5]` takes one step in a list of 10 or of 10 million.
+      - **Linear, `O(n)`**: the work grows in step with `n`. Looking at every item once is `n` steps.
+      - **Quadratic, `O(n²)`**: the work grows with `n` times `n`. Compare every item with every other item.
+
+      Read `O(...)` as "grows like". You ignore small details: `2n + 7` steps still grows like `n`. You are after the
+      *feel* for the shape, which is what tells you whether a solution will hold up on a big input.
+  - id: step.bigo.check-doubling
+    type: choice
+    title: Check your understanding
+    prompt: |
+      A function takes **linear** time, `O(n)`. You give it twice as many items. Roughly how does the work change?
+    options:
+      - text: It doubles.
+        correct: true
+        feedback: Right. Linear means the work grows in proportion to the input, so twice the items is twice the work.
+      - text: It stays about the same.
+        correct: false
+        feedback: That is constant time, `O(1)`. A linear function has to look at the extra items.
+      - text: It quadruples.
+        correct: false
+        feedback: That is what happens with `O(n²)`, where doubling `n` makes `n × n` four times bigger.
+      - text: It goes up by a fixed amount.
+        correct: false
+        feedback: Linear work grows by a *share* of the input size, so a bigger input adds a bigger amount.
+    hints:
+      - Linear means "in proportion to the input".
+      - If the input is twice as big, and work is in proportion, what happens to the work?
+  - id: step.bigo.trace-scan
+    type: trace
+    title: Watch a scan
+    body: |
+      This loop looks for `target` by checking each cell from the left. Step through it and watch `steps`, which counts the
+      cells it has looked at. It found `4` after four looks. If `4` were missing it would look at **all five**, and with a
+      million items, a million. That is linear time: the work grows with the length of the list.
+    code: |
+      nums = [7, 3, 9, 4, 1]
+      target = 4
+      steps = 0
+      i = 0
+      while i < len(nums):
+          steps += 1
+          if nums[i] == target:
+              break
+          i += 1
+    visualise:
+      - variable: nums
+        as: array
+        pointers: [i]
+  - id: step.bigo.nested
+    type: explain
+    title: Loops inside loops
+    body: |
+      A loop that runs `n` times is linear. Put a second loop of `n` iterations **inside** it, and the inner body runs
+      `n × n` times: that is quadratic.
+
+      The tell-tale shape is a loop over the data inside a loop over the same data, which is how you compare every
+      item with every other. With 1,000 items that is a million steps; with 100,000 it is ten billion, and your
+      program stops being usable.
+
+      Two loops *one after the other* are different: `n + n` is still linear.
+  - id: step.bigo.predict-nested
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      count = 0
+      for i in range(4):
+          for j in range(4):
+              count += 1
+      print(count)
+    accepted:
+      - "16"
+    mistakes:
+      - answers:
+          - "8"
+        feedback: 4 + 4 is what you'd get from two loops one after the other. Here the inner loop runs in full for *each* pass of the outer loop.
+      - answers:
+          - "4"
+        feedback: That is how many times the outer loop runs. The inner loop runs 4 times for each of those.
+    hints:
+      - How many times does the inner loop run each time the outer one goes round?
+      - The outer loop runs 4 times, and each time the inner loop runs 4 times.
+  - id: step.bigo.predict-triangle
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      count = 0
+      for i in range(4):
+          for j in range(i):
+              count += 1
+      print(count)
+    accepted:
+      - "6"
+    mistakes:
+      - answers:
+          - "16"
+        feedback: The inner loop is `range(i)`, so it runs fewer times on the early passes. It isn't a full 4 every time.
+      - answers:
+          - "10"
+        feedback: "That would need `range(i + 1)`. Here the inner loop runs `i` times, and `i` starts at 0."
+      - answers:
+          - "4"
+        feedback: The inner loop runs more than once for most values of i. Add up the passes for each `i`.
+    hints:
+      - The inner loop runs `i` times. What is `i` on each pass of the outer loop?
+      - "`i` is 0, 1, 2, 3, so the inner loop runs 0, 1, 2 and 3 times."
+      - "0 + 1 + 2 + 3 = 6. Even this \"half a square\" still grows like `n²`."
+  - id: step.bigo.check-quadratic
+    type: predict-output
+    title: Spot the quadratic one
+    prompt: Which function does work that grows like n²?
+    code: |
+      def a(nums):
+          total = 0
+          for n in nums:
+              total += n
+          return total
+
+      def b(nums):
+          pairs = 0
+          for x in nums:
+              for y in nums:
+                  if x < y:
+                      pairs += 1
+          return pairs
+
+      def c(nums):
+          return nums[0] + nums[-1]
+    options:
+      - text: b, because it loops over `nums` inside a loop over `nums`.
+        correct: true
+        feedback: Right. The inner body runs once for each pair, which is `n × n` times.
+      - text: a, because it adds up every number.
+        correct: false
+        feedback: "`a` visits each item once. That is linear, `O(n)`."
+      - text: c, because it adds two numbers.
+        correct: false
+        feedback: "`c` looks only at the first and last item, however long the list is. That is constant, `O(1)`."
+      - text: All three do the same amount of work.
+        correct: false
+        feedback: Their work grows differently as the list gets longer. That is exactly what Big-O tells apart.
+    hints:
+      - Look for a loop over the data inside another loop over the data.
+      - "`a` has one loop, `c` has none. How many has `b`?"
+  - id: step.bigo.membership
+    type: explain
+    title: Why a set is quick
+    body: |
+      `x in nums` on a **list** is the scan you just watched. Python checks the items one after another until it finds
+      `x`, so it can take `n` steps. Do it inside a loop and you have a hidden quadratic.
+
+      `x in seen` on a **set** (or `k in d` on a dict) is different. The set runs the value through a **hash function**,
+      which turns it into a number that says which slot to look in. It goes straight to that slot instead of searching, so
+      the cost doesn't grow with the size of the set: it is `O(1)` on average. This is the engine behind `HashSet<T>` and
+      `Dictionary<K,V>` in C#, which use `GetHashCode()` in the same way.
+
+      The price is that you have to build the set first (one pass, `O(n)`), and the values must be **hashable**: a
+      number, string or tuple is fine, but a **list** is not, because it can change and its hash would go stale.
+      That is the single most useful trick in this track: *to make repeated lookups quick, put the data in a set or dict.*
+    comparison:
+      csharp: |
+        bool slow = list.Contains(x);      // scans, O(n)
+        var seen = new HashSet<int>(list);
+        bool fast = seen.Contains(x);      // hashes, O(1)
+      python: |
+        slow = x in nums       # scans, O(n)
+        seen = set(nums)
+        fast = x in seen       # hashes, O(1)
+  - id: step.bigo.trace-set
+    type: trace
+    title: Watch a set lookup
+    body: |
+      The set `seen` is built once from the list. After that, each `in` goes straight to the answer: the arrow `target`
+      lands on its row, or finds no such key. There is no loop and no scan. Notice how few steps this takes, however many
+      members the set has.
+    code: |
+      nums = [7, 3, 9, 4, 1]
+      seen = set(nums)
+      target = 4
+      found = target in seen
+      target = 8
+      found = target in seen
+    visualise:
+      - variable: seen
+        as: set
+        pointers: [target]
+  - id: step.bigo.check-many-lookups
+    type: choice
+    title: Which fits the problem?
+    prompt: |
+      You have a list of 100,000 banned user IDs, and you must check 100,000 incoming IDs against it, one by one.
+      What should you do?
+    options:
+      - text: Put the banned IDs in a set once, then check each incoming ID with `in`.
+        correct: true
+        feedback: Right. One pass to build the set, then each check is quick. The total work is linear.
+      - text: Check each incoming ID with `in` on the banned list.
+        correct: false
+        feedback: Each check can scan up to 100,000 IDs, and you do 100,000 checks. That is about ten billion steps.
+      - text: Sort the banned list first, then check each incoming ID with `in`.
+        correct: false
+        feedback: "`in` on a list always scans from the start, sorted or not. Sorting adds work and doesn't make the check quicker."
+      - text: Compare the two lists with nested loops.
+        correct: false
+        feedback: Nested loops over both lists are quadratic, the very cost a set avoids.
+    hints:
+      - You are asking "is this ID in the collection?" many times.
+      - Which collection answers that question fastest?
+  - id: step.bigo.check-unhashable
+    type: predict-output
+    title: Check your understanding
+    prompt: What happens when this runs?
+    code: |
+      seen = set()
+      seen.add([1, 2])
+    options:
+      - text: It raises a TypeError, because a list isn't hashable.
+        correct: true
+        feedback: Right. A list can change, so it can't be given a stable hash. Use a tuple, `(1, 2)`, instead.
+      - text: It adds the list as one member.
+        correct: false
+        feedback: Set members must be hashable, and a list isn't.
+      - text: It adds 1 and 2 as two members.
+        correct: false
+        feedback: "`add` takes one value. To add each item of a list, use `update`."
+      - text: It raises a KeyError.
+        correct: false
+        feedback: "`KeyError` comes from looking up a missing dict key. Here the problem is the type of the value."
+    hints:
+      - A set needs a hash for every member. Can the value of a list change?
+      - Lists are mutable, and mutable values aren't hashable.
+  - id: step.bigo.fill-set
+    type: fill-blank
+    title: Make the lookups quick
+    prompt: |
+      Fill in the blanks so that `hits` counts the colours in `colors` that are allowed. Build the lookup once, then
+      test each colour against it.
+    template: |
+      colors = ["red", "green", "blue", "red", "pink", "blue"]
+      allowed = {{build}}(["red", "blue"])
+      hits = 0
+      for color in colors:
+          if color {{test}} allowed:
+              hits += 1
+    blanks:
+      - id: build
+        accepted:
+          - set
+        mistakes:
+          - answers:
+              - list
+            feedback: "A list works with `in`, but it scans item by item. We want a set, which jumps to the answer."
+          - answers:
+              - dict
+            feedback: "A dict needs keys and values. `dict([\"red\", \"blue\"])` is an error. A set holds plain values."
+      - id: test
+        accepted:
+          - in
+        mistakes:
+          - answers:
+              - not in
+            feedback: That counts the colours that are *not* allowed.
+          - answers:
+              - "=="
+            feedback: "`==` compares a colour with the whole set, which is never equal. Ask whether it is a member with `in`."
+    hints:
+      - The first blank turns a list into the structure that answers "is it in here?" fastest.
+      - The second blank is the operator that tests membership.
+      - Build with `set`, then test with `in`.
+  - id: step.bigo.order-dedupe
+    type: parsons
+    title: Put the loop in order
+    prompt: |
+      Arrange these lines into a function `dedupe(items)` that returns the items with repeats removed, keeping the
+      first of each and the original order. The `seen` set makes each check quick.
+    solution: |
+      def dedupe(items):
+          seen = set()
+          result = []
+          for x in items:
+              if x not in seen:
+                  seen.add(x)
+                  result.append(x)
+          return result
+    hints:
+      - Both containers have to exist before the loop.
+      - Inside the loop, only a value not seen before is remembered and kept.
+      - "Order: `def`, `seen = set()`, `result = []`, `for`, `if x not in seen:`, then `seen.add(x)` and `result.append(x)` under the `if`, and `return result` last."
+  - id: step.bigo.write-count-in-both
+    type: write-code
+    title: Write a function
+    prompt: |
+      Write `count_in_both(a, b)`, which returns how many items of `a` also appear in `b`. Repeats in `a` count each
+      time, so `count_in_both([1, 2, 2, 3], [2, 3, 4])` is `3`.
+
+      Keep it quick: the lists can be long, so don't search `b` from the start for every item of `a`.
+    language: python
+    entrypoint: count_in_both
+    starter: |
+      def count_in_both(a, b):
+          pass
+    solution: |
+      def count_in_both(a, b):
+          lookup = set(b)
+          total = 0
+          for x in a:
+              if x in lookup:
+                  total += 1
+          return total
+    tests:
+      - input: "[1, 2, 2, 3], [2, 3, 4]"
+        expected: "3"
+      - input: "[], [1]"
+        expected: "0"
+      - input: "[1], []"
+        expected: "0"
+      - input: "[5, 5, 5], [5]"
+        expected: "3"
+      - input: "list(range(5000)), list(range(2500, 7500))"
+        expected: "2500"
+    hints:
+      - You will test each item of `a` against `b` many times. What can you build from `b` once to make that quick?
+      - "`lookup = set(b)` first, then loop over `a` and use `x in lookup`."
+      - Keep a running `total` and add 1 each time `x in lookup`.
+    walkthrough:
+      call: result = count_in_both([1, 2, 2, 3], [2, 3, 4])
+      visualise:
+        - variable: lookup
+          as: set
+          pointers: [x]
+      explanation: |
+        `set(b)` is built once, in one pass over `b`. After that, each `x in lookup` goes straight to the answer instead of
+        scanning `b`, so the whole function does about `len(a) + len(b)` steps instead of `len(a) × len(b)`.
+
+        The arrow marks the item being tested: `1` finds no such row, so it isn't counted, while both `2`s and the `3` land on
+        rows in the set. That makes `total` 3. Repeats in `a` are counted every time, because the loop visits each one.

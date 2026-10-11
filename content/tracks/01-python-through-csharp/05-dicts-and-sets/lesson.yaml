@@ -1,0 +1,437 @@
+id: lesson.dicts-and-sets
+title: Dicts & sets
+concepts:
+  - id: concept.dict-lookup
+    title: Dict lookup and KeyError
+  - id: concept.dict-get
+    title: get with a default
+  - id: concept.dict-iteration
+    title: Iterating over a dict
+  - id: concept.set-uniqueness
+    title: Sets hold each item once
+  - id: concept.counter-defaultdict
+    title: Counting with Counter and defaultdict
+reviewItems:
+  - id: review.dicts.missing-key
+    concept: concept.dict-lookup
+    step: step.dicts.check-key-error
+  - id: review.dicts.get-default
+    concept: concept.dict-get
+    step: step.dicts.predict-get
+  - id: review.dicts.items-order
+    concept: concept.dict-iteration
+    step: step.dicts.predict-items
+  - id: review.dicts.set-unique
+    concept: concept.set-uniqueness
+    step: step.dicts.predict-set
+  - id: review.dicts.empty-set
+    concept: concept.set-uniqueness
+    step: step.dicts.check-empty-set
+  - id: review.dicts.counter
+    concept: concept.counter-defaultdict
+    step: step.dicts.predict-counter
+steps:
+  - id: step.dicts.dict
+    type: explain
+    title: A dict is a Dictionary
+    body: |
+      A Python **dict** maps keys to values, just like C#'s `Dictionary<TKey, TValue>`. You write one with curly
+      braces and `key: value` pairs, and read or write an entry with `d[key]`.
+
+      Two differences are worth knowing now:
+
+      - **Assigning to a key adds it or replaces it.** There is no `Add` that throws when the key already exists.
+      - **A dict remembers insertion order.** Looping over it gives the entries in the order they were first added.
+
+      Reading a key that isn't there raises a **`KeyError`**, the cousin of C#'s `KeyNotFoundException`.
+    comparison:
+      csharp: |
+        var ages = new Dictionary<string, int> { ["ana"] = 31, ["bo"] = 25 };
+        ages["cy"] = 40;
+        int n = ages["ana"];
+        int count = ages.Count;
+      python: |
+        ages = {"ana": 31, "bo": 25}
+        ages["cy"] = 40
+        n = ages["ana"]
+        count = len(ages)
+  - id: step.dicts.trace-count
+    type: trace
+    title: Watch a dict fill up
+    body: |
+      This loop counts how often each word appears. Step through it. The arrow labelled `w` points at the row for the
+      word being looked at; when no row has that key yet, the player says so, and the next line adds one.
+      Each repeat finds its row and bumps the number.
+    code: |
+      words = ["red", "blue", "red"]
+      counts = {}
+      for w in words:
+          if w in counts:
+              counts[w] += 1
+          else:
+              counts[w] = 1
+    visualise:
+      - variable: words
+        as: array
+      - variable: counts
+        as: dict
+        pointers: [w]
+  - id: step.dicts.check-key-error
+    type: choice
+    title: Check your understanding
+    prompt: |
+      `ages = {"ana": 31, "bo": 25}`. What happens when you evaluate `ages["cy"]`?
+    options:
+      - text: It raises a KeyError.
+        correct: true
+        feedback: Right. Reading a key that isn't in the dict is an error, not a quiet default.
+      - text: It gives None.
+        correct: false
+        feedback: "`ages[\"cy\"]` never returns None for a missing key. (`ages.get(\"cy\")` does, which is the next step.)"
+      - text: It gives 0.
+        correct: false
+        feedback: A dict has no built-in default value. You have to ask for one.
+      - text: It adds "cy" to the dict with an empty value.
+        correct: false
+        feedback: Only assigning (`ages["cy"] = ...`) adds a key. Reading never changes the dict.
+    hints:
+      - Is "cy" one of the keys?
+      - Reading a key that is missing raises an error, as `KeyNotFoundException` does in C#.
+  - id: step.dicts.get
+    type: explain
+    title: Looking up safely
+    body: |
+      Most of the time you don't know if a key is there. Three tools cover it:
+
+      - `key in d` is `True` if the key exists. It checks **keys**, never values.
+      - `d.get(key)` returns the value, or `None` if the key is missing.
+      - `d.get(key, default)` returns `default` instead of `None`. This is C#'s `GetValueOrDefault`.
+
+      To walk a dict, `for k in d` gives the keys, `d.values()` the values and `d.items()` both, as `(key, value)` pairs
+      that you can unpack in the loop header.
+    comparison:
+      csharp: |
+        int age = ages.GetValueOrDefault("cy", 0);
+        bool known = ages.ContainsKey("cy");
+        foreach (var (name, years) in ages)
+        {
+            Console.WriteLine($"{name} {years}");
+        }
+      python: |
+        age = ages.get("cy", 0)
+        known = "cy" in ages
+        for name, years in ages.items():
+            print(name, years)
+  - id: step.dicts.predict-get
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      stock = {"apple": 3}
+      print(stock.get("apple", 0), stock.get("pear", 0), "pear" in stock)
+    accepted:
+      - "3 0 False"
+    mistakes:
+      - answers:
+          - "3 None False"
+        feedback: The second argument to `get` is the default. Since it is given, a missing key gives `0`, not `None`.
+      - answers:
+          - "3 0 True"
+        feedback: "`in` asks whether \"pear\" is a key. It is not, and `get` didn't add it, so the answer is `False`."
+      - regex: "(?i)error"
+        feedback: "`get` never raises for a missing key. That is the point of using it instead of `stock[...]`."
+    hints:
+      - "`get(key, default)` gives the value when the key exists and the default when it doesn't."
+      - Does `get` add the key it didn't find?
+      - "`stock.get(\"pear\", 0)` is `0`, and `\"pear\" in stock` is `False`."
+  - id: step.dicts.predict-items
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print? Put each printed line on its own line.
+    code: |
+      ages = {"ana": 31, "bo": 25}
+      ages["bo"] = 26
+      ages["cy"] = 40
+      for name, age in ages.items():
+          print(name, age)
+    accepted:
+      - "ana 31\nbo 26\ncy 40"
+    mistakes:
+      - answers:
+          - "ana 31\nbo 25\ncy 40"
+        feedback: Assigning to a key that already exists replaces its value, so `bo` is now 26.
+      - answers:
+          - "ana 31\nbo 25\nbo 26\ncy 40"
+        feedback: A dict holds one value per key. Assigning to `bo` again overwrites the old entry; it doesn't add a second one.
+      - answers:
+          - "cy 40\nbo 26\nana 31"
+        feedback: A dict keeps insertion order. `ana` was added first, so it comes first.
+      - answers:
+          - "ana\nbo\ncy"
+        feedback: "`.items()` gives each key *and* its value, and the loop prints both."
+    hints:
+      - Work out what `ages` holds after the two assignments.
+      - "`ages[\"bo\"] = 26` replaces an existing entry. `ages[\"cy\"] = 40` adds a new one at the end."
+      - The loop runs in insertion order, one line per entry, with the name and the age separated by a space.
+  - id: step.dicts.fill-count
+    type: fill-blank
+    title: Complete the counting loop
+    prompt: |
+      Fill in the blanks so that `counts` ends up holding how many times each letter appears in `"banana"`.
+      A letter not seen yet should count as 0 before adding 1.
+    template: |
+      counts = {}
+      for ch in "banana":
+          counts[ch] = counts.{{method}}(ch, {{default}}) + 1
+    blanks:
+      - id: method
+        accepted:
+          - get
+          - setdefault
+        mistakes:
+          - answers:
+              - pop
+            feedback: "`pop` removes the key. You want to read the current count without touching the entry."
+          - answers:
+              - items
+            feedback: "`items()` lists every pair and takes no key. You need a method that looks up one key."
+      - id: default
+        accepted:
+          - "0"
+        mistakes:
+          - answers:
+              - "1"
+            feedback: A letter's first sighting would then count as 2, because the loop adds 1 to the default.
+          - answers:
+              - "None"
+            feedback: "`None + 1` raises a TypeError. The default must be a number."
+    hints:
+      - The method reads a key and falls back to a default when it is missing.
+      - "`counts.get(ch, ...)` reads the count so far. What is the count for a letter we haven't seen?"
+      - The method is `get`. The default is the number of times a new letter has been seen so far.
+  - id: step.dicts.sets
+    type: explain
+    title: Sets
+    body: |
+      A **set** is a bag of values in which **each value appears once**. It is C#'s `HashSet<T>`. Write one with curly
+      braces and no colons, or build one from any sequence with `set(...)`, which drops the repeats.
+
+      - `x in s` asks whether `x` is a member, and is quick (the next lesson explains why)
+      - `s.add(x)` adds a member; adding one that is already there changes nothing
+      - `a & b` is the items in both, `a | b` the items in either, `a - b` the items only in `a`
+      - A set has **no order and no indexes**: `s[0]` is a TypeError
+
+      Watch out: `{}` is an empty **dict**, not an empty set. Write `set()` for the empty set.
+    comparison:
+      csharp: |
+        var seen = new HashSet<int> { 3, 1, 2 };
+        seen.Add(2);
+        bool has = seen.Contains(3);
+        var both = new HashSet<int>(a);
+        both.IntersectWith(b);
+      python: |
+        seen = {3, 1, 2}
+        seen.add(2)
+        has = 3 in seen
+        both = a & b
+  - id: step.dicts.trace-set
+    type: trace
+    title: Watch a set ignore repeats
+    body: |
+      Step through this loop. The set `seen` starts empty and the arrow `x` marks the value being added. The first `3`
+      and the first `1` each add a row. When the repeats come round, the row is already there, so `add` changes nothing.
+    code: |
+      nums = [3, 1, 3, 2, 1]
+      seen = set()
+      for x in nums:
+          seen.add(x)
+    visualise:
+      - variable: nums
+        as: array
+      - variable: seen
+        as: set
+        pointers: [x]
+  - id: step.dicts.predict-set
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      nums = [3, 1, 3, 2, 1]
+      unique = set(nums)
+      unique.add(2)
+      unique.add(9)
+      print(len(unique))
+    accepted:
+      - "4"
+    mistakes:
+      - answers:
+          - "5"
+        feedback: "`set(nums)` already dropped the repeats, so it is smaller than the list. Count only the different values."
+      - answers:
+          - "3"
+        feedback: "That is the set before the two `add` calls. `9` is new, so it grows by one; `2` is already there."
+      - answers:
+          - "7"
+        feedback: Adding a value that is already a member changes nothing, so `add(2)` doesn't count.
+    hints:
+      - What are the different values in `[3, 1, 3, 2, 1]`?
+      - "`add(2)` does nothing because 2 is already a member. `add(9)` adds a new member."
+      - The members are 1, 2, 3 and 9.
+  - id: step.dicts.check-empty-set
+    type: choice
+    title: Check your understanding
+    prompt: Which line creates an **empty set**?
+    options:
+      - text: seen = set()
+        correct: true
+        feedback: Right. `set()` with nothing inside is the empty set.
+      - text: seen = {}
+        correct: false
+        feedback: Curly braces with nothing inside make an empty **dict**. This is the classic trap.
+      - text: seen = []
+        correct: false
+        feedback: Square brackets make a list.
+      - text: seen = HashSet()
+        correct: false
+        feedback: "`HashSet` is the C# name. Python's is `set`, and it is built in."
+    hints:
+      - Empty curly braces already mean something else.
+      - Look for the option that calls the type by name.
+  - id: step.dicts.counters
+    type: explain
+    title: Counter and defaultdict
+    body: |
+      Counting is so common that Python's standard library has two shortcuts, both in `collections`:
+
+      - **`Counter(items)`** counts every item in one call and gives back a dict-like object. Asking it for something
+        it has never seen gives `0` instead of raising an error. `c.most_common(1)` gives the top entry.
+      - **`defaultdict(int)`** is a dict that creates a missing entry with `int()`, which is `0`, the first time you
+        read it. That lets you write `counts[w] += 1` without checking first. `defaultdict(list)` starts new entries as
+        empty lists, which you'll use to group items.
+
+      In C# the one-liner is `words.GroupBy(w => w).ToDictionary(g => g.Key, g => g.Count())`.
+    comparison:
+      csharp: |
+        var counts = words
+            .GroupBy(w => w)
+            .ToDictionary(g => g.Key, g => g.Count());
+      python: |
+        from collections import Counter
+        counts = Counter(words)
+  - id: step.dicts.predict-counter
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      from collections import Counter
+      c = Counter("banana")
+      print(c["a"], c["n"], c["z"])
+    accepted:
+      - "3 2 0"
+    mistakes:
+      - answers:
+          - "1 1 0"
+        feedback: A `Counter` counts every occurrence, not just whether a letter appears. "banana" has three a's.
+      - answers:
+          - "3 2 None"
+        feedback: A `Counter` gives `0` for something it has never seen, not `None`.
+      - regex: "(?i)error"
+        feedback: Unlike a plain dict, a `Counter` doesn't raise a KeyError for a missing key. It reports a count of 0.
+    hints:
+      - Count the letters in "banana" one at a time.
+      - "`z` never appears. What does a `Counter` give for something it hasn't seen?"
+      - There are three a's, two n's and no z's.
+  - id: step.dicts.order-count-words
+    type: parsons
+    title: Put the loop in order
+    prompt: |
+      Arrange these lines into a function `count_words(words)` that returns a dict of how many times each word appears.
+    solution: |
+      def count_words(words):
+          counts = {}
+          for w in words:
+              counts[w] = counts.get(w, 0) + 1
+          return counts
+    hints:
+      - The empty dict has to exist before the loop starts adding to it.
+      - "`return counts` runs once the loop has finished, so it lines up with `for`."
+      - "Order: `def`, `counts = {}`, `for`, the `counts[w] = ...` line (indented under the `for`), then `return counts`."
+  - id: step.dicts.write-word-counts
+    type: write-code
+    title: Write a function
+    prompt: |
+      Write `word_counts(words)`, which returns a dict mapping each word in the list to how many times it appears.
+      For example `word_counts(["a", "b", "a"])` is `{"a": 2, "b": 1}`. An empty list gives an empty dict.
+    language: python
+    entrypoint: word_counts
+    starter: |
+      def word_counts(words):
+          pass
+    solution: |
+      def word_counts(words):
+          counts = {}
+          for word in words:
+              counts[word] = counts.get(word, 0) + 1
+          return counts
+    tests:
+      - input: '["a", "b", "a"]'
+        expected: '{"a": 2, "b": 1}'
+      - input: "[]"
+        expected: "{}"
+      - input: '["x"] * 3'
+        expected: '{"x": 3}'
+      - input: '["to", "be", "or", "not", "to", "be"]'
+        expected: '{"to": 2, "be": 2, "or": 1, "not": 1}'
+    hints:
+      - Start with an empty dict and look at each word in turn.
+      - "For each word, the new count is the old count plus one. `counts.get(word, 0)` gives the old count, or 0 if the word is new."
+      - "`counts[word] = counts.get(word, 0) + 1`, then return `counts` after the loop."
+    walkthrough:
+      call: result = word_counts(["red", "blue", "red"])
+      visualise:
+        - variable: counts
+          as: dict
+          pointers: [word]
+      explanation: |
+        `counts` starts empty. For each `word`, `counts.get(word, 0)` reads the count so far, giving `0` the first time the
+        word shows up, and `+ 1` makes it the new count. Assigning it back adds the row the first time and updates it after that.
+
+        The arrow marks the word being looked up. `red` finds no row at first, so a row appears with `1`; the second `red` finds
+        it and the count becomes `2`. The empty list works with no special case: the loop never runs and the empty dict comes back.
+  - id: step.dicts.write-shared
+    type: write-code
+    title: Write a function with sets
+    prompt: |
+      Write `shared(a, b)`, which returns a **sorted list** of the values that appear in both lists, each once.
+      For example `shared([1, 2, 2, 3], [2, 3, 4])` is `[2, 3]`.
+    language: python
+    entrypoint: shared
+    starter: |
+      def shared(a, b):
+          pass
+    solution: |
+      def shared(a, b):
+          both = set(a) & set(b)
+          return sorted(both)
+    tests:
+      - input: "[1, 2, 2, 3], [2, 3, 4]"
+        expected: "[2, 3]"
+      - input: "[1, 1, 2], [1]"
+        expected: "[1]"
+      - input: "[], [1, 2]"
+        expected: "[]"
+      - input: '["x", "y"], ["y", "x", "z"]'
+        expected: '["x", "y"]'
+    hints:
+      - Sets can answer "which items are in both?" in one operation.
+      - "`set(a) & set(b)` is the items in both. A set has no order, so use `sorted(...)` to get a list."
+    walkthrough:
+      call: result = shared([1, 2, 2, 3], [2, 3, 4])
+      visualise:
+        - variable: both
+          as: set
+      explanation: |
+        `set(a)` and `set(b)` drop the repeats from each list, and `&` keeps only the members that are in both sets. That is the
+        set `both`, which you can see appear on the last line of the function.
+
+        A set has no order, so `sorted(both)` turns it into a list in ascending order. That also makes the answer the same every time.
