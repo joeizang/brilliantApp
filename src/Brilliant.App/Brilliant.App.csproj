@@ -31,8 +31,44 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Content Packs built by scripts/pack-content.sh are bundled as raw assets. -->
+    <!-- Content Packs are bundled as raw assets. -->
     <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!--
+    The pack is rebuilt from ./content whenever a lesson file changes, so a build never ships stale lessons.
+    PackContentOuter runs once before a multi-target build fans out (so the two target frameworks don't race to write
+    the same file, and the asset glob above sees the file). PackContent covers `dotnet build -f <tfm>`, where there is no
+    outer build; after PackContentOuter it finds the pack up to date and skips.
+    scripts/pack-content.sh still works for running the pack by hand.
+  -->
+  <PropertyGroup>
+    <ContentRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..', 'content'))</ContentRoot>
+    <ContentPackPath>$(MSBuildThisFileDirectory)Resources\Raw\track-1.pack.zip</ContentPackPath>
+    <!-- Lists the input files, so deleting or renaming one changes an input and the pack is rebuilt (a deleted file is simply absent from @(ContentPackInput), which MSBuild alone can't see). -->
+    <ContentManifestPath>$(BaseIntermediateOutputPath)content-pack.inputs.txt</ContentManifestPath>
+    <ContentCliProject>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '..', '..', 'tools', 'Brilliant.Cli', 'Brilliant.Cli.csproj'))</ContentCliProject>
+  </PropertyGroup>
+
+  <Target Name="PackContentOuter" BeforeTargets="DispatchToInnerBuilds" DependsOnTargets="PackContentCore" />
+
+  <Target Name="PackContent" BeforeTargets="PrepareForBuild" Condition="'$(TargetFramework)' != ''" DependsOnTargets="PackContentCore">
+    <ItemGroup>
+      <MauiAsset Remove="$(ContentPackPath)" />
+      <MauiAsset Include="$(ContentPackPath)" LogicalName="track-1.pack.zip" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="PackContentManifest">
+    <WriteLinesToFile File="$(ContentManifestPath)" Lines="@(ContentPackInput)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+  </Target>
+
+  <Target Name="PackContentCore" DependsOnTargets="PackContentManifest" Inputs="@(ContentPackInput);$(ContentManifestPath)" Outputs="$(ContentPackPath)">
+    <Exec Command="dotnet run --no-launch-profile --project &quot;$(ContentCliProject)&quot; -- pack &quot;$(ContentRoot)&quot; -o &quot;$(ContentPackPath)&quot;" />
+  </Target>
+
+  <ItemGroup>
+    <ContentPackInput Include="$(ContentRoot)**\*.yaml;$(ContentRoot)**\*.md" />
   </ItemGroup>
 
 </Project>

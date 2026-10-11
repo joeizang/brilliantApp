@@ -31,7 +31,8 @@ dotnet test tests/Brilliant.Core.Tests && dotnet test tests/Brilliant.Cli.Tests
 # validate content; prints readable errors (file + message) and exits 1 on bad content
 dotnet run --project tools/Brilliant.Cli -- validate content
 
-# validate + build the versioned Content Pack into the app's bundled assets
+# build the versioned Content Pack into the app's bundled assets by hand
+# (building src/Brilliant.App does this automatically whenever a file under content/ is newer than the pack)
 scripts/pack-content.sh
 
 # run the app
