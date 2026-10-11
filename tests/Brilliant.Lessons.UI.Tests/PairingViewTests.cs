@@ -106,6 +106,19 @@ public class PairingViewTests : BunitContext
     }
 
     [Fact]
+    public void The_device_name_starts_as_the_machine_name()
+    {
+        Assert.Equal(Environment.MachineName, Open().Find("input.pair-name").GetAttribute("value"));
+    }
+
+    [Fact]
+    public void A_host_can_suggest_a_better_device_name()
+    {
+        Services.AddSingleton(new DeviceLabel("Pixel 9"));   // an Android phone calls itself "localhost"
+        Assert.Equal("Pixel 9", Open().Find("input.pair-name").GetAttribute("value"));
+    }
+
+    [Fact]
     public void Pairing_stores_the_credentials_and_shows_who_we_are_paired_with()
     {
         var cut = Open();

@@ -4,6 +4,7 @@
 @inject PairingService Pairing
 @inject SyncService Sync
 @inject TimeProvider Clock
+@inject IServiceProvider Services
 
 @if (OnBack.HasDelegate)
 {
@@ -89,13 +90,14 @@ else
     private DeviceCredentials? _paired;
     private string _address = "";
     private string _code = "";
-    private string _deviceName = Environment.MachineName;
+    private string _deviceName = "";
     private string? _error;
     private string? _detail;
 
     protected override async Task OnInitializedAsync()
     {
         Sync.StatusChanged += OnStatusChanged;
+        _deviceName = Services.GetService(typeof(DeviceLabel)) is DeviceLabel label ? label.Name : Environment.MachineName;
         _paired = await Pairing.CurrentAsync();
         _loading = false;
     }
