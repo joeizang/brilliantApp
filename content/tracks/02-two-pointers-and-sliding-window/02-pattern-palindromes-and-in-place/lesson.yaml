@@ -260,8 +260,10 @@ steps:
       - id: fold
         accepted:
           - "lower"
-          - "casefold"
         mistakes:
+          - answers:
+              - "casefold"
+            feedback: "`casefold()` is a stronger conversion than `lower()`: `'ß'.casefold()` is `'ss'`, but `'ß'.lower()` is still `'ß'`. The other side uses `.lower()`, so this side must too, or a string like `'ßß'` would be called a non-palindrome."
           - answers:
               - "upper"
             feedback: "The other side uses `.lower()`, and `'A'.upper() != 'a'.lower()`. Both sides have to be changed the same way."
