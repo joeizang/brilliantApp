@@ -1,0 +1,406 @@
+id: lesson.pattern-counting-and-frequency
+title: "Pattern: counting & frequency"
+concepts:
+  - id: concept.pattern-frequency-table
+    title: "Pattern: build a frequency table"
+  - id: concept.counter-tools
+    title: Counter and most_common
+  - id: concept.compare-tables
+    title: Compare tables, not strings
+reviewItems:
+  - id: review.frequency.which-problem
+    concept: concept.pattern-frequency-table
+    step: step.frequency.check-which-problem
+    kind: pattern
+  - id: review.frequency.top-errors
+    concept: concept.pattern-frequency-table
+    step: step.frequency.check-top-errors
+    kind: pattern
+  - id: review.frequency.most-common
+    concept: concept.counter-tools
+    step: step.frequency.predict-most-common
+  - id: review.frequency.missing-key
+    concept: concept.counter-tools
+    step: step.frequency.predict-missing
+  - id: review.frequency.same-letters
+    concept: concept.compare-tables
+    step: step.frequency.predict-anagram
+steps:
+  - id: step.frequency.pattern
+    type: explain
+    title: Count first, then ask
+    body: |
+      Some problems are really about **how many times** things happen. Watch for these words:
+
+      - *how many times does X appear?*
+      - *what is the most (or least) common…?*
+      - *do these two things contain the same items?* (an anagram, for instance)
+      - *is there an item that appears exactly once, or more than once?*
+
+      They all have one answer in common: **build a frequency table**, a dict from each item to its count, and then ask the
+      table your question. Building it is one pass, `O(n)`. Every question you ask afterwards is a lookup.
+
+      The loop is the one you wrote in the dicts lesson:
+
+      ```python
+      counts = {}
+      for item in items:
+          counts[item] = counts.get(item, 0) + 1
+      ```
+
+      `collections.Counter` does exactly that in one call. The cue to remember is *"counts matter, order doesn't"*.
+    comparison:
+      csharp: |
+        var counts = new Dictionary<char, int>();
+        foreach (char ch in text)
+            counts[ch] = counts.GetValueOrDefault(ch) + 1;
+
+        // or with LINQ, which also builds a table behind the scenes
+        var top = text.GroupBy(c => c)
+                      .OrderByDescending(g => g.Count())
+                      .First().Key;
+      python: |
+        from collections import Counter
+
+        counts = Counter(text)           # {'l': 2, 'i': 1, ...}
+        top = counts.most_common(1)[0][0]
+  - id: step.frequency.trace-anagram
+    type: trace
+    title: Are these the same letters?
+    body: |
+      Two words are **anagrams** if they use exactly the same letters. Counting up the letters of the first word and then
+      counting *down* for the second one puts every letter on zero if and only if the two words match. Watch `counts`
+      grow on the first loop, and shrink back towards zero on the second.
+    code: |
+      a = "listen"
+      b = "silent"
+      counts = {}
+      for ch in a:
+          counts[ch] = counts.get(ch, 0) + 1
+      for ch in b:
+          counts[ch] = counts.get(ch, 0) - 1
+      same = True
+      for n in counts.values():
+          if n != 0:
+              same = False
+    visualise:
+      - variable: counts
+        as: dict
+        pointers: [ch]
+  - id: step.frequency.counter
+    type: explain
+    title: Counter does the bookkeeping
+    body: |
+      `Counter` is a dict that counts. Build it from anything you can loop over:
+
+      ```python
+      from collections import Counter
+
+      Counter("banana")     # Counter({'a': 3, 'n': 2, 'b': 1})
+      ```
+
+      Three things make it friendlier than a plain dict:
+
+      - **A missing key is zero,** not an error. `Counter("banana")["z"]` is `0`.
+      - **`.most_common(n)`** gives the `n` biggest as a list of `(item, count)` pairs, biggest first.
+      - **Two counters compare with `==`,** which is true when every item has the same count.
+
+      It is still a dict underneath, so `.items()`, `.values()` and `in` all work.
+    comparison:
+      csharp: |
+        // A missing key throws on a Dictionary indexer...
+        int n = counts["z"];                    // KeyNotFoundException
+
+        // ...so you ask first
+        int n2 = counts.GetValueOrDefault('z'); // 0
+      python: |
+        # A Counter answers 0 for anything it hasn't seen
+        n = counts["z"]            # 0
+        n2 = counts.get("z", 0)    # a plain dict needs the default
+  - id: step.frequency.predict-most-common
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      from collections import Counter
+
+      votes = ["a", "b", "a", "c", "a", "b"]
+      print(Counter(votes).most_common(2))
+    accepted:
+      - "[('a', 3), ('b', 2)]"
+    mistakes:
+      - answers:
+          - "[('a', 3)]"
+        feedback: "`most_common(2)` returns the top *two* items."
+      - answers:
+          - "['a', 'b']"
+        feedback: "`most_common` returns `(item, count)` pairs, not just the items."
+      - answers:
+          - "{'a': 3, 'b': 2}"
+        feedback: "`most_common` returns a list of pairs, not a dict."
+      - answers:
+          - "[(3, 'a'), (2, 'b')]"
+        feedback: "Each pair is `(item, count)`: the item comes first."
+    hints:
+      - Count each letter first. `a` appears 3 times, `b` twice, `c` once.
+      - "`most_common(2)` is the two biggest, biggest first, as a list of `(item, count)` pairs."
+  - id: step.frequency.predict-missing
+    type: predict-output
+    title: A key that isn't there
+    prompt: What does this print?
+    code: |
+      from collections import Counter
+
+      counts = Counter("hello")
+      print(counts["l"], counts["z"])
+    accepted:
+      - "2 0"
+    mistakes:
+      - regex: "(?i)keyerror"
+        feedback: "A plain dict would raise KeyError. A `Counter` answers `0` for anything it hasn't counted."
+      - answers:
+          - "2 None"
+        feedback: "A `Counter` returns `0` for a missing item, not `None`."
+      - answers:
+          - "1 0"
+        feedback: "`hello` has two `l`s."
+    hints:
+      - "`l` appears twice in `hello`."
+      - "`z` never appears. What does a `Counter` say about items it hasn't seen?"
+  - id: step.frequency.check-which-problem
+    type: choice
+    title: Which problem is a frequency problem?
+    prompt: Which of these problems is best solved by building a frequency table?
+    options:
+      - text: Decide whether two words are made of exactly the same letters.
+        correct: true
+        feedback: Right. Count the letters of each word and compare the two tables. Order never matters, only counts.
+      - text: Find the smallest number in a list.
+        correct: false
+        feedback: A single running minimum is enough. Nothing needs counting.
+      - text: Reverse a list in place.
+        correct: false
+        feedback: That is about positions, not about how many times something appears.
+      - text: Check whether a list is in ascending order.
+        correct: false
+        feedback: That compares neighbours. No counts are needed.
+    hints:
+      - Look for the cue "same items" or "how many times".
+      - Which problem only cares about *how many* of each thing, not where they are?
+  - id: step.frequency.fill-anagram
+    type: fill-blank
+    title: Complete the function
+    prompt: |
+      Fill in the blanks to finish `is_anagram`. It should be true when both words contain exactly the same letters, the same number of times each.
+    template: |
+      from collections import {{cls}}
+
+      def is_anagram(a, b):
+          return Counter(a) {{op}} Counter(b)
+    blanks:
+      - id: cls
+        accepted:
+          - Counter
+        mistakes:
+          - answers:
+              - counter
+            feedback: Python is case-sensitive. The class is `Counter`.
+          - answers:
+              - Count
+            feedback: "The class is called `Counter`."
+      - id: op
+        accepted:
+          - "=="
+        mistakes:
+          - answers:
+              - is
+            feedback: "`is` asks whether they are the very same object. Two separate counters are never that, even with the same counts. Use `==` to compare their contents."
+          - answers:
+              - "="
+            feedback: A single `=` assigns. To compare, use `==`.
+    hints:
+      - The class you want to import is the one used in the next line.
+      - Two counters are equal when every item has the same count. Which operator compares *contents*?
+  - id: step.frequency.predict-anagram
+    type: predict-output
+    title: Same letters?
+    prompt: What does this print?
+    code: |
+      from collections import Counter
+
+      print(Counter("abca") == Counter("acab"))
+      print(Counter("abc") == Counter("abcc"))
+    accepted:
+      - "True\nFalse"
+    mistakes:
+      - answers:
+          - "True\nTrue"
+        feedback: "`abcc` has two `c`s and `abc` has one, so the counts differ."
+      - answers:
+          - "False\nFalse"
+        feedback: "`abca` and `acab` have the same letters with the same counts: two `a`, one `b`, one `c`."
+      - answers:
+          - "False\nTrue"
+        feedback: Check them the other way round. Compare the counts of each letter.
+    hints:
+      - Count each word's letters. `abca` has a:2, b:1, c:1.
+      - Does `acab` have the same table? And what does `abcc` have?
+  - id: step.frequency.check-top-errors
+    type: choice
+    title: What would you build?
+    prompt: |
+      A server log has millions of lines, each with an error code. You want the three codes that appear most often.
+      What should you build?
+    options:
+      - text: A frequency table of error codes, then take its three largest counts.
+        correct: true
+        feedback: Right. One pass builds the table, and `Counter(...).most_common(3)` reads off the answer.
+      - text: A sorted list of every line, then read the last three.
+        correct: false
+        feedback: Sorting the lines puts equal codes next to each other, but you would still have to count them. A table does it directly.
+      - text: A nested loop that counts each code by scanning the whole log again.
+        correct: false
+        feedback: That is `O(n²)` on millions of lines. A table gets each count in the same single pass.
+      - text: A set of the codes, then take the first three.
+        correct: false
+        feedback: A set remembers *that* a code appeared, but not *how often*, and has no order.
+    hints:
+      - The question is about "how often", so which structure remembers a count?
+      - You want one pass over the log, not one pass per code.
+  - id: step.frequency.order-first-unique
+    type: parsons
+    title: The first unique character
+    prompt: |
+      Arrange these lines into `first_unique`, which returns the position of the first character that appears only once
+      in `text`, or `-1` if there is none.
+    solution: |
+      from collections import Counter
+
+      def first_unique(text):
+          counts = Counter(text)
+          for i, ch in enumerate(text):
+              if counts[ch] == 1:
+                  return i
+          return -1
+    hints:
+      - The table has to be complete before you can ask who is unique. Build it first.
+      - Then walk the text again *in its original order*, so that the first match is the earliest one.
+      - "`return -1` is the last line and lines up with `for`: it only runs if no character was unique."
+  - id: step.frequency.two-passes
+    type: explain
+    title: Two passes, not two loops inside each other
+    body: |
+      `first_unique` loops over the text twice, but one after the other, not one inside the other. That is `O(n) + O(n)`,
+      which is still `O(n)`.
+
+      This "**build the table, then query it**" shape shows up constantly:
+
+      1. Pass one counts everything.
+      2. Pass two (or just a lookup) answers the question using the finished table.
+
+      You can't always answer in one pass because the answer for an item depends on the *whole* input. Is this letter unique? You
+      don't know until you've seen the rest of the text. When it does depend only on what came before (like Two Sum), one
+      pass is enough.
+  - id: step.frequency.write-can-build
+    type: write-code
+    title: Can you build the note?
+    prompt: |
+      A ransom note can be built from a magazine if every letter in the note can be matched with a *different* letter in the
+      magazine (each magazine letter used at most once). Write `can_build(note, magazine)`, which returns `True` or `False`.
+      For example `can_build("aa", "aab")` is `True`, but `can_build("aa", "ab")` is `False`.
+    language: python
+    entrypoint: can_build
+    starter: |
+      def can_build(note, magazine):
+          pass
+    solution: |
+      def can_build(note, magazine):
+          have = {}
+          for ch in magazine:
+              have[ch] = have.get(ch, 0) + 1
+          for ch in note:
+              if have.get(ch, 0) == 0:
+                  return False
+              have[ch] -= 1
+          return True
+    tests:
+      - input: '"a", "b"'
+        expected: "False"
+      - input: '"aa", "ab"'
+        expected: "False"
+      - input: '"aa", "aab"'
+        expected: "True"
+      - input: '"abc", "cba"'
+        expected: "True"
+      - input: '"", "x"'
+        expected: "True"
+      - input: '"a", ""'
+        expected: "False"
+    hints:
+      - Count the letters available in the magazine first.
+      - Then go through the note. Each letter needs at least one left in the table, and uses one up.
+      - If a letter's count is `0` (or it isn't there), you can return `False` straight away.
+    walkthrough:
+      call: result = can_build("aab", "bac")
+      visualise:
+        - variable: have
+          as: dict
+          pointers: [ch]
+      explanation: |
+        The first loop builds `have`, the magazine's letter counts: one `b`, one `a`, one `c`. The second loop walks the
+        note and spends a letter for each one it matches.
+
+        The first `a` finds a count of 1 and uses it up, taking `a` to 0. The second `a` finds 0, so no unused `a` is left
+        and the function returns `False`. Counting the magazine once means each note letter is a single lookup, so the whole
+        thing is `O(n + m)`.
+  - id: step.frequency.write-most-common
+    type: write-code
+    title: The most common word
+    prompt: |
+      Write `most_common_word(words)`, which returns the word that appears most often in the list. If several words tie,
+      return the one that appears **first** in the list. Return `None` for an empty list.
+      For example `most_common_word(["b", "a", "a", "b"])` is `"b"`.
+    language: python
+    entrypoint: most_common_word
+    starter: |
+      def most_common_word(words):
+          pass
+    solution: |
+      def most_common_word(words):
+          counts = {}
+          for w in words:
+              counts[w] = counts.get(w, 0) + 1
+          best = None
+          for w in words:
+              if best is None or counts[w] > counts[best]:
+                  best = w
+          return best
+    tests:
+      - input: '["a", "b", "a"]'
+        expected: '"a"'
+      - input: '["x", "y"]'
+        expected: '"x"'
+      - input: '["b", "a", "a", "b"]'
+        expected: '"b"'
+      - input: '["z"]'
+        expected: '"z"'
+      - input: '["c", "a", "b", "a", "b", "c"]'
+        expected: '"c"'
+      - input: "[]"
+        expected: "None"
+    hints:
+      - Build the frequency table first. A plain dict with `.get(w, 0) + 1` works.
+      - Then walk the *list* again (not the dict) so that you meet the words in their original order.
+      - Only replace your best word when a word's count is strictly bigger, so ties keep the earlier one.
+    walkthrough:
+      call: result = most_common_word(["b", "a", "a", "b", "c"])
+      visualise:
+        - variable: counts
+          as: dict
+          pointers: [w]
+      explanation: |
+        The first loop builds `counts`: `b` and `a` both appear twice and `c` once. The second loop walks the list in its
+        original order and keeps the best word so far.
+
+        `b` is first, so it becomes the best. `a` has the same count, not a bigger one, so it does not replace `b`. That
+        strict "greater than" is what makes ties go to the word that came first. The answer is `"b"`.

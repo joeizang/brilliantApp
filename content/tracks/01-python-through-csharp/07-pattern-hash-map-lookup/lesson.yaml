@@ -1,0 +1,418 @@
+id: lesson.pattern-hash-map-lookup
+title: "Pattern: hash-map lookup"
+concepts:
+  - id: concept.pattern-hash-lookup
+    title: "Pattern: hash-map lookup"
+  - id: concept.complement-lookup
+    title: Look up the item you need
+  - id: concept.check-before-store
+    title: Check before you store
+reviewItems:
+  - id: review.hashlookup.which-problem
+    concept: concept.pattern-hash-lookup
+    step: step.hashlookup.check-which-problem
+    kind: pattern
+  - id: review.hashlookup.inner-search
+    concept: concept.pattern-hash-lookup
+    step: step.hashlookup.check-inner-search
+    kind: pattern
+  - id: review.hashlookup.two-sum-result
+    concept: concept.complement-lookup
+    step: step.hashlookup.predict-two-sum
+  - id: review.hashlookup.order-bug
+    concept: concept.check-before-store
+    step: step.hashlookup.predict-order-bug
+steps:
+  - id: step.hashlookup.pattern
+    type: explain
+    title: Ask "is my partner already here?"
+    body: |
+      Some problems say: *find two things that go together*. The classic is **Two Sum**: given a list of numbers and a
+      target, find the two positions whose numbers add up to the target.
+
+      The first idea most people have is to try every pair: a loop inside a loop. That works, and it is `O(n²)`.
+      The **hash-map lookup** pattern does it in one pass, in `O(n)`:
+
+      1. Walk the list once.
+      2. For each item, work out **what partner it needs**: here, `target - item`.
+      3. Ask a dict whether that partner has **already gone past**. If so, you're done.
+      4. If not, remember this item in the dict so that a later item can find it.
+
+      The dict turns "search everything I've seen" into one quick lookup, which is what you learned in the last lesson.
+      The cue to remember is: *a loop whose inner loop only searches for a match is a lookup in disguise.*
+    comparison:
+      csharp: |
+        // Try every pair: O(n²)
+        for (int i = 0; i < nums.Length; i++)
+            for (int j = i + 1; j < nums.Length; j++)
+                if (nums[i] + nums[j] == target) return new[] { i, j };
+
+        // Remember what you've seen: O(n)
+        var seen = new Dictionary<int, int>();
+        for (int i = 0; i < nums.Length; i++)
+        {
+            int need = target - nums[i];
+            if (seen.TryGetValue(need, out int j)) return new[] { j, i };
+            seen[nums[i]] = i;
+        }
+      python: |
+        # Try every pair: O(n²)
+        for i in range(len(nums)):
+            for j in range(i + 1, len(nums)):
+                if nums[i] + nums[j] == target:
+                    return [i, j]
+
+        # Remember what you've seen: O(n)
+        seen = {}
+        for i, n in enumerate(nums):
+            need = target - n
+            if need in seen:
+                return [seen[need], i]
+            seen[n] = i
+  - id: step.hashlookup.trace-brute
+    type: trace
+    title: First, the slow way
+    body: |
+      Try every pair. The arrows `i` and `j` mark the two cells being added. Notice how many pairs it tries before it
+      lands on `11 + 15`: for a list of `n` items that grows like `n²`.
+    code: |
+      nums = [2, 7, 11, 15]
+      target = 26
+      found = None
+      for i in range(len(nums)):
+          for j in range(i + 1, len(nums)):
+              if nums[i] + nums[j] == target:
+                  found = [i, j]
+    visualise:
+      - variable: nums
+        as: array
+        pointers: [i, j]
+  - id: step.hashlookup.trace-lookup
+    type: trace
+    title: Now with a dict
+    body: |
+      Same list, same target, one loop. `seen` maps a number to the position where it was found. The arrow `need` points
+      at the row for the partner this item is looking for. For the first three items the partner isn't there, so each one
+      is stored. At `15` the partner `11` is waiting in the dict, and the loop stops.
+    code: |
+      nums = [2, 7, 11, 15]
+      target = 26
+      seen = {}
+      for i in range(len(nums)):
+          need = target - nums[i]
+          if need in seen:
+              result = [seen[need], i]
+              break
+          seen[nums[i]] = i
+    visualise:
+      - variable: nums
+        as: array
+        pointers: [i]
+      - variable: seen
+        as: dict
+        pointers: [need]
+  - id: step.hashlookup.recipe
+    type: explain
+    title: The recipe, line by line
+    body: |
+      Here is the whole function. Three details are worth getting into your fingers:
+
+      ```python
+      def two_sum(nums, target):
+          seen = {}
+          for i, n in enumerate(nums):
+              need = target - n
+              if need in seen:
+                  return [seen[need], i]
+              seen[n] = i
+          return []
+      ```
+
+      - **The key is the value, and the dict value is the position.** You look up by the number you need and get back where it was.
+      - **Check first, then store.** Doing it the other way round lets an item pair with itself. With `[3]` and a target of `6`, `3`
+        would find itself.
+      - **The earlier position comes first.** The partner was stored before the current item, so `[seen[need], i]` is in order.
+
+      This shape is not special to Two Sum. Any time you need "has something that matches this already appeared?", you
+      build the dict as you go and ask it.
+  - id: step.hashlookup.check-which-problem
+    type: choice
+    title: Which problem fits?
+    prompt: Which of these problems is a good fit for the hash-map lookup pattern?
+    options:
+      - text: Given an unsorted list and a target, find two numbers that add up to the target.
+        correct: true
+        feedback: Right. Each number needs one specific partner, and a dict can tell you at once whether it has come past.
+      - text: Find the largest number in a list.
+        correct: false
+        feedback: You only need one running maximum. Nothing has to be looked up from earlier items.
+      - text: Add up every number in a list.
+        correct: false
+        feedback: A single running total does it. There is no partner to look for.
+      - text: Check whether a list is sorted.
+        correct: false
+        feedback: Comparing each item with the one before it does that. No lookup of earlier items is needed.
+    hints:
+      - Look for the problem where each item needs a particular *other* item.
+      - Which problem asks "has the thing I need already appeared?"
+  - id: step.hashlookup.predict-two-sum
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      def two_sum(nums, target):
+          seen = {}
+          for i, n in enumerate(nums):
+              need = target - n
+              if need in seen:
+                  return [seen[need], i]
+              seen[n] = i
+          return []
+
+      print(two_sum([3, 2, 4], 6))
+    accepted:
+      - "[1, 2]"
+    mistakes:
+      - answers:
+          - "[0, 1]"
+        feedback: "`3 + 2` is `5`, not `6`. Work out what each item needs: `3` needs `3`, `2` needs `4`, `4` needs `2`."
+      - answers:
+          - "[0, 2]"
+        feedback: "`3 + 4` is `7`, not `6`. Check what each item needs."
+      - answers:
+          - "[2, 1]"
+        feedback: "The result is `[seen[need], i]`: the earlier position (where the partner was stored) comes first."
+      - answers:
+          - "[]"
+        feedback: A pair does exist. `2` and `4` add up to `6`.
+    hints:
+      - Go through the list one item at a time and write down `seen` after each.
+      - "`3` needs `3` (not seen yet, so store it). `2` needs `4` (not seen, so store it). What does `4` need?"
+      - "`4` needs `2`, which was stored at position 1. The current position is 2."
+  - id: step.hashlookup.predict-order-bug
+    type: predict-output
+    title: Spot the bug
+    prompt: This version stores the item *before* checking for its partner. What does it print?
+    code: |
+      def two_sum(nums, target):
+          seen = {}
+          for i, n in enumerate(nums):
+              seen[n] = i
+              need = target - n
+              if need in seen:
+                  return [seen[need], i]
+          return []
+
+      print(two_sum([3, 2, 4], 6))
+    options:
+      - text: "[0, 0]"
+        correct: true
+        feedback: "Right. `3` is stored first, then it asks for `3` and finds itself. An item must never pair with itself, so check first and store afterwards."
+      - text: "[1, 2]"
+        correct: false
+        feedback: That is the right answer to the problem, but this buggy version never gets that far. It stops at the first item.
+      - text: "[]"
+        correct: false
+        feedback: It finds a (wrong) pair on the very first item, so it returns before reaching the end.
+      - text: It raises a KeyError.
+        correct: false
+        feedback: "`need in seen` checks first, so `seen[need]` is only read when the key exists."
+    hints:
+      - Follow the first item, `3`, with target `6`. What is `need`?
+      - By the time it checks, `3` is already in `seen`.
+  - id: step.hashlookup.fill-two-sum
+    type: fill-blank
+    title: Complete the function
+    prompt: |
+      Fill in the blanks to finish `two_sum`. It should return the positions of two numbers that add up to `target`,
+      earlier position first, or an empty list if there is no pair.
+    template: |
+      def two_sum(nums, target):
+          seen = {}
+          for i, n in enumerate(nums):
+              need = target - n
+              if need {{test}} seen:
+                  return [seen[need], i]
+              seen[{{key}}] = {{value}}
+          return []
+    blanks:
+      - id: test
+        accepted:
+          - in
+        mistakes:
+          - answers:
+              - not in
+            feedback: That returns when the partner has *not* been seen. You want to stop when it has.
+          - answers:
+              - "=="
+            feedback: "`need == seen` compares a number with the whole dict. Ask whether it is a key with `in`."
+      - id: key
+        accepted:
+          - n
+          - nums[i]
+        mistakes:
+          - answers:
+              - i
+            feedback: The dict must be searched by the *number* you need later, so the number is the key.
+          - answers:
+              - need
+            feedback: "`need` is the partner this item is looking for. What you store is the item itself."
+      - id: value
+        accepted:
+          - i
+        mistakes:
+          - answers:
+              - n
+            feedback: The value is what you want back when you find the partner, which is its position.
+    hints:
+      - The first blank decides when to stop. You stop when the partner is *in* the dict.
+      - Later items will look up numbers, so the number is the key. What do you want to get back?
+      - "`in`, then `n`, then `i`: store each number with its position."
+  - id: step.hashlookup.order-two-sum
+    type: parsons
+    title: Put the loop in order
+    prompt: |
+      Arrange these lines into `two_sum`. The order of the check and the store matters.
+    solution: |
+      def two_sum(nums, target):
+          seen = {}
+          for i, n in enumerate(nums):
+              need = target - n
+              if need in seen:
+                  return [seen[need], i]
+              seen[n] = i
+          return []
+    hints:
+      - The empty dict has to exist before the loop.
+      - Work out `need` first, then check it, and store the current item only after the check.
+      - "`return []` is the last line and lines up with `for`: it only runs if the loop finishes without a match."
+  - id: step.hashlookup.check-inner-search
+    type: choice
+    title: What would you try?
+    prompt: |
+      Your first solution to a problem has a loop inside a loop. The inner loop only searches the list for an item that
+      matches the outer item. What should you try next?
+    options:
+      - text: Store the items in a dict or set as you go, and replace the inner loop with a lookup.
+        correct: true
+        feedback: Right. An inner loop that only searches is the signal for hash-map lookup, and it turns `O(n²)` into `O(n)`.
+      - text: Make the loops faster by using `range` instead of indexing.
+        correct: false
+        feedback: That shaves a little off each step, but the number of steps still grows like `n²`.
+      - text: Run the inner loop on a sorted copy of the list.
+        correct: false
+        feedback: Searching a sorted list item by item is still a scan. The cost shape doesn't change.
+      - text: Nothing. A loop inside a loop is as good as it gets.
+        correct: false
+        feedback: It is the slowest of the three shapes you know. A dict lets you skip the inner search entirely.
+    hints:
+      - What did the last lesson say makes `in` fast?
+      - Replace the search with a lookup in something built from the items you've seen.
+  - id: step.hashlookup.write-two-sum
+    type: write-code
+    title: Write Two Sum
+    prompt: |
+      Write `two_sum(nums, target)`, which returns the positions `[i, j]` (with `i < j`) of two numbers that add up to
+      `target`. There is always at most one answer to look for. Return `[]` if no pair exists.
+      For example `two_sum([2, 7, 11, 15], 9)` is `[0, 1]`.
+    language: python
+    entrypoint: two_sum
+    starter: |
+      def two_sum(nums, target):
+          pass
+    solution: |
+      def two_sum(nums, target):
+          seen = {}
+          for i, n in enumerate(nums):
+              need = target - n
+              if need in seen:
+                  return [seen[need], i]
+              seen[n] = i
+          return []
+    tests:
+      - input: "[2, 7, 11, 15], 9"
+        expected: "[0, 1]"
+      - input: "[3, 2, 4], 6"
+        expected: "[1, 2]"
+      - input: "[3, 3], 6"
+        expected: "[0, 1]"
+      - input: "[1, 2, 3], 100"
+        expected: "[]"
+      - input: "[], 5"
+        expected: "[]"
+      - input: "[5], 10"
+        expected: "[]"
+    hints:
+      - Don't try every pair. Walk the list once and remember what you've seen in a dict.
+      - For each number, the partner it needs is `target - n`. Is that already a key in the dict?
+      - "Check `need in seen` before you store the current number, then `seen[n] = i`."
+    walkthrough:
+      call: result = two_sum([2, 7, 11, 15], 26)
+      visualise:
+        - variable: seen
+          as: dict
+          pointers: [need]
+      explanation: |
+        For each number the function works out `need`, the partner that would reach the target, and asks `seen` whether that partner
+        has already come past. The arrow marks the key being looked up.
+
+        `2`, `7` and `11` all need numbers that haven't appeared, so each is stored with its position. Then `15` needs `11`,
+        which is waiting in the dict at position 2. The function returns `[2, 3]`: the stored position first, then the
+        current one. One pass and one lookup per item is `O(n)`, where trying every pair was `O(n²)`.
+  - id: step.hashlookup.variation
+    type: explain
+    title: The same idea, a new question
+    body: |
+      The dict doesn't have to store positions. It stores *whatever you'll want back*. If the question is "**how many**
+      pairs add up to the target?", store **how many times** each number has appeared, and add up the counts of the partners
+      you find.
+
+      The loop looks identical: work out `need`, look it up, then record the current item. Only what is stored and what you
+      do with the answer changes. That is the pattern: *record as you go, look up what you need.*
+  - id: step.hashlookup.write-pair-count
+    type: write-code
+    title: Count the pairs
+    prompt: |
+      Write `pair_count(nums, target)`, which returns how many pairs of positions `i < j` have `nums[i] + nums[j] == target`.
+      For example `pair_count([1, 5, 7, -1, 5], 6)` is `3`: the pairs are `(1, 5)` twice and `(7, -1)`.
+    language: python
+    entrypoint: pair_count
+    starter: |
+      def pair_count(nums, target):
+          pass
+    solution: |
+      def pair_count(nums, target):
+          seen = {}
+          total = 0
+          for n in nums:
+              need = target - n
+              total += seen.get(need, 0)
+              seen[n] = seen.get(n, 0) + 1
+          return total
+    tests:
+      - input: "[1, 5, 7, -1, 5], 6"
+        expected: "3"
+      - input: "[1, 1, 1, 1], 2"
+        expected: "6"
+      - input: "[2, 4, 3, 3], 6"
+        expected: "2"
+      - input: "[], 0"
+        expected: "0"
+      - input: "[3], 6"
+        expected: "0"
+    hints:
+      - Same loop as Two Sum, but the dict remembers *how many* times each number has appeared.
+      - "For each `n`, every earlier copy of `target - n` makes one pair. `seen.get(need, 0)` is how many there are."
+      - Add that to a running total first, and only then record the current `n` in the dict.
+    walkthrough:
+      call: result = pair_count([1, 5, 7, -1, 5], 6)
+      visualise:
+        - variable: seen
+          as: dict
+          pointers: [need]
+      explanation: |
+        `seen` maps each number to how many times it has appeared so far. For every `n`, the function looks up `need`, the
+        number that would complete a pair, and adds the **count** it finds to `total`. Several earlier copies make several pairs.
+
+        The second `5` needs `1`, finds one copy and scores a pair; the first `5` scored one too, when it met the `1`. The `-1`
+        then needs `7` and scores the third. Because `n` is recorded only *after* the lookup, a number never pairs with itself.
