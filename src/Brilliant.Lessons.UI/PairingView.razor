@@ -1,0 +1,115 @@
+@* Connect this device to the household server: where it lives and the one-time code it printed. Once paired, shows where, with a way to forget it. *@
+@using Brilliant.Core.Sync
+@inject PairingService Pairing
+
+@if (OnBack.HasDelegate)
+{
+    <div class="crumbs content-column"><button class="link btn-link" @onclick="() => OnBack.InvokeAsync()">← Today</button></div>
+}
+<h1 class="screen-title content-column mt-6">Sync</h1>
+
+@if (_loading)
+{
+    <p class="content-column mt-4 text-fg-secondary" role="status">Checking…</p>
+}
+else if (_paired is { } paired)
+{
+    <div class="paired content-column mt-4 grid gap-3">
+        <p class="paired-status m-0">✓ Paired with <strong class="paired-server">@paired.Server.Authority</strong></p>
+        <p class="m-0 text-[.9rem] text-fg-secondary">This device is on the server's list. To disconnect it for good, revoke it on the server; forgetting only clears it here.</p>
+        <div><button class="forget btn-secondary" @onclick="Forget">Forget this server</button></div>
+    </div>
+}
+else
+{
+    <form class="pair-form content-column mt-4 mb-6 grid gap-4" @onsubmit="Pair">
+        <p class="m-0 text-fg-secondary">Run <code>docker compose exec server dotnet Brilliant.Server.dll pairing-code</code> on the server for a code, then enter it here.</p>
+        <div class="grid gap-1">
+            <label class="font-semibold" for="pair-address">Server address</label>
+            <input id="pair-address" class="pair-address @InputClass" type="text" inputmode="url" autocapitalize="none" autocorrect="off" spellcheck="false"
+                   placeholder="192.168.1.20:8080" @bind="_address" @bind:event="onchange" />
+        </div>
+        <div class="grid gap-1">
+            <label class="font-semibold" for="pair-code">Pairing code</label>
+            <input id="pair-code" class="pair-code @InputClass uppercase tracking-widest" type="text" autocapitalize="characters" autocorrect="off" spellcheck="false"
+                   placeholder="XXXX-XXXX" maxlength="9" @bind="_code" @bind:event="onchange" />
+        </div>
+        <div class="grid gap-1">
+            <label class="font-semibold" for="pair-name">This device is called</label>
+            <input id="pair-name" class="pair-name @InputClass" type="text" maxlength="100" @bind="_deviceName" @bind:event="onchange" />
+        </div>
+        @if (_error is not null)
+        {
+            <p class="pair-error m-0 text-danger" role="alert">@_error</p>
+            @if (_detail is not null)
+            {
+                <p class="pair-detail m-0 text-[.85rem] text-fg-secondary">@_detail</p>
+            }
+        }
+        <div><button class="pair-submit primary btn-primary" type="submit" disabled="@_busy">@(_busy ? "Pairing…" : "Pair")</button></div>
+    </form>
+}
+
+@code {
+    private const string InputClass = "box-border w-full rounded-md border border-border bg-surface px-3 py-2 text-[1rem] text-fg transition-shadow duration-150 ease-app focus:ring-2 focus:ring-accent focus:outline-none";
+
+    [Parameter] public EventCallback OnBack { get; set; }
+
+    private bool _loading = true;
+    private bool _busy;
+    private DeviceCredentials? _paired;
+    private string _address = "";
+    private string _code = "";
+    private string _deviceName = Environment.MachineName;
+    private string? _error;
+    private string? _detail;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _paired = await Pairing.CurrentAsync();
+        _loading = false;
+    }
+
+    private async Task Pair()
+    {
+        if (_busy) return;
+        _error = _detail = null;
+        if (string.IsNullOrWhiteSpace(_address) || string.IsNullOrWhiteSpace(_code))
+        {
+            _error = "Enter the server's address and the pairing code.";
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var name = string.IsNullOrWhiteSpace(_deviceName) ? "My device" : _deviceName.Trim();
+            var outcome = await Pairing.PairAsync(_address, _code, name);
+            if (outcome.Credentials is { } credentials)
+            {
+                _paired = credentials;
+                _code = "";
+            }
+            else
+            {
+                _detail = outcome.Detail;
+                _error = outcome.Failure switch
+                {
+                    PairingFailure.BadAddress => "That doesn't look like a server address. Try something like 192.168.1.20:8080.",
+                    PairingFailure.CodeRejected => "That code didn't work. It may have expired or been used already; ask the server for a new one.",
+                    PairingFailure.TooManyAttempts => "Too many tries. Wait a minute and try again.",
+                    PairingFailure.CouldNotSave => "The server accepted this device, but it couldn't be remembered here. Revoke it on the server and try again.",
+                    PairingFailure.Rejected => "The server refused the request. Check the code and the device name.",
+                    _ => "Couldn't reach a Brilliant server there. Check the address and that you're on the same network.",
+                };
+            }
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task Forget()
+    {
+        await Pairing.ForgetAsync();
+        _paired = null;
+    }
+}
