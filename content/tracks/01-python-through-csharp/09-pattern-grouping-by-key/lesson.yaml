@@ -1,0 +1,407 @@
+id: lesson.pattern-grouping-by-key
+title: "Pattern: grouping by key"
+concepts:
+  - id: concept.pattern-group-by-key
+    title: "Pattern: group items under a key"
+  - id: concept.defaultdict-list
+    title: defaultdict and setdefault
+  - id: concept.choosing-the-key
+    title: The key is the whole idea
+reviewItems:
+  - id: review.grouping.which-problem
+    concept: concept.pattern-group-by-key
+    step: step.grouping.check-which-problem
+    kind: pattern
+  - id: review.grouping.which-key
+    concept: concept.choosing-the-key
+    step: step.grouping.check-which-key
+    kind: pattern
+  - id: review.grouping.by-length
+    concept: concept.defaultdict-list
+    step: step.grouping.predict-by-length
+  - id: review.grouping.read-creates
+    concept: concept.defaultdict-list
+    step: step.grouping.predict-read-creates
+steps:
+  - id: step.grouping.pattern
+    type: explain
+    title: Put like with like
+    body: |
+      Some problems ask you to **collect items that belong together**. Watch for these words:
+
+      - *group the words that are anagrams of each other*
+      - *bucket these records by city (or by date, or by first letter)*
+      - *put every item with the same … together*
+
+      The answer is the same each time: a **dict from a key to a list**. Work out a key for each item that is the *same*
+      for items that belong together, then drop the item into that key's list:
+
+      ```python
+      groups = {}
+      for item in items:
+          key = key_of(item)
+          if key not in groups:
+              groups[key] = []
+          groups[key].append(item)
+      ```
+
+      This is the frequency table's big sibling. A frequency table keeps a **count** for each key. Grouping keeps the
+      **items themselves**. One pass, `O(n)` dict operations. The cue to remember is *"same key, same group"*.
+    comparison:
+      csharp: |
+        // A dictionary of lists, built by hand...
+        var groups = new Dictionary<int, List<string>>();
+        foreach (var w in words)
+        {
+            if (!groups.TryGetValue(w.Length, out var list))
+                groups[w.Length] = list = new List<string>();
+            list.Add(w);
+        }
+
+        // ...or LINQ, which builds the same thing for you
+        var byLength = words.ToLookup(w => w.Length);
+      python: |
+        groups = {}
+        for w in words:
+            groups.setdefault(len(w), []).append(w)
+
+        # or, with a dict that makes the empty list for you
+        from collections import defaultdict
+        groups = defaultdict(list)
+        for w in words:
+            groups[len(w)].append(w)
+  - id: step.grouping.trace-anagrams
+    type: trace
+    title: Grouping anagrams
+    body: |
+      Two words are anagrams when their letters, sorted, are the same. So **the sorted letters make a good key**: `eat`
+      and `tea` both become `aet`. Watch `groups` grow. A new key gets a new empty list, and a key that already exists
+      gets another word appended to its list.
+    code: |
+      words = ["eat", "tea", "tan", "ate", "nat"]
+      groups = {}
+      for w in words:
+          key = "".join(sorted(w))
+          if key not in groups:
+              groups[key] = []
+          groups[key].append(w)
+    visualise:
+      - variable: groups
+        as: dict
+        pointers: [key]
+  - id: step.grouping.defaultdict
+    type: explain
+    title: Skip the "is it there yet?" check
+    body: |
+      That `if key not in groups` check is so common that Python has two ways to skip it.
+
+      **`setdefault`** returns the value for a key, first storing a default if the key is missing:
+
+      ```python
+      groups.setdefault(key, []).append(item)
+      ```
+
+      **`defaultdict(list)`** is a dict that builds an empty list the first time you touch a missing key:
+
+      ```python
+      from collections import defaultdict
+
+      groups = defaultdict(list)
+      groups[key].append(item)
+      ```
+
+      Pass `list` itself, not `[]`. `defaultdict` calls it each time it needs a *fresh* list, so no two keys ever share one.
+
+      Watch out for one side effect: **just reading a missing key creates it.** `groups["x"]` on a `defaultdict` adds `"x"`
+      with an empty list, even if you only meant to look. To ask without creating anything, use `"x" in groups` or
+      `groups.get("x")`.
+    comparison:
+      csharp: |
+        // C# has no defaultdict. You write the check yourself,
+        if (!groups.ContainsKey(key))
+            groups[key] = new List<string>();
+        groups[key].Add(item);
+
+        // or let ToLookup / GroupBy do it
+        var lookup = items.ToLookup(KeyOf);
+      python: |
+        # a plain dict needs the check (or setdefault)
+        groups.setdefault(key, []).append(item)
+
+        # a defaultdict does not
+        groups = defaultdict(list)
+        groups[key].append(item)
+  - id: step.grouping.predict-by-length
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      from collections import defaultdict
+
+      groups = defaultdict(list)
+      for w in ["to", "at", "cat", "dog", "a"]:
+          groups[len(w)].append(w)
+      print(dict(groups))
+    accepted:
+      - "{2: ['to', 'at'], 3: ['cat', 'dog'], 1: ['a']}"
+    mistakes:
+      - answers:
+          - "{1: ['a'], 2: ['to', 'at'], 3: ['cat', 'dog']}"
+        feedback: "A dict keeps its keys in the order they were first added. `2` came first (from `to`), and `1` came last."
+      - answers:
+          - "{2: 2, 3: 2, 1: 1}"
+        feedback: "That would be a frequency table, which keeps counts. Here each key keeps the *words* themselves."
+      - answers:
+          - "{2: ['to'], 3: ['cat'], 1: ['a']}"
+        feedback: "`append` adds to the key's list. `at` also has length 2, and `dog` also has length 3, so they join those lists."
+    hints:
+      - The key is `len(w)`. Which words have length 2? Which have length 3?
+      - A dict keeps keys in the order they first appeared, and each list keeps its words in the order they arrived.
+  - id: step.grouping.predict-read-creates
+    type: predict-output
+    title: Just looking
+    prompt: What does this print?
+    code: |
+      from collections import defaultdict
+
+      groups = defaultdict(list)
+      groups["a"].append("apple")
+      print(groups["z"])
+      print(len(groups))
+    accepted:
+      - "[]\n2"
+    mistakes:
+      - answers:
+          - "[]\n1"
+        feedback: "`groups[\"z\"]` isn't only a look. A `defaultdict` creates the missing key, so `z` is now in the dict as well as `a`."
+      - regex: "(?i)keyerror"
+        feedback: "A plain dict would raise `KeyError`. A `defaultdict` makes the missing key instead, with an empty list."
+    hints:
+      - "`groups[\"z\"]` has no `z` to find, so what does a `defaultdict(list)` do?"
+      - "Count the keys after both lines have run."
+  - id: step.grouping.check-which-problem
+    type: choice
+    title: Which problem is a grouping problem?
+    prompt: Which of these problems is best solved by grouping items under a key?
+    options:
+      - text: Collect the words that are anagrams of each other into lists, one list per set of anagrams.
+        correct: true
+        feedback: Right. Anagrams share a key, their sorted letters, so each word goes into the list for its key.
+      - text: Count how many times each word appears.
+        correct: false
+        feedback: That keeps a count per word, so a frequency table is enough. Grouping is for when you need the items themselves.
+      - text: Find the two numbers in a list that add up to a target.
+        correct: false
+        feedback: That is a lookup problem. You ask "have I seen the partner of this number?", and no lists are built.
+      - text: Check whether a list is sorted.
+        correct: false
+        feedback: That compares neighbours. Nothing is collected under a key.
+    hints:
+      - Look for the cue "put the same … together".
+      - Which problem needs to *hand back the items*, sorted into piles?
+  - id: step.grouping.check-which-key
+    type: choice
+    title: What is the key?
+    prompt: |
+      You are grouping words so that anagrams end up together, for example `listen`, `silent` and `enlist`. For each
+      word, which of these works as the dict key?
+    options:
+      - text: The word's letters sorted and joined into a string, so `listen` becomes `eilnst`.
+        correct: true
+        feedback: Right. Anagrams have exactly the same letters, so they sort to the same string, and different letter sets never collide.
+      - text: The word's length.
+        correct: false
+        feedback: "`cat` and `dog` share a length but are not anagrams. The key must be the same *only* for items that belong together."
+      - text: The word itself.
+        correct: false
+        feedback: Every word would get a group of its own, because `listen` and `silent` are different strings.
+      - text: "`sorted(word)`, the sorted list of letters."
+        correct: false
+        feedback: "That is the right idea, but a list can't be a dict key (it raises `TypeError: unhashable type`). Join it into a string, or use `tuple(sorted(word))`."
+    hints:
+      - The key must be identical for any two anagrams, and different for any two words that are not.
+      - "A dict key must be hashable. Lists are not, but strings and tuples are."
+  - id: step.grouping.fill-by-first
+    type: fill-blank
+    title: Complete the function
+    prompt: |
+      Fill in the blanks to finish `group_by_first`. It should return a dict from each first letter to the list of words
+      that start with it, in their original order.
+    template: |
+      from collections import defaultdict
+
+      def group_by_first(words):
+          groups = defaultdict({{factory}})
+          for w in words:
+              groups[{{key}}].{{method}}(w)
+          return groups
+    blanks:
+      - id: factory
+        accepted:
+          - list
+        mistakes:
+          - answers:
+              - "[]"
+            feedback: "`defaultdict` needs something it can *call* to make a fresh default each time. Pass `list`, not the empty list `[]`."
+          - answers:
+              - set
+            feedback: "A `set` would work for collecting, but the next lines use a list's method. Here every group is a `list`."
+      - id: key
+        accepted:
+          - "w[0]"
+        mistakes:
+          - answers:
+              - w
+            feedback: "Using the whole word as the key would put every word in its own group. The key is the *first letter*."
+          - answers:
+              - "w[-1]"
+            feedback: "`w[-1]` is the last letter. The first letter is `w[0]`."
+      - id: method
+        accepted:
+          - append
+        mistakes:
+          - answers:
+              - add
+            feedback: "`add` is a set's method. A list gets items with `append`."
+          - answers:
+              - Add
+              - push
+            feedback: "That's C# (or JavaScript). A Python list's method is `append`."
+    hints:
+      - "`defaultdict` needs the thing that builds each new group. The groups are lists."
+      - The key must be the same for words that start with the same letter. Which index is the first letter?
+      - You add one item to the end of a list with a method named after what it does.
+  - id: step.grouping.order-group-anagrams
+    type: parsons
+    title: Group the anagrams
+    prompt: |
+      Arrange these lines into `group_anagrams`, which returns a list of groups. Each group is a list of words that are
+      anagrams of each other.
+    solution: |
+      def group_anagrams(words):
+          groups = {}
+          for w in words:
+              key = "".join(sorted(w))
+              groups.setdefault(key, []).append(w)
+          return list(groups.values())
+    hints:
+      - The dict has to exist before the loop that fills it, and the key has to be worked out before it is used.
+      - "`return` is the last line and lines up with `for`: it runs once, after every word is in a group."
+      - The two lines inside the loop are indented one level deeper than `for`.
+  - id: step.grouping.choosing-key
+    type: explain
+    title: The key is the whole idea
+    body: |
+      In `group_anagrams` the grouping code is two lines. The thinking is all in the key. Whenever an item has some
+      "disguise" that doesn't matter, the key is the item **with the disguise removed**, its *canonical form*:
+
+      - anagrams: the letters sorted
+      - "same word, any capitals": `w.lower()`
+      - "numbers that differ by a multiple of 7": `n % 7`
+      - "dates in the same month": `(year, month)`
+
+      Two rules for a good key:
+
+      1. **Equal for items that belong together, different for items that don't.**
+      2. **Hashable.** Strings, numbers and tuples are. Lists, dicts and sets are not, so turn them into a tuple or a string first.
+
+      Cost: each word of length `k` costs `O(k log k)` to sort, so `n` words cost `O(n · k log k)` in total. For short
+      words that is close to `O(n)`. Nothing is compared against any other word, which is what makes it fast. Comparing
+      every pair of words to find the anagrams would be `O(n²)`.
+  - id: step.grouping.write-group-anagrams
+    type: write-code
+    title: Group the anagrams yourself
+    prompt: |
+      Write `group_anagrams(words)`, which returns a list of lists. Words that are anagrams of each other go in the same
+      list. Order groups by the first time any of their words appears, and keep the words in each group in their original order.
+      For example `group_anagrams(["eat", "tea", "tan", "ate", "nat"])` is `[["eat", "tea", "ate"], ["tan", "nat"]]`.
+    language: python
+    entrypoint: group_anagrams
+    starter: |
+      def group_anagrams(words):
+          pass
+    solution: |
+      def group_anagrams(words):
+          groups = {}
+          for w in words:
+              key = "".join(sorted(w))
+              if key not in groups:
+                  groups[key] = []
+              groups[key].append(w)
+          return list(groups.values())
+    tests:
+      - input: '["eat", "tea", "tan", "ate", "nat"]'
+        expected: '[["eat", "tea", "ate"], ["tan", "nat"]]'
+      - input: '["a"]'
+        expected: '[["a"]]'
+      - input: "[]"
+        expected: "[]"
+      - input: '["ab", "cd"]'
+        expected: '[["ab"], ["cd"]]'
+      - input: '["ab", "ba", "ab"]'
+        expected: '[["ab", "ba", "ab"]]'
+      - input: '["abc", "bca", "xyz", "zyx", "cab", "yzx"]'
+        expected: '[["abc", "bca", "cab"], ["xyz", "zyx", "yzx"]]'
+    hints:
+      - Each word needs a key that is the same for its anagrams. Sorting the letters gives one.
+      - "`sorted(w)` is a list, which can't be a dict key. `\"\".join(sorted(w))` is a string, which can."
+      - Make a dict from key to a list of words, add each word to its key's list, then return the lists with `list(groups.values())`.
+    walkthrough:
+      call: result = group_anagrams(["eat", "tea", "tan", "ate"])
+      visualise:
+        - variable: groups
+          as: dict
+          pointers: [key]
+      explanation: |
+        Every word is turned into its key: the letters sorted and joined. `eat` becomes `aet` and starts a new group.
+        `tea` also becomes `aet`, so it joins that group. `tan` becomes `ant`, a different key, so it starts a second group,
+        and `ate` becomes `aet` again and joins the first.
+
+        A dict keeps keys in the order they first appeared, so `groups.values()` gives the groups in the order the problem
+        asks for. Each word was sorted once and dropped into a dict, so no word was ever compared with another.
+  - id: step.grouping.write-group-by-length
+    type: write-code
+    title: Group by length
+    prompt: |
+      Write `group_by_length(words)`, which returns a dict from each length to the list of words of that length, in their
+      original order. For example `group_by_length(["to", "at", "cat"])` is `{2: ["to", "at"], 3: ["cat"]}`.
+    language: python
+    entrypoint: group_by_length
+    starter: |
+      def group_by_length(words):
+          pass
+    solution: |
+      def group_by_length(words):
+          groups = {}
+          for w in words:
+              n = len(w)
+              groups.setdefault(n, []).append(w)
+          return groups
+    tests:
+      - input: '["to", "at", "cat"]'
+        expected: '{2: ["to", "at"], 3: ["cat"]}'
+      - input: "[]"
+        expected: "{}"
+      - input: '["a"]'
+        expected: '{1: ["a"]}'
+      - input: '["bb", "a", "cc", "d"]'
+        expected: '{2: ["bb", "cc"], 1: ["a", "d"]}'
+      - input: '["xyz", "xyz"]'
+        expected: '{3: ["xyz", "xyz"]}'
+    hints:
+      - The key is the word's length, `len(w)`.
+      - Each key needs a list. `groups.setdefault(key, [])` gives you the list, creating it if it is missing.
+      - Append the word to that list. A dict you return with no entries is just `{}`.
+    walkthrough:
+      call: result = group_by_length(["to", "cat", "at", "dog"])
+      visualise:
+        - variable: groups
+          as: dict
+          pointers: [n]
+      explanation: |
+        For each word, `n` is its length, and `setdefault(n, [])` finds the list for that length, creating it the first time
+        the length is seen. `append` then adds the word. `to` makes the list for length 2, `cat` makes the list for 3, `at`
+        joins the first and `dog` joins the second.
+
+        The key `n` and the word `w` are different things. The dict holds the words, and the keys are only how they are
+        sorted into piles.
