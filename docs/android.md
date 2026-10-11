@@ -61,7 +61,7 @@ An emulator is a good stand-in for the build, the install and the offline behavi
 
 ## Android-specific behaviour
 
-- **Edge-to-edge.** Apps targeting API 35+ draw under the status and navigation bars. `MainPage.xaml` sets `SafeAreaEdges` on Android so content starts below the status bar; Mac Catalyst is unchanged.
+- **Edge-to-edge.** Apps targeting API 35+ draw under the status and navigation bars. `MainPage.xaml` sets `SafeAreaEdges=All` on Android so the web view sits between the status bar and the navigation bar (measured on the emulator: it spans y=159 to 2920 of 2992, where `Container,SoftInput` let it run under the navigation bar). `All` also includes the on-screen keyboard. Mac Catalyst is unchanged.
 - **Pyodide.** It runs in a module worker, and Android's WebView serves `.wasm` with the wrong MIME type, which the worker works around. Load failures and timeouts are shown to the learner rather than hanging. Details in [the spike](spikes/pyodide-blazorwebview.md).
 - **Device name.** Android reports its machine name as `localhost`, so the Sync screen suggests the phone's model (`DeviceInfo.Name`) via `DeviceLabel`.
 

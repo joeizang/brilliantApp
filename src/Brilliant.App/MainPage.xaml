@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:local="clr-namespace:Brilliant.App"
              x:Class="Brilliant.App.MainPage"
-             SafeAreaEdges="{OnPlatform Android='Container,SoftInput', Default=None}"
+             SafeAreaEdges="{OnPlatform Android=All, Default=None}"
              BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#16171D, Default=#16171D}">
     <BlazorWebView HostPage="wwwroot/index.html">
         <BlazorWebView.RootComponents>
