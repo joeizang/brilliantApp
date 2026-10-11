@@ -1,0 +1,479 @@
+id: lesson.pattern-two-pointers-converging
+title: "Pattern: two pointers from both ends"
+concepts:
+  - id: concept.two-pointers-converging
+    title: Two pointers moving toward each other
+  - id: concept.discarding-safely
+    title: Why moving a pointer is safe on sorted input
+  - id: concept.pointers-meet
+    title: They meet after at most n - 1 moves
+reviewItems:
+  - id: review.converging.which-problem
+    concept: concept.two-pointers-converging
+    step: step.converging.check-which-problem
+    kind: pattern
+  - id: review.converging.predict-pair
+    concept: concept.two-pointers-converging
+    step: step.converging.predict-pair
+  - id: review.converging.why-move
+    concept: concept.discarding-safely
+    step: step.converging.check-why-move
+    kind: pattern
+  - id: review.converging.unsorted
+    concept: concept.discarding-safely
+    step: step.converging.check-unsorted
+  - id: review.converging.shorter-side
+    concept: concept.discarding-safely
+    step: step.converging.check-shorter-side
+  - id: review.converging.step-count
+    concept: concept.pointers-meet
+    step: step.converging.predict-steps
+steps:
+  - id: step.converging.pattern
+    type: explain
+    title: Start at both ends and walk inwards
+    body: |
+      Some problems are about **pairs of items in a sorted list**, or about the two **ends** of a list. Watch for these words:
+
+      - *a sorted array*, and *find two numbers that...*
+      - *from both ends*, *the first and the last*, *reverse in place*
+      - *do it without extra space*
+
+      The brute-force answer tries every pair: two loops, `O(n²)`. The **two pointers** pattern does it in one pass. Put one
+      pointer, `left`, on the first item and another, `right`, on the last. Look at the pair they point at, and let what you see
+      decide **which pointer moves in**. Stop when they meet. Each step moves one pointer, so the work is `O(n)`.
+
+      The cue to remember is *"sorted, or symmetrical, and I'm looking at pairs or ends"*.
+    comparison:
+      csharp: |
+        int left = 0, right = nums.Length - 1;
+        while (left < right)
+        {
+            int total = nums[left] + nums[right];
+            if (total == target) return new[] { left, right };
+            if (total < target) left++;
+            else right--;
+        }
+        return Array.Empty<int>();
+      python: |
+        left, right = 0, len(nums) - 1
+        while left < right:
+            total = nums[left] + nums[right]
+            if total == target:
+                return [left, right]
+            if total < target:
+                left += 1
+            else:
+                right -= 1
+        return []
+  - id: step.converging.trace-pair
+    type: trace
+    title: Closing in on a pair
+    body: |
+      The list is sorted and the target is `13`. Watch `left` and `right` and the `total` of the two cells they point at. When
+      the total is too small, `left` moves in to a bigger number. When it is too big, `right` moves in to a smaller one.
+    code: |
+      nums = [1, 3, 4, 6, 9, 11]
+      target = 13
+      left = 0
+      right = len(nums) - 1
+      found = None
+      while left < right:
+          total = nums[left] + nums[right]
+          if total == target:
+              found = [left, right]
+              break
+          if total < target:
+              left += 1
+          else:
+              right -= 1
+    visualise:
+      - variable: nums
+        as: array
+        pointers: [left, right]
+  - id: step.converging.trace-meet
+    type: trace
+    title: When there is no pair
+    body: |
+      This time no two numbers add up to `20`. Each step still moves one pointer inwards, so the pointers must
+      meet. Watch what happens to the loop when `left` reaches `right`: `found` stays `None`.
+    code: |
+      nums = [2, 5, 8]
+      target = 20
+      left = 0
+      right = len(nums) - 1
+      found = None
+      while left < right:
+          total = nums[left] + nums[right]
+          if total == target:
+              found = [left, right]
+              break
+          if total < target:
+              left += 1
+          else:
+              right -= 1
+    visualise:
+      - variable: nums
+        as: array
+        pointers: [left, right]
+  - id: step.converging.predict-pair
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      def pair_sum_sorted(nums, target):
+          left, right = 0, len(nums) - 1
+          while left < right:
+              total = nums[left] + nums[right]
+              if total == target:
+                  return [left, right]
+              if total < target:
+                  left += 1
+              else:
+                  right -= 1
+          return None
+
+      print(pair_sum_sorted([1, 3, 4, 6, 9, 11], 13))
+      print(pair_sum_sorted([2, 5, 8], 20))
+    accepted:
+      - "[2, 4]\nNone"
+    mistakes:
+      - answers:
+          - "[4, 9]\nNone"
+        feedback: "The function returns the *positions* `[left, right]`, not the numbers at those positions."
+      - answers:
+          - "[2, 4]\n[]"
+        feedback: "When the pointers meet without a match, the function falls out of the loop to `return None`, not an empty list."
+      - answers:
+          - "[2, 4]\nFalse"
+        feedback: "Nothing returns `False` here. After the loop, the function returns `None`."
+    hints:
+      - "Follow the pointers: `1 + 11` is too small, so `left` moves in. Keep going until a total hits `13`."
+      - "In the second call the pointers meet before any total reaches `20`."
+  - id: step.converging.predict-steps
+    type: predict-output
+    title: How many moves?
+    prompt: What does this print?
+    code: |
+      nums = [1, 2, 4, 7, 11, 15]
+      left, right = 0, len(nums) - 1
+      steps = 0
+      while left < right:
+          steps += 1
+          if nums[left] + nums[right] < 15:
+              left += 1
+          else:
+              right -= 1
+      print(steps, left, right)
+    accepted:
+      - "5 3 3"
+    mistakes:
+      - answers:
+          - "6 3 3"
+        feedback: "The list has six items, but the loop stops as soon as the pointers meet. Each pass moves one pointer, and they start five cells apart, so there are five passes."
+      - answers:
+          - "5 2 3"
+          - "5 3 4"
+        feedback: "The loop only ends when `left < right` is false, which means the pointers are equal. They end on the same cell."
+    hints:
+      - "Write down `left` and `right` after each pass: `(0, 5)`, then `(0, 4)`, then `(1, 4)`, and so on."
+      - "The pointers start 5 cells apart, and each pass closes the gap by exactly 1."
+  - id: step.converging.check-which-problem
+    type: choice
+    title: Which problem fits two pointers?
+    prompt: Which of these problems is best solved with two pointers starting at both ends?
+    options:
+      - text: Check whether a list reads the same forwards and backwards.
+        correct: true
+        feedback: Right. Compare the first with the last, then the second with the second to last, and walk inwards. The ends are what matter.
+      - text: Count how many times each word appears in a text.
+        correct: false
+        feedback: That is a frequency table. There is no pair to look at and no order to use.
+      - text: Answer thousands of "sum from position i to j" questions about a list.
+        correct: false
+        feedback: That is a prefix sums problem. The work is done once up front, not by walking in from the ends.
+      - text: Group words that are anagrams of each other.
+        correct: false
+        feedback: That is grouping by a key, such as the sorted letters of each word.
+    hints:
+      - Look for the cue "both ends", or "a pair in a sorted list".
+      - Which problem compares the two ends of a list and works inwards?
+  - id: step.converging.check-why-move
+    type: choice
+    title: Why is it safe to move left?
+    prompt: |
+      In the sorted list, `nums[left] + nums[right]` is **less than** the target, so the code does `left += 1`. Why is it safe
+      to never look at the current `left` item again?
+    options:
+      - text: "`nums[right]` is already the biggest item still in play, so no other partner can make the total bigger. This `left` item can't pair with anything and can be discarded."
+        correct: true
+        feedback: Right. Every partner left for it is at or before `right`, so is no bigger than `nums[right]`. Its best possible total is still too small.
+      - text: Because `left` has already been compared with everything.
+        correct: false
+        feedback: It has only been compared with `nums[right]`. It is safe to drop because of the sorted order, not because every comparison was made.
+      - text: Because moving `left` in is cheaper than moving `right`.
+        correct: false
+        feedback: Both moves cost the same. What matters is which one can never lose a valid answer.
+      - text: It isn't safe. Some pairs will be missed, but it is fast.
+        correct: false
+        feedback: Two pointers on a sorted list never miss a pair. Each move only throws away items that cannot be part of any answer.
+    hints:
+      - "`right` points at the largest item still in play. What is the largest total `nums[left]` could make?"
+      - "If even the best partner is too small, can any other partner work?"
+  - id: step.converging.check-unsorted
+    type: choice
+    title: What if the list isn't sorted?
+    prompt: |
+      Someone runs the same two pointer loop on `[9, 1, 6, 3]` with a target of `4`. A pair does exist: `1 + 3`. What happens?
+    options:
+      - text: "The pair is missed. `9 + 3` is too big, so `right` moves in and drops the `3`, but `1` needed that `3`. Without the sorted order, \"too big\" says nothing about the items on the other side, so a move can discard an item that was needed."
+        correct: true
+        feedback: Right. Moving a pointer relies on the order. Sort first (and give up the original positions), or use a hash map instead.
+      - text: It still works, just more slowly.
+        correct: false
+        feedback: It is the same speed, but the answer can be wrong, because the "too small or too big" argument depends on the order.
+      - text: It raises an `IndexError`.
+        correct: false
+        feedback: The pointers stay in range. The risk is a wrong answer, not a crash.
+      - text: It finds the pair, because addition doesn't care about order.
+        correct: false
+        feedback: Addition doesn't, but the *decision about which pointer to move* does. It assumes the items to one side are all smaller.
+    hints:
+      - The argument for moving a pointer says "everything on this side is no bigger than...". Does that still hold?
+      - Try the loop by hand on `[9, 1, 6, 3]` with a target of `4`.
+  - id: step.converging.fill-pair-sum
+    type: fill-blank
+    title: Complete the function
+    prompt: |
+      Fill in the blanks to finish `pair_sum_sorted`. For `[1, 3, 4, 6, 9, 11]` and a target of `13` it should return `[2, 4]`.
+    template: |
+      def pair_sum_sorted(nums, target):
+          left, right = 0, {{end}}
+          while left {{cmp}} right:
+              total = nums[left] + nums[right]
+              if total == target:
+                  return [left, right]
+              if total < target:
+                  left {{move}} 1
+              else:
+                  right -= 1
+          return []
+    blanks:
+      - id: end
+        accepted:
+          - "len(nums) - 1"
+          - "len(nums)-1"
+        mistakes:
+          - answers:
+              - "len(nums)"
+            feedback: "`nums[len(nums)]` is one past the end and raises `IndexError`. The last item is at `len(nums) - 1`."
+          - answers:
+              - "-1"
+            feedback: "`right = -1` is already left of `left = 0`, so `left < right` is false and the loop never runs. Use the real last index, `len(nums) - 1`."
+      - id: cmp
+        accepted:
+          - "<"
+        mistakes:
+          - answers:
+              - "<="
+            feedback: "With `<=` the pointers can land on the same cell, and an item would be paired with itself."
+      - id: move
+        accepted:
+          - "+="
+        mistakes:
+          - answers:
+              - "-="
+            feedback: "A total that is too small needs a *bigger* left number, and the list is sorted ascending, so `left` moves to the right: `+=`."
+    hints:
+      - The last item sits at the length minus one.
+      - "Stop when the pointers meet. They must never point at the same cell, and they must never cross."
+      - A total that is too small needs a bigger number. Which way does a sorted list get bigger?
+  - id: step.converging.order-reverse
+    type: parsons
+    title: Reverse a list in place
+    prompt: |
+      Arrange these lines into `reverse_in_place`, which reverses a list **without making a copy**: it swaps the two ends and
+      walks inwards.
+    solution: |
+      def reverse_in_place(items):
+          left, right = 0, len(items) - 1
+          while left < right:
+              items[left], items[right] = items[right], items[left]
+              left += 1
+              right -= 1
+    hints:
+      - Both pointers are set up before the loop starts.
+      - "The swap and the two moves are the loop body, one level deeper than `while`."
+      - "Python can swap two cells in one line, with no temporary variable, by assigning a pair to a pair."
+  - id: step.converging.check-shorter-side
+    type: choice
+    title: Which side moves?
+    prompt: |
+      In the "container with the most water" problem, `heights[left]` and `heights[right]` are the two walls and the water
+      held is the *distance between them times the shorter wall*. Which pointer should move in?
+    options:
+      - text: The pointer on the shorter wall. Moving the taller one in can only make the container narrower, with the same shorter wall as its limit.
+        correct: true
+        feedback: Right. The shorter wall limits the height. Any container using it with a closer partner is narrower and no higher, so it can be discarded.
+      - text: The pointer on the taller wall, so the short wall stays and we try to find a better partner.
+        correct: false
+        feedback: With the shorter wall still limiting the height and the width shrinking, that can never beat the container you just measured.
+      - text: Always `left`, so the loop is predictable.
+        correct: false
+        feedback: Moving the wrong pointer discards containers that might be the best one.
+      - text: Whichever is closer to the middle.
+        correct: false
+        feedback: Position isn't what limits the water. The wall heights are.
+    hints:
+      - The water level is set by the shorter wall.
+      - If you keep the shorter wall and move the taller one in, what happens to the width and the limiting height?
+  - id: step.converging.write-two-sum
+    type: write-code
+    title: Two Sum on a sorted list
+    prompt: |
+      Write `two_sum_sorted(nums, target)` for a list sorted in ascending order. It returns the positions `[i, j]`, with `i < j`,
+      of two numbers that add up to `target`, or `[]` if there is no such pair. There will be at most one pair. For example
+      `two_sum_sorted([2, 7, 11, 15], 9)` is `[0, 1]`.
+    language: python
+    entrypoint: two_sum_sorted
+    starter: |
+      def two_sum_sorted(nums, target):
+          pass
+    solution: |
+      def two_sum_sorted(nums, target):
+          left, right = 0, len(nums) - 1
+          while left < right:
+              total = nums[left] + nums[right]
+              if total == target:
+                  return [left, right]
+              if total < target:
+                  left += 1
+              else:
+                  right -= 1
+          return []
+    tests:
+      - input: "[1, 3, 4, 6, 9, 11], 13"
+        expected: "[2, 4]"
+      - input: "[2, 7, 11, 15], 9"
+        expected: "[0, 1]"
+      - input: "[1, 2, 3, 4], 8"
+        expected: "[]"
+      - input: "[3, 3], 6"
+        expected: "[0, 1]"
+      - input: "[], 5"
+        expected: "[]"
+      - input: "[1, 2, 4, 7, 11, 15], 15"
+        expected: "[2, 4]"
+      - input: "[-4, -1, 0, 3, 10], 9"
+        expected: "[1, 4]"
+    hints:
+      - Put one pointer on the first item and one on the last, and loop while the left one is still left of the right one.
+      - Add the two items. If the total is the target, return the positions. If it is too small, move `left`. If it is too big, move `right`.
+      - "Return `[]` after the loop. If the pointers meet, nothing matched."
+  - id: step.converging.write-sorted-squares
+    type: write-code
+    title: Squares in order
+    prompt: |
+      Write `sorted_squares(nums)` for a list sorted in ascending order that may contain **negative** numbers. Return a list of
+      the squares of the numbers, also sorted ascending, in `O(n)` (squaring and then calling `sorted` would be `O(n log n)`).
+      For example `sorted_squares([-4, -1, 0, 3, 10])` is `[0, 1, 9, 16, 100]`.
+    language: python
+    entrypoint: sorted_squares
+    starter: |
+      def sorted_squares(nums):
+          pass
+    solution: |
+      def sorted_squares(nums):
+          result = [0] * len(nums)
+          left, right = 0, len(nums) - 1
+          for i in range(len(nums) - 1, -1, -1):
+              if abs(nums[left]) > abs(nums[right]):
+                  result[i] = nums[left] ** 2
+                  left += 1
+              else:
+                  result[i] = nums[right] ** 2
+                  right -= 1
+          return result
+    tests:
+      - input: "[-4, -1, 0, 3, 10]"
+        expected: "[0, 1, 9, 16, 100]"
+      - input: "[-7, -3, 2, 3, 11]"
+        expected: "[4, 9, 9, 49, 121]"
+      - input: "[]"
+        expected: "[]"
+      - input: "[5]"
+        expected: "[25]"
+      - input: "[-3, -2, -1]"
+        expected: "[1, 4, 9]"
+      - input: "[1, 2, 3]"
+        expected: "[1, 4, 9]"
+    hints:
+      - "The biggest square is at one of the two ends: the most negative number or the most positive one."
+      - "Fill the result from the back. At each step, compare `abs(nums[left])` with `abs(nums[right])`, put the bigger square in the next free cell, and move that pointer in."
+    walkthrough:
+      call: result = sorted_squares([-4, -1, 0, 3, 10])
+      visualise:
+        - variable: nums
+          as: array
+          pointers: [left, right]
+        - variable: result
+          as: array
+          pointers: [i]
+      explanation: |
+        The squares are largest at the two ends, so the two pointers start there and `result` is filled **from the back**.
+
+        At `i = 4`, `abs(-4)` is `4` and `abs(10)` is `10`, so `100` goes in and `right` moves in. Next, `-4` against `3` puts
+        `16` in the next cell and moves `left`. Each cell of `result` is decided once, so the whole function is one pass, `O(n)`.
+  - id: step.converging.write-max-area
+    type: write-code
+    title: Container with the most water
+    prompt: |
+      Write `max_area(heights)`. Each item is the height of a vertical wall, and two walls hold water equal to the **distance
+      between them** times the **shorter** of the two. Return the most water any two walls can hold, or `0` if there are fewer
+      than two walls. For example `max_area([1, 8, 6, 2, 5, 4, 8, 3, 7])` is `49`.
+    language: python
+    entrypoint: max_area
+    starter: |
+      def max_area(heights):
+          pass
+    solution: |
+      def max_area(heights):
+          left, right = 0, len(heights) - 1
+          best = 0
+          while left < right:
+              width = right - left
+              best = max(best, width * min(heights[left], heights[right]))
+              if heights[left] < heights[right]:
+                  left += 1
+              else:
+                  right -= 1
+          return best
+    tests:
+      - input: "[1, 8, 6, 2, 5, 4, 8, 3, 7]"
+        expected: "49"
+      - input: "[1, 1]"
+        expected: "1"
+      - input: "[4, 3, 2, 1, 4]"
+        expected: "16"
+      - input: "[1, 2, 1]"
+        expected: "2"
+      - input: "[5]"
+        expected: "0"
+      - input: "[]"
+        expected: "0"
+    hints:
+      - Start with the widest container, walls at both ends. Measure it, then try to improve on it.
+      - Measure `(right - left) * min(heights[left], heights[right])` each time and keep the largest in `best`.
+      - Move the pointer on the shorter wall. Moving the taller one can only give a narrower container with the same limit.
+    walkthrough:
+      call: result = max_area([3, 9, 2, 7])
+      visualise:
+        - variable: heights
+          as: array
+          pointers: [left, right]
+      explanation: |
+        The first container uses the walls `3` and `7`: width `3`, height `3`, area `9`. The wall of height `3` is the shorter one, so
+        `left` moves in to the `9`. That container has width `2` and height `7`, area `14`, which is the new best.
+
+        The `7` wall is shorter, so `right` moves in to the `2`. The last container has width `1` and height `2`. The pointers meet
+        and the answer is `14`. Every step threw away containers that could not beat one already measured.
