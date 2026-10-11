@@ -176,4 +176,39 @@ public sealed class TwoDeviceConvergenceTests(PostgresFixture postgres) : IAsync
         Assert.Equal(10, Ids(_a).Count);   // three rounds of a goal and a step from A and a flag from B, and the lesson completes in the last
 
     }
+
+    [Fact]
+    public async Task An_event_too_big_for_the_server_stays_on_its_device_and_blocks_nothing_for_anyone()
+    {
+        // An offline backlog on A: a long but acceptable submission, one far too big to share, and ordinary progress after both.
+        _a.Recorder.CodeSubmitted("lesson.one", "step.one.q1", new string('a', 150_000), 3, 3);
+        _clock.Now = _clock.Now.AddMinutes(1);
+        _a.Recorder.CodeSubmitted("lesson.one", "step.one.q2", new string('b', EventLimits.MaxDataLength + 10), 3, 3);
+        _clock.Now = _clock.Now.AddMinutes(1);
+        _a.Recorder.SetDailyGoal(15);
+        _b.Recorder.StepFlagged("lesson.one", "step.one.intro", "from the phone");
+        var huge = _a.Log.ReadAll().Single(e => e.StepId == "step.one.q2");
+
+        await SettleAsync();
+
+        // A kept everything, including what the server could not take, and learned what B did.
+        Assert.Contains(huge.Id, Ids(_a));
+        Assert.Contains(_a.Log.ReadAll(), e => e.Type == ProgressEventTypes.StepFlagged);
+        Assert.Equal(1, _a.Sync.RejectedCount("device-a"));
+
+        // B has the rest, whole, and the server never held the big one.
+        var onB = _b.Log.ReadAll();
+        Assert.DoesNotContain(onB, e => e.Id == huge.Id);
+        var longOne = _a.Log.ReadAll().Single(e => e.StepId == "step.one.q1" && e.Type == ProgressEventTypes.CodeSubmitted);
+        Assert.Equal(longOne, onB.Single(e => e.Id == longOne.Id));
+        Assert.Contains("goal=15", Print(_b));
+        Assert.Empty(await _server.WithDbAsync(db => Task.FromResult(db.Events.Where(e => e.Id == huge.Id).ToList())));
+
+        // Nothing is retried, and later progress still flows.
+        _clock.Now = _clock.Now.AddMinutes(1);
+        _a.Recorder.SetDailyGoal(25);
+        await SettleAsync();
+        Assert.Contains("goal=25", Print(_b));
+        Assert.Equal(1, _a.Sync.RejectedCount("device-a"));
+    }
 }

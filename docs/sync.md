@@ -15,7 +15,7 @@ Progress is not stored as state. It is an append-only log of events (`ProgressEv
 
 `SyncService.SyncAsync` does, in order:
 
-1. **Push.** Read this device's local log after `PushedThrough`, keep the events this device *authored* (events pulled from elsewhere are not sent back), and `POST /events` them in batches of 500.
+1. **Push.** Read this device's local log after `PushedThrough`, keep the events this device *authored* (events pulled from elsewhere are not sent back), and `POST /events` them in batches (at most 500 events and 2,000,000 characters of data each). Events the server could never accept are [held back](#events-the-server-cannot-take).
 2. **Pull.** `GET /events?after=PulledThrough`, page by page, appending each event to the local log (idempotent by ID). The cursor is saved as each page lands, so an interrupted sync resumes where it stopped.
 3. **Record** `LastSyncedAt`. If anything was pulled, raise `EventsPulled`.
 
@@ -29,7 +29,18 @@ A push that is sent but whose response is lost is simply sent again next time; t
 
 `OccurredAt` is stored as ticks (a `long`) so a timestamp round-trips exactly. If it were rounded, the same event would sort differently on two devices.
 
-Limits (`EventLimits`): 500 events per push, 1000 per pull page, IDs up to 100 characters, `Data` up to 100,000.
+Limits (`EventLimits`): 500 events per push, 1000 per pull page, IDs up to 100 characters, `Data` up to 1,000,000 characters per event (a long pasted solution is well inside this), and 2,000,000 per push. The server judges each event on its own: valid ones are stored and an invalid one is reported by ID in `rejected`.
+
+### Events the server cannot take
+
+One event the server will not accept must not stop the rest, so the learner's other progress and the pulls always go on. The device does not discard it either:
+
+- Before sending, the client checks each event against the same `EventLimits.Problem` the server uses, and leaves out one that could never be accepted. If the server still names an event in `rejected`, that is recorded too.
+- The ID goes in `SyncState.Rejected` for that pairing, the push cursor moves past it, and it is not offered again. The event **stays in the local log**, so it still counts on this device.
+- The Sync screen says so: *N items from this device are too large for the server and stay on this device only, so other devices won't see them.* Other devices lack that one event, so their projection can differ in what it contributes (a code submission, for instance).
+- Pairing again starts the record over, and the events are checked again.
+
+Because a lifted limit would not retroactively release held events, the limit is generous on purpose; the editor itself has no size cap.
 
 ## When it runs
 
@@ -53,6 +64,11 @@ The Sync screen shows *Last synced <time>* (kept across restarts), or why the la
 **The app works normally with the server away.** Nothing waits on the network, nothing throws at the learner, and the local log is untouched by a failed sync. Everything done meanwhile is pushed at the next successful sync.
 
 Screens showing progress (Today, Review, and so on) redraw when events arrive from another device. `EventsPulled` is raised on a background thread, and the UI marshals it with `InvokeAsync`. `CourseShell` deliberately does **not** refresh in the middle of a lesson or practice session (it would pull the step out from under the learner); it picks the new progress up at the next navigation.
+
+**Review** reads its queue once when it opens, so the shell passes it a `SyncRevision` that changes when progress arrives:
+
+- On "Nothing to review yet", "That's all for today" or "You're all caught up", the queue is read again and the learner sees what the other device just unlocked.
+- Mid-queue, the question in front of the learner (and any answer they have chosen) is left alone. At the next question, questions that became due since are added to the end, so the progress bar only ever grows.
 
 ## Known limitations
 

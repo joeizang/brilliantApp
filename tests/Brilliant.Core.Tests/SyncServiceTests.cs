@@ -55,6 +55,9 @@ public class SyncServiceTests
         public int Pushes { get; private set; }
         public int Pulls { get; set; }
         public List<int> PushSizes { get; } = [];
+
+        /// <summary>IDs the server will refuse by name, as it does for an event it finds invalid.</summary>
+        public HashSet<string> Refuses { get; } = [];
         public string? LastAuth { get; private set; }
 
         /// <summary>Makes the pull answer with a cursor that never moves.</summary>
@@ -71,9 +74,12 @@ public class SyncServiceTests
                 Pushes++;
                 var body = (await request.Content!.ReadFromJsonAsync<PushEventsRequest>(ct))!;
                 PushSizes.Add(body.Events.Count);
-                var fresh = body.Events.Where(e => Events.All(x => x.Id != e.Id)).DistinctBy(e => e.Id).ToList();
+                var refused = body.Events.Where(e => Refuses.Contains(e.Id)).ToList();
+                var valid = body.Events.Except(refused).ToList();
+                var fresh = valid.Where(e => Events.All(x => x.Id != e.Id)).DistinctBy(e => e.Id).ToList();
                 Events.AddRange(fresh);
-                return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new PushEventsResponse(fresh.Count, body.Events.Count - fresh.Count)) };
+                var rejected = refused.Select(e => new RejectedEvent(e.Id, "refused by the fake")).ToList();
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new PushEventsResponse(fresh.Count, valid.Count - fresh.Count, rejected)) };
             }
 
             Pulls++;
@@ -171,6 +177,98 @@ public class SyncServiceTests
 
         Assert.Equal(EventLimits.MaxBatch * 2 + 10, result.Pushed);
         Assert.Equal([EventLimits.MaxBatch, EventLimits.MaxBatch, 10], _server.PushSizes);
+    }
+
+    private ProgressEvent Big(int length = EventLimits.MaxDataLength + 1) =>
+        Mine() with { Type = ProgressEventTypes.CodeSubmitted, Data = new string('x', length) };
+
+    [Fact]
+    public async Task One_oversized_event_does_not_hold_back_the_valid_ones_or_the_pulls()
+    {
+        var before = Mine();
+        var big = Big();
+        var after = Mine();
+        foreach (var e in new[] { before, big, after }) _log.Append(e);
+        var theirs = Event("other");
+        _server.Events.Add(theirs);
+        var sync = Sync;
+
+        var result = await sync.SyncAsync();
+
+        Assert.True(result.Succeeded);
+        Assert.Equal((2, 1, 1), (result.Pushed, result.Pulled, result.Rejected));
+        Assert.Equal([before.Id, after.Id], _server.Events.Where(e => e.DeviceId == "me").Select(e => e.Id));
+        Assert.DoesNotContain(_server.Events, e => e.Id == big.Id);   // never even sent
+        Assert.Contains(big, _log.Items);                             // and never discarded
+        Assert.Contains(theirs, _log.Items);
+        Assert.Equal(3, _state.State.PushedThrough);
+        Assert.Equal(1, sync.RejectedCount("dev-1"));
+    }
+
+    [Fact]
+    public async Task A_held_back_event_is_not_offered_again_and_the_count_stays()
+    {
+        _log.Append(Big());
+        _log.Append(Mine());
+        var sync = Sync;
+        await sync.SyncAsync();
+        _server.PushSizes.Clear();
+        _log.Append(Mine());
+
+        var result = await sync.SyncAsync();
+
+        Assert.Equal(1, result.Pushed);
+        Assert.Equal([1], _server.PushSizes);
+        Assert.Equal(1, sync.RejectedCount("dev-1"));
+    }
+
+    [Fact]
+    public async Task An_event_the_server_refuses_by_name_is_set_aside_and_the_rest_goes_through()
+    {
+        var odd = Mine();
+        var fine = Mine();
+        _log.Append(odd);
+        _log.Append(fine);
+        _server.Refuses.Add(odd.Id);
+        var sync = Sync;
+
+        var result = await sync.SyncAsync();
+
+        Assert.True(result.Succeeded);
+        Assert.Equal((1, 1), (result.Pushed, result.Rejected));
+        Assert.Equal([fine], _server.Events);
+        Assert.Contains(odd, _log.Items);
+        Assert.Equal(2, _state.State.PushedThrough);
+        Assert.Equal([odd.Id], _state.State.RejectedIds);
+    }
+
+    [Fact]
+    public async Task Held_back_events_are_remembered_only_for_the_pairing_that_held_them()
+    {
+        _log.Append(Big());
+        var sync = Sync;
+        await sync.SyncAsync();
+        Assert.Equal(1, sync.RejectedCount("dev-1"));
+
+        Assert.Equal(0, sync.RejectedCount("dev-2"));
+        _creds.Held = Creds with { DeviceId = "dev-2", Token = "tok-2" };
+        await sync.SyncAsync();   // paired again: starts over, and the event is still too big
+
+        Assert.Equal(1, sync.RejectedCount("dev-2"));
+    }
+
+    [Fact]
+    public async Task Batches_also_stay_within_the_data_budget_and_a_large_event_that_fits_is_sent()
+    {
+        var length = 800_000;   // within the per-event limit, but three together are over the per-push budget
+        var events = Enumerable.Range(0, 3).Select(_ => Big(length)).ToList();
+        events.ForEach(e => _log.Append(e));
+        _log.Append(Mine());
+
+        var result = await Sync.SyncAsync();
+
+        Assert.Equal((4, 0), (result.Pushed, result.Rejected));
+        Assert.Equal([2, 2], _server.PushSizes);
     }
 
     [Fact]

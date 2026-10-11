@@ -220,6 +220,32 @@ public class PairingViewTests : BunitContext
     }
 
     [Fact]
+    public void With_nothing_held_back_the_sync_screen_says_nothing_about_it()
+    {
+        Assert.Empty(OpenPaired().FindAll(".sync-held"));
+    }
+
+    [Theory]
+    [InlineData(1, "1 item from this device is too large for the server and stays on this device only, so other devices won't see it.")]
+    [InlineData(2, "2 items from this device are too large for the server and stay on this device only, so other devices won't see them.")]
+    public void Events_too_large_for_the_server_are_said_plainly(int held, string expected)
+    {
+        _syncState.State = new SyncState("dev-1", 5, 5, null, [.. Enumerable.Range(0, held).Select(i => "e" + i)]);
+
+        var cut = OpenPaired();
+
+        Assert.Equal(expected, cut.Find(".sync-held").TextContent.Trim());
+    }
+
+    [Fact]
+    public void Events_held_back_under_some_other_pairing_are_not_reported_for_this_one()
+    {
+        _syncState.State = new SyncState("dev-2", 5, 5, null, ["a"]);
+
+        Assert.Empty(OpenPaired().FindAll(".sync-held"));
+    }
+
+    [Fact]
     public void Sync_now_syncs_and_shows_when()
     {
         var cut = OpenPaired();

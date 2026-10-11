@@ -36,11 +36,19 @@ public static class Endpoints
     private static async Task<IResult> PushEvents(PushEventsRequest request, ClaimsPrincipal user, ServerDb db, TimeProvider clock, CancellationToken ct)
     {
         var events = request.Events;
-        if (events is null || events.Count > EventLimits.MaxBatch)
+        if (events is null || events.Count > EventLimits.MaxBatch || events.Any(e => e is null))
             return Results.BadRequest(new { error = $"Send between 0 and {EventLimits.MaxBatch} events at a time." });
-        if (events.Any(e => e is null || !IsValid(e)))
-            return Results.BadRequest(new { error = "Every event needs an ID, device, type and time, within the size limits." });
-        if (events.Count == 0) return Results.Ok(new PushEventsResponse(0, 0));
+
+        // An event that breaks the limits is refused by name; it must not hold up the valid ones sent with it, or one bad event
+        // would block a device's whole backlog for good.
+        var rejected = new List<RejectedEvent>();
+        var valid = new List<ProgressEvent>();
+        foreach (var e in events)
+        {
+            if (EventLimits.Problem(e) is { } why) rejected.Add(new RejectedEvent(e.Id ?? "", why));
+            else valid.Add(e);
+        }
+        if (valid.Count == 0) return Results.Ok(new PushEventsResponse(0, 0, rejected));
 
         var pushedBy = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var now = clock.GetUtcNow();
@@ -48,10 +56,10 @@ public static class Endpoints
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         await db.Database.ExecuteSqlRawAsync($"SELECT pg_advisory_xact_lock({PushLock})", ct);
 
-        var ids = events.Select(e => e.Id).Distinct().ToList();
+        var ids = valid.Select(e => e.Id).Distinct().ToList();
         var known = (await db.Events.AsNoTracking().Where(e => ids.Contains(e.Id)).Select(e => e.Id).ToListAsync(ct)).ToHashSet();
         var accepted = 0;
-        foreach (var e in events)
+        foreach (var e in valid)
         {
             if (!known.Add(e.Id)) continue;
             db.Events.Add(new EventRecord
@@ -63,16 +71,8 @@ public static class Endpoints
         }
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
-        return Results.Ok(new PushEventsResponse(accepted, events.Count - accepted));
+        return Results.Ok(new PushEventsResponse(accepted, valid.Count - accepted, rejected));
     }
-
-    private static bool IsValid(ProgressEvent e) =>
-        !string.IsNullOrWhiteSpace(e.Id) && e.Id.Length <= EventLimits.MaxIdLength
-        && !string.IsNullOrWhiteSpace(e.DeviceId) && e.DeviceId.Length <= EventLimits.MaxIdLength
-        && !string.IsNullOrWhiteSpace(e.Type) && e.Type.Length <= EventLimits.MaxIdLength
-        && (e.LessonId ?? "").Length <= EventLimits.MaxIdLength && (e.StepId ?? "").Length <= EventLimits.MaxIdLength
-        && (e.Data?.Length ?? 0) <= EventLimits.MaxDataLength
-        && e.OccurredAt > DateTimeOffset.MinValue.AddYears(1) && e.OccurredAt < DateTimeOffset.MaxValue.AddYears(-1);
 
     private static async Task<IResult> PullEvents(long? after, int? limit, ServerDb db, CancellationToken ct)
     {

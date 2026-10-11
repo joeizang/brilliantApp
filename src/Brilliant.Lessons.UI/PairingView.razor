@@ -21,6 +21,12 @@ else if (_paired is { } paired)
         <p class="paired-status m-0">✓ Paired with <strong class="paired-server">@paired.Server.Authority</strong></p>
         <div class="sync-status grid gap-2" role="status">
             <p class="last-synced m-0">@LastSyncedText(paired)</p>
+            @if (Sync.RejectedCount(paired.DeviceId) is var held and > 0)
+            {
+                <p class="sync-held m-0 text-[.9rem] text-fg-secondary">
+                    @held @(held == 1 ? "item" : "items") from this device @(held == 1 ? "is" : "are") too large for the server and @(held == 1 ? "stays" : "stay") on this device only, so other devices won't see @(held == 1 ? "it" : "them").
+                </p>
+            }
             @if (Sync.Last is { Failure: { } failure })
             {
                 <p class="sync-error m-0 text-danger" role="alert">@FailureText(failure)</p>

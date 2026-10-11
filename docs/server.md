@@ -75,7 +75,7 @@ A revoked device gets `401` on everything except `/health` and `/pair`. Revoking
 | `POST /pairing-codes` | device | `{code, expiresAt}` for a new one-time code |
 | `GET /devices` | device | the household's devices |
 | `DELETE /devices/{id}` | device | revoke; `204` (also if already revoked), `404` if unknown |
-| `POST /events` | device | `{events:[…]}` (at most 500) → `{accepted, duplicates}`. Idempotent by event ID; all-or-nothing: one invalid event rejects the batch with `400` and stores nothing |
+| `POST /events` | device | `{events:[…]}` (at most 500) → `{accepted, duplicates, rejected:[{id, reason}]}`. Idempotent by event ID. Judged event by event: valid ones are stored and an invalid one is named in `rejected` (the response is still `200`), so one bad event never blocks the rest. Only a malformed batch (no list, a null entry, over 500 events) is a `400` that stores nothing |
 | `GET /events?after=N&limit=M` | device | events after cursor `N` (default 0), oldest first, at most `M` (default and maximum 1000) → `{events, cursor, hasMore}`. Pass `cursor` back as `after` |
 
 ## Plain HTTP on the home network

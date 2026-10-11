@@ -36,7 +36,7 @@ public sealed class EventSyncTests(PostgresFixture postgres)
         var pushed = (await response.Content.ReadFromJsonAsync<PushEventsResponse>())!;
         var page = await Pull(client);
 
-        Assert.Equal(new PushEventsResponse(2, 0), pushed);
+        Assert.Equal((2, 0, 0), (pushed.Accepted, pushed.Duplicates, pushed.Rejected!.Count));
         Assert.Equal(["e1", "e2"], page.Events.Select(e => e.Id));
         Assert.Equal(precise, page.Events[1]);
         Assert.False(page.HasMore);
@@ -52,7 +52,7 @@ public sealed class EventSyncTests(PostgresFixture postgres)
 
         var again = (await (await Push(client, Evt("e2"), Evt("e3"), Evt("e3"))).Content.ReadFromJsonAsync<PushEventsResponse>())!;
 
-        Assert.Equal(new PushEventsResponse(1, 2), again);   // e3 twice in one batch counts once
+        Assert.Equal((1, 2), (again.Accepted, again.Duplicates));   // e3 twice in one batch counts once
         Assert.Equal(["e1", "e2", "e3"], (await Pull(client)).Events.Select(e => e.Id));
     }
 
@@ -91,16 +91,23 @@ public sealed class EventSyncTests(PostgresFixture postgres)
         Assert.Equal(["m1", "p1"], (await Pull(phone)).Events.Select(e => e.Id));
     }
 
+    private static async Task<PushEventsResponse> Pushed(HttpResponseMessage response)
+    {
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<PushEventsResponse>())!;
+    }
+
     [Fact]
-    public async Task A_batch_with_one_bad_event_stores_none_of_it()
+    public async Task A_bad_event_is_refused_by_name_and_the_good_ones_beside_it_are_stored()
     {
         await using var server = await ServerHarness.StartAsync(postgres);
         var (client, _) = await server.PairDeviceAsync();
 
-        var response = await Push(client, Evt("good"), Evt("bad") with { Type = "" });
+        var result = await Pushed(await Push(client, Evt("good-1"), Evt("bad") with { Type = "" }, Evt("good-2", minute: 1)));
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Empty((await Pull(client)).Events);
+        Assert.Equal((2, 0), (result.Accepted, result.Duplicates));
+        Assert.Equal("bad", Assert.Single(result.Rejected!).Id);
+        Assert.Equal(["good-1", "good-2"], (await Pull(client)).Events.Select(e => e.Id));
     }
 
     [Theory]
@@ -111,22 +118,58 @@ public sealed class EventSyncTests(PostgresFixture postgres)
         await using var server = await ServerHarness.StartAsync(postgres);
         var (client, _) = await server.PairDeviceAsync();
 
-        Assert.Equal(HttpStatusCode.BadRequest, (await Push(client, Evt(id))).StatusCode);
+        var result = await Pushed(await Push(client, Evt(id)));
+
+        Assert.Equal(0, result.Accepted);
+        Assert.Single(result.Rejected!);
+        Assert.Empty((await Pull(client)).Events);
     }
 
     [Fact]
-    public async Task Events_and_batches_over_the_limits_are_refused()
+    public async Task Events_over_the_limits_are_refused_with_the_reason_and_the_rest_still_goes_through()
     {
         await using var server = await ServerHarness.StartAsync(postgres);
         var (client, _) = await server.PairDeviceAsync();
 
         var tooLong = Evt(new string('x', EventLimits.MaxIdLength + 1));
         var bigData = Evt("big", data: new string('d', EventLimits.MaxDataLength + 1));
-        var tooMany = Enumerable.Range(0, EventLimits.MaxBatch + 1).Select(i => Evt("n" + i)).ToArray();
 
-        Assert.Equal(HttpStatusCode.BadRequest, (await Push(client, tooLong)).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await Push(client, bigData)).StatusCode);
+        var result = await Pushed(await Push(client, tooLong, bigData, Evt("fine")));
+
+        Assert.Equal(1, result.Accepted);
+        Assert.Equal(2, result.Rejected!.Count);
+        Assert.Contains("data", result.Rejected.Single(r => r.Id == "big").Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(["fine"], (await Pull(client)).Events.Select(e => e.Id));
+    }
+
+    [Fact]
+    public async Task A_large_submission_is_accepted_and_comes_back_whole()
+    {
+        await using var server = await ServerHarness.StartAsync(postgres);
+        var (client, _) = await server.PairDeviceAsync();
+        // Past the old 100,000 limit, and full of characters JSON escapes: what a long pasted solution looks like.
+        var code = string.Concat(Enumerable.Repeat("print(\"héllo\")\n", 12_000));
+        var data = System.Text.Json.JsonSerializer.Serialize(new { code, passed = 3, total = 3 });
+        Assert.InRange(data.Length, 100_001, EventLimits.MaxDataLength);
+
+        var result = await Pushed(await Push(client, Evt("long", type: ProgressEventTypes.CodeSubmitted, data: data)));
+
+        Assert.Equal(1, result.Accepted);
+        Assert.Empty(result.Rejected!);
+        Assert.Equal(data, (await Pull(client)).Events.Single().Data);
+    }
+
+    [Fact]
+    public async Task A_batch_over_the_count_limit_or_with_a_null_event_is_malformed()
+    {
+        await using var server = await ServerHarness.StartAsync(postgres);
+        var (client, _) = await server.PairDeviceAsync();
+
+        var tooMany = Enumerable.Range(0, EventLimits.MaxBatch + 1).Select(i => Evt("n" + i)).ToArray();
+        var withNull = await client.PostAsync("/events", new StringContent("""{"events":[null]}""", System.Text.Encoding.UTF8, "application/json"));
+
         Assert.Equal(HttpStatusCode.BadRequest, (await Push(client, tooMany)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, withNull.StatusCode);
         Assert.Empty((await Pull(client)).Events);
     }
 

@@ -77,6 +77,43 @@ public class SyncRefreshTests : ShortcutContext
         cut.WaitForAssertion(() => Assert.Contains("of 7 steps", cut.Find(".today-goal").TextContent));
     }
 
+    private static ChoiceStep Q(string id) =>
+        new(id, "Question " + id, "Pick the right one", false, [new ChoiceOption("right", true, null), new ChoiceOption("wrong", false, null)]);
+
+    private static readonly Lesson Quiz = new("lesson.quiz", "Quiz", "track.t", [new ExplainStep("step.intro", "Intro", "b", [], null), Q("step.q1")])
+    {
+        Concepts = [new Concept("concept.c", "C")],
+        ReviewItems = [new ReviewItem("review.q1", "concept.c", "step.q1")],
+    };
+
+    private static readonly ContentGraph QuizContent = new(new PackManifest("pack.t", "1.0.0", 1), [new Track("track.t", "Tools", [Quiz.Id])], [Quiz]);
+
+    /// <summary>What the phone would have recorded finishing the lesson.</summary>
+    private static ProgressEvent[] PhoneFinishesQuiz()
+    {
+        var phone = new MemoryLog();
+        var recorder = new ProgressRecorder(phone, "phone", new ManualTimeProvider());
+        foreach (var step in Quiz.Steps) recorder.CompleteStep(Quiz, step.Id);
+        return [.. phone.ReadAll()];
+    }
+
+    [Fact]
+    public async Task An_open_empty_Review_shows_the_questions_a_sync_unlocks()
+    {
+        var sync = AddSync(PhoneFinishesQuiz());
+        var cut = Render<CourseShell>(p => p.Add(c => c.Content, QuizContent));
+        cut.Find("button.side-review").Click();
+        Assert.Contains("Nothing to review yet", cut.Markup);
+
+        await Task.Run(() => sync.SyncAsync());
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.DoesNotContain("Nothing to review yet", cut.Markup);
+            Assert.Contains("Question step.q1", cut.Markup);
+        });
+    }
+
     [Fact]
     public async Task A_sync_that_brings_nothing_leaves_the_screen_alone()
     {

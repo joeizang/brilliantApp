@@ -2,8 +2,8 @@ using Brilliant.Core.Progress;
 
 namespace Brilliant.Core.Sync;
 
-/// <summary>The outcome of one sync attempt. <see cref="At"/> is when it finished.</summary>
-public sealed record SyncResult(int Pushed, int Pulled, SyncFailure? Failure, string? Detail, DateTimeOffset At)
+/// <summary>The outcome of one sync attempt. <see cref="At"/> is when it finished. <see cref="Rejected"/> counts events found this time that the server cannot accept.</summary>
+public sealed record SyncResult(int Pushed, int Pulled, SyncFailure? Failure, string? Detail, DateTimeOffset At, int Rejected = 0)
 {
     public bool Succeeded => Failure is null;
 }
@@ -27,6 +27,9 @@ public sealed class SyncService(
 
     /// <summary>When a sync last completed for the pairing <paramref name="pairingId"/>, across runs of the app; null if it never has.</summary>
     public DateTimeOffset? LastSyncedAt(string pairingId) => stateStore.Load().For(pairingId).LastSyncedAt;
+
+    /// <summary>How many of this device's events the server cannot accept, for the pairing <paramref name="pairingId"/>. They stay on this device.</summary>
+    public int RejectedCount(string pairingId) => stateStore.Load().For(pairingId).RejectedIds.Count;
 
     /// <summary>Raised when a sync starts or finishes, so a screen showing the status can redraw.</summary>
     public event Action? StatusChanged;
@@ -63,11 +66,25 @@ public sealed class SyncService(
             var state = stateStore.Load().For(creds.DeviceId);
 
             // Push: this device's own events after the cursor. Events pulled from elsewhere are not ours to send back.
+            // An event the server could never accept is not sent, and one it refuses by name is set aside; either way it stays in the
+            // local log and the rest of the backlog goes through, so one oversized event can't hold up every other.
             var local = log.ReadSince(state.PushedThrough);
             var own = local.Events.Where(e => e.DeviceId == deviceId).ToList();
-            for (var i = 0; i < own.Count; i += EventLimits.MaxBatch)
-                pushed += (await client.PushAsync(creds, own.Skip(i).Take(EventLimits.MaxBatch).ToList(), ct)).Accepted;
-            state = state with { PushedThrough = local.Cursor };
+            var refused = new List<string>();
+            var sendable = new List<ProgressEvent>();
+            foreach (var e in own)
+            {
+                if (EventLimits.Problem(e) is null) sendable.Add(e);
+                else refused.Add(e.Id);
+            }
+            foreach (var batch in Batches(sendable))
+            {
+                var response = await client.PushAsync(creds, batch, ct);
+                pushed += response.Accepted;
+                refused.AddRange((response.Rejected ?? []).Select(r => r.Id));
+            }
+            var rejected = state.RejectedIds.Union(refused).ToList();
+            state = state with { PushedThrough = local.Cursor, Rejected = rejected.Count == 0 ? null : rejected };
             stateStore.Save(state);
 
             // Pull: page through the server's log from the cursor, saving the cursor as each page lands.
@@ -84,7 +101,7 @@ public sealed class SyncService(
             var now = _clock.GetUtcNow();
             stateStore.Save(state with { LastSyncedAt = now });
             if (pulled > 0) EventsPulled?.Invoke();
-            return new SyncResult(pushed, pulled, null, null, now);
+            return new SyncResult(pushed, pulled, null, null, now, refused.Count);
         }
         catch (SyncException e)
         {
@@ -96,6 +113,25 @@ public sealed class SyncService(
             if (pulled > 0) EventsPulled?.Invoke();
             return new SyncResult(pushed, pulled, SyncFailure.LocalError, e.GetBaseException().Message, _clock.GetUtcNow());
         }
+    }
+
+    /// <summary>Batches of at most <see cref="EventLimits.MaxBatch"/> events and <see cref="EventLimits.MaxBatchData"/> characters of data, in order. An event too big to share a batch goes alone.</summary>
+    private static IEnumerable<List<ProgressEvent>> Batches(List<ProgressEvent> events)
+    {
+        var batch = new List<ProgressEvent>();
+        var size = 0;
+        foreach (var e in events)
+        {
+            var length = e.Data?.Length ?? 0;
+            if (batch.Count > 0 && (batch.Count == EventLimits.MaxBatch || size + length > EventLimits.MaxBatchData))
+            {
+                yield return batch;
+                (batch, size) = ([], 0);
+            }
+            batch.Add(e);
+            size += length;
+        }
+        if (batch.Count > 0) yield return batch;
     }
 }
 

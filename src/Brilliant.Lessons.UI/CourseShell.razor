@@ -26,7 +26,7 @@
         }
         else if (_reviewing)
         {
-            <ReviewView Content="Content" OnExit="GoToToday" FinishedText="Back to Today" OnProgress="() => StateHasChanged()" />
+            <ReviewView Content="Content" OnExit="GoToToday" FinishedText="Back to Today" OnProgress="() => StateHasChanged()" SyncRevision="_syncRevision" />
         }
         else if (_lesson is { } lesson)
         {
@@ -68,6 +68,7 @@
     private IDisposable? _shortcuts;
 
     private Brilliant.Core.Sync.SyncService? _syncService;
+    private int _syncRevision;
 
     protected override void OnInitialized()
     {
@@ -82,7 +83,9 @@
     // it reads the log again when they move on.
     private void OnEventsPulled() => _ = InvokeAsync(() =>
     {
-        if (_lesson is null && !_session) StateHasChanged();
+        if (_lesson is not null || _session) return;
+        _syncRevision++;
+        StateHasChanged();
     });
 
     // A content update can complete a lesson (its last unfinished step was deleted). Record that once, so a later update can't undo it.
