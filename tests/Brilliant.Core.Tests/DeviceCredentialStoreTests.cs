@@ -14,21 +14,26 @@ public class DeviceCredentialStoreTests : IDisposable
         if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true);
     }
 
-    private sealed class MemoryStore : IDeviceCredentialStore
+    /// <summary>A keystore that can go away and come back, as the platform's does. While it is away it refuses everything, as an unsigned Mac build's keychain does (MissingEntitlement).</summary>
+    private sealed class Keystore : IDeviceCredentialStore
     {
-        public DeviceCredentials? Saved;
-        public Task<DeviceCredentials?> LoadAsync(CancellationToken ct = default) => Task.FromResult(Saved);
-        public Task SaveAsync(DeviceCredentials credentials, CancellationToken ct = default) { Saved = credentials; return Task.CompletedTask; }
-        public Task ClearAsync(CancellationToken ct = default) { Saved = null; return Task.CompletedTask; }
+        public DeviceCredentials? Held;
+        public bool Available = true;
+
+        private void Check()
+        {
+            if (!Available) throw new InvalidOperationException("MissingEntitlement");
+        }
+
+        public Task<DeviceCredentials?> LoadAsync(CancellationToken ct = default) { Check(); return Task.FromResult(Held); }
+        public Task SaveAsync(DeviceCredentials credentials, CancellationToken ct = default) { Check(); Held = credentials; return Task.CompletedTask; }
+        public Task ClearAsync(CancellationToken ct = default) { Check(); Held = null; return Task.CompletedTask; }
     }
 
-    /// <summary>A key store that refuses everything, as an unsigned Mac build's keychain does (MissingEntitlement).</summary>
-    private sealed class Refusing : IDeviceCredentialStore
-    {
-        public Task<DeviceCredentials?> LoadAsync(CancellationToken ct = default) => throw new InvalidOperationException("MissingEntitlement");
-        public Task SaveAsync(DeviceCredentials credentials, CancellationToken ct = default) => throw new InvalidOperationException("MissingEntitlement");
-        public Task ClearAsync(CancellationToken ct = default) => throw new InvalidOperationException("MissingEntitlement");
-    }
+    // A new instance over the same file and keystore is what an app restart looks like.
+    private FallbackDeviceCredentialStore Store(Keystore keystore) => new(keystore, new FileDeviceCredentialStore(FilePath));
+
+    private static DeviceCredentials Device(string n) => Creds with { DeviceId = "dev-" + n, Token = "tok-" + n };
 
     [Fact]
     public async Task The_file_store_round_trips_and_creates_its_folder()
@@ -78,48 +83,120 @@ public class DeviceCredentialStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task The_secure_store_is_used_when_it_works_and_the_fallback_is_left_empty()
+    public async Task The_file_can_say_the_server_was_forgotten_on_purpose()
     {
-        MemoryStore secure = new(), fallback = new() { Saved = Creds with { Token = "old" } };
-        var store = new FallbackDeviceCredentialStore(secure, fallback);
-
-        await store.SaveAsync(Creds);
-
-        Assert.Equal(Creds, secure.Saved);
-        Assert.Null(fallback.Saved);
-        Assert.Equal(Creds, await store.LoadAsync());
+        var file = new FileDeviceCredentialStore(FilePath);
+        await file.MarkForgottenAsync();
+        Assert.IsType<FileState.Forgotten>(await file.ReadAsync());
+        Assert.Null(await file.LoadAsync());
+        await file.SaveAsync(Creds);
+        Assert.IsType<FileState.Held>(await file.ReadAsync());
     }
 
     [Fact]
-    public async Task When_the_secure_store_refuses_the_fallback_keeps_the_credentials()
+    public async Task A_working_keystore_holds_the_credentials_and_the_file_stays_absent()
     {
-        var fallback = new MemoryStore();
-        var store = new FallbackDeviceCredentialStore(new Refusing(), fallback);
+        var keystore = new Keystore();
 
-        await store.SaveAsync(Creds);
+        await Store(keystore).SaveAsync(Creds);
 
-        Assert.Equal(Creds, fallback.Saved);
-        Assert.Equal(Creds, await store.LoadAsync());
+        Assert.Equal(Creds, keystore.Held);
+        Assert.False(File.Exists(FilePath));
+        Assert.Equal(Creds, await Store(keystore).LoadAsync());
     }
 
     [Fact]
-    public async Task Forgetting_clears_both_and_does_not_fail_just_because_the_secure_store_refuses()
+    public async Task When_the_keystore_refuses_the_file_keeps_the_credentials_across_restarts()
     {
-        var fallback = new MemoryStore { Saved = Creds };
-        var store = new FallbackDeviceCredentialStore(new Refusing(), fallback);
+        var keystore = new Keystore { Available = false };
 
-        await store.ClearAsync();
+        await Store(keystore).SaveAsync(Creds);
 
-        Assert.Null(fallback.Saved);
-        Assert.Null(await store.LoadAsync());
+        Assert.Equal(Creds, await Store(keystore).LoadAsync());
     }
 
     [Fact]
-    public async Task Forgetting_still_clears_the_fallback_when_the_secure_store_clears_normally()
+    public async Task A_save_that_works_empties_a_file_left_from_an_earlier_outage()
     {
-        MemoryStore secure = new() { Saved = Creds }, fallback = new() { Saved = Creds };
-        await new FallbackDeviceCredentialStore(secure, fallback).ClearAsync();
-        Assert.Null(secure.Saved);
-        Assert.Null(fallback.Saved);
+        var keystore = new Keystore { Available = false };
+        await Store(keystore).SaveAsync(Device("old"));
+        keystore.Available = true;
+
+        await Store(keystore).SaveAsync(Device("new"));
+
+        Assert.False(File.Exists(FilePath));
+        Assert.Equal(Device("new"), await Store(keystore).LoadAsync());
+    }
+
+    [Fact]
+    public async Task A_new_pairing_made_during_an_outage_survives_the_keystore_coming_back_with_an_older_one()
+    {
+        var keystore = new Keystore { Held = Device("old"), Available = false };
+        Assert.Null(await Store(keystore).LoadAsync());   // looks unpaired, so the learner pairs again
+
+        await Store(keystore).SaveAsync(Device("new"));
+        keystore.Available = true;
+
+        Assert.Equal(Device("new"), await Store(keystore).LoadAsync());
+        Assert.Equal(Device("new"), await Store(keystore).LoadAsync());   // and after a restart
+    }
+
+    [Fact]
+    public async Task Forgetting_during_an_outage_stays_forgotten_when_the_keystore_comes_back_with_the_old_pairing()
+    {
+        var keystore = new Keystore { Held = Device("old"), Available = false };
+
+        await Store(keystore).ClearAsync();   // can't reach the keystore, but must not pretend or throw
+        Assert.Null(await Store(keystore).LoadAsync());
+        keystore.Available = true;
+
+        Assert.Null(await Store(keystore).LoadAsync());   // the old token is still in the keystore, and must not come back
+        Assert.Equal(Device("old"), keystore.Held);
+    }
+
+    [Fact]
+    public async Task Pairing_again_after_a_forgotten_outage_replaces_what_the_keystore_kept()
+    {
+        var keystore = new Keystore { Held = Device("old"), Available = false };
+        await Store(keystore).ClearAsync();
+        keystore.Available = true;
+
+        await Store(keystore).SaveAsync(Device("new"));
+
+        Assert.Equal(Device("new"), keystore.Held);
+        Assert.False(File.Exists(FilePath));
+        Assert.Equal(Device("new"), await Store(keystore).LoadAsync());
+    }
+
+    [Fact]
+    public async Task Forgetting_with_a_working_keystore_leaves_nothing_behind()
+    {
+        var keystore = new Keystore { Held = Creds };
+        await Store(keystore).ClearAsync();
+        Assert.Null(keystore.Held);
+        Assert.False(File.Exists(FilePath));
+        Assert.Null(await Store(keystore).LoadAsync());
+    }
+
+    [Fact]
+    public async Task Forgetting_a_fallback_pairing_clears_the_file()
+    {
+        var keystore = new Keystore { Available = false };
+        await Store(keystore).SaveAsync(Creds);
+        keystore.Available = true;
+
+        await Store(keystore).ClearAsync();
+
+        Assert.False(File.Exists(FilePath));
+        Assert.Null(await Store(keystore).LoadAsync());
+    }
+
+    [Fact]
+    public async Task A_forget_that_cannot_be_made_durable_is_reported()
+    {
+        // The keystore is away and the file can't be written (its "path" is a folder), so nothing can honour the forget.
+        Directory.CreateDirectory(FilePath);
+        var store = new FallbackDeviceCredentialStore(new Keystore { Available = false }, new FileDeviceCredentialStore(FilePath));
+        await Assert.ThrowsAnyAsync<Exception>(() => store.ClearAsync());
     }
 }

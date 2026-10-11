@@ -48,7 +48,9 @@ docker compose exec server dotnet Brilliant.Server.dll pairing-code
 
 Then, in the app: **Sync** in the sidebar, enter the server's address (for example `192.168.1.20:8080`; a bare host gets `http://` and port 8080), the code, and a name for the device, and press **Pair**. A wrong, used or expired code is refused, and after 10 wrong tries a minute from one address the server answers `429` until the minute is up.
 
-The token is returned once and only a hash of it is stored on the server. On the device it is kept in the platform's secure storage (the keychain on a Mac, the keystore on Android). If that is unavailable, as in an unsigned Mac build (`MissingEntitlement`), it falls back to a file readable only by you (`0600`) inside the app's sandbox container. **Forget this server** clears it on the device; it does not revoke it (see below).
+The token is returned once and only a hash of it is stored on the server. On the device it is kept in the platform's secure storage (the keychain on a Mac, the keystore on Android). If that is unavailable, as in an unsigned Mac build (`MissingEntitlement`), it falls back to a file readable only by you (`0600`) inside the app's sandbox container. That file is authoritative whenever it holds anything: a pairing saved to it wins over whatever an older keystore entry says when the keystore comes back, and a **Forget this server** made while the keystore was unreachable leaves a "forgotten" marker in it so the old token cannot reappear. If forgetting cannot be made durable, the Sync screen says so instead of reporting success. Forgetting clears the credentials on the device; it does not revoke them (see below).
+
+On narrow windows and phones, where the sidebar is hidden, Sync is reached from the link at the bottom of the Tracks screen.
 
 ## Manage devices
 

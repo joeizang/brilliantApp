@@ -27,6 +27,13 @@ public class PairingViewTests : BunitContext
         }
     }
 
+    private sealed class FailingForget : IDeviceCredentialStore
+    {
+        public Task<DeviceCredentials?> LoadAsync(CancellationToken ct = default) => Task.FromResult<DeviceCredentials?>(new(new Uri("http://nuc.local:8080/"), "dev-1", "tok-1"));
+        public Task SaveAsync(DeviceCredentials credentials, CancellationToken ct = default) => Task.CompletedTask;
+        public Task ClearAsync(CancellationToken ct = default) => throw new IOException("disk is read-only");
+    }
+
     private readonly MemoryStore _store = new();
     private Stub _server = new(HttpStatusCode.OK, new PairResponse("dev-1", "tok-1"));
 
@@ -131,5 +138,17 @@ public class PairingViewTests : BunitContext
 
         Assert.Null(_store.Saved);
         Assert.NotNull(cut.Find("input.pair-code"));
+    }
+
+    [Fact]
+    public void A_forget_that_fails_says_so_and_stays_paired()
+    {
+        Services.AddSingleton(new PairingService(new PairingClient(new HttpClient(_server)), new FailingForget()));
+        var cut = Render<PairingView>();
+
+        cut.WaitForElement("button.forget").Click();
+
+        Assert.Contains("Couldn't forget", cut.Find(".forget-error").TextContent);
+        Assert.NotNull(cut.Find(".paired"));
     }
 }

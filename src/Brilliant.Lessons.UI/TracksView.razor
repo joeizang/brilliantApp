@@ -35,9 +35,19 @@ else
         </li>
     }
 </ul>
-@if (OnOpenFlagged.HasDelegate)
+@if (OnOpenFlagged.HasDelegate || OnOpenSync.HasDelegate)
 {
-    <div class="content-column mb-6"><button class="flagged-link link btn-link text-fg-secondary" @onclick="() => OnOpenFlagged.InvokeAsync()">Flagged steps</button></div>
+    @* The sidebar is hidden on narrow windows, so these are how the narrow layout reaches them. *@
+    <div class="content-column mb-6 flex flex-wrap items-center gap-x-6 gap-y-2">
+        @if (OnOpenFlagged.HasDelegate)
+        {
+            <button class="flagged-link link btn-link text-fg-secondary" @onclick="() => OnOpenFlagged.InvokeAsync()">Flagged steps</button>
+        }
+        @if (OnOpenSync.HasDelegate)
+        {
+            <button class="sync-link link btn-link text-fg-secondary" @onclick="() => OnOpenSync.InvokeAsync()">Sync</button>
+        }
+    </div>
 }
 
 @code {
@@ -45,6 +55,7 @@ else
     [Parameter] public EventCallback<Track> OnOpenTrack { get; set; }
     [Parameter] public EventCallback OnOpenReview { get; set; }
     [Parameter] public EventCallback OnOpenFlagged { get; set; }
+    [Parameter] public EventCallback OnOpenSync { get; set; }
 
     /// <summary>Back to Today, when Tracks is reached from there.</summary>
     [Parameter] public EventCallback OnBack { get; set; }

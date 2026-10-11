@@ -17,6 +17,14 @@ else if (_paired is { } paired)
     <div class="paired content-column mt-4 grid gap-3">
         <p class="paired-status m-0">✓ Paired with <strong class="paired-server">@paired.Server.Authority</strong></p>
         <p class="m-0 text-[.9rem] text-fg-secondary">This device is on the server's list. To disconnect it for good, revoke it on the server; forgetting only clears it here.</p>
+        @if (_error is not null)
+        {
+            <p class="forget-error m-0 text-danger" role="alert">@_error</p>
+            @if (_detail is not null)
+            {
+                <p class="m-0 text-[.85rem] text-fg-secondary">@_detail</p>
+            }
+        }
         <div><button class="forget btn-secondary" @onclick="Forget">Forget this server</button></div>
     </div>
 }
@@ -109,7 +117,16 @@ else
 
     private async Task Forget()
     {
-        await Pairing.ForgetAsync();
-        _paired = null;
+        try
+        {
+            await Pairing.ForgetAsync();
+            _paired = null;
+            _error = _detail = null;
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            _error = "Couldn't forget this server on this device. Try again.";
+            _detail = e.GetBaseException().Message;
+        }
     }
 }

@@ -245,6 +245,26 @@ public class ReviewViewTests : ShortcutContext
     }
 
     [Fact]
+    public void The_tracks_screen_links_to_Sync_for_windows_too_narrow_for_the_sidebar()
+    {
+        var opened = false;
+
+        var cut = Render<TracksView>(p => p.Add(c => c.Content, Content).Add(c => c.OnOpenSync, () => opened = true));
+        cut.Find("button.sync-link").Click();
+
+        Assert.True(opened);
+        Assert.Empty(cut.FindAll("button.flagged-link"));
+    }
+
+    [Fact]
+    public void The_tracks_screen_has_no_Sync_link_when_nothing_handles_it()
+    {
+        var cut = Render<TracksView>(p => p.Add(c => c.Content, Content));
+
+        Assert.Empty(cut.FindAll("button.sync-link"));
+    }
+
+    [Fact]
     public void The_sidebar_shows_the_due_count_next_to_Review()
     {
         FinishLesson();
