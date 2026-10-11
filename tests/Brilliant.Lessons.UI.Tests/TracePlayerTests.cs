@@ -35,8 +35,17 @@ public class TracePlayerTests : ShortcutContext
     private IRenderedComponent<TracePlayer> Start(TraceResult run, IReadOnlyList<Visual> visuals, out BunitJSModuleInterop module)
     {
         module = Editor();
-        var states = TraceModel.Build(run, visuals);
-        return Render<TracePlayer>(p => p.Add(c => c.Code, Code).Add(c => c.States, states).Add(c => c.Result, run));
+        return Show(module, TraceModel.Build(run, visuals), run);
+    }
+
+    // The player's first render is not finished when Render returns: it highlights the first line once the editor is ready,
+    // and that takes a hop onto another thread. Until it has happened, a click's re-render may not be visible yet, so a test that
+    // clicked straight away read stale markup whenever the machine was busy. Wait for the highlight before the test starts.
+    private IRenderedComponent<TracePlayer> Show(BunitJSModuleInterop module, IReadOnlyList<TraceState> states, TraceResult run)
+    {
+        var cut = Render<TracePlayer>(p => p.Add(c => c.Code, Code).Add(c => c.States, states).Add(c => c.Result, run));
+        cut.WaitForAssertion(() => module.VerifyInvoke("highlightLine"));
+        return cut;
     }
 
     private IRenderedComponent<TracePlayer> Open(out BunitJSModuleInterop module) => Start(Result, Visuals, out module);
@@ -261,8 +270,7 @@ public class TracePlayerTests : ShortcutContext
     public void Rendering_again_with_the_same_trace_keeps_the_learners_place()
     {
         var states = TraceModel.Build(Result, Visuals);
-        Editor();
-        var cut = Render<TracePlayer>(p => p.Add(c => c.Code, Code).Add(c => c.States, states).Add(c => c.Result, Result));
+        var cut = Show(Editor(), states, Result);
         cut.Find("button.next").Click();
         cut.Find("button.next").Click();
 
@@ -655,8 +663,7 @@ public class TracePlayerTests : ShortcutContext
     public void Rendering_again_with_the_same_trace_keeps_playing()
     {
         var states = TraceModel.Build(Result, Visuals);
-        Editor();
-        var cut = Render<TracePlayer>(p => p.Add(c => c.Code, Code).Add(c => c.States, states).Add(c => c.Result, Result));
+        var cut = Show(Editor(), states, Result);
         cut.Find("button.play").Click();
 
         cut.Render(p => p.Add(c => c.Code, Code).Add(c => c.States, states).Add(c => c.Result, Result));
