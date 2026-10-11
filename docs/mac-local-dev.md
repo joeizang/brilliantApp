@@ -38,6 +38,20 @@ scripts/pack-content.sh
 dotnet build src/Brilliant.App -t:Run -f net10.0-maccatalyst
 ```
 
+## Opening the app at a later lesson (debug builds)
+
+Lessons unlock one after another, so reaching lesson 7 normally means finishing lessons 1-6. To look at a later lesson without touching your
+real progress, run the debug build with `BRILLIANT_DEV_START_AT` set to the lesson's id:
+
+```bash
+BRILLIANT_DEV_START_AT=lesson.pattern-hash-map-lookup \
+  src/Brilliant.App/bin/Debug/net10.0-maccatalyst/maccatalyst-arm64/Brilliant.app/Contents/MacOS/Brilliant.App
+```
+
+Progress then lives in memory only (`brilliant.db` is neither read nor written), and every lesson before the named one counts as completed.
+Quit the app and everything is forgotten. An unknown lesson id fails at startup. The switch is compiled out of Release builds
+(`src/Brilliant.App/DevProgress.cs`). Code drafts still use `drafts.db`.
+
 ## Content rules enforced by the validator
 
 - Every track, lesson and step has a stable `id` (`track.…`, `lesson.…`, `step.…`; lowercase words joined by `-` or `.`), unique across the pack.
