@@ -30,6 +30,25 @@ public sealed record TrackState(Track Track, IReadOnlyList<LessonState> Lessons)
 public sealed record ReviewItemState(Lesson Lesson, ReviewItem Item, Step Question, bool IsUnlocked, CardState? Card, int Answers,
     int AttemptHints = 0, int LessonHints = 0)
 {
+    /// <summary>
+    /// The form of the question to put in front of the learner: <see cref="Question"/>, or its phone alternative where the Review Queue
+    /// Builder chose that for a small screen. Which form is shown never changes what the item is: its ID, schedule and answers are the same.
+    /// </summary>
+    public Step Presented => Shown ?? Question;
+
+    /// <summary>The phone alternative chosen for <see cref="Question"/>, or null when the question is shown as authored.</summary>
+    public Step? Shown { get; init; }
+
+    /// <summary>This item with the form of its question suited to a screen of this class.</summary>
+    public ReviewItemState For(ScreenClass screen)
+    {
+        var form = Question.For(screen);
+        return this with { Shown = ReferenceEquals(form, Question) ? null : form };
+    }
+
+    /// <summary>The question is awkward on a phone and has no phone form: the learner is told it is best on a larger screen.</summary>
+    public bool NeedsLargeScreen => Question.LargeScreenPreferred && Shown is null;
+
     public bool IsNew => Card is null;
 
     /// <summary>

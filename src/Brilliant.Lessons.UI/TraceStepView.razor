@@ -1,7 +1,7 @@
 @* A trace step: some explanation, then the example run once and recorded for the Trace Player. *@
 <article class="trace-step lesson-step">
     <h2>@Step.Title</h2>
-    <div class="trace-body mb-4">@((MarkupString)MarkdownHtml.ToHtml(Step.Body))</div>
+    <div class="trace-body mb-4 max-w-(--content-width)">@((MarkupString)MarkdownHtml.ToHtml(Step.Body))</div>
     <TraceRun Code="@Step.Code" Visuals="Step.Visuals" />
 </article>
 

@@ -310,6 +310,7 @@ steps:
       - Replace the search with a lookup in something built from the items you've seen.
   - id: step.hashlookup.write-two-sum
     type: write-code
+    largeScreenPreferred: true
     title: Write Two Sum
     prompt: |
       Write `two_sum(nums, target)`, which returns the positions `[i, j]` (with `i < j`) of two numbers that add up to
@@ -359,6 +360,28 @@ steps:
         `2`, `7` and `11` all need numbers that haven't appeared, so each is stored with its position. Then `15` needs `11`,
         which is waiting in the dict at position 2. The function returns `[2, 3]`: the stored position first, then the
         current one. One pass and one lookup per item is `O(n)`, where trying every pair was `O(n²)`.
+    phoneAlternative:
+      id: step.hashlookup.write-two-sum.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `two_sum(nums, target)`, which returns the positions `[i, j]` (with `i < j`) of two numbers that add up to
+        `target`. There is always at most one answer to look for. Return `[]` if no pair exists.
+        For example `two_sum([2, 7, 11, 15], 9)` is `[0, 1]`.
+        Arrange the lines instead of typing them.
+      solution: |
+        def two_sum(nums, target):
+            seen = {}
+            for i, n in enumerate(nums):
+                need = target - n
+                if need in seen:
+                    return [seen[need], i]
+                seen[n] = i
+            return []
+      hints:
+        - Don't try every pair. Walk the list once and remember what you've seen in a dict.
+        - For each number, the partner it needs is `target - n`. Is that already a key in the dict?
+        - "Check `need in seen` before you store the current number, then `seen[n] = i`."
   - id: step.hashlookup.variation
     type: explain
     title: The same idea, a new question
@@ -371,6 +394,7 @@ steps:
       do with the answer changes. That is the pattern: *record as you go, look up what you need.*
   - id: step.hashlookup.write-pair-count
     type: write-code
+    largeScreenPreferred: true
     title: Count the pairs
     prompt: |
       Write `pair_count(nums, target)`, which returns how many pairs of positions `i < j` have `nums[i] + nums[j] == target`.
@@ -416,3 +440,24 @@ steps:
 
         The second `5` needs `1`, finds one copy and scores a pair; the first `5` scored one too, when it met the `1`. The `-1`
         then needs `7` and scores the third. Because `n` is recorded only *after* the lookup, a number never pairs with itself.
+    phoneAlternative:
+      id: step.hashlookup.write-pair-count.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `pair_count(nums, target)`, which returns how many pairs of positions `i < j` have `nums[i] + nums[j] == target`.
+        For example `pair_count([1, 5, 7, -1, 5], 6)` is `3`: the pairs are `(1, 5)` twice and `(7, -1)`.
+        Arrange the lines instead of typing them.
+      solution: |
+        def pair_count(nums, target):
+            seen = {}
+            total = 0
+            for n in nums:
+                need = target - n
+                total += seen.get(need, 0)
+                seen[n] = seen.get(n, 0) + 1
+            return total
+      hints:
+        - Same loop as Two Sum, but the dict remembers *how many* times each number has appeared.
+        - "For each `n`, every earlier copy of `target - n` makes one pair. `seen.get(need, 0)` is how many there are."
+        - Add that to a running total first, and only then record the current `n` in the dict.

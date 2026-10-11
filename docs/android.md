@@ -71,7 +71,7 @@ Verified on an arm64 Android 16 emulator (Pixel 9 Pro XL image) with the signed 
 
 **Not done here, and the acceptance check for #33:** installing the APK on Joseph's physical phone and pairing over the real home network. Beyond that:
 
-- The layout is the desktop layout squeezed narrow. The sidebar is hidden on narrow screens (Sync is reachable through Tracks), and nothing is tuned for a phone yet: that is [#34](https://github.com/joeizang/brilliantApp/issues/34), together with touch dragging for Parsons steps.
+- Phone and tablet layouts, touch dragging for Parsons and phone-friendly reviews are [#34](https://github.com/joeizang/brilliantApp/issues/34); see [responsive-layouts.md](responsive-layouts.md). The touch drag has only been tried on the emulator so far.
 - Code drafts do not sync yet ([#30](https://github.com/joeizang/brilliantApp/issues/30)).
 - Only `arm64-v8a` and `x86_64` are built, which covers every current phone and the Apple Silicon and Intel emulators.
 

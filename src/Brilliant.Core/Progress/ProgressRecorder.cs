@@ -18,8 +18,8 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
     /// The learner's state right now: the whole log projected against <paramref name="content"/>. Projected at local time,
     /// so the daily review cap rolls over at the learner's midnight.
     /// </summary>
-    public LearnerState Project(ContentGraph content) =>
-        LearnerStateProjector.Project(log.ReadAll(), content, _clock.GetLocalNow());
+    public LearnerState Project(ContentGraph content, ScreenClass screen = ScreenClass.Desktop) =>
+        LearnerStateProjector.Project(log.ReadAll(), content, _clock.GetLocalNow(), screen: screen);
 
     /// <summary>
     /// Records LessonCompleted for lessons that a content change has just completed (the learner's last unfinished
@@ -89,7 +89,7 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
     /// <summary>Records a review answer, inferring the FSRS rating from correctness, hints and time. Returns the rating.</summary>
     public Rating ReviewAnswered(ReviewItemState review, bool correct, int hintsUsed, TimeSpan elapsed)
     {
-        var rating = RatingInference.Infer(correct, hintsUsed, elapsed, review.Question);
+        var rating = RatingInference.Infer(correct, hintsUsed, elapsed, review.Presented);
         ReviewAnswered(review.Lesson.Id, review.Item, correct, hintsUsed, elapsed, rating);
         return rating;
     }

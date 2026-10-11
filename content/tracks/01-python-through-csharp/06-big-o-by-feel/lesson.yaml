@@ -330,6 +330,7 @@ steps:
       - "Order: `def`, `seen = set()`, `result = []`, `for`, `if x not in seen:`, then `seen.add(x)` and `result.append(x)` under the `if`, and `return result` last."
   - id: step.bigo.write-count-in-both
     type: write-code
+    largeScreenPreferred: true
     title: Write a function
     prompt: |
       Write `count_in_both(a, b)`, which returns how many items of `a` also appear in `b`. Repeats in `a` count each
@@ -376,3 +377,25 @@ steps:
 
         The arrow marks the item being tested: `1` finds no such row, so it isn't counted, while both `2`s and the `3` land on
         rows in the set. That makes `total` 3. Repeats in `a` are counted every time, because the loop visits each one.
+    phoneAlternative:
+      id: step.bigo.write-count-in-both.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `count_in_both(a, b)`, which returns how many items of `a` also appear in `b`. Repeats in `a` count each
+        time, so `count_in_both([1, 2, 2, 3], [2, 3, 4])` is `3`.
+
+        Keep it quick: the lists can be long, so don't search `b` from the start for every item of `a`.
+        Arrange the lines instead of typing them.
+      solution: |
+        def count_in_both(a, b):
+            lookup = set(b)
+            total = 0
+            for x in a:
+                if x in lookup:
+                    total += 1
+            return total
+      hints:
+        - You will test each item of `a` against `b` many times. What can you build from `b` once to make that quick?
+        - "`lookup = set(b)` first, then loop over `a` and use `x in lookup`."
+        - Keep a running `total` and add 1 each time `x in lookup`.

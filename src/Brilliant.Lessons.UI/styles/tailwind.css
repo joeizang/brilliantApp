@@ -24,6 +24,7 @@
 @custom-variant wide (@media (width >= 56rem));
 /* The explanation's side-by-side comparison stacks in a narrow window. The query is in px, so it ignores the type scale. */
 @custom-variant narrow (@media (max-width: 600px));
+@custom-variant coarse (@media (pointer: coarse));
 
 /*
  * Design tokens. `inline` makes a utility emit var(--bg) itself, so `bg-surface` follows light/dark (theme.css redefines the
@@ -141,6 +142,8 @@
     .content-column, .lesson-step { @apply mx-auto box-border max-w-(--content-width) px-6; }
     /* A lesson step: the column, vertical padding and the fade in. */
     .lesson-step { @apply animate-fade-up py-6; }
+    /* A trace step is the one with room to use: the Trace Player lays its code and visuals side by side when the column allows. */
+    .lesson-step.trace-step { @apply max-w-5xl; }
 
     /* Code on a lesson page (explanations, predict-output, fill-in-the-blank, test output) and markdown's own <pre>. */
     pre, .code-block {

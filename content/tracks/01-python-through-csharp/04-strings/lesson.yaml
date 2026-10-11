@@ -242,6 +242,7 @@ steps:
       - Then a method of the separator, `", "`, glues the list back together.
   - id: step.strings.write-reverse-words
     type: write-code
+    largeScreenPreferred: true
     title: Write a function
     prompt: |
       Write `reverse_words(sentence)`, which returns the words of `sentence` in reverse order, separated by single
@@ -414,6 +415,7 @@ steps:
       - "Three letters after \"a\" is \"d\"."
   - id: step.strings.write-shift-letter
     type: write-code
+    largeScreenPreferred: true
     title: Write a function
     prompt: |
       Write `shift_letter(ch, k)`, which moves the lowercase letter `ch` forward `k` places in the alphabet,

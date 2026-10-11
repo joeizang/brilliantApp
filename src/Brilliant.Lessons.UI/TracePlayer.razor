@@ -6,7 +6,10 @@
 @inject StepShortcuts Shortcuts
 @implements IDisposable
 
-<div class="trace-player my-4">
+<div class="trace-player @@container my-4">
+  @* Room for it (a tablet, a wide window): the code and its controls on the left, what they show on the right, so neither scrolls away from the other. *@
+  <div class="trace-layout grid gap-x-6 @@3xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] @@3xl:items-start">
+   <div class="trace-code @@3xl:sticky @@3xl:top-4 min-w-0">
     <CodeEditor @ref="_editor" InitialCode="@ShownCode" ReadOnly="true" />
 
     <div class="controls mt-4 mb-2 flex items-center justify-between gap-4">
@@ -24,6 +27,9 @@
         </span>
     </div>
     <p class="key-hint text-[.8rem] text-fg-secondary [&_kbd]:rounded-sm [&_kbd]:px-[.4rem] [&_kbd]:py-[.05rem] [&_kbd]:text-[.75rem]"><kbd>←</kbd> <kbd>→</kbd> step · <kbd>Space</kbd> play or pause</p>
+   </div>
+
+   <div class="trace-visuals min-w-0">
 
     @foreach (var array in Current.Arrays)
     {
@@ -100,6 +106,8 @@
     {
         <TraceEnding Result="Result" />
     }
+   </div>
+  </div>
 </div>
 
 @code {

@@ -329,6 +329,7 @@ steps:
       - If you keep the shorter wall and move the taller one in, what happens to the width and the limiting height?
   - id: step.converging.write-two-sum
     type: write-code
+    largeScreenPreferred: true
     title: Two Sum on a sorted list
     prompt: |
       Write `two_sum_sorted(nums, target)` for a list sorted in ascending order. It returns the positions `[i, j]`, with `i < j`,
@@ -372,6 +373,7 @@ steps:
       - "Return `[]` after the loop. If the pointers meet, nothing matched."
   - id: step.converging.write-sorted-squares
     type: write-code
+    largeScreenPreferred: true
     title: Squares in order
     prompt: |
       Write `sorted_squares(nums)` for a list sorted in ascending order that may contain **negative** numbers. Return a list of
@@ -426,6 +428,7 @@ steps:
         `16` in the next cell and moves `left`. Each cell of `result` is decided once, so the whole function is one pass, `O(n)`.
   - id: step.converging.write-max-area
     type: write-code
+    largeScreenPreferred: true
     title: Container with the most water
     prompt: |
       Write `max_area(heights)`. Each item is the height of a vertical wall, and two walls hold water equal to the **distance

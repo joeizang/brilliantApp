@@ -47,6 +47,7 @@ public static class MauiProgram
 
         // Shortcuts and menu commands reach whichever step is on screen through one bus, shared by the webview's key listener and the native menu.
         builder.Services.AddSingleton<StepShortcuts>();
+        builder.Services.AddSingleton<ScreenInfo>();
         builder.Services.AddSingleton(TimeProvider.System);   // the Trace Player's playback timer
 
         // Pairing with the household server over plain HTTP on the LAN; the token it returns goes in the platform's secure storage.

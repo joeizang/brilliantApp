@@ -34,6 +34,24 @@ public class ContentPackTests
     }
 
     [Fact]
+    public void A_step_keeps_its_large_screen_flag_and_phone_alternative_through_a_pack()
+    {
+        var alternative = new ParsonsStep("step.one.write.arrange", "Arrange", "P", "python", [new("def f():", 0), new("return 1", 1)]);
+        var write = new WriteCodeStep("step.one.write", "Write", "P", "python", "", "f", [new CodeTest("", "1")])
+        {
+            LargeScreenPreferred = true,
+            PhoneAlternative = alternative,
+        };
+        var graph = ContentPackFormat.Load(BuildPack(lessons: [new Lesson("lesson.one", "One", "track.a", [write])]));
+
+        var loaded = Assert.IsType<WriteCodeStep>(graph.Get<Lesson>("lesson.one").Steps.Single());
+        Assert.True(loaded.LargeScreenPreferred);
+        var alt = Assert.IsType<ParsonsStep>(loaded.PhoneAlternative);
+        Assert.Equal("step.one.write.arrange", alt.Id);
+        Assert.Equal(["def f():", "return 1"], alt.Lines.Select(l => l.Text));
+    }
+
+    [Fact]
     public void Lookup_of_unknown_or_wrongly_typed_id_fails()
     {
         var graph = ContentPackFormat.Load(BuildPack());

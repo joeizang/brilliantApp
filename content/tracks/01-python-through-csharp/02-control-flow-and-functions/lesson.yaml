@@ -98,6 +98,7 @@ steps:
       - "2, then 2 + 3, then 5 + 3. What would come next, and is it below 10?"
   - id: step.control-flow.write-sum-to
     type: write-code
+    largeScreenPreferred: true
     title: Write a loop
     prompt: |
       Write `sum_to(n)`, which returns the sum of the whole numbers from 1 up to and including `n`.
@@ -136,6 +137,24 @@ steps:
 
         Each time round the loop, `i` takes the next number and `total += i` adds it on. After the last number the loop ends and `return total`
         hands back `10`. For `n = 0` the range is empty, the loop body never runs, and `total` stays `0`.
+    phoneAlternative:
+      id: step.control-flow.write-sum-to.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `sum_to(n)`, which returns the sum of the whole numbers from 1 up to and including `n`.
+        So `sum_to(4)` is `1 + 2 + 3 + 4 = 10`, and `sum_to(0)` is `0`.
+        Arrange the lines instead of typing them.
+      solution: |
+        def sum_to(n):
+            total = 0
+            for i in range(1, n + 1):
+                total += i
+            return total
+      hints:
+        - You need to visit each number from 1 to `n`. Which loop does that?
+        - "`range(1, n + 1)` stops *before* its end, so go one past `n`."
+        - "`for i in range(1, n + 1): total += i`"
   - id: step.control-flow.while-loops
     type: explain
     title: while loops
@@ -294,6 +313,7 @@ steps:
       - "Order: `def`, `if`, `return \"pass\"`, `else`, `return \"fail\"`. Indent the two `return` lines twice, and `if` and `else` once."
   - id: step.control-flow.write-clamp
     type: write-code
+    largeScreenPreferred: true
     title: Write a function
     prompt: |
       Write `clamp(value, low, high)`, which returns `low` if `value` is below `low`, `high` if `value` is above `high`,
@@ -331,6 +351,25 @@ steps:
         and the last line never runs.
 
         A value that is already in range fails both tests and falls through to `return value`. Try the same code with `5` or `-3` to see the other paths.
+    phoneAlternative:
+      id: step.control-flow.write-clamp.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `clamp(value, low, high)`, which returns `low` if `value` is below `low`, `high` if `value` is above `high`,
+        and `value` itself otherwise. For example `clamp(15, 0, 10)` is `10`.
+        Arrange the lines instead of typing them.
+      solution: |
+        def clamp(value, low, high):
+            if value < low:
+                return low
+            if value > high:
+                return high
+            return value
+      hints:
+        - There are three cases. What does the function return in each?
+        - Use `if` / `elif` / `else`, and remember `return` hands the value back.
+        - "`if value < low: return low`, then `if value > high: return high`, then `return value`."
   - id: step.control-flow.tuples
     type: explain
     title: Tuples

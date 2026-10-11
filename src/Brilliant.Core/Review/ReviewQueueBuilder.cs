@@ -34,6 +34,8 @@ public sealed record ReviewQueue(IReadOnlyList<ReviewItemState> Items, int Waiti
 /// <see cref="ReviewQueueOptions.PatternWeight"/> times as forgotten as it is.</item>
 /// <item>New items follow, heaviest kind first, then in content order.</item>
 /// <item>At most <see cref="ReviewQueueOptions.DailyCap"/> reviews a day, counting those already answered today.</item>
+/// <item>On a phone, a question that has a tap-friendly form (a Parsons or fill-in-the-blank alternative to typing code) is offered in
+/// that form. Only the form changes: which items are due, their order and their schedule do not, so every device agrees about the queue.</item>
 /// </list>
 /// </summary>
 public static class ReviewQueueBuilder
@@ -41,7 +43,9 @@ public static class ReviewQueueBuilder
     /// <param name="reviews">Every review item, in content order (the order breaks ties).</param>
     /// <param name="now">The moment the queue is for.</param>
     /// <param name="answeredToday">How many reviews were answered earlier today.</param>
-    public static ReviewQueue Build(IEnumerable<ReviewItemState> reviews, DateTimeOffset now, int answeredToday, ReviewQueueOptions? options = null)
+    /// <param name="screen">The screen the queue is for; decides the form each question is offered in.</param>
+    public static ReviewQueue Build(IEnumerable<ReviewItemState> reviews, DateTimeOffset now, int answeredToday, ReviewQueueOptions? options = null,
+        ScreenClass screen = ScreenClass.Desktop)
     {
         options ??= new ReviewQueueOptions();
         var due = reviews.Where(r => r.IsDue(now)).ToList();
@@ -52,7 +56,7 @@ public static class ReviewQueueBuilder
             .OrderByDescending(r => options.WeightOf(r.Item.Kind));
 
         var room = Math.Max(0, options.DailyCap - Math.Max(0, answeredToday));
-        var items = scheduled.Concat(fresh).Take(room).ToList();
+        var items = scheduled.Concat(fresh).Take(room).Select(r => r.For(screen)).ToList();
         return new ReviewQueue(items, due.Count - items.Count, answeredToday);
     }
 }

@@ -1,20 +1,30 @@
-@implements IDisposable
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
 @inject StepShortcuts Shortcuts
+@inject IJSRuntime JS
+@inject ScreenInfo Screen
 
 <article class="parsons-step lesson-step">
     <h2>@Step.Title</h2>
     <p class="prompt">@Step.Prompt</p>
     <p class="hint-text text-[.95rem] text-fg-secondary" id="@HelpId">
-        Put the lines in order and give each the right indentation. Drag a line, or select it and press
-        <kbd>⌥</kbd><kbd>↑</kbd> / <kbd>⌥</kbd><kbd>↓</kbd> to move it and <kbd>⌥</kbd><kbd>←</kbd> / <kbd>⌥</kbd><kbd>→</kbd> to change its indentation.
+        @if (Screen.IsPhone)
+        {
+            <text>Put the lines in order and give each the right indentation. Drag a line by its handle <span aria-hidden="true">⠿</span>, or use the arrow buttons to move it and change its indentation.</text>
+        }
+        else
+        {
+            <text>Put the lines in order and give each the right indentation. Drag a line, or select it and press
+            <kbd>⌥</kbd><kbd>↑</kbd> / <kbd>⌥</kbd><kbd>↓</kbd> to move it and <kbd>⌥</kbd><kbd>←</kbd> / <kbd>⌥</kbd><kbd>→</kbd> to change its indentation.</text>
+        }
     </p>
 
-    <ol class="rows my-4 grid list-none gap-[.4rem] p-0" aria-label="Lines of code, in the order you have put them">
+    <ol @ref="_list" class="rows my-4 grid list-none gap-[.4rem] p-0" data-locked="@(Locked ? "true" : "false")" aria-label="Lines of code, in the order you have put them">
         @for (var i = 0; i < _board.Rows.Count; i++)
         {
             var index = i;
             var row = _board.Rows[i];
-            <li @key="_board.Rows[i].Piece" @ref="_items[row.Piece]" class="@RowClass(index)" tabindex="0" draggable="@(Locked ? "false" : "true")"
+            <li @key="_board.Rows[i].Piece" @ref="_items[row.Piece]" data-row="@index" class="@RowClass(index)" tabindex="0" draggable="@(Locked ? "false" : "true")"
                 aria-describedby="@HelpId" aria-label="@RowLabel(index)"
                 @onkeydown="e => KeyDown(index, e)"
                 @ondragstart="() => _dragging = index"
@@ -22,10 +32,10 @@
                 @ondragenter="() => _over = index"
                 @ondragover="() => { }" @ondragover:preventDefault
                 @ondrop="() => Drop(index)" @ondrop:preventDefault>
-                <span class="grip text-code-muted select-none" aria-hidden="true">⠿</span>
+                <span class="grip flex touch-none items-center justify-center text-code-muted select-none coarse:min-h-(--touch) coarse:min-w-(--touch)" aria-hidden="true">⠿</span>
                 <span class="indent inline-block h-px flex-none transition-[width] duration-100 ease-[ease]" style="width:@(row.Level * 2)rem" aria-hidden="true"></span>
-                <code class="text flex-1 font-mono text-[.9rem] leading-[normal] whitespace-pre select-none">@Step.Lines[row.Piece].Text</code>
-                <span class="controls inline-flex gap-1">
+                <code class="text min-w-0 flex-1 overflow-x-auto font-mono text-[.9rem] leading-[normal] whitespace-pre select-none">@Step.Lines[row.Piece].Text</code>
+                <span class="controls inline-flex gap-1 narrow:w-full narrow:justify-end">
                     <button type="button" class="@ControlButton" tabindex="-1" aria-label="Move up" disabled="@(Locked || index == 0)" @onclick="() => MoveBy(index, -1)">▲</button>
                     <button type="button" class="@ControlButton" tabindex="-1" aria-label="Move down" disabled="@(Locked || index == _board.Rows.Count - 1)" @onclick="() => MoveBy(index, 1)">▼</button>
                     <button type="button" class="@ControlButton" tabindex="-1" aria-label="Outdent" disabled="@(Locked || row.Level == 0)" @onclick="() => IndentBy(index, -1)">⇤</button>
@@ -78,12 +88,18 @@
     private string HelpId => $"{Step.Id}-help";
 
     private IDisposable? _shortcuts;
+    private ElementReference _list;
+    private IJSObjectReference? _touch;
+    private DotNetObjectReference<ParsonsStepView>? _self;
 
     protected override void OnInitialized()
     {
         _board = ParsonsBoard.Shuffled(Step);
         _shortcuts = Shortcuts.Subscribe(OnShortcut);
+        Screen.Changed += OnScreenChanged;
     }
+
+    private void OnScreenChanged() => _ = InvokeAsync(StateHasChanged);
 
     private Task OnShortcut(StepShortcut s) => InvokeAsync(async () =>
     {
@@ -102,12 +118,36 @@
         StateHasChanged();
     });
 
-    public void Dispose() => _shortcuts?.Dispose();
-
-
+    public async ValueTask DisposeAsync()
+    {
+        _shortcuts?.Dispose();
+        Screen.Changed -= OnScreenChanged;
+        try
+        {
+            if (_touch is not null)
+            {
+                await _touch.InvokeVoidAsync("detach", _list);
+                await _touch.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException) { }   // the app is shutting down
+        _self?.Dispose();
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender)
+        {
+            // A finger can't start the browser's own drag, so the grips are followed by hand (parsons-touch.js). The buttons work without it.
+            try
+            {
+                _touch = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/Brilliant.Lessons.UI/parsons-touch.js");
+                _self = DotNetObjectReference.Create(this);
+                await _touch.InvokeVoidAsync("attach", _list, _self);
+            }
+            catch (Exception e) when (e is not OperationCanceledException) { }
+        }
+
         // Moving a keyed element in the DOM drops its focus, so give it back to the line the learner is working on.
         if (_refocus is { } piece && _items.TryGetValue(piece, out var item))
         {
@@ -116,8 +156,8 @@
         }
     }
 
-    private const string RowBase = "row flex cursor-grab flex-wrap items-center gap-[.6rem] rounded-sm border border-hairline bg-code-bg px-3 py-[.4rem] text-code-fg transition-shadow duration-150 ease-app focus:outline-none";
-    private const string ControlButton = "min-h-8 min-w-8 cursor-pointer rounded-sm border border-border bg-surface px-2 py-0 font-inherit leading-none text-inherit disabled:cursor-default disabled:opacity-35";
+    private const string RowBase = "row relative flex data-[touch-drag=true]:z-10 data-[touch-drag=true]:opacity-90 data-[touch-drag=true]:shadow-lg data-[touch-over=true]:shadow-[0_-3px_0_var(--accent)] cursor-grab flex-wrap items-center gap-[.6rem] rounded-sm border border-hairline bg-code-bg px-3 py-[.4rem] text-code-fg transition-shadow duration-150 ease-app focus:outline-none";
+    private const string ControlButton = "min-h-8 min-w-8 coarse:min-h-(--touch) coarse:min-w-(--touch) cursor-pointer rounded-sm border border-border bg-surface px-2 py-0 font-inherit leading-none text-inherit disabled:cursor-default disabled:opacity-35";
 
     // The marks are exclusive, in the order they win: a checked row shows its verdict, else the drop target shows where the
     // dragged line will land, else keyboard focus shows a ring.
@@ -168,6 +208,15 @@
         var piece = _board.Rows[from.Value].Piece;
         if (_board.Move(from.Value, target)) _refocus = piece;
     }
+
+    /// <summary>Called by parsons-touch.js when a finger lets go of a line dragged from row <paramref name="from"/> over row <paramref name="to"/>.</summary>
+    [JSInvokable]
+    public Task MoveTo(int from, int to) => InvokeAsync(() =>
+    {
+        if (Locked || from < 0 || to < 0 || from >= _board.Rows.Count || to >= _board.Rows.Count) return;
+        _board.Move(from, to);
+        StateHasChanged();
+    });
 
     private void EndDrag() => (_dragging, _over) = (null, null);
 

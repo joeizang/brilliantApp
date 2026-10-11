@@ -2,6 +2,7 @@
 @implements IDisposable
 @inject ProgressRecorder Recorder
 @inject StepShortcuts Shortcuts
+@inject ScreenInfo Screen
 
 <div class="lesson-bar content-column mt-2 flex items-center gap-4 text-[.9rem]">
     <button class="link btn-link" @onclick="() => OnExit.InvokeAsync()">← Back</button>
@@ -27,8 +28,27 @@
 
 @if (step is not null)
 {
+    var shown = Shown(step);
     <div @key="step.Id">
-        @switch (step)
+        @if (step.LargeScreenPreferred && Screen.IsPhone)
+        {
+            <div class="large-screen-note content-column mt-4 rounded-lg border border-hairline bg-surface-raised px-4 py-3 text-[.95rem]" role="note">
+                @if (shown != step)
+                {
+                    <span>This is the tap-friendly version of the step.</span>
+                    <button class="link btn-link ml-2" @onclick="() => _useAlternative = false">Switch back</button>
+                }
+                else
+                {
+                    <span>This step is best on a larger screen, where you can type the code.</span>
+                    @if (step.PhoneAlternative is not null)
+                    {
+                        <button class="link btn-link ml-2" @onclick="() => _useAlternative = true">Try the @(step.PhoneAlternative is ParsonsStep ? "arrange-the-lines" : "fill-in-the-blank") version</button>
+                    }
+                }
+            </div>
+        }
+        @switch (shown)
         {
             case ExplainStep explain:
                 <ExplainStepView Step="explain" />
@@ -40,23 +60,23 @@
                 break;
             case ChoiceStep choice:
                 <ChoiceStepView Step="choice"
-                                OnAnswered="r => { if (!Review) Recorder.StepAnswered(Lesson.Id, choice.Id, r.IsCorrect, r.Selected); }"
+                                OnAnswered="r => { if (!Review) Recorder.StepAnswered(Lesson.Id, step.Id, r.IsCorrect, r.Selected); }"
                                 OnContinue="() => Complete(step)" />
                 break;
             case PredictOutputStep predict:
-                <PredictOutputStepView Step="predict" OnAnswered="a => Answered(predict, a)" OnContinue="() => Complete(step)" />
+                <PredictOutputStepView Step="predict" OnAnswered="a => Answered(step, predict, a)" OnContinue="() => Complete(step)" />
                 break;
             case WriteCodeStep write:
-                <WriteCodeStepView Step="write" OnSubmitted="s => Submitted(write, s)" OnContinue="() => Complete(step)" />
+                <WriteCodeStepView Step="write" OnSubmitted="s => Submitted(step, write, s)" OnContinue="() => Complete(step)" />
                 break;
             case FillBlankStep fill:
-                <FillBlankStepView Step="fill" OnAnswered="a => Answered(fill, a)" OnContinue="() => Complete(step)" />
+                <FillBlankStepView Step="fill" OnAnswered="a => Answered(step, fill, a)" OnContinue="() => Complete(step)" />
                 break;
             case ParsonsStep parsons:
-                <ParsonsStepView Step="parsons" OnAnswered="a => Answered(parsons, a)" OnContinue="() => Complete(step)" />
+                <ParsonsStepView Step="parsons" OnAnswered="a => Answered(step, parsons, a)" OnContinue="() => Complete(step)" />
                 break;
         }
-        <HintLadder Hints="step.Hints" Walkthrough="step.Walkthrough" OnRevealed="level => Hinted(step, level)" />
+        <HintLadder @key="shown.Id" Hints="shown.Hints" Walkthrough="shown.Walkthrough" OnRevealed="level => Hinted(step, level)" />
         <FlagStep LessonId="@Lesson.Id" StepId="@step.Id" />
     </div>
 }
@@ -85,10 +105,27 @@ else
 
     private int _reviewIndex;
     private IDisposable? _shortcuts;
+    private bool _useAlternative;
 
-    protected override void OnInitialized() => _shortcuts = Shortcuts.Subscribe(OnShortcut);
+    protected override void OnInitialized()
+    {
+        _shortcuts = Shortcuts.Subscribe(OnShortcut);
+        Screen.Changed += OnScreenChanged;
+    }
 
-    public void Dispose() => _shortcuts?.Dispose();
+    public void Dispose()
+    {
+        _shortcuts?.Dispose();
+        Screen.Changed -= OnScreenChanged;
+    }
+
+    private void OnScreenChanged() => _ = InvokeAsync(StateHasChanged);
+
+    /// <summary>
+    /// What the learner is looking at for <paramref name="step"/>: the step itself, or on a phone, if they chose it, its tap-friendly alternative.
+    /// Either way the work counts for <paramref name="step"/> (events, hints, flags, completion), so nothing about progress depends on the device.
+    /// </summary>
+    private Step Shown(Step step) => _useAlternative && Screen.IsPhone && step.PhoneAlternative is { } alt ? alt : step;
 
     private Step? CurrentStep =>
         Review ? Lesson.Steps.ElementAtOrDefault(_reviewIndex) : LearnerStateProjector.ProjectLesson(Lesson, Recorder.Log.ReadAll()).NextStep;
@@ -115,30 +152,31 @@ else
         if (!Review) Recorder.HintUsed(Lesson.Id, step.Id, level);
     }
 
-    private void Answered(PredictOutputStep step, PredictOutputStepView.Attempt a)
+    private void Answered(Step owner, PredictOutputStep step, PredictOutputStepView.Attempt a)
     {
         if (Review) return;
-        if (a.Response is not null) Recorder.StepAnswered(Lesson.Id, step.Id, a.Result.IsCorrect, a.Response);
-        else Recorder.StepAnswered(Lesson.Id, step.Id, a.Result.IsCorrect, [a.Selected!.Value]);
+        if (a.Response is not null) Recorder.StepAnswered(Lesson.Id, owner.Id, a.Result.IsCorrect, a.Response);
+        else Recorder.StepAnswered(Lesson.Id, owner.Id, a.Result.IsCorrect, [a.Selected!.Value]);
     }
 
-    private void Answered(FillBlankStep step, FillBlankStepView.Attempt a)
+    private void Answered(Step owner, FillBlankStep step, FillBlankStepView.Attempt a)
     {
-        if (!Review) Recorder.StepAnswered(Lesson.Id, step.Id, a.Result.IsCorrect, a.Responses);
+        if (!Review) Recorder.StepAnswered(Lesson.Id, owner.Id, a.Result.IsCorrect, a.Responses);
     }
 
-    private void Answered(ParsonsStep step, ParsonsStepView.Attempt a)
+    private void Answered(Step owner, ParsonsStep step, ParsonsStepView.Attempt a)
     {
-        if (!Review) Recorder.StepAnswered(Lesson.Id, step.Id, a.Result.IsCorrect, a.Arrangement);
+        if (!Review) Recorder.StepAnswered(Lesson.Id, owner.Id, a.Result.IsCorrect, a.Arrangement);
     }
 
-    private void Submitted(WriteCodeStep step, WriteCodeStepView.Submission s)
+    private void Submitted(Step owner, WriteCodeStep step, WriteCodeStepView.Submission s)
     {
-        if (!Review) Recorder.CodeSubmitted(Lesson.Id, step.Id, s.Code, s.Result.PassedCount, step.Tests.Count);
+        if (!Review) Recorder.CodeSubmitted(Lesson.Id, owner.Id, s.Code, s.Result.PassedCount, step.Tests.Count);
     }
 
     private async Task Complete(Step step)
     {
+        _useAlternative = false;
         if (Review) _reviewIndex++;
         else Recorder.CompleteStep(Lesson, step.Id);
         await OnProgress.InvokeAsync();
