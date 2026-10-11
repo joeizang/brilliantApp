@@ -1,0 +1,492 @@
+id: lesson.pattern-fixed-sliding-window
+title: "Pattern: a fixed-size sliding window"
+concepts:
+  - id: concept.fixed-window
+    title: A window of exactly k items
+  - id: concept.slide-update
+    title: Sliding by adding one and dropping one
+  - id: concept.window-state
+    title: Keeping a set or a count for the window
+reviewItems:
+  - id: review.window.which-pattern
+    concept: concept.fixed-window
+    step: step.window.check-which-pattern
+    kind: pattern
+  - id: review.window.how-many
+    concept: concept.fixed-window
+    step: step.window.check-how-many
+  - id: review.window.why-faster
+    concept: concept.slide-update
+    step: step.window.check-why-faster
+    kind: pattern
+  - id: review.window.predict-slide
+    concept: concept.slide-update
+    step: step.window.predict-slide
+  - id: review.window.predict-vowels
+    concept: concept.slide-update
+    step: step.window.predict-vowels
+  - id: review.window.write-nearby
+    concept: concept.window-state
+    step: step.window.write-nearby
+steps:
+  - id: step.window.pattern
+    type: explain
+    title: Slide, don't recompute
+    body: |
+      Suppose you want the **largest sum of any 3 days in a row**. The obvious way is to add up every group of 3. With `n` days and
+      windows of size `k`, that is about `n * k` additions, because each window is added from scratch.
+
+      But neighbouring windows share almost everything. Moving the window one step to the right **adds one item on the right and
+      drops one on the left**, and the rest stays. So keep a running total:
+
+      - add the new item on the right,
+      - subtract the item that just fell off the left,
+      - compare with the best so far.
+
+      Each item is added once and removed once, so the whole pass is `O(n)`, however big `k` is. The two pointers are the window's
+      edges: `left` and `right`.
+    comparison:
+      csharp: |
+        // Largest sum of any k items in a row
+        int window = 0, best = int.MinValue, left = 0;
+        for (int right = 0; right < nums.Length; right++)
+        {
+            window += nums[right];              // item enters
+            if (right - left + 1 > k)
+            {
+                window -= nums[left];           // item leaves
+                left++;
+            }
+            if (right - left + 1 == k)
+                best = Math.Max(best, window);
+        }
+      python: |
+        # Largest sum of any k items in a row
+        window, best, left = 0, float("-inf"), 0
+        for right in range(len(nums)):
+            window += nums[right]               # item enters
+            if right - left + 1 > k:
+                window -= nums[left]            # item leaves
+                left += 1
+            if right - left + 1 == k:
+                best = max(best, window)
+  - id: step.window.trace-sum
+    type: trace
+    title: A window of 3 sliding along
+    body: |
+      Here `k` is `3`. The window grows until it holds three items. From then on, every step adds the item at `right` and drops
+      the item at `left`, and `best` keeps the largest total seen. Watch `left` and `right` stay exactly three cells apart.
+    code: |
+      nums = [2, 1, 5, 1, 3, 2]
+      k = 3
+      window = 0
+      best = 0
+      left = 0
+      for right in range(len(nums)):
+          window += nums[right]
+          if right - left + 1 > k:
+              window -= nums[left]
+              left += 1
+          if right - left + 1 == k:
+              best = max(best, window)
+    visualise:
+      - variable: nums
+        as: array
+        pointers: [left, right]
+  - id: step.window.trace-set
+    type: trace
+    title: A window that remembers
+    body: |
+      The window can keep more than a total. Here `seen` is a **set of the last 2 items**. The loop looks for a repeat inside that
+      window: if `nums[right]` is already in `seen`, it is a duplicate close by. After each step, the item that fell off the window
+      is removed, so `seen` never holds more than `k` items. The `4` at the start is gone from the set by the time another `4`
+      arrives, so no repeat is found.
+    code: |
+      nums = [4, 1, 2, 4, 5]
+      k = 2
+      seen = set()
+      found = False
+      for right in range(len(nums)):
+          if nums[right] in seen:
+              found = True
+              break
+          seen.add(nums[right])
+          if len(seen) > k:
+              seen.remove(nums[right - k])
+    visualise:
+      - variable: nums
+        as: array
+        pointers: [right]
+      - variable: seen
+        as: set
+  - id: step.window.predict-slide
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      The first window is added up once, then the loop slides it. What does this print?
+    code: |
+      nums = [1, 9, 2, 1, 3]
+      k = 2
+      window = nums[0] + nums[1]
+      best = window
+      for right in range(k, len(nums)):
+          window += nums[right] - nums[right - k]
+          best = max(best, window)
+      print(window, best)
+    accepted:
+      - "4 11"
+    mistakes:
+      - answers:
+          - "11 11"
+        feedback: "`window` is the *current* window at the end, which is `[1, 3]` with a total of `4`. The `11` is `best`, from the window `[9, 2]`."
+      - answers:
+          - "4 4"
+        feedback: "`best` never goes down. It was `10`, then `11` when the window was `[9, 2]`, and the later, smaller windows don't change it."
+    hints:
+      - "List the windows of size 2: `[1, 9]`, `[9, 2]`, `[2, 1]`, `[1, 3]`. What is each total?"
+      - "`window` ends on the last window. `best` is the biggest total of them all."
+  - id: step.window.predict-vowels
+    type: predict-output
+    title: Counting inside the window
+    prompt: |
+      The window keeps a count of vowels instead of a sum. What does this print?
+    code: |
+      s = "abciiidef"
+      k = 3
+      vowels = set("aeiou")
+      count = sum(1 for ch in s[:k] if ch in vowels)
+      best = count
+      for right in range(k, len(s)):
+          if s[right] in vowels:
+              count += 1
+          if s[right - k] in vowels:
+              count -= 1
+          best = max(best, count)
+      print(best, count)
+    accepted:
+      - "3 1"
+    mistakes:
+      - answers:
+          - "3 3"
+        feedback: "`count` is for the *current* window, the last three letters `def`, which holds just one vowel, `e`. The `3` is `best`, from `iii`."
+      - answers:
+          - "1 1"
+        feedback: "`best` remembers the largest count of any window. The window `iii` (letters 4 to 6) holds three vowels."
+    hints:
+      - "Write down the windows of 3: `abc`, `bci`, `cii`, `iii`, `iid`, `ide`, `def`. Count the vowels in each."
+      - "`count` ends on the last window and `best` is the largest count seen."
+  - id: step.window.check-how-many
+    type: choice
+    title: How many windows?
+    prompt: |
+      A list has `n` items. How many different windows of exactly `k` items in a row does it have (`1 <= k <= n`)?
+    options:
+      - text: "`n - k + 1`"
+        correct: true
+        feedback: "Right. The first window starts at index `0` and the last at index `n - k`, which is `n - k + 1` starting places."
+      - text: "`n - k`"
+        correct: false
+        feedback: "That is one short. With `n = 5` and `k = 5` there is exactly one window, not zero."
+      - text: "`n`"
+        correct: false
+        feedback: Near the end there aren't `k` items left, so not every index starts a full window.
+      - text: "`n * k`"
+        correct: false
+        feedback: "`n * k` is roughly the work of recomputing every window from scratch, not the number of windows."
+    hints:
+      - "Try `n = 5`, `k = 5`. How many windows are there?"
+      - "Then try `n = 5`, `k = 1`."
+  - id: step.window.check-why-faster
+    type: choice
+    title: Why is sliding faster?
+    prompt: |
+      Adding up each window from scratch takes about `n * k` steps. The sliding version takes about `n`. What makes the difference?
+    options:
+      - text: Neighbouring windows share all but one item, so one item is added and one dropped instead of re-adding `k` items.
+        correct: true
+        feedback: Right. Each item enters the window once and leaves it once, so the total work is proportional to `n`.
+      - text: Sliding skips some of the windows.
+        correct: false
+        feedback: Every window is still looked at. They are just computed cheaply from the previous one.
+      - text: Python's `sum` is slow, and a loop is faster.
+        correct: false
+        feedback: The saving comes from not repeating work, not from the language.
+      - text: The window is always sorted, so it can be searched quickly.
+        correct: false
+        feedback: A window is not sorted. The speed-up is about reusing the previous total.
+    hints:
+      - "Compare windows `[2, 1, 5]` and `[1, 5, 1]`. How many items do they share?"
+      - "What changes when the window moves one step?"
+  - id: step.window.check-which-pattern
+    type: choice
+    title: Which problem is a fixed window?
+    prompt: |
+      Which of these is a **fixed-size** sliding window problem?
+    options:
+      - text: Find the highest total rainfall over any 7 days in a row.
+        correct: true
+        feedback: Right. The window is always 7 days long, and it slides along.
+      - text: Find the longest stretch of days with no repeated weather.
+        correct: false
+        feedback: "That window has no fixed size. It grows and shrinks, which is the next lesson."
+      - text: Check whether two days' rainfall adds up to a target (sorted data).
+        correct: false
+        feedback: That is the converging two pointers pattern.
+      - text: Merge two sorted lists of days.
+        correct: false
+        feedback: Merging walks two lists with a pointer on each, not a window on one.
+    hints:
+      - "Look for a task about a stretch of items in a row with **a stated size**."
+      - "The size is given in the problem, not discovered."
+  - id: step.window.fill-max-sum
+    type: fill-blank
+    title: Complete the function
+    prompt: |
+      Fill in the blanks to finish `max_window_sum`, which returns the largest sum of any `k` items in a row.
+    template: |
+      def max_window_sum(nums, k):
+          window = sum(nums[:k])
+          best = window
+          for right in range({{start}}, len(nums)):
+              window += nums[right] - nums[{{old}}]
+              best = max(best, window)
+          return best
+    blanks:
+      - id: start
+        accepted:
+          - "k"
+        mistakes:
+          - answers:
+              - "0"
+            feedback: "The first window (indexes `0` to `k - 1`) is already in `window`. Starting at `0` would add those items a second time."
+          - answers:
+              - "k + 1"
+              - "k+1"
+            feedback: "That skips one window. The item at index `k` is the first one that enters after the first window."
+      - id: old
+        accepted:
+          - "right - k"
+          - "right-k"
+        mistakes:
+          - answers:
+              - "right - k + 1"
+              - "right-k+1"
+            feedback: "`right - k + 1` is still inside the new window. The item that just left is the one `k` places behind `right`."
+          - answers:
+              - "right - 1"
+              - "right-1"
+            feedback: "`right - 1` is the previous item, which is still in the window when `k > 1`. The item to drop is `k` places behind."
+    hints:
+      - "The first window is already summed, so the loop begins at the first item that is **not** in it."
+      - "When `right` moves to index `r`, the window covers `r - k + 1` to `r`. Which index just fell off?"
+  - id: step.window.order-window-sums
+    type: parsons
+    title: Every window's total
+    prompt: |
+      Arrange these lines into `window_sums(nums, k)`, which returns a list with the total of every window of `k` items.
+    solution: |
+      def window_sums(nums, k):
+          window = sum(nums[:k])
+          sums = [window]
+          for right in range(k, len(nums)):
+              window += nums[right] - nums[right - k]
+              sums.append(window)
+          return sums
+    hints:
+      - "Add the first window up before the loop, and store it in the result list."
+      - "Inside the loop: update `window`, then record it."
+      - "`return sums` comes last."
+  - id: step.window.write-max-sum
+    type: write-code
+    title: Largest sum of k in a row
+    prompt: |
+      Write `max_window_sum(nums, k)`, which returns the largest sum of any `k` consecutive items. Assume `1 <= k <= len(nums)`. The
+      numbers can be negative. For example `max_window_sum([2, 1, 5, 1, 3, 2], 3)` is `9`.
+    language: python
+    entrypoint: max_window_sum
+    starter: |
+      def max_window_sum(nums, k):
+          pass
+    solution: |
+      def max_window_sum(nums, k):
+          window = sum(nums[:k])
+          best = window
+          for right in range(k, len(nums)):
+              window += nums[right] - nums[right - k]
+              best = max(best, window)
+          return best
+    tests:
+      - input: "[2, 1, 5, 1, 3, 2], 3"
+        expected: "9"
+      - input: "[1, 9, 2, 1, 3], 2"
+        expected: "11"
+      - input: "[-3, -1, -2, -5], 2"
+        expected: "-3"
+      - input: "[5], 1"
+        expected: "5"
+      - input: "[1, -2, 3, -4, 5], 3"
+        expected: "4"
+      - input: "[1, 2, 3, 4, 5], 5"
+        expected: "15"
+      - input: "[-1, -1], 1"
+        expected: "-1"
+    hints:
+      - "Add the first `k` items for the first window, and start `best` with that total (not with `0`, since every total could be negative)."
+      - "Then move `right` from `k` to the end. Add `nums[right]` and subtract `nums[right - k]`."
+      - "Update `best` after each slide and return it at the end."
+  - id: step.window.write-average
+    type: write-code
+    title: Windows that average enough
+    prompt: |
+      Write `count_good(nums, k, threshold)`, which returns **how many** windows of `k` consecutive items have an average of at
+      least `threshold`. Assume `1 <= k <= len(nums)`. For example `count_good([2, 2, 2, 2, 5, 5, 5, 8], 3, 4)` is `3`.
+    language: python
+    entrypoint: count_good
+    starter: |
+      def count_good(nums, k, threshold):
+          pass
+    solution: |
+      def count_good(nums, k, threshold):
+          window = sum(nums[:k])
+          count = 1 if window >= threshold * k else 0
+          for right in range(k, len(nums)):
+              window += nums[right] - nums[right - k]
+              if window >= threshold * k:
+                  count += 1
+          return count
+    tests:
+      - input: "[2, 2, 2, 2, 5, 5, 5, 8], 3, 4"
+        expected: "3"
+      - input: "[11, 13, 17, 23, 29, 31, 7, 5, 2, 3], 3, 5"
+        expected: "6"
+      - input: "[1, 1, 1], 1, 2"
+        expected: "0"
+      - input: "[4], 1, 4"
+        expected: "1"
+      - input: "[5, 5, 5], 3, 5"
+        expected: "1"
+      - input: "[1, 2], 2, 2"
+        expected: "0"
+    hints:
+      - "An average of at least `threshold` means a total of at least `threshold * k`. That avoids dividing."
+      - "Don't forget to test the **first** window before the loop starts sliding."
+      - "Slide as before, and add one to `count` whenever the current total is big enough."
+  - id: step.window.write-nearby
+    type: write-code
+    title: Duplicates close together
+    prompt: |
+      Write `contains_nearby_duplicate(nums, k)`, which returns `True` if the same value appears twice at positions that are at
+      most `k` apart. For example `contains_nearby_duplicate([1, 2, 3, 1], 3)` is `True` (positions 0 and 3), and
+      `contains_nearby_duplicate([1, 2, 3, 1, 2, 3], 2)` is `False`.
+    language: python
+    entrypoint: contains_nearby_duplicate
+    starter: |
+      def contains_nearby_duplicate(nums, k):
+          pass
+    solution: |
+      def contains_nearby_duplicate(nums, k):
+          seen = set()
+          for right in range(len(nums)):
+              if nums[right] in seen:
+                  return True
+              seen.add(nums[right])
+              if len(seen) > k:
+                  seen.remove(nums[right - k])
+          return False
+    tests:
+      - input: "[1, 2, 3, 1], 3"
+        expected: "True"
+      - input: "[1, 0, 1, 1], 1"
+        expected: "True"
+      - input: "[1, 2, 3, 1, 2, 3], 2"
+        expected: "False"
+      - input: "[4, 1, 2, 4, 5], 2"
+        expected: "False"
+      - input: "[], 3"
+        expected: "False"
+      - input: "[7], 1"
+        expected: "False"
+      - input: "[9, 8, 9], 2"
+        expected: "True"
+      - input: "[9, 8, 9], 1"
+        expected: "False"
+    hints:
+      - "Keep a set of the last `k` values. A repeat inside that set is a close duplicate."
+      - "After adding the new value, if the set holds more than `k` values, remove the one that just left the window: `nums[right - k]`."
+    walkthrough:
+      call: result = contains_nearby_duplicate([4, 1, 2, 4, 5], 2)
+      visualise:
+        - variable: nums
+          as: array
+          pointers: [right]
+        - variable: seen
+          as: set
+      explanation: |
+        `seen` is the window: it holds at most the last `k` values. At the third step the set would hold three values, so the `4` that
+        has fallen out of the window is removed.
+
+        When the second `4` arrives it is no longer in `seen`, so it is not counted as a close duplicate (it is three places from
+        the first one, and `k` is only `2`). Each value is added once and removed once, so the work is `O(n)`.
+  - id: step.window.write-permutation
+    type: write-code
+    title: A permutation inside a string
+    prompt: |
+      Write `contains_permutation(s, p)`, which returns `True` if some window of `s` holds exactly the letters of `p` in any order
+      (a window has `len(p)` letters). For example `contains_permutation("eidbaooo", "ab")` is `True`, because `"ba"` is a
+      permutation of `"ab"`.
+    language: python
+    entrypoint: contains_permutation
+    starter: |
+      def contains_permutation(s, p):
+          pass
+    solution: |
+      def contains_permutation(s, p):
+          k = len(p)
+          if k > len(s):
+              return False
+          need = {}
+          for ch in p:
+              need[ch] = need.get(ch, 0) + 1
+          have = {}
+          for right in range(len(s)):
+              have[s[right]] = have.get(s[right], 0) + 1
+              if right >= k:
+                  old = s[right - k]
+                  have[old] -= 1
+                  if have[old] == 0:
+                      del have[old]
+              if have == need:
+                  return True
+          return False
+    tests:
+      - input: '"eidbaooo", "ab"'
+        expected: "True"
+      - input: '"eidboaoo", "ab"'
+        expected: "False"
+      - input: '"abc", "abcd"'
+        expected: "False"
+      - input: '"a", "a"'
+        expected: "True"
+      - input: '"adc", "dcda"'
+        expected: "False"
+      - input: '"hello", "ll"'
+        expected: "True"
+      - input: '"aab", "aba"'
+        expected: "True"
+    hints:
+      - "Count the letters of `p` in a dict. Keep another dict for the letters in the current window of `len(p)` letters."
+      - "When a letter enters, add one to its count. When the window is longer than `k`, subtract one for the letter `s[right - k]` and delete the key when its count reaches `0`."
+      - "If the two dicts are equal, the window is a permutation of `p`."
+  - id: step.window.variation
+    type: explain
+    title: What if the size isn't fixed?
+    body: |
+      Every window so far had a size handed to you: `k`. Often it is the other way round. You are given a **condition**, and the
+      window has to find its own size:
+
+      - the longest stretch with no repeated letter,
+      - the shortest stretch that adds up to at least a target.
+
+      The same two edges apply. `right` always moves forward to add an item. The change is in `left`: it moves forward **only when
+      the window has broken the rule**, and it keeps moving until the window is valid again. That is a **variable-size window**,
+      and it is the next lesson.
