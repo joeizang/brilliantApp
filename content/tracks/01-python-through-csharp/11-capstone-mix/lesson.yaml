@@ -287,8 +287,10 @@ steps:
       items themselves. A prefix list answers stretch questions and cannot say anything about arbitrary pairs. When a tool
       keeps losing information you need (how many, which ones, where), pick the next one up.
 
-      Then say the cost out loud before you code. Every pattern in this track turns an `O(n²)` double loop into a single
-      `O(n)` pass, by remembering something. If you cannot say what you are remembering, you haven't found the pattern yet.
+      Then say the cost out loud before you code. Lookups, counting and prefix sums each turn an `O(n²)` double loop into a
+      single `O(n)` pass, by remembering something. Be honest about extra work around that pass: sorting costs
+      `O(n log n)`, and building a key for each item (such as the sorted letters of a word) costs whatever the key takes to build.
+      If you cannot say what you are remembering, you haven't found the pattern yet.
   - id: step.capstone.write-count-pairs
     type: write-code
     title: How many pairs?
