@@ -1,0 +1,428 @@
+id: lesson.pattern-prefix-sums
+title: "Pattern: prefix sums"
+concepts:
+  - id: concept.pattern-prefix-sums
+    title: "Pattern: precompute running totals"
+  - id: concept.half-open-ranges
+    title: "Half-open ranges: prefix[right] - prefix[left]"
+  - id: concept.prefix-plus-hash
+    title: Prefix sums plus a hash map
+reviewItems:
+  - id: review.prefix.which-problem
+    concept: concept.pattern-prefix-sums
+    step: step.prefix.check-which-problem
+    kind: pattern
+  - id: review.prefix.why-faster
+    concept: concept.pattern-prefix-sums
+    step: step.prefix.check-why-faster
+    kind: pattern
+  - id: review.prefix.build
+    concept: concept.half-open-ranges
+    step: step.prefix.predict-build
+  - id: review.prefix.empty-range
+    concept: concept.half-open-ranges
+    step: step.prefix.predict-bounds
+  - id: review.prefix.seen-start
+    concept: concept.prefix-plus-hash
+    step: step.prefix.check-seen-start
+steps:
+  - id: step.prefix.pattern
+    type: explain
+    title: Add it up once, answer forever
+    body: |
+      Some problems keep asking for **the sum of a stretch of a list**. Watch for these words:
+
+      - *the sum of the items from `i` to `j`*, asked again and again
+      - *a running total*, or *a subarray with a given sum*
+      - *the sum of everything to the left (or to the right) of this position*
+
+      If you answer each question by looping over the stretch, every question costs `O(n)`. With `q` questions that is
+      `O(n · q)`. The trick is to do the adding **once, up front**. Build a list `prefix` where
+
+      ```python
+      prefix[i] == nums[0] + nums[1] + ... + nums[i - 1]     # the sum of the first i items
+      ```
+
+      so `prefix[0]` is `0` (the sum of no items) and the list has **one more cell than `nums`**. Building it is a single
+      pass, `O(n)`. After that, the sum of any stretch is **two lookups and a subtraction**: `O(1)`. The cue to remember is
+      *"many range-sum questions on a list that doesn't change"*.
+    comparison:
+      csharp: |
+        // Each question loops over the stretch: O(n) per question
+        int Sum(int[] nums, int left, int right) =>
+            nums.Skip(left).Take(right - left).Sum();
+
+        // Precompute once...
+        var prefix = new int[nums.Length + 1];
+        for (int i = 0; i < nums.Length; i++)
+            prefix[i + 1] = prefix[i] + nums[i];
+        // ...then any stretch is O(1)
+        int sum = prefix[right] - prefix[left];
+      python: |
+        from itertools import accumulate
+
+        # accumulate keeps a running total; initial=0 puts the leading 0 in
+        prefix = list(accumulate(nums, initial=0))
+
+        total = prefix[right] - prefix[left]
+  - id: step.prefix.trace-build
+    type: trace
+    title: Building the prefix list
+    body: |
+      Each new cell of `prefix` is the cell before it plus the next number. Watch `i` walk along `nums` while `prefix` grows
+      one cell behind it. `prefix` starts with `0`, so it ends up one cell longer than `nums`.
+    code: |
+      nums = [3, 1, 4, 1, 5]
+      prefix = [0]
+      for i in range(len(nums)):
+          prefix.append(prefix[-1] + nums[i])
+    visualise:
+      - variable: nums
+        as: array
+        pointers: [i]
+      - variable: prefix
+        as: array
+  - id: step.prefix.trace-query
+    type: trace
+    title: Asking for a stretch
+    body: |
+      With `prefix` built, the sum of `nums[left:right]` is `prefix[right] - prefix[left]`. Everything before `left` is
+      counted in both and cancels out, which leaves just the cells from `left` up to, but not including, `right`.
+
+      Both ends here are **positions in `prefix`**, and `right` is exclusive, like a slice. Watch the two pointers and the
+      subtraction. The second question asks for the whole list, which takes the same two lookups.
+    code: |
+      prefix = [0, 3, 4, 8, 9, 14]
+      left = 1
+      right = 4
+      first = prefix[right] - prefix[left]
+      left = 0
+      right = 5
+      second = prefix[right] - prefix[left]
+    visualise:
+      - variable: prefix
+        as: array
+        pointers: [left, right]
+  - id: step.prefix.predict-build
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      nums = [5, 1, 2, 7]
+      prefix = [0]
+      for n in nums:
+          prefix.append(prefix[-1] + n)
+      print(prefix)
+      print(prefix[3] - prefix[1])
+    accepted:
+      - "[0, 5, 6, 8, 15]\n3"
+    mistakes:
+      - answers:
+          - "[5, 6, 8, 15]\n3"
+        feedback: "`prefix` starts as `[0]`, so the leading `0` stays."
+      - answers:
+          - "[0, 5, 6, 8, 15]\n10"
+        feedback: "`prefix[3] - prefix[1]` is the sum of `nums[1:3]`, the 2nd and 3rd items (`1 + 2`). The `7` is at index 3, so it is not included."
+      - answers:
+          - "[0, 5, 6, 8, 15]\n8"
+        feedback: "Subtract `prefix[1]` too. `prefix[3]` alone is the sum of the first three items, `5 + 1 + 2`."
+      - answers:
+          - "[0, 5, 1, 2, 7]\n3"
+        feedback: "Each cell is a *running total*: the previous cell plus the new number, not the number by itself."
+    hints:
+      - "Each new cell is the last cell plus the next number: `0`, `0 + 5`, `5 + 1`, and so on."
+      - "`prefix[3]` is the sum of the first three numbers, and `prefix[1]` is the sum of the first one."
+  - id: step.prefix.predict-bounds
+    type: predict-output
+    title: Both ends of the range
+    prompt: What does this print?
+    code: |
+      nums = [2, 4, 6, 8]
+      prefix = [0]
+      for n in nums:
+          prefix.append(prefix[-1] + n)
+      print(prefix[4] - prefix[0])
+      print(prefix[2] - prefix[2])
+    accepted:
+      - "20\n0"
+    mistakes:
+      - answers:
+          - "12\n0"
+        feedback: "`prefix[4]` is the sum of the first *four* items: `2 + 4 + 6 + 8 = 20`. The last cell is the grand total."
+      - answers:
+          - "20\n6"
+        feedback: "Both ends are `prefix[2]`, the same number, so subtracting gives `0`. That is an empty range."
+    hints:
+      - "`prefix` is `[0, 2, 6, 12, 20]`. The last cell is the sum of everything."
+      - "`prefix[left]` and `prefix[right]` with `left == right`: what is a number minus itself?"
+  - id: step.prefix.check-which-problem
+    type: choice
+    title: Which problem is a prefix sums problem?
+    prompt: Which of these problems is best solved by precomputing prefix sums?
+    options:
+      - text: A list never changes, and you are asked thousands of times for the sum of the items between two positions.
+        correct: true
+        feedback: Right. Build the prefix list once, and each question becomes two lookups and a subtraction.
+      - text: Find two numbers in a list that add up to a target.
+        correct: false
+        feedback: That is a lookup problem, where you ask "have I seen this number's partner?". No range sums are involved.
+      - text: Count how many times each number appears.
+        correct: false
+        feedback: That needs a frequency table. A running total of the *values* doesn't tell you the counts.
+      - text: Put numbers with the same remainder when divided by 7 into lists.
+        correct: false
+        feedback: That is grouping by a key, here `n % 7`. Nothing is summed.
+    hints:
+      - Look for the cue "sum from `i` to `j`", asked many times.
+      - Which problem keeps asking about *stretches* of the same list?
+  - id: step.prefix.fill-build
+    type: fill-blank
+    title: Complete the function
+    prompt: |
+      Fill in the blanks to finish `build_prefix`. For `[3, 1, 4]` it should return `[0, 3, 4, 8]`.
+    template: |
+      def build_prefix(nums):
+          prefix = [{{start}}]
+          for n in nums:
+              prefix.append(prefix[{{last}}] + n)
+          return prefix
+    blanks:
+      - id: start
+        accepted:
+          - "0"
+        mistakes:
+          - answers:
+              - "nums[0]"
+            feedback: "That would count the first number twice, once here and once in the loop. The sum of *no* items is `0`."
+          - answers:
+              - "1"
+            feedback: "The sum of no items is `0`, not `1`. A `1` would be added into every cell after it."
+      - id: last
+        accepted:
+          - "-1"
+        mistakes:
+          - answers:
+              - "0"
+            feedback: "`prefix[0]` is always `0`. Each cell builds on the *latest* cell, which is at the end of the list."
+          - answers:
+              - "len(prefix)"
+            feedback: "`prefix[len(prefix)]` is one past the end, which raises `IndexError`. The last cell is `prefix[len(prefix) - 1]`, or simply `prefix[-1]`."
+    hints:
+      - The sum of no items at all is the first cell.
+      - Each new cell builds on the cell that was added last. Python has a short way to say "the last item".
+  - id: step.prefix.order-range-sums
+    type: parsons
+    title: Answer all the questions
+    prompt: |
+      Arrange these lines into `range_sums`. It takes a list and a list of `(left, right)` queries and returns the sum
+      of `nums[left:right]` for each query.
+    solution: |
+      def range_sums(nums, queries):
+          prefix = [0]
+          for n in nums:
+              prefix.append(prefix[-1] + n)
+          return [prefix[r] - prefix[l] for l, r in queries]
+    hints:
+      - The prefix list has to be started before the loop that grows it, and finished before any query is answered.
+      - "The `append` line is the loop's body, one level deeper than `for`."
+      - "`return` comes last and lines up with `for`. It answers every query from the finished `prefix`."
+  - id: step.prefix.check-why-faster
+    type: choice
+    title: How much faster?
+    prompt: |
+      A list has 100,000 numbers and you will be asked 50,000 questions of the form "what is the sum of the items from
+      `i` up to `j`?". Which approach is best?
+    options:
+      - text: Build a prefix list once, then answer every question with two lookups and a subtraction.
+        correct: true
+        feedback: Right. One `O(n)` pass plus `O(1)` per question is about 150,000 steps in total.
+      - text: Loop over `nums[i:j]` and add it up for each question.
+        correct: false
+        feedback: That is `O(n)` per question, up to about 5 billion steps for 50,000 questions on a long list.
+      - text: Sort the list first, then add up the stretch.
+        correct: false
+        feedback: Sorting changes which numbers sit between `i` and `j`, so the answers would be wrong.
+      - text: Build a frequency table of the numbers and sum the table.
+        correct: false
+        feedback: A frequency table forgets *where* each number was, but the questions are about positions.
+    hints:
+      - The list never changes, so some work can be done once.
+      - Compare the cost of one pass up front with a pass for every question.
+  - id: step.prefix.prefix-plus-hash
+    type: explain
+    title: Prefix sums meet the hash map
+    body: |
+      Prefix sums combine with the last three lessons. Take the question **"how many stretches of the list add up to `k`?"**
+
+      The stretch `nums[left:right]` adds up to `k` exactly when
+
+      ```python
+      prefix[right] - prefix[left] == k       # which is the same as...
+      prefix[left] == prefix[right] - k
+      ```
+
+      That is Two Sum again, with prefix totals in place of numbers. Walk along the list keeping a running `total` (the
+      newest prefix). For each new `total`, ask a dict: *how many earlier prefixes equal `total - k`?* Each one is the
+      start of a stretch that ends here and adds up to `k`.
+
+      Two details:
+
+      - Start the dict with `{0: 1}`. The empty prefix (a total of `0` before any item) counts, which is what lets a stretch
+        that starts at the very beginning be found.
+      - Look up `total - k` **before** you record `total`. Otherwise, when `k` is `0`, an item would count as pairing with itself.
+
+      One pass, one dict: `O(n)`, where brute force would try every pair of positions, `O(n²)`.
+  - id: step.prefix.trace-subarray
+    type: trace
+    title: Counting stretches that add up to k
+    body: |
+      Here `k` is `3`. Each time through the loop, `need` is the earlier prefix total that would complete a stretch
+      ending at `i`. Watch `seen` (the totals so far, and how many times each has happened) and notice when `need` finds a
+      row and `count` goes up.
+    code: |
+      nums = [1, 2, 1, 2, 1]
+      k = 3
+      seen = {0: 1}
+      total = 0
+      count = 0
+      for i in range(len(nums)):
+          total += nums[i]
+          need = total - k
+          count += seen.get(need, 0)
+          seen[total] = seen.get(total, 0) + 1
+    visualise:
+      - variable: nums
+        as: array
+        pointers: [i]
+      - variable: seen
+        as: dict
+        pointers: [need]
+  - id: step.prefix.check-seen-start
+    type: choice
+    title: "Why start with {0: 1}?"
+    prompt: |
+      In the count-the-stretches code, `seen` starts as `{0: 1}` rather than as an empty dict. Why?
+    options:
+      - text: A stretch that starts at the very first item has the empty prefix, a total of `0`, as its left end. The `0` has to be in `seen` for that stretch to be found.
+        correct: true
+        feedback: Right. With `k = 3` and `nums = [1, 2]`, the stretch `[1, 2]` ends at a total of `3`, and `3 - 3 = 0` must find a prefix to pair with.
+      - text: To stop `seen[need]` raising a `KeyError`.
+        correct: false
+        feedback: "`seen.get(need, 0)` already handles a missing key. The `0` is there because it is a real prefix, the sum of no items."
+      - text: Because the first number in the list is always `0`.
+        correct: false
+        feedback: The list can start with any number. The `0` stands for the empty prefix before any item, whatever the list holds.
+      - text: To make `count` start at `1`.
+        correct: false
+        feedback: "`count` has its own variable and starts at `0`. The `{0: 1}` entry only means *one prefix with total 0 so far*."
+    hints:
+      - Think about a stretch that begins at the first item. What prefix total comes just before it?
+      - "The empty prefix has a total of `0`, and it has happened once."
+  - id: step.prefix.write-pivot
+    type: write-code
+    title: The balance point
+    prompt: |
+      Write `pivot_index(nums)`, which returns the first index where the sum of the numbers to its **left** equals the sum
+      of the numbers to its **right**. The item at the index itself is in neither sum. Return `-1` if there is no such index.
+      For example `pivot_index([1, 7, 3, 6, 5, 6])` is `3`, because `1 + 7 + 3 = 5 + 6 = 11`.
+    language: python
+    entrypoint: pivot_index
+    starter: |
+      def pivot_index(nums):
+          pass
+    solution: |
+      def pivot_index(nums):
+          total = sum(nums)
+          left = 0
+          for i in range(len(nums)):
+              if left == total - left - nums[i]:
+                  return i
+              left += nums[i]
+          return -1
+    tests:
+      - input: "[1, 7, 3, 6, 5, 6]"
+        expected: "3"
+      - input: "[1, 2, 3]"
+        expected: "-1"
+      - input: "[2, 1, -1]"
+        expected: "0"
+      - input: "[5]"
+        expected: "0"
+      - input: "[]"
+        expected: "-1"
+      - input: "[-1, -1, 0, 1, 1, 0]"
+        expected: "5"
+    hints:
+      - Work out the total of the whole list once. Then the sum on the right of `i` is whatever is left of the total.
+      - Keep `left`, the running sum of everything before `i`. The right side is `total - left - nums[i]`.
+      - Check for a balance before you add `nums[i]` into `left`, because the item itself belongs to neither side.
+    walkthrough:
+      call: result = pivot_index([1, 7, 3, 6, 5, 6])
+      visualise:
+        - variable: nums
+          as: array
+          pointers: [i]
+      explanation: |
+        `total` is `28`, worked out once. `left` is a running prefix sum: the sum of everything before `i`. At each `i`, the sum on
+        the right is `total - left - nums[i]`, with no second loop.
+
+        At `i = 0` the left is `0` and the right is `27`. At `i = 1` the left is `1` and the right is `20`. The sums are `11`
+        and `11` at `i = 3`, so that is the balance point. Each position cost two additions, so the whole function is `O(n)`.
+  - id: step.prefix.write-count-subarrays
+    type: write-code
+    title: Count the stretches
+    prompt: |
+      Write `count_subarrays(nums, k)`, which returns how many **contiguous stretches** of `nums` add up to `k`. The numbers
+      can be negative or zero. For example `count_subarrays([1, 2, 1, 2, 1], 3)` is `4`: the stretches `[1, 2]`, `[2, 1]`,
+      `[1, 2]` and `[2, 1]`.
+    language: python
+    entrypoint: count_subarrays
+    starter: |
+      def count_subarrays(nums, k):
+          pass
+    solution: |
+      def count_subarrays(nums, k):
+          seen = {0: 1}
+          total = 0
+          count = 0
+          for n in nums:
+              total += n
+              need = total - k
+              count += seen.get(need, 0)
+              seen[total] = seen.get(total, 0) + 1
+          return count
+    tests:
+      - input: "[1, 1, 1], 2"
+        expected: "2"
+      - input: "[1, 2, 3], 3"
+        expected: "2"
+      - input: "[1], 1"
+        expected: "1"
+      - input: "[1], 2"
+        expected: "0"
+      - input: "[], 0"
+        expected: "0"
+      - input: "[3, -3, 3], 0"
+        expected: "2"
+      - input: "[0, 0, 0], 0"
+        expected: "6"
+      - input: "[1, 2, 1, 2, 1], 3"
+        expected: "4"
+    hints:
+      - "Keep a running `total` of the numbers so far. A stretch ending here adds up to `k` if an earlier prefix total equals `total - k`."
+      - "Store how many times each prefix total has happened in a dict, and start it as `{0: 1}` for the empty prefix."
+      - "Add `seen.get(total - k, 0)` to the count *before* you record the new `total` in the dict."
+    walkthrough:
+      call: result = count_subarrays([2, -2, 2], 0)
+      visualise:
+        - variable: seen
+          as: dict
+          pointers: [need]
+      explanation: |
+        With `k = 0`, a stretch adds up to `0` when the prefix total repeats. `seen` starts as `{0: 1}`.
+
+        The first `2` makes `total = 2`. Nothing has been seen at `2` yet, so `count` stays `0`, and `2` is recorded. The `-2`
+        brings `total` back to `0`, and `0` is already in `seen`, so that is one stretch: `[2, -2]`. The next `2` makes `total`
+        `2` again, and `2` is in `seen`, which gives a second stretch: `[-2, 2]`.
+
+        The dict remembered every earlier total, so each new item cost one lookup instead of a loop back over the list.
