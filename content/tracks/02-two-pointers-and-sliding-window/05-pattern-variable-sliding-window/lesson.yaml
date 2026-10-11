@@ -1,0 +1,459 @@
+id: lesson.pattern-variable-sliding-window
+title: "Pattern: a window that grows and shrinks"
+concepts:
+  - id: concept.variable-window
+    title: Expand on the right, shrink on the left
+  - id: concept.window-rule
+    title: The rule decides when to shrink
+  - id: concept.window-linear
+    title: Why the nested loop is still O(n)
+reviewItems:
+  - id: review.varwindow.which-pattern
+    concept: concept.variable-window
+    step: step.varwindow.check-which-pattern
+    kind: pattern
+  - id: review.varwindow.when-left-moves
+    concept: concept.variable-window
+    step: step.varwindow.check-when-left-moves
+  - id: review.varwindow.predict-unique
+    concept: concept.window-rule
+    step: step.varwindow.predict-unique
+  - id: review.varwindow.predict-shortest
+    concept: concept.window-rule
+    step: step.varwindow.predict-shortest
+  - id: review.varwindow.write-ones
+    concept: concept.window-rule
+    step: step.varwindow.write-ones
+  - id: review.varwindow.why-linear
+    concept: concept.window-linear
+    step: step.varwindow.check-why-linear
+    kind: pattern
+steps:
+  - id: step.varwindow.pattern
+    type: explain
+    title: The window finds its own size
+    body: |
+      With a fixed window you are told the size `k`. Often you are told a **rule** instead:
+
+      - "the longest stretch with no repeated letter",
+      - "the shortest stretch with a sum of at least 7".
+
+      The window has to find its own size, and two pointers do it:
+
+      1. **`right` moves forward** one step at a time, taking the next item into the window.
+      2. Check the rule. If the window **breaks** it, move **`left` forward** (dropping items) until the rule holds again.
+      3. Use the window: note its length, or count it.
+
+      `right` only ever moves forward, and so does `left`. The window grows when things are fine and shrinks when they are not.
+      The only thing that changes between problems is the rule, and what you keep in the window to check it (a set, a count, a
+      total).
+    comparison:
+      csharp: |
+        // Longest stretch with no repeated character
+        var seen = new HashSet<char>();
+        int left = 0, best = 0;
+        for (int right = 0; right < s.Length; right++)
+        {
+            while (seen.Contains(s[right]))   // rule broken
+            {
+                seen.Remove(s[left]);
+                left++;
+            }
+            seen.Add(s[right]);
+            best = Math.Max(best, right - left + 1);
+        }
+      python: |
+        # Longest stretch with no repeated character
+        seen = set()
+        left = best = 0
+        for right in range(len(s)):
+            while s[right] in seen:           # rule broken
+                seen.remove(s[left])
+                left += 1
+            seen.add(s[right])
+            best = max(best, right - left + 1)
+  - id: step.varwindow.trace-unique
+    type: trace
+    title: Shrinking when a letter repeats
+    body: |
+      The rule is "no repeated letter". When `a` arrives for the second time, it is already in `seen`, so `left` moves forward and
+      drops letters until the first `a` is gone. Then the new `a` goes in. Each `best` is the length of the window `left..right`.
+    code: |
+      chars = list("abcab")
+      seen = set()
+      left = 0
+      best = 0
+      for right in range(len(chars)):
+          while chars[right] in seen:
+              seen.remove(chars[left])
+              left += 1
+          seen.add(chars[right])
+          best = max(best, right - left + 1)
+    visualise:
+      - variable: chars
+        as: array
+        pointers: [left, right]
+      - variable: seen
+        as: set
+  - id: step.varwindow.trace-shortest
+    type: trace
+    title: The shortest stretch that is big enough
+    body: |
+      Now the rule is reversed. The window needs a total of **at least 7**. `right` adds items until the total is big enough. Then, while
+      it still is, the window is a candidate: record its length and shrink from the left to see if a shorter one is also enough.
+    code: |
+      nums = [2, 3, 1, 2, 4, 3]
+      target = 7
+      total = 0
+      left = 0
+      best = len(nums) + 1
+      for right in range(len(nums)):
+          total += nums[right]
+          while total >= target:
+              best = min(best, right - left + 1)
+              total -= nums[left]
+              left += 1
+    visualise:
+      - variable: nums
+        as: array
+        pointers: [left, right]
+  - id: step.varwindow.predict-unique
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      The same loop on a trickier word. What does it print?
+    code: |
+      chars = list("dvdf")
+      seen = set()
+      left = 0
+      best = 0
+      for right in range(len(chars)):
+          while chars[right] in seen:
+              seen.remove(chars[left])
+              left += 1
+          seen.add(chars[right])
+          best = max(best, right - left + 1)
+      print(best, left)
+    accepted:
+      - "3 1"
+    mistakes:
+      - answers:
+          - "2 1"
+        feedback: "The longest window is `vdf` (length 3), which starts after the first `d` was dropped. `best` is `3`."
+      - answers:
+          - "3 0"
+        feedback: "`left` does move. When the second `d` arrives, the first one must be dropped, so `left` moves from `0` to `1`."
+      - answers:
+          - "4 0"
+        feedback: "`d` repeats, so the whole word is never a valid window."
+    hints:
+      - "Go letter by letter: `d`, `v` are fine. The next `d` is already in `seen`. What does the `while` do?"
+      - "After dropping the first `d`, the window is `vd` and `f` extends it to `vdf`."
+  - id: step.varwindow.predict-shortest
+    type: predict-output
+    title: Predict the shortest
+    prompt: |
+      The shortest-sum loop on a new list. What does it print?
+    code: |
+      nums = [3, 1, 4, 2, 2]
+      target = 6
+      total = 0
+      left = 0
+      best = len(nums) + 1
+      for right in range(len(nums)):
+          total += nums[right]
+          while total >= target:
+              best = min(best, right - left + 1)
+              total -= nums[left]
+              left += 1
+      print(best, left, total)
+    accepted:
+      - "2 3 4"
+    mistakes:
+      - answers:
+          - "3 3 4"
+        feedback: "A length-3 window `[3, 1, 4]` is found first, but the loop keeps shrinking while the total stays at least 6. After `3` is dropped, `[1, 4, 2]` is 7. After `1` is dropped, `[4, 2]` is 6, which is length 2."
+      - answers:
+          - "2 0 4"
+        feedback: "`left` moves forward every time the window is shrunk. It ends at `3`."
+    hints:
+      - "Add items until the total reaches 6 or more: `3 + 1 + 4 = 8` at `right = 2`. Then shrink while it stays 6 or more."
+      - "At `right = 3` the window is `[1, 4, 2]` with a total of 7. Keep shrinking from the left for as long as the total is still 6 or more."
+  - id: step.varwindow.check-when-left-moves
+    type: choice
+    title: When does left move?
+    prompt: |
+      In a variable-size window, when should `left` move forward?
+    options:
+      - text: Only while the window breaks the rule (or, for a "shortest" window, while it still meets the rule).
+        correct: true
+        feedback: Right. `right` moves every step. `left` moves only to repair or to tighten the window, using a `while`.
+      - text: Once after every step of `right`, so the window keeps the same size.
+        correct: false
+        feedback: That is a fixed-size window. Here the size changes, so `left` waits until the rule needs it.
+      - text: Never. Only `right` moves.
+        correct: false
+        feedback: Without `left` moving, the window could never shrink back to a valid state.
+      - text: Whenever `right` has moved `k` steps.
+        correct: false
+        feedback: "`k` is not part of this kind of problem. The rule, not a count, decides."
+    hints:
+      - "What should happen if adding the item at `right` breaks the rule?"
+      - Does the problem tell you how big the window has to be?
+  - id: step.varwindow.check-why-linear
+    type: choice
+    title: A while inside a for. Is that O(n²)?
+    prompt: |
+      The loop has a `while` nested inside a `for`. Why is the total work still `O(n)`?
+    options:
+      - text: Both pointers only move forward and never back, so together they make at most `2n` moves.
+        correct: true
+        feedback: Right. `right` takes `n` steps in total, and `left` can never pass `right`, so the inner loop's moves add up to at most `n` over the whole run.
+      - text: The inner loop usually runs zero times.
+        correct: false
+        feedback: It can run many times in a single pass. What matters is the total across all passes.
+      - text: Python optimises nested loops.
+        correct: false
+        feedback: It doesn't. The bound comes from how the pointers move.
+      - text: It isn't. The nested loop makes this `O(n²)`.
+        correct: false
+        feedback: "`left` is not reset for each `right`. It carries on from where it was, so the inner loops don't restart."
+    hints:
+      - "Does `left` ever go back to the start for the next value of `right`?"
+      - "Count the total number of times each pointer can move across the whole run."
+  - id: step.varwindow.check-which-pattern
+    type: choice
+    title: Which problem is a variable window?
+    prompt: |
+      Which problem is solved with a window that grows and shrinks?
+    options:
+      - text: Find the longest stretch of days in which the temperature never dropped.
+        correct: true
+        feedback: Right. The stretch is as long as the rule allows, so the window finds its own size.
+      - text: Find the best total over exactly 5 days in a row.
+        correct: false
+        feedback: The size is given (5), so that is a fixed window.
+      - text: Check whether two prices in sorted order sum to a budget.
+        correct: false
+        feedback: That is the converging two pointers pattern.
+      - text: Remove the duplicates from a sorted list in place.
+        correct: false
+        feedback: That is a reader and a writer.
+    hints:
+      - "Look for the phrase *longest* or *shortest* stretch that satisfies a rule."
+      - "Is a size handed to you in the problem?"
+  - id: step.varwindow.fill-unique
+    type: fill-blank
+    title: Complete the function
+    prompt: |
+      Fill in the blanks so that `longest_unique` returns the length of the longest stretch of `s` with no repeated letter.
+    template: |
+      def longest_unique(s):
+          seen = set()
+          left = 0
+          best = 0
+          for right in range(len(s)):
+              while s[right] {{test}} seen:
+                  seen.remove(s[{{drop}}])
+                  left += 1
+              seen.add(s[right])
+              best = max(best, right - left + 1)
+          return best
+    blanks:
+      - id: test
+        accepted:
+          - "in"
+        mistakes:
+          - answers:
+              - "not in"
+            feedback: "That would shrink the window whenever the letter is *new*. We shrink when the letter is already in the window."
+      - id: drop
+        accepted:
+          - "left"
+        mistakes:
+          - answers:
+              - "right"
+            feedback: "`s[right]` is the letter that just arrived, and it is still waiting to be added. The letter to drop is the one at the left edge of the window."
+    hints:
+      - "The window is broken when the new letter is already inside it."
+      - "To shrink a window, you remove the item at its *left* edge, then move `left` on."
+  - id: step.varwindow.order-shortest
+    type: parsons
+    title: The shortest stretch that is big enough
+    prompt: |
+      Arrange these lines into `min_len(target, nums)`, which returns the length of the shortest stretch of positive numbers with a
+      sum of at least `target`, or `0` if there is none.
+    solution: |
+      def min_len(target, nums):
+          best = len(nums) + 1
+          total = 0
+          left = 0
+          for right in range(len(nums)):
+              total += nums[right]
+              while total >= target:
+                  best = min(best, right - left + 1)
+                  total -= nums[left]
+                  left += 1
+          return 0 if best > len(nums) else best
+    hints:
+      - "Set up `best`, `total` and `left` before the loop."
+      - "Inside the `for`: add the new item first. Then the `while` shrinks the window."
+      - "Inside the `while`: record the length, then drop the left item. The last line reports `0` if no window was ever big enough."
+  - id: step.varwindow.write-ones
+    type: write-code
+    title: Flip at most k zeros
+    prompt: |
+      Write `longest_ones(nums, k)`, where `nums` holds only `0`s and `1`s. Return the length of the longest stretch that contains
+      **at most `k` zeros**, which is the longest run of `1`s you could make by flipping at most `k` zeros. For example
+      `longest_ones([1, 0, 1, 0, 1], 1)` is `3`.
+    language: python
+    entrypoint: longest_ones
+    starter: |
+      def longest_ones(nums, k):
+          pass
+    solution: |
+      def longest_ones(nums, k):
+          left = 0
+          zeros = 0
+          best = 0
+          for right in range(len(nums)):
+              if nums[right] == 0:
+                  zeros += 1
+              while zeros > k:
+                  if nums[left] == 0:
+                      zeros -= 1
+                  left += 1
+              best = max(best, right - left + 1)
+          return best
+    tests:
+      - input: "[1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0], 2"
+        expected: "6"
+      - input: "[0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1], 3"
+        expected: "10"
+      - input: "[1, 1, 1], 0"
+        expected: "3"
+      - input: "[0, 0, 0], 0"
+        expected: "0"
+      - input: "[0, 0, 0], 2"
+        expected: "2"
+      - input: "[], 1"
+        expected: "0"
+      - input: "[1, 0, 1, 0, 1], 1"
+        expected: "3"
+    hints:
+      - "The rule is: at most `k` zeros in the window. Keep a count of the zeros that are inside it."
+      - "When a `0` enters at `right`, add one. While the count is more than `k`, drop the item at `left` (and take one off the count if it was a `0`)."
+      - "After the window is valid again, its length is `right - left + 1`. Keep the largest."
+  - id: step.varwindow.write-distinct
+    type: write-code
+    title: At most k different letters
+    prompt: |
+      Write `longest_k_distinct(s, k)`, which returns the length of the longest stretch of `s` with **at most `k` different
+      letters**. For example `longest_k_distinct("eceba", 2)` is `3` (the stretch `"ece"`).
+    language: python
+    entrypoint: longest_k_distinct
+    starter: |
+      def longest_k_distinct(s, k):
+          pass
+    solution: |
+      def longest_k_distinct(s, k):
+          chars = list(s)
+          counts = {}
+          left = 0
+          best = 0
+          for right in range(len(chars)):
+              counts[chars[right]] = counts.get(chars[right], 0) + 1
+              while len(counts) > k:
+                  counts[chars[left]] -= 1
+                  if counts[chars[left]] == 0:
+                      del counts[chars[left]]
+                  left += 1
+              best = max(best, right - left + 1)
+          return best
+    tests:
+      - input: '"eceba", 2'
+        expected: "3"
+      - input: '"aa", 1'
+        expected: "2"
+      - input: '"abc", 1'
+        expected: "1"
+      - input: '"", 2'
+        expected: "0"
+      - input: '"abaccc", 2'
+        expected: "4"
+      - input: '"aabbcc", 3'
+        expected: "6"
+      - input: '"abc", 0'
+        expected: "0"
+    hints:
+      - "Keep a dict of how many times each letter appears in the window. The number of keys is the number of different letters."
+      - "When the dict has more than `k` keys, drop the letter at `left`. Subtract one from its count, and **delete the key when it reaches 0**."
+    walkthrough:
+      call: result = longest_k_distinct("eceba", 2)
+      visualise:
+        - variable: chars
+          as: array
+          pointers: [left, right]
+        - variable: counts
+          as: dict
+      explanation: |
+        `counts` describes the window: each letter and how many times it appears inside. As long as it has at most two keys the window is fine.
+
+        When `b` arrives the dict has three keys, so `left` drops letters. It takes `e` first (its count goes from 2 to 1, so the key
+        stays), and then `c`, whose count hits `0`. That key is deleted and the window is valid again. Deleting the key matters,
+        because `len(counts)` is how the rule is checked. Both pointers only ever move forward, so the work is `O(n)`.
+  - id: step.varwindow.write-count
+    type: write-code
+    title: Counting every window
+    prompt: |
+      Write `count_below(nums, limit)`, where `nums` holds **positive** numbers and `limit >= 1`. Return how many stretches (of one
+      or more items in a row) have a sum **less than `limit`**. For example `count_below([1, 2, 3, 4], 8)` is `8`.
+    language: python
+    entrypoint: count_below
+    starter: |
+      def count_below(nums, limit):
+          pass
+    solution: |
+      def count_below(nums, limit):
+          total = 0
+          left = 0
+          count = 0
+          for right in range(len(nums)):
+              total += nums[right]
+              while total >= limit:
+                  total -= nums[left]
+                  left += 1
+              count += right - left + 1
+          return count
+    tests:
+      - input: "[10, 5, 2, 6], 100"
+        expected: "10"
+      - input: "[1, 1, 1], 2"
+        expected: "3"
+      - input: "[5], 6"
+        expected: "1"
+      - input: "[5], 5"
+        expected: "0"
+      - input: "[], 3"
+        expected: "0"
+      - input: "[2, 3, 4], 6"
+        expected: "4"
+      - input: "[1, 2, 3, 4], 8"
+        expected: "8"
+    hints:
+      - "Shrink while the total is **not** below `limit`. Then the window `left..right` is valid."
+      - "Every stretch that *ends* at `right` and starts anywhere from `left` to `right` is also valid (the numbers are positive, so a shorter stretch has a smaller sum). That is `right - left + 1` stretches."
+      - "Add `right - left + 1` to the count at each step."
+  - id: step.varwindow.variation
+    type: explain
+    title: Which pointer pattern is it?
+    body: |
+      You now have four shapes of two pointers:
+
+      - **Converging**: start at both ends, move inwards. Pairs, palindromes, reversing.
+      - **Reader and writer**: both start at the front, one keeps. Compacting, merging.
+      - **Fixed window**: both edges move together. A size `k` is given.
+      - **Variable window**: `right` always moves, `left` moves when the rule demands it. Longest or shortest stretch.
+
+      The next lesson mixes them. The skill is in reading the question: *is there a sorted pair, a list to compact, a size given, or a
+      rule to hold?*
