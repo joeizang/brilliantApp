@@ -186,8 +186,10 @@ public class WalkthroughRungTests : ShortcutContext
         cut.Find("button.hint-more").Click();   // the one hint
         cut.Find("button.hint-more").Click();   // the full solution
         cut.FindAll("ul.options input")[0].Change(true);
+        cut.WaitForAssertion(() => Assert.False(cut.Find("button.primary").HasAttribute("disabled")));   // the walkthrough's own render may still be settling
         cut.Find("button.primary").Click();
 
+        cut.WaitForAssertion(() => Assert.Single(_log.Items, e => e.Type == ProgressEventTypes.ReviewAnswered));
         var answer = Assert.Single(_log.Items, e => e.Type == ProgressEventTypes.ReviewAnswered);
         Assert.Equal((4, 1), (Data(answer).GetProperty("hintsUsed").GetInt32(), Data(answer).GetProperty("rating").GetInt32()));
     }
@@ -203,8 +205,10 @@ public class WalkthroughRungTests : ShortcutContext
 
         cut.Find("button.hint-more").Click();
         cut.FindAll("ul.options input")[0].Change(true);
+        cut.WaitForAssertion(() => Assert.False(cut.Find("button.primary").HasAttribute("disabled")));   // the walkthrough's own render may still be settling
         cut.Find("button.primary").Click();
 
+        cut.WaitForAssertion(() => Assert.Single(_log.Items, e => e.Type == ProgressEventTypes.ReviewAnswered));
         var answer = Assert.Single(_log.Items, e => e.Type == ProgressEventTypes.ReviewAnswered);
         Assert.Equal((1, 2), (Data(answer).GetProperty("hintsUsed").GetInt32(), Data(answer).GetProperty("rating").GetInt32()));
     }
