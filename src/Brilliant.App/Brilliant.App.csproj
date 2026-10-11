@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Razor">
 
   <PropertyGroup>
-    <!-- Android is here for the Pyodide spike (issue #2); phone layouts come in the sync milestone. -->
+    <!-- Android ships as a signed APK (scripts/build-apk.sh, docs/android.md); phone layouts come with #34. -->
     <TargetFrameworks>net10.0-maccatalyst;net10.0-android</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <RootNamespace>Brilliant.App</RootNamespace>

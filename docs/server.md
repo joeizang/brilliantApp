@@ -85,7 +85,7 @@ The server speaks plain HTTP, and the pairing code and token cross your LAN unen
 The apps allow it narrowly:
 
 - **Mac:** `NSAllowsLocalNetworking` in `Platforms/MacCatalyst/Info.plist` permits HTTP to IP addresses and `.local` names only.
-- **Android:** `android:usesCleartextTraffic="true"` in `AndroidManifest.xml` permits cleartext to any host. Android cannot restrict it to private ranges, so it is lifted when #35 lands.
+- **Android** ([android.md](android.md)): `android:usesCleartextTraffic="true"` in `AndroidManifest.xml` permits cleartext to any host. Android cannot restrict it to private ranges, so it is lifted when #35 lands.
 
 ## Configuration
 

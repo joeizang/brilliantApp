@@ -55,6 +55,7 @@ public static class MauiProgram
             new SecureDeviceCredentialStore(), new FileDeviceCredentialStore(Path.Combine(dataDir, "device-credentials.json"))));
         builder.Services.AddSingleton(_ => new PairingClient(new HttpClient { Timeout = TimeSpan.FromSeconds(10) }));
         builder.Services.AddSingleton<PairingService>();
+        builder.Services.AddSingleton(new DeviceLabel(Microsoft.Maui.Devices.DeviceInfo.Current.Name));   // "Pixel 9 Pro XL", not the "localhost" Android reports as its machine name
 
         // Sync keeps the event log in step with the server: at start, every couple of minutes, and on demand from the Sync screen.
         // The server being away never matters to the learner; the app runs from its local log.
