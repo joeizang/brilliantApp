@@ -419,6 +419,10 @@ steps:
       - **fixed window** (a given size),
       - **variable window** (a rule decides the size).
 
-      Each one turns a problem that looks like it needs `O(n²)` pairs into a single `O(n)` pass, by letting each pointer move
-      only forward (or only inwards). When a problem doesn't fit, say because it is unsorted or has negatives, the answer is
-      often another Track 1 tool: a hash map or prefix sums. Knowing which to reach for is the real skill.
+      One pass of any of them is `O(n)`, because each pointer only moves forward (or only inwards). That is what replaces a
+      search over all `O(n²)` pairs. But count the passes: `three_sum` runs a converging pass for every `i`, so it is `O(n²)`,
+      and `count_palindromes` expands from every centre, which is `O(n²)` on a string of identical letters. A single pass is
+      linear; repeated passes multiply.
+
+      When a problem doesn't fit, say because it is unsorted or has negatives, the answer is often another Track 1 tool: a hash
+      map or prefix sums. Knowing which to reach for is the real skill.
