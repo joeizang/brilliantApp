@@ -1,0 +1,451 @@
+id: lesson.pattern-palindromes-and-in-place
+title: "Pattern: palindromes and in-place edits"
+concepts:
+  - id: concept.palindrome-two-pointers
+    title: "Palindromes: compare the ends, walk inwards"
+  - id: concept.skip-and-compare
+    title: Skipping items that don't count
+  - id: concept.swap-in-place
+    title: Swapping in place, with no copy
+reviewItems:
+  - id: review.palindrome.which-space
+    concept: concept.palindrome-two-pointers
+    step: step.palindrome.check-constant-space
+    kind: pattern
+  - id: review.palindrome.why-not-copy
+    concept: concept.palindrome-two-pointers
+    step: step.palindrome.check-why-pointers
+    kind: pattern
+  - id: review.palindrome.predict-skip
+    concept: concept.skip-and-compare
+    step: step.palindrome.predict-skip
+  - id: review.palindrome.guard
+    concept: concept.skip-and-compare
+    step: step.palindrome.check-guard
+  - id: review.palindrome.swap-bug
+    concept: concept.swap-in-place
+    step: step.palindrome.predict-swap-bug
+steps:
+  - id: step.palindrome.pattern
+    type: explain
+    title: Does it read the same both ways?
+    body: |
+      A **palindrome** reads the same forwards and backwards: `"level"`, `"racecar"`. The one-line check is to reverse it and
+      compare, and that is fine. But the reversed copy takes `O(n)` extra space, and it does all the work even when the first
+      and last letters already disagree.
+
+      With two pointers, `left` starts on the first character and `right` on the last. If the two characters differ, it is
+      **not** a palindrome and you can stop at once. If they match, move both inwards and look at the next pair. When the
+      pointers meet or cross, every pair matched. No copy is made, so the extra space is `O(1)`.
+
+      The same walk edits a list **in place**. Swap the items under the two pointers, move both inwards, and the list ends up
+      reversed with no second list.
+    comparison:
+      csharp: |
+        // One line, but it builds a reversed copy
+        bool IsPalindrome(string s) =>
+            s == new string(s.Reverse().ToArray());
+
+        // Two pointers: no copy, and it stops at the first mismatch
+        int left = 0, right = s.Length - 1;
+        while (left < right)
+        {
+            if (s[left] != s[right]) return false;
+            left++;
+            right--;
+        }
+        return true;
+      python: |
+        # One line, but it builds a reversed copy
+        def is_palindrome(s):
+            return s == s[::-1]
+
+        # Two pointers: no copy, and it stops at the first mismatch
+        left, right = 0, len(s) - 1
+        while left < right:
+            if s[left] != s[right]:
+                return False
+            left += 1
+            right -= 1
+        return True
+  - id: step.palindrome.trace-mismatch
+    type: trace
+    title: Stopping at the first mismatch
+    body: |
+      The word is `abcda`. The first and last letters match, so both pointers move in. Then `b` meets `d`, which don't match, and
+      the loop stops with `same` set to `False`. The `c` in the middle was never looked at.
+    code: |
+      chars = list("abcda")
+      left = 0
+      right = len(chars) - 1
+      same = True
+      while left < right:
+          if chars[left] != chars[right]:
+              same = False
+              break
+          left += 1
+          right -= 1
+    visualise:
+      - variable: chars
+        as: array
+        pointers: [left, right]
+  - id: step.palindrome.trace-swap
+    type: trace
+    title: Reversing in place
+    body: |
+      The same two pointers can reverse a list. At each step the cells under `left` and `right` swap, and then both pointers move in.
+      Watch the list turn itself around. The middle cell stays where it is, because it is its own partner.
+    code: |
+      items = [1, 2, 3, 4, 5]
+      left = 0
+      right = len(items) - 1
+      while left < right:
+          items[left], items[right] = items[right], items[left]
+          left += 1
+          right -= 1
+    visualise:
+      - variable: items
+        as: array
+        pointers: [left, right]
+  - id: step.palindrome.predict-skip
+    type: predict-output
+    title: Skip what doesn't count
+    prompt: |
+      This version ignores anything that isn't a letter or digit, and ignores upper and lower case. What does it print?
+    code: |
+      def is_palindrome(s):
+          left, right = 0, len(s) - 1
+          while left < right:
+              while left < right and not s[left].isalnum():
+                  left += 1
+              while left < right and not s[right].isalnum():
+                  right -= 1
+              if s[left].lower() != s[right].lower():
+                  return False
+              left += 1
+              right -= 1
+          return True
+
+      print(is_palindrome("Was it a car, or a cat I saw?"))
+      print(is_palindrome("race a car"))
+    accepted:
+      - "True\nFalse"
+    mistakes:
+      - answers:
+          - "False\nFalse"
+        feedback: "The spaces, the comma and the `?` are skipped, and `W` equals `w` after `.lower()`. Without them the letters read `wasitacaroracatisaw`, which *is* a palindrome."
+      - answers:
+          - "True\nTrue"
+        feedback: "`raceacar` backwards is `racaecar`, so `e` and `a` don't match. The skipping only ignores spaces and punctuation, not letters."
+    hints:
+      - "Cross out the spaces and punctuation in your head and compare what is left. Case doesn't matter."
+      - "`raceacar` reversed is `racaecar`. Where do they first differ?"
+  - id: step.palindrome.predict-swap-bug
+    type: predict-output
+    title: A swap that isn't
+    prompt: This reverse loop has a bug. What does it print?
+    code: |
+      items = [1, 2, 3, 4, 5]
+      left, right = 0, len(items) - 1
+      while left < right:
+          items[left] = items[right]
+          items[right] = items[left]
+          left += 1
+          right -= 1
+      print(items)
+    accepted:
+      - "[5, 4, 3, 4, 5]"
+    mistakes:
+      - answers:
+          - "[5, 4, 3, 2, 1]"
+        feedback: "That would be a real swap. Here the first line overwrites `items[left]`, so the original value is gone before the second line copies it back."
+      - answers:
+          - "[1, 2, 3, 4, 5]"
+        feedback: "Both assignments change the list. Follow the first pass: `items[0]` becomes `5`, and then `items[4]` is set from the *new* `items[0]`, which is `5`."
+    hints:
+      - "On the first pass, `items[0] = items[4]` makes the list `[5, 2, 3, 4, 5]`. What does `items[4] = items[0]` then do?"
+      - "The original `1` has been overwritten, so it can't be copied anywhere."
+  - id: step.palindrome.check-why-pointers
+    type: choice
+    title: Why not just reverse a copy?
+    prompt: |
+      `s == s[::-1]` is correct, and shorter. What does the two pointer version buy you?
+    options:
+      - text: It uses `O(1)` extra space instead of a whole reversed copy, and it can stop at the first mismatch.
+        correct: true
+        feedback: Right. The two versions are both `O(n)` in the worst case, but the pointers need no copy and quit as soon as the answer is known.
+      - text: It is `O(log n)` instead of `O(n)`.
+        correct: false
+        feedback: Every pair must still be checked when the word *is* a palindrome, so the worst case is still `O(n)`.
+      - text: It works on lists as well as strings.
+        correct: false
+        feedback: "`items == items[::-1]` works on lists too. That isn't what the pointers add."
+      - text: It is the only way to ignore punctuation.
+        correct: false
+        feedback: You could clean the string first. The pointers just let you skip as you go, without building a cleaned copy.
+    hints:
+      - Think about memory, and about what happens with a first and last letter that don't match.
+      - What does `s[::-1]` have to build before it can compare anything?
+  - id: step.palindrome.check-constant-space
+    type: choice
+    title: Which fits in O(1) extra space?
+    prompt: Which of these tasks can be done with two pointers and no extra list, set or dict?
+    options:
+      - text: Reverse a list of characters in place.
+        correct: true
+        feedback: Right. Swap the two ends and walk inwards. Nothing else needs to be stored.
+      - text: Group a list of words into anagram groups.
+        correct: false
+        feedback: "That needs a dict from a key (such as the sorted letters) to a list of words, so it uses extra space."
+      - text: Find the first letter that appears twice.
+        correct: false
+        feedback: Remembering which letters have been seen takes a set, which is extra space.
+      - text: Count how many times each letter appears.
+        correct: false
+        feedback: A frequency table is a dict. That is the point of the hash map patterns.
+    hints:
+      - Which task only needs to look at the two ends and swap or compare?
+      - The other three each need to remember things as they go. What would they store?
+  - id: step.palindrome.check-guard
+    type: choice
+    title: Why check left < right again?
+    prompt: |
+      In the skipping version, the inner loops are `while left < right and not s[left].isalnum()`. Why repeat `left < right`
+      inside them? What goes wrong without it, for a string like `".,"`?
+    options:
+      - text: "Without it `left` can run past `right` (and off the end of the string) while skipping, so `s[left]` raises an `IndexError` or compares the wrong cells."
+        correct: true
+        feedback: Right. Every pointer move needs its own check, because skipping can move a pointer many times in one go.
+      - text: It makes the loop faster.
+        correct: false
+        feedback: It isn't about speed. It stops the pointers from crossing or running off the end.
+      - text: It isn't needed. The outer loop already checks it.
+        correct: false
+        feedback: The outer check only runs once per pass. An inner loop can move a pointer many times before the outer condition is looked at again.
+      - text: It stops it treating `.` as a letter.
+        correct: false
+        feedback: "`isalnum()` already does that. The extra check is only about the pointers' positions."
+    hints:
+      - "With `\".,\"`, every character is skipped. Where does `left` end up if nothing stops it?"
+      - The outer `while` is only checked once per pass of the whole body.
+  - id: step.palindrome.fill-skip
+    type: fill-blank
+    title: Complete the function
+    prompt: |
+      Fill in the blanks to finish `is_palindrome`. It ignores anything that isn't a letter or digit, and it ignores case.
+    template: |
+      def is_palindrome(s):
+          left, right = 0, len(s) - 1
+          while left < right:
+              while left < right and not s[left].{{check}}():
+                  left += 1
+              while left < right and not s[right].isalnum():
+                  right -= 1
+              if s[left].{{fold}}() != s[right].lower():
+                  return False
+              left += 1
+              right -= 1
+          return True
+    blanks:
+      - id: check
+        accepted:
+          - "isalnum"
+        mistakes:
+          - answers:
+              - "isalpha"
+            feedback: "`isalpha()` is `False` for digits, so a digit would be skipped as if it were punctuation. Use the check that accepts letters *and* digits."
+          - answers:
+              - "isdigit"
+            feedback: "`isdigit()` would skip every letter. You want the check that accepts letters and digits."
+      - id: fold
+        accepted:
+          - "lower"
+          - "casefold"
+        mistakes:
+          - answers:
+              - "upper"
+            feedback: "The other side uses `.lower()`, and `'A'.upper() != 'a'.lower()`. Both sides have to be changed the same way."
+    hints:
+      - A method on `str` that is true for letters and digits alike. The next inner loop already uses it.
+      - Both characters must be changed to the same case before they are compared. The right-hand side shows which.
+  - id: step.palindrome.order-palindrome
+    type: parsons
+    title: The plain palindrome check
+    prompt: |
+      Arrange these lines into `is_palindrome(word)`, which returns `True` when `word` reads the same in both directions.
+    solution: |
+      def is_palindrome(word):
+          left, right = 0, len(word) - 1
+          while left < right:
+              if word[left] != word[right]:
+                  return False
+              left += 1
+              right -= 1
+          return True
+    hints:
+      - The pointers are set up before the loop.
+      - "The `if` that returns `False` is inside the loop. The two moves come after it, still in the loop."
+      - "`return True` comes last and lines up with `while`. Only after every pair matched can you say yes."
+  - id: step.palindrome.write-palindrome
+    type: write-code
+    title: Valid palindrome
+    prompt: |
+      Write `is_palindrome(s)`, which returns `True` if `s` reads the same forwards and backwards when you **ignore every
+      character that is not a letter or digit**, and ignore case. An empty string, or one with no letters or digits, counts as a
+      palindrome. For example `is_palindrome("A man, a plan, a canal: Panama")` is `True`.
+    language: python
+    entrypoint: is_palindrome
+    starter: |
+      def is_palindrome(s):
+          pass
+    solution: |
+      def is_palindrome(s):
+          left, right = 0, len(s) - 1
+          while left < right:
+              while left < right and not s[left].isalnum():
+                  left += 1
+              while left < right and not s[right].isalnum():
+                  right -= 1
+              if s[left].lower() != s[right].lower():
+                  return False
+              left += 1
+              right -= 1
+          return True
+    tests:
+      - input: '"A man, a plan, a canal: Panama"'
+        expected: "True"
+      - input: '"race a car"'
+        expected: "False"
+      - input: '""'
+        expected: "True"
+      - input: '".,"'
+        expected: "True"
+      - input: '"0P"'
+        expected: "False"
+      - input: '"ab_a"'
+        expected: "True"
+      - input: '"12321"'
+        expected: "True"
+    hints:
+      - "Two pointers, one at each end. Before comparing, move each one past anything that isn't a letter or digit (`isalnum()`)."
+      - "Keep `left < right` in the skipping loops, so the pointers can't run past each other."
+      - "Compare the two characters with `.lower()`. If they differ, return `False`. If the loop finishes, return `True`."
+  - id: step.palindrome.write-almost
+    type: write-code
+    title: One deletion allowed
+    prompt: |
+      Write `almost_palindrome(s)`, which returns `True` if `s` is a palindrome **or becomes one after deleting exactly one
+      character** (the string is lowercase letters only). For example `almost_palindrome("abca")` is `True`, because deleting
+      the `c` (or the `b`) gives `"aba"`.
+    language: python
+    entrypoint: almost_palindrome
+    starter: |
+      def almost_palindrome(s):
+          pass
+    solution: |
+      def almost_palindrome(s):
+          chars = list(s)
+
+          def check(left, right):
+              while left < right:
+                  if chars[left] != chars[right]:
+                      return False
+                  left += 1
+                  right -= 1
+              return True
+
+          left, right = 0, len(chars) - 1
+          while left < right:
+              if chars[left] != chars[right]:
+                  return check(left + 1, right) or check(left, right - 1)
+              left += 1
+              right -= 1
+          return True
+    tests:
+      - input: '"aba"'
+        expected: "True"
+      - input: '"abca"'
+        expected: "True"
+      - input: '"abc"'
+        expected: "False"
+      - input: '""'
+        expected: "True"
+      - input: '"a"'
+        expected: "True"
+      - input: '"deeee"'
+        expected: "True"
+      - input: '"abcdefdba"'
+        expected: "False"
+    hints:
+      - Walk in from both ends as usual. Nothing needs fixing until the first mismatch.
+      - "At the first mismatch you have two options: delete the left character or delete the right one. Try each, and check whether the *rest* is a plain palindrome."
+      - "A small helper that takes a `left` and `right` and runs the plain check on that stretch keeps the code short."
+    walkthrough:
+      call: result = almost_palindrome("abxa")
+      visualise:
+        - variable: chars
+          as: array
+          pointers: [left, right]
+      explanation: |
+        The outer pointers match on `a` and `a`, so both move in. Then `b` meets `x`, which is the first mismatch.
+
+        Now there are two choices: drop the `b` on the left, or drop the `x` on the right. Dropping the `b` leaves just `x` between the
+        two `a`s, and a single character is always a palindrome, so the answer is `True` (the string becomes `"axa"`). Only one
+        mismatch is ever allowed, so the helper's plain check on the rest is all that is needed. Each check is one more pass, so the
+        whole function is still `O(n)`.
+  - id: step.palindrome.write-reverse-vowels
+    type: write-code
+    title: Reverse only the vowels
+    prompt: |
+      Write `reverse_vowels(s)`, which returns `s` with its **vowels** (`a e i o u`, in either case) in reverse order and every other
+      character left where it was. For example `reverse_vowels("hello")` is `"holle"`.
+    language: python
+    entrypoint: reverse_vowels
+    starter: |
+      def reverse_vowels(s):
+          pass
+    solution: |
+      def reverse_vowels(s):
+          chars = list(s)
+          vowels = set("aeiouAEIOU")
+          left, right = 0, len(chars) - 1
+          while left < right:
+              if chars[left] not in vowels:
+                  left += 1
+              elif chars[right] not in vowels:
+                  right -= 1
+              else:
+                  chars[left], chars[right] = chars[right], chars[left]
+                  left += 1
+                  right -= 1
+          return "".join(chars)
+    tests:
+      - input: '"hello"'
+        expected: '"holle"'
+      - input: '"leetcode"'
+        expected: '"leotcede"'
+      - input: '"xyz"'
+        expected: '"xyz"'
+      - input: '""'
+        expected: '""'
+      - input: '"aA"'
+        expected: '"Aa"'
+      - input: '"Hello World"'
+        expected: '"Hollo Werld"'
+      - input: '"aeiou"'
+        expected: '"uoiea"'
+    hints:
+      - "A string can't be changed in place, so turn it into a list of characters first and join it at the end."
+      - "Move `left` forward until it sits on a vowel, and `right` back until it sits on one. When both do, swap them and move both in."
+      - "Only one pointer moves per pass until both are on vowels: skip a consonant on the left, else skip one on the right, else swap."
+  - id: step.palindrome.variation
+    type: explain
+    title: Pointers that start together
+    body: |
+      Both pointers so far started at **opposite ends** and walked towards each other. That works when the question is about
+      pairs, or about the two ends of the data.
+
+      Many other problems keep both pointers moving **the same way**. One pointer reads ahead, and the other marks where the
+      next good item should go. That is how you remove duplicates from a sorted list in place, or push all the zeros to the end
+      without a second list. It is the same idea (two indexes, one pass, no copy), but the pointers start together and never
+      meet in the middle. That is the next lesson.
