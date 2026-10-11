@@ -1,0 +1,424 @@
+id: lesson.choosing-the-pattern
+title: "Choosing the right pattern"
+concepts:
+  - id: concept.pick-pattern
+    title: Reading the clues in the question
+  - id: concept.sort-then-pointers
+    title: Sorting first so the pointers can work
+  - id: concept.window-limits
+    title: When a window or pointers aren't enough
+reviewItems:
+  - id: review.choose.unsorted-pair
+    concept: concept.pick-pattern
+    step: step.choose.check-unsorted
+    kind: pattern
+  - id: review.choose.why-sort
+    concept: concept.sort-then-pointers
+    step: step.choose.check-why-sort
+    kind: pattern
+  - id: review.choose.predict-triples
+    concept: concept.sort-then-pointers
+    step: step.choose.predict-triples
+  - id: review.choose.predict-negatives
+    concept: concept.window-limits
+    step: step.choose.predict-negatives
+  - id: review.choose.check-negatives
+    concept: concept.window-limits
+    step: step.choose.check-negatives
+  - id: review.choose.write-subarrays
+    concept: concept.window-limits
+    step: step.choose.write-subarrays
+steps:
+  - id: step.choose.pattern
+    type: explain
+    title: Read the question first
+    body: |
+      You have met four shapes of two pointers. Picking the right one is mostly about reading **clues** in the question.
+
+      | If the question says... | Reach for |
+      | --- | --- |
+      | a **sorted** list, a pair or a target; palindromes; reversing | **converging** pointers |
+      | change a list **in place**, remove or keep items; merge two sorted lists | **reader and writer** |
+      | "any `k` items in a row" (the size is given) | **fixed window** |
+      | "longest" or "shortest" stretch that satisfies a rule | **variable window** |
+
+      Two warnings go with the table. If the data is **not sorted** and you need pairs, a hash map is usually better (Track 1). If the
+      numbers can be **negative**, a window that shrinks when the total is too big no longer works. Sometimes the first step is to
+      **sort**, and then the pointers can work.
+  - id: step.choose.trace-three
+    type: trace
+    title: Sort first, then converge
+    body: |
+      Three numbers that add up to zero? Sort the list. Then fix one number with `i` and look for a pair in the rest with converging
+      pointers `left` and `right`. If the total is too small, move `left` up. If it is too big, move `right` down. The sort is what makes
+      the "too small / too big" decision meaningful.
+    code: |
+      nums = sorted([1, -2, 2, 0, -1])
+      found = []
+      for i in range(len(nums) - 2):
+          left = i + 1
+          right = len(nums) - 1
+          while left < right:
+              total = nums[i] + nums[left] + nums[right]
+              if total == 0:
+                  found.append([nums[i], nums[left], nums[right]])
+                  left += 1
+                  right -= 1
+              elif total < 0:
+                  left += 1
+              else:
+                  right -= 1
+    visualise:
+      - variable: nums
+        as: array
+        pointers: [i, left, right]
+  - id: step.choose.predict-triples
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      The same sort-and-converge loop on different numbers. What does it print?
+    code: |
+      nums = sorted([-3, 1, 2, 0, 3])
+      found = []
+      for i in range(len(nums) - 2):
+          left = i + 1
+          right = len(nums) - 1
+          while left < right:
+              total = nums[i] + nums[left] + nums[right]
+              if total == 0:
+                  found.append([nums[i], nums[left], nums[right]])
+                  left += 1
+                  right -= 1
+              elif total < 0:
+                  left += 1
+              else:
+                  right -= 1
+      print(found)
+    accepted:
+      - "[[-3, 0, 3], [-3, 1, 2]]"
+    mistakes:
+      - answers:
+          - "[[-3, 1, 2]]"
+        feedback: "After the first triple is found, both pointers move in and the search carries on. `[-3, 0, 3]` is found first, then `[-3, 1, 2]`."
+      - answers:
+          - "[[-3, 0, 3]]"
+        feedback: "The search doesn't stop at the first triple. After `left` and `right` move in, `-3 + 1 + 2` is `0` as well."
+    hints:
+      - "Sorted, the list is `[-3, 0, 1, 2, 3]`. With `i` on `-3`, `left` starts on `0` and `right` on `3`."
+      - "`-3 + 0 + 3` is `0`. Record it and move both pointers. What is the next total?"
+  - id: step.choose.predict-negatives
+    type: predict-output
+    title: When the window gives the wrong answer
+    prompt: |
+      This is the "shortest stretch with a total of at least `target`" loop from the last lesson, now with a negative number in
+      the list. The correct answer for this list is `1` (the stretch `[4]`). What does the loop print?
+    code: |
+      nums = [1, -5, 4]
+      target = 4
+      total = 0
+      left = 0
+      best = len(nums) + 1
+      for right in range(len(nums)):
+          total += nums[right]
+          while total >= target:
+              best = min(best, right - left + 1)
+              total -= nums[left]
+              left += 1
+      print(best)
+    accepted:
+      - "4"
+    mistakes:
+      - answers:
+          - "1"
+        feedback: "That is the right answer to the question, but this loop doesn't find it. The running total is `1`, then `-4`, then `0`, and never reaches `4`, so the `while` body never runs."
+      - answers:
+          - "3"
+        feedback: "The window `[1, -5, 4]` totals `0`, which is below the target, so it is never recorded."
+    hints:
+      - "Follow `total`: after `1` it is `1`; after `-5` it is `-4`; after `4` it is `0`. Is it ever `4` or more?"
+      - "If the `while` body never runs, `best` keeps its starting value."
+  - id: step.choose.check-unsorted
+    type: choice
+    title: Pairs in an unsorted list
+    prompt: |
+      You get an **unsorted** list and must return the *positions* of two numbers that add up to a target. Which approach fits?
+    options:
+      - text: A dict from value to position, looked up as you scan (the hash map pattern from Track 1).
+        correct: true
+        feedback: Right. One pass, `O(n)`, and the positions are never lost.
+      - text: Converging pointers on the list as it is.
+        correct: false
+        feedback: Converging pointers rely on sorted order to know which pointer to move. On unsorted data the decision is meaningless.
+      - text: Sort the list, then use converging pointers.
+        correct: false
+        feedback: Sorting moves the numbers, so the original positions are lost (unless you carry them along, which costs extra).
+      - text: A fixed sliding window of size 2.
+        correct: false
+        feedback: A window only looks at neighbours. The pair can be anywhere in the list.
+    hints:
+      - "What does converging need to be true about the data? And what does the question ask for?"
+      - "Which Track 1 pattern finds a partner in `O(1)`?"
+  - id: step.choose.check-why-sort
+    type: choice
+    title: Why sort first?
+    prompt: |
+      In the three-numbers-sum-to-zero problem, why does sorting the list first help?
+    options:
+      - text: With sorted order, a total that is too small can be fixed by moving `left` up, and one that is too big by moving `right` down.
+        correct: true
+        feedback: Right. Sortedness is what lets each comparison throw away possibilities safely. It also puts equal numbers side by side, so duplicates are easy to skip.
+      - text: Sorting makes the list shorter.
+        correct: false
+        feedback: The length stays the same.
+      - text: Sorting is needed because Python's `+` only works on sorted lists.
+        correct: false
+        feedback: "`+` works on any numbers. The sort is for the pointer logic."
+      - text: Sorting is free, so it doesn't change the speed.
+        correct: false
+        feedback: Sorting costs `O(n log n)`. The pointer passes then cost `O(n²)` in all, so the sort isn't the bottleneck, but it isn't free either.
+    hints:
+      - "If the total is too small, which pointer should move, and why does that only make sense on sorted data?"
+      - "What happens to equal numbers after sorting?"
+  - id: step.choose.check-negatives
+    type: choice
+    title: Why do negatives break the window?
+    prompt: |
+      The shrinking window for "shortest stretch with a sum of at least `target`" gave the wrong answer once there was a negative
+      number. Why?
+    options:
+      - text: It assumes that adding items never lowers the total, so a window that is too small can be grown and one that is big enough can be shrunk. Negatives break that.
+        correct: true
+        feedback: Right. With negatives, dropping an item can raise the total and adding one can lower it, so "move `left` or `right`" no longer tells you where to go.
+      - text: Python can't add negative numbers in a loop.
+        correct: false
+        feedback: It can. The problem is the logic of the window, not arithmetic.
+      - text: The `while` loop needs `left` to start at `1`.
+        correct: false
+        feedback: The start isn't the issue. The window's logic depends on sums behaving in one direction.
+      - text: Negative numbers make the list unsorted.
+        correct: false
+        feedback: This window never needed sorted data. It needed non-negative numbers.
+    hints:
+      - "Does adding an item to the window always make the total bigger?"
+      - "What does the shrinking loop assume about dropping an item?"
+  - id: step.choose.fill-three
+    type: fill-blank
+    title: Complete the triple finder
+    prompt: |
+      Fill in the blanks in the loop that finds triples summing to zero.
+    template: |
+      def has_triple(nums):
+          nums = sorted(nums)
+          for i in range(len(nums) - 2):
+              left = {{start}}
+              right = len(nums) - 1
+              while left < right:
+                  total = nums[i] + nums[left] + nums[right]
+                  if total == 0:
+                      return True
+                  elif total {{cmp}} 0:
+                      left += 1
+                  else:
+                      right -= 1
+          return False
+    blanks:
+      - id: start
+        accepted:
+          - "i + 1"
+          - "i+1"
+        mistakes:
+          - answers:
+              - "i"
+            feedback: "Starting `left` at `i` would use the same number twice (`nums[i]` and `nums[left]` are one cell)."
+          - answers:
+              - "0"
+            feedback: "That would pair `nums[i]` with numbers before it, which earlier values of `i` have already covered, and could use it twice."
+      - id: cmp
+        accepted:
+          - "<"
+        mistakes:
+          - answers:
+              - ">"
+            feedback: "A total that is too *big* needs `right` to move down. Moving `left` up when the total is already large makes it bigger still."
+    hints:
+      - "The pair is searched among the numbers **after** `nums[i]`."
+      - "If the total is smaller than the target of `0`, the smallest of the three needs to be raised, so `left` moves up."
+  - id: step.choose.order-two-sum
+    type: parsons
+    title: The hash map answer
+    prompt: |
+      Arrange these lines into `two_sum(nums, target)` for an **unsorted** list. It returns the two positions (`earlier`, `later`) of
+      numbers that add up to `target`, or `[]` if there are none.
+    solution: |
+      def two_sum(nums, target):
+          seen = {}
+          for i, n in enumerate(nums):
+              if target - n in seen:
+                  return [seen[target - n], i]
+              seen[n] = i
+          return []
+    hints:
+      - "The dict is created first and `return []` comes last."
+      - "Inside the loop, look up the partner **before** storing the current number."
+      - "The `return` of the pair goes inside the `if`."
+  - id: step.choose.write-three
+    type: write-code
+    title: Three numbers that add up to zero
+    prompt: |
+      Write `three_sum(nums)`, which returns every **distinct** triple of numbers from the list that adds up to `0`. Each triple is a
+      list in ascending order, and the list of triples is in ascending order too. For example
+      `three_sum([-1, 0, 1, 2, -1, -4])` is `[[-1, -1, 2], [-1, 0, 1]]`.
+    language: python
+    entrypoint: three_sum
+    starter: |
+      def three_sum(nums):
+          pass
+    solution: |
+      def three_sum(nums):
+          nums = sorted(nums)
+          found = []
+          for i in range(len(nums) - 2):
+              if i > 0 and nums[i] == nums[i - 1]:
+                  continue
+              left, right = i + 1, len(nums) - 1
+              while left < right:
+                  total = nums[i] + nums[left] + nums[right]
+                  if total == 0:
+                      found.append([nums[i], nums[left], nums[right]])
+                      left += 1
+                      while left < right and nums[left] == nums[left - 1]:
+                          left += 1
+                      right -= 1
+                  elif total < 0:
+                      left += 1
+                  else:
+                      right -= 1
+          return found
+    tests:
+      - input: "[-1, 0, 1, 2, -1, -4]"
+        expected: "[[-1, -1, 2], [-1, 0, 1]]"
+      - input: "[0, 0, 0]"
+        expected: "[[0, 0, 0]]"
+      - input: "[0, 0, 0, 0]"
+        expected: "[[0, 0, 0]]"
+      - input: "[1, 2, 3]"
+        expected: "[]"
+      - input: "[]"
+        expected: "[]"
+      - input: "[-2, 0, 0, 2, 2]"
+        expected: "[[-2, 0, 2]]"
+      - input: "[-2, -1, 0, 1, 2]"
+        expected: "[[-2, 0, 2], [-1, 0, 1]]"
+    hints:
+      - "Sort the list. For each `i`, converge `left` (from `i + 1`) and `right` (from the end) on the numbers after it."
+      - "To avoid repeated triples, skip an `i` whose value equals the previous `i`, and after a hit, skip `left` past equal values."
+    walkthrough:
+      call: result = three_sum([-2, -1, 0, 1, 2])
+      visualise:
+        - variable: nums
+          as: array
+          pointers: [i, left, right]
+      explanation: |
+        The list is sorted, then each `i` in turn becomes the "fixed" number, and `left` and `right` converge on the part after it.
+
+        For `i` on `-2`, the pointers meet `0` and `2` to make zero. Then both move in and cross, so that `i` is finished. The next `i`
+        on `-1` finds `0` and `1`. Each `i` costs one pass of the converging pointers, `O(n)`, so the whole function is `O(n²)`.
+        The `continue` and the extra `while` skip repeated values so that the same triple is not reported twice.
+  - id: step.choose.write-subarrays
+    type: write-code
+    title: Subarrays with a given sum
+    prompt: |
+      Write `count_subarrays(nums, k)`, where `nums` **may contain negative numbers**. Return how many stretches of one or more items
+      in a row have a total of exactly `k`. A window can't do this, but prefix sums and a dict (Track 1) can. For example
+      `count_subarrays([1, -1, 0], 0)` is `3`.
+    language: python
+    entrypoint: count_subarrays
+    starter: |
+      def count_subarrays(nums, k):
+          pass
+    solution: |
+      def count_subarrays(nums, k):
+          count = 0
+          prefix = 0
+          seen = {0: 1}
+          for n in nums:
+              prefix += n
+              count += seen.get(prefix - k, 0)
+              seen[prefix] = seen.get(prefix, 0) + 1
+          return count
+    tests:
+      - input: "[1, 1, 1], 2"
+        expected: "2"
+      - input: "[1, 2, 3], 3"
+        expected: "2"
+      - input: "[1, -1, 0], 0"
+        expected: "3"
+      - input: "[], 0"
+        expected: "0"
+      - input: "[3], 3"
+        expected: "1"
+      - input: "[3], 4"
+        expected: "0"
+      - input: "[1, 2, 1, 2, 1], 3"
+        expected: "4"
+    hints:
+      - "Keep a running `prefix` total and a dict that counts how many times each prefix value has been seen. Start it with `{0: 1}` (the empty start)."
+      - "A stretch ending here has the total `k` if an earlier prefix equals `prefix - k`. Add that count."
+      - "Then record the current prefix in the dict."
+  - id: step.choose.write-palindromes
+    type: write-code
+    title: Pointers that move apart
+    prompt: |
+      One more direction: pointers that start together in the **middle** and move **apart**. Write `count_palindromes(s)`, which
+      returns how many stretches of `s` (one or more letters in a row) are palindromes. For example `count_palindromes("aaa")` is `6`
+      (`a`, `a`, `a`, `aa`, `aa` and `aaa`). Expand outwards from every possible centre, both single letter centres and centres
+      between two letters.
+    language: python
+    entrypoint: count_palindromes
+    starter: |
+      def count_palindromes(s):
+          pass
+    solution: |
+      def count_palindromes(s):
+          count = 0
+          for center in range(len(s)):
+              for left, right in ((center, center), (center, center + 1)):
+                  while left >= 0 and right < len(s) and s[left] == s[right]:
+                      count += 1
+                      left -= 1
+                      right += 1
+          return count
+    tests:
+      - input: '"abc"'
+        expected: "3"
+      - input: '"aaa"'
+        expected: "6"
+      - input: '""'
+        expected: "0"
+      - input: '"a"'
+        expected: "1"
+      - input: '"abba"'
+        expected: "6"
+      - input: '"racecar"'
+        expected: "10"
+      - input: '"abab"'
+        expected: "6"
+    hints:
+      - "Every palindrome has a centre: one letter (odd length) or the gap between two (even length). For each centre, start `left` and `right` there."
+      - "While both are inside the string and `s[left] == s[right]`, count one palindrome and move `left` back and `right` forward."
+      - "Do this once for a single letter centre (`left = right = center`) and once for a two letter centre (`right = center + 1`)."
+  - id: step.choose.variation
+    type: explain
+    title: The toolbox
+    body: |
+      That is the whole Track 2 toolbox. Two pointers appear in five shapes:
+
+      - **converging** (from both ends),
+      - **diverging** (from the middle, moving apart),
+      - **reader and writer** (same direction, different jobs),
+      - **fixed window** (a given size),
+      - **variable window** (a rule decides the size).
+
+      Each one turns a problem that looks like it needs `O(n²)` pairs into a single `O(n)` pass, by letting each pointer move
+      only forward (or only inwards). When a problem doesn't fit, say because it is unsorted or has negatives, the answer is
+      often another Track 1 tool: a hash map or prefix sums. Knowing which to reach for is the real skill.
