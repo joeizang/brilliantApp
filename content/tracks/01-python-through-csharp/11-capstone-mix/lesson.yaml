@@ -1,0 +1,471 @@
+id: lesson.capstone-mix
+title: "Capstone: name the pattern"
+concepts:
+  - id: concept.spot-the-pattern
+    title: Read the problem, name the pattern
+  - id: concept.cues-over-topics
+    title: Cue words beat topics
+  - id: concept.combining-patterns
+    title: Patterns that work together
+reviewItems:
+  - id: review.capstone.tickets
+    concept: concept.spot-the-pattern
+    step: step.capstone.check-tickets
+    kind: pattern
+  - id: review.capstone.sales
+    concept: concept.spot-the-pattern
+    step: step.capstone.check-sales
+    kind: pattern
+  - id: review.capstone.most-common
+    concept: concept.cues-over-topics
+    step: step.capstone.check-most-common
+    kind: pattern
+  - id: review.capstone.blocklist
+    concept: concept.cues-over-topics
+    step: step.capstone.check-blocklist
+    kind: pattern
+  - id: review.capstone.pairs-combo
+    concept: concept.combining-patterns
+    step: step.capstone.check-pairs
+    kind: pattern
+  - id: review.capstone.predict-groups
+    concept: concept.combining-patterns
+    step: step.capstone.predict-groups
+steps:
+  - id: step.capstone.cue-sheet
+    type: explain
+    title: No labels this time
+    body: |
+      Until now every lesson told you the pattern in its title. Real problems don't. A problem arrives as a short story, and the
+      first job is to **name the pattern**, before you write a line of code. Here is the cue sheet from lessons 7 to 10:
+
+      | The story keeps asking... | Pattern | Tool |
+      |---|---|---|
+      | "have I seen this value (or its partner) before?" | hash-map lookup | `set` or `dict` of what you have seen |
+      | "how many times does each thing appear?" | counting and frequency | `dict` of counts (`counts.get(x, 0) + 1`) |
+      | "put the things that share a property together" | grouping by key | `dict` of lists, keyed by the property |
+      | "the sum of a stretch of a list", asked again and again | prefix sums | a running-total list, then `prefix[right] - prefix[left]` |
+
+      Notice that three of the four tools are a dict. What differs is **what the dict remembers**: the values you have seen, a
+      count for each value, a list for each key. A prefix list is the odd one out, and it is the only one about *positions*.
+
+      Work out the pattern first, then the data structure, then the code. The questions in this lesson give you only the story.
+  - id: step.capstone.check-tickets
+    type: choice
+    title: A pile of support tickets
+    prompt: |
+      A support team has 50,000 tickets, and each has a customer id. The task is to produce, for every customer, all of
+      their tickets, so an agent can open one customer and see everything. Which pattern fits?
+    options:
+      - text: Grouping by key, with the customer id as the key.
+        correct: true
+        feedback: Right. "For every customer, all of their tickets" is a dict of lists, keyed by customer id.
+      - text: Counting and frequency.
+        correct: false
+        feedback: Counting would tell you *how many* tickets each customer has. The task wants the tickets themselves, so a count is not enough.
+      - text: Prefix sums.
+        correct: false
+        feedback: Nothing is being added up, and the answers are not about stretches of a list.
+      - text: Hash-map lookup.
+        correct: false
+        feedback: A lookup answers "have I seen this one?". The task is to collect everything that shares a customer.
+    hints:
+      - Look at the shape of the answer. It is something *for every customer*.
+      - "What does each customer need to be mapped to? A number, or a collection?"
+  - id: step.capstone.check-sales
+    type: choice
+    title: Sales between two days
+    prompt: |
+      Daily sales for the last 3 years are stored in a list that never changes. A dashboard lets managers pick any two days
+      and shows the total sales between them. It will be used thousands of times a day. Which pattern fits?
+    options:
+      - text: Prefix sums.
+        correct: true
+        feedback: Right. Build the running totals once, and each pair of days is two lookups and a subtraction.
+      - text: Grouping by key.
+        correct: false
+        feedback: Nothing here is collected by a shared property. The days are already in order and the questions are about stretches.
+      - text: Counting and frequency.
+        correct: false
+        feedback: Counting tells you how many times a value appears. The questions are about the *sum* over a stretch of days.
+      - text: Hash-map lookup.
+        correct: false
+        feedback: "There is no partner to find. The question is a sum between two positions."
+    hints:
+      - "The cue is a sum over a stretch of an unchanging list, asked many times."
+      - Which tool turns each such question into an `O(1)` answer?
+  - id: step.capstone.check-most-common
+    type: choice
+    title: The favourite word
+    prompt: |
+      You are given every word typed into a search box today, and you must report the word that was typed most often. Which
+      pattern fits?
+    options:
+      - text: Counting and frequency.
+        correct: true
+        feedback: Right. Count every word, then report the one with the highest count.
+      - text: Hash-map lookup.
+        correct: false
+        feedback: A lookup tells you whether you have seen a word. It does not tell you *how many times*, so it cannot find the most common one.
+      - text: Grouping by key.
+        correct: false
+        feedback: Grouping would keep every copy of every word in a list. You only need the number of copies, which is a count.
+      - text: Prefix sums.
+        correct: false
+        feedback: There are no stretches or running totals here.
+    hints:
+      - "The cue is *how many times*."
+      - Which tool stores one number per word?
+  - id: step.capstone.check-blocklist
+    type: choice
+    title: Is this id blocked?
+    prompt: |
+      A list of 200,000 blocked user ids is loaded when the server starts. For every request that arrives, the server must say
+      whether the sender's id is in the list. Which approach fits?
+    options:
+      - text: Put the blocked ids in a `set` and test each request with `in`.
+        correct: true
+        feedback: Right. A set answers "have I seen this value?" in `O(1)`, where a list would scan up to 200,000 ids for each request.
+      - text: Keep the ids in a list and test each request with `in`.
+        correct: false
+        feedback: Correct answers, but `in` on a list is `O(n)`. With 200,000 ids and a stream of requests, that is slow.
+      - text: Build a prefix-sum list of the ids.
+        correct: false
+        feedback: Adding up ids means nothing here. The question is only whether an id is present.
+      - text: Group the ids by their last digit.
+        correct: false
+        feedback: Grouping would split the ids up, but you would still have to search a group. A set goes straight to the answer.
+    hints:
+      - The question is a yes or no about one value.
+      - Lesson 6 compared `x in list` with `x in set`.
+  - id: step.capstone.predict-groups
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      words = ["bat", "tab", "cat", "act", "at"]
+      groups = {}
+      for w in words:
+          key = "".join(sorted(w))
+          groups.setdefault(key, []).append(w)
+      print(len(groups))
+      print(max(len(g) for g in groups.values()))
+    accepted:
+      - "3\n2"
+    mistakes:
+      - answers:
+          - "5\n2"
+        feedback: "`len(groups)` is the number of *keys*, not the number of words. `bat` and `tab` share the key `abt`, and `cat` and `act` share `act`."
+      - answers:
+          - "3\n3"
+        feedback: No group has three words. The two biggest groups hold two words each.
+      - answers:
+          - "3\n1"
+        feedback: "`max` picks the *largest* group, and `[\"bat\", \"tab\"]` has two words."
+    hints:
+      - "Work out the key for each word: `bat` and `tab` both sort to `abt`."
+      - "`len(groups)` counts keys. `groups.values()` are the lists of words."
+  - id: step.capstone.trace-first-unique
+    type: trace
+    title: Two passes over a string
+    body: |
+      Some problems need two patterns in a row. Here the task is "find the first letter that appears only once". One pass
+      builds the counts (**counting**). A second pass walks the letters in order and picks the first with a count of `1`.
+
+      Watch `counts` fill up during the first loop, with `ch` as the pointer. Then watch `i` walk along `letters` while
+      `counts[ch]` is looked up. `first` stays `-1` until the first unique letter is found.
+    code: |
+      letters = ["l", "o", "v", "e", "l", "e", "e", "t"]
+      counts = {}
+      for ch in letters:
+          counts[ch] = counts.get(ch, 0) + 1
+      first = -1
+      for i in range(len(letters)):
+          ch = letters[i]
+          if counts[ch] == 1 and first == -1:
+              first = i
+    visualise:
+      - variable: letters
+        as: array
+        pointers: [i]
+      - variable: counts
+        as: dict
+        pointers: [ch]
+  - id: step.capstone.fill-first-unique
+    type: fill-blank
+    title: Complete the function
+    prompt: |
+      Fill in the blanks to finish `first_unique`. It returns the index of the first character that appears exactly once, or
+      `-1` if there is none. For `"loveleet"` it returns `1`.
+    template: |
+      def first_unique(s):
+          counts = {}
+          for ch in s:
+              counts[ch] = counts.get(ch, {{start}}) + 1
+          for i in range(len(s)):
+              if counts[s[i]] {{test}}:
+                  return i
+          return -1
+    blanks:
+      - id: start
+        accepted:
+          - "0"
+        mistakes:
+          - answers:
+              - "1"
+            feedback: "A character seen for the first time should end up with a count of `1`. The default is `0`, and the `+ 1` makes it `1`."
+          - answers:
+              - "None"
+            feedback: "`None + 1` raises `TypeError`. The default for a count is `0`."
+      - id: test
+        accepted:
+          - "== 1"
+          - "==1"
+        mistakes:
+          - answers:
+              - "> 1"
+              - ">1"
+            feedback: That picks the first character that *repeats*. We want one that appears exactly once.
+          - answers:
+              - "== 0"
+              - "==0"
+            feedback: Every character in `s` has a count of at least `1`, since it was counted in the first loop.
+    hints:
+      - A character you have never counted has no entry yet. What number should the count start from?
+      - "We want a character that appears *exactly once*. What should its count be?"
+  - id: step.capstone.check-pairs
+    type: choice
+    title: Counting pairs
+    prompt: |
+      Given a list of numbers and a target, count how many **pairs of positions** `i < j` have `nums[i] + nums[j] == target`.
+      The list can hold repeated numbers. Which combination of patterns fits best?
+    options:
+      - text: A dict of counts, so each new number looks up how many earlier numbers complete a pair with it.
+        correct: true
+        feedback: Right. It is Two Sum (hash-map lookup) where the dict stores a *count* of each number seen, because repeats make more than one pair.
+      - text: A `set` of the numbers seen so far, adding one to the answer whenever the partner is in it.
+        correct: false
+        feedback: A set only knows whether a number appeared, not how many times. With `[3, 3, 3]` and a target of `6`, the answer is `3` pairs, and the set would find only `2`.
+      - text: Prefix sums, subtracting `prefix[left]` from `prefix[right]`.
+        correct: false
+        feedback: Prefix sums answer questions about *stretches*. These pairs can be anywhere in the list, not next to each other.
+      - text: Group the numbers by value and then add up the group sizes.
+        correct: false
+        feedback: Grouping keeps every copy, but a count is enough, and adding group sizes does not pair the numbers up.
+    hints:
+      - The cue "have I seen the partner?" is hash-map lookup. What does a repeated partner change?
+      - "With `[3, 3, 3]` and a target of `6`, how many pairs are there? What must the dict remember to get that number?"
+  - id: step.capstone.order-pair-difference
+    type: parsons
+    title: A pair with a given gap
+    prompt: |
+      Arrange these lines into `has_pair_with_difference`. It returns `True` if two different positions hold numbers whose
+      difference is exactly `d` (where `d` is `0` or more), and `False` otherwise.
+    solution: |
+      def has_pair_with_difference(nums, d):
+          seen = set()
+          for n in nums:
+              if n - d in seen or n + d in seen:
+                  return True
+              seen.add(n)
+          return False
+    hints:
+      - The `set` has to exist before the loop that fills it.
+      - The test comes before `seen.add(n)`. A number must not pair with itself.
+      - "`return False` comes last and lines up with `for`. It only runs when no pair was found."
+  - id: step.capstone.same-cue
+    type: explain
+    title: Look-alikes
+    body: |
+      Two traps catch people in mixed problems.
+
+      **Same words, different pattern.** "Find the most common word" and "find two words that are anagrams" both mention
+      words, but the first counts and the second groups. Ignore the topic and listen to the question: *how many?*, *have I seen
+      it?*, *which belong together?*, *what is the sum from here to there?*
+
+      **A pattern that is almost right.** A `set` finds "does this value exist" and cannot count. A count cannot hand you the
+      items themselves. A prefix list answers stretch questions and cannot say anything about arbitrary pairs. When a tool
+      keeps losing information you need (how many, which ones, where), pick the next one up.
+
+      Then say the cost out loud before you code. Every pattern in this track turns an `O(n²)` double loop into a single
+      `O(n)` pass, by remembering something. If you cannot say what you are remembering, you haven't found the pattern yet.
+  - id: step.capstone.write-count-pairs
+    type: write-code
+    title: How many pairs?
+    prompt: |
+      Write `count_pairs(nums, target)`, which returns how many pairs of positions `i < j` have `nums[i] + nums[j] == target`.
+      For example `count_pairs([1, 5, 3, 3, 3], 6)` is `4`: one pair from `1 + 5`, and three pairs from the three `3`s.
+    language: python
+    entrypoint: count_pairs
+    starter: |
+      def count_pairs(nums, target):
+          pass
+    solution: |
+      def count_pairs(nums, target):
+          seen = {}
+          count = 0
+          for n in nums:
+              need = target - n
+              count += seen.get(need, 0)
+              seen[n] = seen.get(n, 0) + 1
+          return count
+    tests:
+      - input: "[1, 5, 3, 3, 3], 6"
+        expected: "4"
+      - input: "[1, 2, 3], 10"
+        expected: "0"
+      - input: "[3, 3], 6"
+        expected: "1"
+      - input: "[], 5"
+        expected: "0"
+      - input: "[2, 2, 2, 2], 4"
+        expected: "6"
+      - input: "[1, -1, 1, -1], 0"
+        expected: "4"
+      - input: "[5], 10"
+        expected: "0"
+    hints:
+      - "For each number, the partner it needs is `target - n`. Ask a dict how many of that partner came *earlier*."
+      - Store a count for each number, not just that it exists, since repeats make extra pairs.
+      - "Add to the answer *before* recording the current number, so a number never pairs with itself."
+    walkthrough:
+      call: result = count_pairs([1, 5, 3, 3, 3], 6)
+      visualise:
+        - variable: seen
+          as: dict
+          pointers: [need]
+      explanation: |
+        For every number, `need` is the partner that would complete a pair. `seen` counts the numbers before it.
+
+        The `1` needs `5`, and nothing has been seen. The `5` needs `1`, which has been seen once, so `count` becomes `1`. The
+        first `3` needs `3`, and none has been seen yet. The second `3` finds one earlier `3` (one more pair), and the third `3`
+        finds two (two more pairs). That is `1 + 1 + 2 = 4`.
+
+        Each number cost one lookup, so the whole function is `O(n)` instead of comparing every pair.
+  - id: step.capstone.write-anagram-groups
+    type: write-code
+    title: How many families?
+    prompt: |
+      Write `count_anagram_groups(words)`, which returns how many different **groups of anagrams** the list contains. Two
+      words are in the same group if they have the same letters, in any order. For example
+      `count_anagram_groups(["eat", "tea", "tan", "ate", "nat", "bat"])` is `3`.
+    language: python
+    entrypoint: count_anagram_groups
+    starter: |
+      def count_anagram_groups(words):
+          pass
+    solution: |
+      def count_anagram_groups(words):
+          groups = {}
+          for w in words:
+              key = "".join(sorted(w))
+              groups.setdefault(key, []).append(w)
+          return len(groups)
+    tests:
+      - input: '["eat", "tea", "tan", "ate", "nat", "bat"]'
+        expected: "3"
+      - input: "[]"
+        expected: "0"
+      - input: '["a"]'
+        expected: "1"
+      - input: '["ab", "ba", "ab"]'
+        expected: "1"
+      - input: '["abc", "bca", "cab", "abd"]'
+        expected: "2"
+      - input: '["", ""]'
+        expected: "1"
+    hints:
+      - "Words are in the same group when they share a *key*. What do all anagrams of a word have in common?"
+      - "`\"\".join(sorted(word))` is the same string for every anagram, and it can be a dict key."
+      - The number of groups is the number of distinct keys. A `dict` or a `set` of keys works, and you don't need the lists themselves.
+  - id: step.capstone.write-top-k
+    type: write-code
+    title: The k favourites
+    prompt: |
+      Write `top_k(nums, k)`, which returns a list of the `k` numbers that appear most often, most frequent first. If two
+      numbers appear equally often, the **smaller number comes first**. For example `top_k([1, 1, 1, 2, 2, 3], 2)` is `[1, 2]`.
+    language: python
+    entrypoint: top_k
+    starter: |
+      def top_k(nums, k):
+          pass
+    solution: |
+      def top_k(nums, k):
+          counts = {}
+          for n in nums:
+              counts[n] = counts.get(n, 0) + 1
+          ranked = sorted(counts, key=lambda n: (-counts[n], n))
+          return ranked[:k]
+    tests:
+      - input: "[1, 1, 1, 2, 2, 3], 2"
+        expected: "[1, 2]"
+      - input: "[1], 1"
+        expected: "[1]"
+      - input: "[4, 4, 5, 5, 6], 2"
+        expected: "[4, 5]"
+      - input: "[3, 1, 1, 3, 2], 3"
+        expected: "[1, 3, 2]"
+      - input: "[], 2"
+        expected: "[]"
+      - input: "[7, 7, 8], 5"
+        expected: "[7, 8]"
+    hints:
+      - Count how often each number appears first. That is a dict of counts.
+      - "`sorted(counts, key=...)` sorts the dict's keys. The key can be a tuple, and `(-counts[n], n)` means *highest count first, then smallest number*."
+      - "Slice the sorted list with `[:k]`. Slicing past the end is fine."
+  - id: step.capstone.write-count-splits
+    type: write-code
+    title: Where can it split?
+    prompt: |
+      Write `count_splits(nums)`, which returns the number of positions where the list can be cut into a non-empty left part
+      and a non-empty right part with **equal sums**. For example `count_splits([1, 2, 3])` is `1`, because `[1, 2]` and `[3]`
+      both add up to `3`.
+    language: python
+    entrypoint: count_splits
+    starter: |
+      def count_splits(nums):
+          pass
+    solution: |
+      def count_splits(nums):
+          total = sum(nums)
+          left = 0
+          count = 0
+          for i in range(len(nums) - 1):
+              left += nums[i]
+              if left == total - left:
+                  count += 1
+          return count
+    tests:
+      - input: "[1, 2, 3]"
+        expected: "1"
+      - input: "[1, 1]"
+        expected: "1"
+      - input: "[0, 0, 0]"
+        expected: "2"
+      - input: "[5]"
+        expected: "0"
+      - input: "[]"
+        expected: "0"
+      - input: "[2, -2, 2, -2]"
+        expected: "1"
+      - input: "[1, 2, 3, 3]"
+        expected: "0"
+      - input: "[3, 3, 0]"
+        expected: "1"
+    hints:
+      - "A cut after position `i` splits the list into the first `i + 1` numbers and the rest. The left sum is a running total, which is a prefix sum."
+      - "The right sum is `total - left`, where `total = sum(nums)` is worked out once."
+      - "Cut positions run from after the first item to before the last, so the loop stops one short of the end."
+    walkthrough:
+      call: result = count_splits([1, 2, 3])
+      visualise:
+        - variable: nums
+          as: array
+          pointers: [i]
+      explanation: |
+        `total` is `6`, worked out once. `left` is the prefix sum: the sum of everything up to and including `i`.
+
+        At `i = 0` the left is `1` and the right is `5`. At `i = 1` the left is `3` and the right is `3`, so that is one valid
+        cut. The loop stops before the last item, because a cut after it would leave nothing on the right.
+
+        No inner loop re-adds anything, so the function is `O(n)`.
