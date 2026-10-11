@@ -1,6 +1,6 @@
 # The household server
 
-A small ASP.NET Core API and PostgreSQL, run with Docker Compose on one machine at home (the Ubuntu laptop). Devices pair with it once using a short code, and from then on carry a long-lived device token. This is the tracer from [#28](https://github.com/joeizang/brilliantApp/issues/28): pairing and device management only. Sync ([#29](https://github.com/joeizang/brilliantApp/issues/29)) and content distribution ([#31](https://github.com/joeizang/brilliantApp/issues/31)) build on it.
+A small ASP.NET Core API and PostgreSQL, run with Docker Compose on one machine at home (the Ubuntu laptop). Devices pair with it once using a short code, and from then on carry a long-lived device token. It began as the tracer from [#28](https://github.com/joeizang/brilliantApp/issues/28) (pairing and device management) and now also holds the household's progress event log ([#29](https://github.com/joeizang/brilliantApp/issues/29); how that sync works is in [sync.md](sync.md)). Content distribution ([#31](https://github.com/joeizang/brilliantApp/issues/31)) builds on it next.
 
 ## Prerequisites
 
@@ -75,6 +75,8 @@ A revoked device gets `401` on everything except `/health` and `/pair`. Revoking
 | `POST /pairing-codes` | device | `{code, expiresAt}` for a new one-time code |
 | `GET /devices` | device | the household's devices |
 | `DELETE /devices/{id}` | device | revoke; `204` (also if already revoked), `404` if unknown |
+| `POST /events` | device | `{events:[…]}` (at most 500) → `{accepted, duplicates}`. Idempotent by event ID; all-or-nothing: one invalid event rejects the batch with `400` and stores nothing |
+| `GET /events?after=N&limit=M` | device | events after cursor `N` (default 0), oldest first, at most `M` (default and maximum 1000) → `{events, cursor, hasMore}`. Pass `cursor` back as `after` |
 
 ## Plain HTTP on the home network
 
@@ -103,13 +105,13 @@ The server's integration tests run against a real Postgres started by Testcontai
 dotnet test tests/Brilliant.Server.Tests
 ```
 
-The client side (address parsing, the pairing client, credential stores) is covered in `tests/Brilliant.Core.Tests`, and the Sync screen in `tests/Brilliant.Lessons.UI.Tests`.
+`TwoDeviceConvergenceTests` there runs two real SQLite logs through the real server and checks that both end with identical learner state. The client side (address parsing, the pairing and sync clients, `SyncService`, credential stores) is covered in `tests/Brilliant.Core.Tests`, and the Sync screen and screen refresh in `tests/Brilliant.Lessons.UI.Tests`.
 
 ## Layout
 
 | Path | Purpose |
 |---|---|
-| `src/Brilliant.Server` | The API: endpoints, device-token authentication, pairing codes, EF Core migrations |
-| `src/Brilliant.Core/Sync` | Contracts shared with the apps, the pairing client, credential stores |
+| `src/Brilliant.Server` | The API: endpoints, device-token authentication, pairing codes, the event log, EF Core migrations |
+| `src/Brilliant.Core/Sync` | Contracts shared with the apps, the pairing and sync clients, `SyncService`, credential stores |
 | `docker-compose.yml`, `src/Brilliant.Server/Dockerfile` | Postgres and the server |
 | `tests/Brilliant.Server.Tests` | Integration tests against real Postgres |

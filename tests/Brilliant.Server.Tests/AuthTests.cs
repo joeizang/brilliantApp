@@ -11,6 +11,8 @@ public sealed class AuthTests(PostgresFixture postgres)
     [Theory]
     [InlineData("GET", "/devices")]
     [InlineData("POST", "/pairing-codes")]
+    [InlineData("POST", "/events")]
+    [InlineData("GET", "/events")]
     [InlineData("DELETE", "/devices/6f8c0d9e-2b1a-4c3d-8e5f-0a1b2c3d4e5f")]
     public async Task Requests_without_a_token_are_rejected(string method, string path)
     {

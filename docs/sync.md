@@ -1,0 +1,76 @@
+# Syncing progress between devices
+
+Issue [#29](https://github.com/joeizang/brilliantApp/issues/29), PRD stories 52–55. Every device keeps learning offline; when it can reach the household server ([server.md](server.md)) it swaps events with it, and all devices end up showing the same progress.
+
+## The idea
+
+Progress is not stored as state. It is an append-only log of events (`ProgressEvent`: ID, device, time, type, lesson, step, data), and everything the learner sees (streaks, mastery, due reviews, the daily goal, flagged steps) is *projected* from that log by `LearnerStateProjector`. So syncing means one thing: **make every device hold the same set of events.** There is no merge logic, because the projection depends only on the set:
+
+- events are de-duplicated by ID;
+- they are ordered by `(OccurredAt, Id ordinal)`, a total order that is the same on every device, whichever order they arrived in.
+
+`EventOrderTests` shuffles a two-device history 200 times and checks the learner state never changes. Finding that test's first run exposed a real bug (`FlaggedSteps.From` depended on arrival order), now fixed.
+
+## What happens in a sync
+
+`SyncService.SyncAsync` does, in order:
+
+1. **Push.** Read this device's local log after `PushedThrough`, keep the events this device *authored* (events pulled from elsewhere are not sent back), and `POST /events` them in batches of 500.
+2. **Pull.** `GET /events?after=PulledThrough`, page by page, appending each event to the local log (idempotent by ID). The cursor is saved as each page lands, so an interrupted sync resumes where it stopped.
+3. **Record** `LastSyncedAt`. If anything was pulled, raise `EventsPulled`.
+
+Both directions are idempotent, so a repeated, overlapping or half-finished sync is harmless. Two cursors per pairing are kept in `sync-state.json` (`SyncState`): `PushedThrough` is a position in the local SQLite log (`Seq`), `PulledThrough` is a position in the server's log. A new pairing starts both at zero.
+
+A push that is sent but whose response is lost is simply sent again next time; the server answers `duplicates` for it.
+
+## On the server
+
+`events` table, one row per event, with a server-assigned sequence number that is the pull cursor. Push runs in a transaction that takes a Postgres advisory lock (`Endpoints.PushLock`), so sequence numbers become visible in commit order. Without it a pull could read past a slower concurrent push and its cursor would skip that push's events for good. A test holds the lock and shows a concurrent push waits for it.
+
+`OccurredAt` is stored as ticks (a `long`) so a timestamp round-trips exactly. If it were rounded, the same event would sort differently on two devices.
+
+Limits (`EventLimits`): 500 events per push, 1000 per pull page, IDs up to 100 characters, `Data` up to 100,000.
+
+## When it runs
+
+- **At app start**, then **every 2 minutes**, by `SyncScheduler` (a `PeriodicTimer`). Errors are swallowed; a sync can never take the app down. In a Debug build started with `BRILLIANT_DEV_START_AT`, the scheduler stays off so scripted runs aren't disturbed.
+- **On demand**: **Sync now** on the Sync screen.
+
+One sync runs at a time (a semaphore); pressing **Sync now** during the periodic one waits for it and then checks again.
+
+## What the learner sees
+
+The Sync screen shows *Last synced <time>* (kept across restarts), or why the last attempt failed in plain words:
+
+| `SyncFailure` | Meaning |
+|---|---|
+| `NotPaired` | no server paired yet |
+| `Unreachable` | the server didn't answer (off, wrong network, asleep) |
+| `Unauthorized` | the device was revoked on the server |
+| `ServerError` | the server answered with an error |
+| `LocalError` | something on this device failed (for example the local log) |
+
+**The app works normally with the server away.** Nothing waits on the network, nothing throws at the learner, and the local log is untouched by a failed sync. Everything done meanwhile is pushed at the next successful sync.
+
+Screens showing progress (Today, Review, and so on) redraw when events arrive from another device. `EventsPulled` is raised on a background thread, and the UI marshals it with `InvokeAsync`. `CourseShell` deliberately does **not** refresh in the middle of a lesson or practice session (it would pull the step out from under the learner); it picks the new progress up at the next navigation.
+
+## Known limitations
+
+- **Clock skew.** Order is by the device's own clock. Where the *latest* event wins (the daily goal, for instance), a device whose clock is wrong can win or lose unfairly. Counting and de-duplication are unaffected.
+- **A server restored from an older backup.** Device cursors would then sit ahead of the server's log and they'd skip new events. Pairing again resets a device's cursors (`SyncState.For`); a gentler recovery belongs with backups ([#32](https://github.com/joeizang/brilliantApp/issues/32)).
+- **One learner per household.** Events are not tagged with a learner, so everyone sharing a server shares progress.
+- **Plain HTTP** on the LAN, as described in [server.md](server.md#plain-http-on-the-home-network).
+- **Not synced here:** code drafts ([#30](https://github.com/joeizang/brilliantApp/issues/30)) and content packs ([#31](https://github.com/joeizang/brilliantApp/issues/31)).
+
+## Where the code is
+
+| Path | Purpose |
+|---|---|
+| `src/Brilliant.Core/Sync/SyncService.cs` | `SyncService`, `SyncScheduler`, `SyncResult` |
+| `src/Brilliant.Core/Sync/SyncClient.cs` | HTTP client for `/events`, and the failure mapping |
+| `src/Brilliant.Core/Sync/SyncState.cs` | the two cursors and last-synced time |
+| `src/Brilliant.Core/Sync/ServerContracts.cs` | request and response types, `EventLimits` |
+| `src/Brilliant.Server/Endpoints.cs` | `POST` and `GET /events` |
+| `src/Brilliant.Lessons.UI/PairingView.razor` | the status and **Sync now** |
+| `tests/Brilliant.Core.Tests/{SyncServiceTests,EventOrderTests}.cs` | the sync loop and order-independence |
+| `tests/Brilliant.Server.Tests/{EventSyncTests,TwoDeviceConvergenceTests}.cs` | endpoints and the two-device convergence against real Postgres |
