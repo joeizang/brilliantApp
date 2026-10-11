@@ -1,6 +1,6 @@
 # Hints: the four-level ladder and its effect on Review
 
-PRD stories 30 and 33 ([#20](https://github.com/joeizang/brilliantApp/issues/20)). Every question can offer help in rungs, so a learner
+PRD stories 30, 31 and 33 ([#20](https://github.com/joeizang/brilliantApp/issues/20), [#25](https://github.com/joeizang/brilliantApp/issues/25)). Every question can offer help in rungs, so a learner
 gets exactly as much as they need, and the help they took is remembered so the item comes back sooner.
 
 ```
@@ -15,18 +15,45 @@ ReviewView   hints before the first answer ──► RatingInference.Infer(hints
 *nudge → pattern hint → partial code → full solution*. Hints are markdown (raw HTML is dropped). A ladder may be shorter; the validator
 only requires non-empty text. Explain steps take no hints.
 
+**The full solution is a `walkthrough:`, not a hint.** A write-code, fill-blank, parsons or predict-output step may add one; it becomes the
+last rung, and then `hints:` may hold **at most three** (the walkthrough is the fourth). Without a walkthrough the limit stays four.
+
+```yaml
+- id: step.functions.write-sum-to
+  type: write-code
+  # …prompt, entrypoint, solution, tests, hints…
+  walkthrough:
+    call: sum_to(4)            # required for write-code: how to run the solution so the trace has something to do
+    visualise:                 # optional, same shape as a trace step's `visualise`
+      - { variable: total, as: array }
+    explanation: |
+      `total` starts at 0 and each pass adds the next number…
+```
+
+- The code walked through is the step's own answer: the `solution` (write-code), the lines in solution order (parsons), the template with
+  each blank's first accepted answer (fill-blank), or the step's `code` (predict-output, Python only). `call` is appended to it.
+  Choice, trace and explain steps have no code, so they reject a walkthrough.
+- `explanation` (markdown) is required: it says *why* it works, so peeking still teaches.
+- `validate content` runs the walkthrough under CPython exactly like a trace step, so a broken one fails the build rather than the learner.
+- The walkthrough ships in the Content Pack (an optional `walkthrough` on the step; the format version is unchanged). A write-code
+  step's `solution` itself is still never shipped.
+
 ## The ladder (`HintLadder.razor`)
 
 - Closed to begin with: *Need a hint?* reveals the first rung, then *Show another hint*, then *Show the last hint*. The button goes away
   when every rung is shown. Rungs can't be skipped or revealed together.
 - A full four-rung ladder labels its rungs *Nudge*, *Pattern hint*, *Partial code*, *Full solution*. A shorter ladder says *Hint n of N*,
-  because we can't know which rung it left out.
+  because we can't know which rung it left out. The walkthrough is always labelled *Full solution*, and the button that reaches it reads
+  *Show the full solution*.
+- Opening the walkthrough shows the explanation beside the solution playing in the [Trace Player](trace-player.md) (`TraceRun` runs the code
+  and builds the states, as a trace step does). Nothing runs until the learner asks for it.
 - Each step starts with a closed ladder (the step is keyed in the viewer), and the ladder stays open across *Try again*.
 - In Review, a caption says *A hint makes this come back sooner.*
 
 ## The `HintUsed` event
 
-`StepId` is the question step; `Data` is `{ "level": 1-based rung, "item": review item ID or null }`. `item` is set only when the hint was asked
+`StepId` is the question step; `Data` is `{ "level": 1-based rung, "item": review item ID or null }`. The walkthrough always reports **level 4**,
+whatever its position, so a ladder with fewer than three text hints still counts opening the solution as "shown the answer". `item` is set only when the hint was asked
 in Review, so a lesson attempt and a review attempt of the same step never blur together. Malformed events (no level, a level below 1,
 a non-string item) are ignored. The projector reads them in two ways, both pure functions of the log:
 
@@ -49,11 +76,14 @@ That count goes to `RatingInference` (see [review.md](review.md)) and is stored 
 |---|---|
 | 0 | Easy / Good / Hard by time |
 | 1–2 | Hard |
-| 3 or more (partial code or the solution) | Again |
+| 3 or more (partial code or the walkthrough) | Again |
 
 A wrong answer is Again whatever the hints. FSRS does the rest: less stability, and a card due sooner. For a first review, Hard and Again
 both round to a one-day interval, so the difference shows in the stored stability and difficulty and in the second interval; against
 an unaided Good or Easy answer the item comes back days sooner.
+
+**Solved with the solution.** This is how an item answered after peeking at the walkthrough is marked for rating: level 4 is at least 3, so
+the answer is Again and the item comes back soon, even if the learner answers correctly straight afterwards. In a lesson it also creates a re-solve.
 
 **Interrupted attempts.** Hint use is read back from the log, not held in the screen, so leaving Review (or quitting the app) after revealing
 hints and coming back can't erase them: the ladder reopens with those rungs shown and they still count. A write-code re-solve resumes the same way
@@ -74,5 +104,4 @@ as its code draft does.
 ## Not in this slice
 
 - No keyboard shortcut for *Need a hint?* yet.
-- The *full solution* rung doesn't link to the trace player.
 - Any hint, however small, creates a re-solve; if that turns out to be too many a threshold is one line in the projector.

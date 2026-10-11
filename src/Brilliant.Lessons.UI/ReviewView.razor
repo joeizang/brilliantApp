@@ -43,7 +43,7 @@
                 <div class="review-actions pb-6"><button class="primary btn-primary" @onclick="Next">Skip</button></div>
                 break;
         }
-        <HintLadder Hints="item.Question.Hints" Initial="item.AttemptHints" Caption="A hint makes this come back sooner." OnRevealed="level => Hinted(item, level)" />
+        <HintLadder Hints="item.Question.Hints" Walkthrough="item.Question.Walkthrough" Initial="item.AttemptHints" Caption="A hint makes this come back sooner." OnRevealed="level => Hinted(item, level)" />
         @if (_scheduled is { } due)
         {
             <p class="review-next mt-4 text-[.95rem] text-fg-secondary" role="status">You'll see this again @Describe(due - Recorder.Now).</p>

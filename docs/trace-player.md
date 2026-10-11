@@ -143,6 +143,11 @@ player subscribes to. The guards:
 
 There are no Mac menu bar items for the arrows (the system already uses them for text navigation).
 
+## Reused by the full-solution walkthrough
+
+`TraceRun` (code + visuals → runs `IPythonRuntime.TraceAsync`, builds the states, shows the player or the failure) is shared by the trace step and
+by the last rung of the hint ladder, see [hints.md](hints.md).
+
 ## Not in this slice
 
 Per-variable speed or scrubbing, drawing nested structures (a list of lists, a dict of lists), and reading a trace aloud.
@@ -153,7 +158,7 @@ slots in beside them.
 
 `tests/python/test_tracer.py` (recorder), `tests/Brilliant.Core.Tests/TraceTests.cs` (model and JSON),
 `tests/js/python-runtime.test.mjs` (bridge), `tests/Brilliant.Cli.Tests/TraceStepValidatorTests.cs` (YAML rules and the CPython check),
-`tests/Brilliant.Lessons.UI.Tests/TracePlayerTests.cs` and `TraceStepViewTests.cs` (rendering, stepping, playback on a manual clock, shortcuts,
+`tests/Brilliant.Lessons.UI.Tests/TracePlayerTests.cs`, `TraceStepViewTests.cs` and `WalkthroughRungTests.cs` (rendering, stepping, playback on a manual clock, shortcuts,
 line highlight, lesson wiring), `tests/js/shortcuts.test.mjs` (key classification) and `ShortcutTests.cs` (the page listener's mapping).
 bUnit can't observe a CSS transition or element reuse, so the sliding, flashing and the ghost row's fade are checked by looking at the running app.
 

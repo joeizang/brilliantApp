@@ -1,5 +1,6 @@
-@* The hint ladder: a step's hints, gentlest first, revealed one at a time. Each rung used is reported so the host can record it. *@
-@if (Hints.Count > 0)
+@* The hint ladder: a step's hints, gentlest first, revealed one at a time. Each rung used is reported so the host can record it.
+   A step with a walkthrough ends the ladder with it: the reference solution run in the Trace Player, with why it works. *@
+@if (Rungs > 0)
 {
     <section class="hint-ladder content-column mt-4" aria-label="Hints">
         @if (_revealed > 0)
@@ -7,16 +8,27 @@
             <ol class="hint-list mt-0 mb-2 grid list-none gap-2 p-0">
                 @for (var i = 0; i < _revealed; i++)
                 {
-                    <li class="hint-rung rounded-md border border-hairline bg-surface px-4 py-2">
-                        <span class="hint-label mb-[.15rem] block text-[.8rem] font-semibold text-fg-secondary">@Label(i)</span>
-                        <div class="hint-text text-fg-secondary [&_p]:m-0 [&_p+p]:mt-2">@((MarkupString)MarkdownHtml.ToHtml(Hints[i]))</div>
-                    </li>
+                    if (IsWalkthrough(i))
+                    {
+                        <li class="hint-rung walkthrough rounded-md border border-hairline bg-surface px-4 py-2">
+                            <span class="hint-label mb-[.15rem] block text-[.8rem] font-semibold text-fg-secondary">@Label(i)</span>
+                            <div class="walkthrough-explanation mb-2 [&_p]:m-0 [&_p+p]:mt-2">@((MarkupString)MarkdownHtml.ToHtml(Walkthrough!.Explanation))</div>
+                            <TraceRun Code="@Walkthrough.Code" Visuals="Walkthrough.Visuals" />
+                        </li>
+                    }
+                    else
+                    {
+                        <li class="hint-rung rounded-md border border-hairline bg-surface px-4 py-2">
+                            <span class="hint-label mb-[.15rem] block text-[.8rem] font-semibold text-fg-secondary">@Label(i)</span>
+                            <div class="hint-text text-fg-secondary [&_p]:m-0 [&_p+p]:mt-2">@((MarkupString)MarkdownHtml.ToHtml(Hints[i]))</div>
+                        </li>
+                    }
                 }
             </ol>
         }
-        @if (_revealed < Hints.Count)
+        @if (_revealed < Rungs)
         {
-            <button class="link hint-more btn-link" @onclick="Reveal">@(_revealed == 0 ? "Need a hint?" : _revealed == Hints.Count - 1 ? "Show the last hint" : "Show another hint")</button>
+            <button class="link hint-more btn-link" @onclick="Reveal">@RevealLabel</button>
             @if (Caption is { Length: > 0 })
             {
                 <span class="hint-caption ml-2 text-[.8rem] text-fg-secondary">@Caption</span>
@@ -29,7 +41,10 @@
     /// <summary>The step's authored hints, gentlest first.</summary>
     [Parameter, EditorRequired] public IReadOnlyList<string> Hints { get; set; } = [];
 
-    /// <summary>Raised with the 1-based level each time a hint is revealed.</summary>
+    /// <summary>The reference solution played in the Trace Player: one more rung after <see cref="Hints"/>, always the "Full solution" (level 4).</summary>
+    [Parameter] public Walkthrough? Walkthrough { get; set; }
+
+    /// <summary>Raised with the 1-based level each time a hint is revealed. The walkthrough is always level <see cref="FullSolutionLevel"/>, however many hints precede it, so it always counts as being shown the answer.</summary>
     [Parameter] public EventCallback<int> OnRevealed { get; set; }
 
     /// <summary>How many rungs are already open when the ladder appears, for an attempt that was interrupted and resumed.</summary>
@@ -40,17 +55,30 @@
 
     private static readonly string[] Names = ["Nudge", "Pattern hint", "Partial code", "Full solution"];
 
+    /// <summary>The level the walkthrough reports: the fourth and last rung of the standard ladder.</summary>
+    public static readonly int FullSolutionLevel = Names.Length;
+
     private int _revealed;
 
-    protected override void OnInitialized() => _revealed = Math.Clamp(Initial, 0, Hints.Count);
+    private int Rungs => Hints.Count + (Walkthrough is null ? 0 : 1);
+    private bool IsWalkthrough(int index) => Walkthrough is not null && index == Hints.Count;
+    private int LevelOf(int index) => IsWalkthrough(index) ? FullSolutionLevel : index + 1;
 
-    // Only a full four-rung ladder has the standard rung names; a shorter one is just numbered.
-    private string Label(int index) => Hints.Count == Names.Length ? Names[index] : $"Hint {index + 1} of {Hints.Count}";
+    // A resumed attempt reports the highest level it reached; reaching the full solution means every rung is open.
+    protected override void OnInitialized() =>
+        _revealed = Walkthrough is not null && Initial >= FullSolutionLevel ? Rungs : Math.Clamp(Initial, 0, Hints.Count);
+
+    // Only a full four-rung ladder has the standard rung names; a shorter one is just numbered (the walkthrough is always the full solution).
+    private string Label(int index) =>
+        IsWalkthrough(index) ? Names[^1] : Rungs == Names.Length ? Names[index] : $"Hint {index + 1} of {Hints.Count}";
+
+    private string RevealLabel =>
+        IsWalkthrough(_revealed) ? "Show the full solution" : _revealed == 0 ? "Need a hint?" : _revealed == Rungs - 1 ? "Show the last hint" : "Show another hint";
 
     private async Task Reveal()
     {
-        if (_revealed >= Hints.Count) return;
+        if (_revealed >= Rungs) return;
         _revealed++;
-        await OnRevealed.InvokeAsync(_revealed);
+        await OnRevealed.InvokeAsync(LevelOf(_revealed - 1));
     }
 }

@@ -350,7 +350,19 @@ steps:
       - Think of the list as two pieces, the first item and everything after it. Slices build new lists, so the original is left alone.
       - "`nums[1:]` is everything but the first item. `nums[:1]` is just the first item, as a list."
       - Two lists can be joined with `+`. Put the pieces back in the new order.
-      - "`return nums[1:] + nums[:1]`"
+    walkthrough:
+      call: result = rotate_left([4, 9, 7, 1])
+      visualise:
+        - variable: nums
+          as: array
+        - variable: result
+          as: array
+      explanation: |
+        `nums[1:]` is a new list holding everything after the first item, and `nums[:1]` is a new list holding just the first item.
+        Joining them with `+` puts the first item at the back: `[9, 7, 1]` + `[4]`.
+
+        Slices copy, so `nums` itself is never changed. That is why the list on the left stays as it was while `result` appears on the right.
+        An empty list works too: both slices are empty, and so is their sum.
   - id: step.lists.comprehensions
     type: explain
     title: Comprehensions vs LINQ
@@ -458,3 +470,15 @@ steps:
       - "A filter and a transform, like `Where` and `Select`. Use a comprehension, or a loop with `append`."
       - "The filter is `n % 2 == 0`. The transform is `n * n`."
       - "`[ expression for n in nums if condition ]`"
+    walkthrough:
+      call: result = squares_of_evens([1, 2, 3, 4])
+      visualise:
+        - variable: nums
+          as: array
+        - variable: result
+          as: array
+      explanation: |
+        The comprehension reads left to right as a loop: for each `n` in `nums`, keep it only `if n % 2 == 0`, and put `n * n` in the new list.
+
+        `1` and `3` are odd, so they are skipped. `2` and `4` pass the test and become `4` and `16`. The new list is built while the
+        loop runs and returned in one go. Nothing is changed in `nums`.
