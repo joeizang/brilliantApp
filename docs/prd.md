@@ -169,7 +169,7 @@ The first content is **Track 1: "Python for C# Devs → Arrays & Hashing"** (11 
 
 ### Track 1 curriculum — "Python for C# Devs → Arrays & Hashing"
 1. Python through C# eyes · 2. Control flow & functions · 3. Lists · 4. Strings · 5. Dicts & sets · 6. Big-O by feel · 7. Pattern: hash-map lookup · 8. Pattern: counting & frequency · 9. Pattern: grouping by key · 10. Pattern: prefix sums · 11. Capstone mix (unlabelled problems; identify the pattern first).
-Planned follow-on tracks: two pointers & sliding window → stacks, queues & linked lists → recursion & trees → graphs (BFS/DFS) → heaps & binary search → dynamic programming.
+Follow-on tracks: 2. two pointers & sliding window (M4) → 3. stacks, queues & linked lists → 4. recursion & trees → 5. graphs (BFS/DFS) → 6. binary search & heaps → 7. dynamic programming (M5).
 Content is drafted with Claude and reviewed by the learner; the validator is the safety net for correctness.
 
 ### Milestones (≈ 8–10 h/week, built with Claude Code; estimates, not commitments)
@@ -178,6 +178,7 @@ Content is drafted with Claude and reviewed by the learner; the validator is the
 - **M2 — Review + Trace Player (~4 wks):** Projector, FSRS, rating inference, Review Queue, mastery bars, streak/daily goal, hint ladder, Trace Player. Lessons 5–11.
 - **M3 — Server, sync & Android (~4 wks):** minimal API + Postgres in Docker, pairing, event sync, content distribution, nightly backup; enable Android target, responsive phone/tablet layouts, touch Parsons.
 - **M4 — Practice & hardening (~3 wks):** Practice mode with timed interview simulation, local-CA HTTPS, Track 2.
+- **M5 — Tracks 3–7 (added 2026-10-12, issues [#79](https://github.com/joeizang/brilliantApp/issues/79)–[#90](https://github.com/joeizang/brilliantApp/issues/90)):** new trace player views — stack/queue, linked list (nodes by identity), call stack, binary tree, heap (array + tree), grid/2-D table, graph — then content for Track 3 (stacks, queues & linked lists, opening with Python classes), Track 4 (recursion & trees), Track 5 (graphs), Track 6 (binary search & heaps) and Track 7 (dynamic programming). Each content track is blocked only by the views it uses. Pacing: content stays about one track ahead of where the learner is studying; views can be built earlier because they need no content review.
 Main risks: Pyodide inside BlazorWebView (especially Android WebView) and Trace Player complexity.
 
 ## Testing Decisions

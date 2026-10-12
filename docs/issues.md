@@ -68,6 +68,27 @@ Vertical slices (tracer bullets) derived from the [PRD](prd.md) / [#1](https://g
 | [#36](https://github.com/joeizang/brilliantApp/issues/36) | Practice mode with timed interview simulation (design first) | HITL | [#22](https://github.com/joeizang/brilliantApp/issues/22) |
 | [#37](https://github.com/joeizang/brilliantApp/issues/37) | Content: Track 2 — two pointers & sliding window | AFK | [#27](https://github.com/joeizang/brilliantApp/issues/27) |
 
+## M5 — Tracks 3–7
+
+Added 2026-10-12. Views (#79–#85) first, then each track once the views it uses exist. All AFK; content is drafted by Claude and reviewed by Joseph in the PR.
+
+| Issue | Slice | Type | Blocked by |
+|---|---|---|---|
+| [#79](https://github.com/joeizang/brilliantApp/issues/79) | Trace player: stack and queue views | AFK | — |
+| [#80](https://github.com/joeizang/brilliantApp/issues/80) | Trace player: linked-list view (nodes and next arrows) | AFK | — |
+| [#81](https://github.com/joeizang/brilliantApp/issues/81) | Trace player: call-stack view for recursion | AFK | — |
+| [#82](https://github.com/joeizang/brilliantApp/issues/82) | Trace player: binary tree view | AFK | [#80](https://github.com/joeizang/brilliantApp/issues/80) |
+| [#83](https://github.com/joeizang/brilliantApp/issues/83) | Trace player: heap view (array and tree together) | AFK | [#82](https://github.com/joeizang/brilliantApp/issues/82) |
+| [#84](https://github.com/joeizang/brilliantApp/issues/84) | Trace player: grid / 2-D table view | AFK | — |
+| [#85](https://github.com/joeizang/brilliantApp/issues/85) | Trace player: graph view (nodes, edges, visited) | AFK | [#79](https://github.com/joeizang/brilliantApp/issues/79) |
+| [#86](https://github.com/joeizang/brilliantApp/issues/86) | Content: Track 3 — stacks, queues & linked lists | AFK | [#79](https://github.com/joeizang/brilliantApp/issues/79), [#80](https://github.com/joeizang/brilliantApp/issues/80) |
+| [#87](https://github.com/joeizang/brilliantApp/issues/87) | Content: Track 4 — recursion & trees | AFK | [#81](https://github.com/joeizang/brilliantApp/issues/81), [#82](https://github.com/joeizang/brilliantApp/issues/82), [#79](https://github.com/joeizang/brilliantApp/issues/79) |
+| [#88](https://github.com/joeizang/brilliantApp/issues/88) | Content: Track 5 — graphs (BFS/DFS) | AFK | [#84](https://github.com/joeizang/brilliantApp/issues/84), [#85](https://github.com/joeizang/brilliantApp/issues/85), [#81](https://github.com/joeizang/brilliantApp/issues/81) |
+| [#89](https://github.com/joeizang/brilliantApp/issues/89) | Content: Track 6 — binary search & heaps (binary-search lessons can ship early) | AFK | [#83](https://github.com/joeizang/brilliantApp/issues/83) |
+| [#90](https://github.com/joeizang/brilliantApp/issues/90) | Content: Track 7 — dynamic programming | AFK | [#81](https://github.com/joeizang/brilliantApp/issues/81), [#84](https://github.com/joeizang/brilliantApp/issues/84) |
+
+Suggested order: #79 → #80 → #86 (Track 3) while #81/#82 are built for #87 (Track 4); #84/#85 for #88; #83 for #89; #90 last.
+
 ## Critical path
 
 #3 → #4 → #9 → (#23 trace player, #17 projector → #18 review) → … ; #2 (Pyodide spike) runs in parallel with #3 in week 1.
