@@ -110,11 +110,19 @@ public sealed class TraceStepValidatorTests : IDisposable
     }
 
     [Fact]
-    public void Only_arrays_dicts_and_sets_can_be_drawn()
+    public void Only_the_kinds_the_player_knows_can_be_drawn()
     {
         var m = Errors(Head + Body + Code + "    visualise:\n      - variable: nums\n        as: tree\n");
 
-        Assert.Contains(m, x => x.Contains("visualise[0]") && x.Contains("unsupported") && x.Contains("'tree'") && x.Contains("array, dict, set"));
+        Assert.Contains(m, x => x.Contains("visualise[0]") && x.Contains("unsupported") && x.Contains("'tree'") && x.Contains("array, stack, queue, dict, set"));
+    }
+
+    [Fact]
+    public void An_unknown_option_on_a_visual_is_rejected()
+    {
+        var m = Errors(Head + Body + Code + "    visualise:\n      - variable: nums\n        as: stack\n        top: right\n");
+
+        Assert.NotEmpty(m);
     }
 
     [Theory]
@@ -247,6 +255,38 @@ public sealed class TraceStepValidatorTests : IDisposable
         var m = Errors(Head + Body + Code + Visualise, runner);
 
         Assert.Contains(m, x => x.Contains("'nums'") && x.Contains("never a list"));
+    }
+
+    private static TraceResult SequenceTrace(string type) =>
+        new(TraceStatus.Ok, [new TraceFrame("line", 1, "<module>", [new TraceLocal("i", "int", "0")],
+            new Dictionary<string, TrackedArray> { ["nums"] = new(type, ["1"], 0) })], "", null, null, null);
+
+    [Theory]
+    [InlineData("stack", "list", true)]
+    [InlineData("stack", "deque", true)]
+    [InlineData("stack", "tuple", false)]
+    [InlineData("queue", "list", true)]
+    [InlineData("queue", "deque", true)]
+    [InlineData("queue", "tuple", false)]
+    [InlineData("array", "deque", true)]
+    public void A_stack_or_queue_must_be_a_list_or_deque_somewhere_in_the_trace(string kind, string type, bool fine)
+    {
+        var yaml = Head + Body + Code + $"    visualise:\n      - variable: nums\n        as: {kind}\n        pointers: [i]\n";
+
+        var m = Errors(yaml, new FakeRunner((_, _) => SequenceTrace(type)));
+
+        if (fine) Assert.Empty(m);
+        else Assert.Contains(m, x => x.Contains("step.one.t") && x.Contains("'nums'") && x.Contains("never a list or deque") && x.Contains($"no {kind}"));
+    }
+
+    [Theory]
+    [InlineData("stack")]
+    [InlineData("queue")]
+    public void A_stack_or_queue_pointer_must_be_an_int_as_for_an_array(string kind)
+    {
+        var yaml = Head + Body + Code + $"    visualise:\n      - variable: nums\n        as: {kind}\n        pointers: [top]\n";
+
+        Assert.Contains(Errors(yaml), x => x.Contains("pointer 'top'") && x.Contains("never an int"));
     }
 
     [Fact]
@@ -392,6 +432,23 @@ public sealed class TraceStepValidatorTests : IDisposable
         const string visuals = "    visualise:\n      - variable: counts\n        as: dict\n        pointers: [word]\n      - variable: seen\n        as: set\n        pointers: [word]\n";
 
         Assert.Empty(Errors(Head + Body + code + visuals, new CPythonRunner()));
+    }
+
+    [Fact]
+    public void Real_cpython_traces_a_stack_and_a_deque_queue()
+    {
+        const string code = "    code: |\n      from collections import deque\n      stack = []\n      q = deque()\n      for x in [1, 2, 3]:\n          stack.append(x)\n          q.append(x)\n      top = len(stack) - 1\n      stack.pop()\n      q.popleft()\n";
+        const string visuals = "    visualise:\n      - variable: stack\n        as: stack\n        pointers: [top]\n      - variable: q\n        as: queue\n";
+
+        Assert.Empty(Errors(Head + Body + code + visuals, new CPythonRunner()));
+    }
+
+    [Fact]
+    public void Real_cpython_reports_a_stack_that_is_really_a_tuple()
+    {
+        var m = Errors(Head + Body + "    code: |\n      s = (1, 2)\n    visualise:\n      - variable: s\n        as: stack\n", new CPythonRunner());
+
+        Assert.Contains(m, x => x.Contains("'s'") && x.Contains("never a list or deque"));
     }
 
     [Fact]

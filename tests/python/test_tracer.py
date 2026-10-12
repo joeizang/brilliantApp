@@ -97,6 +97,21 @@ class TrackedArrays(unittest.TestCase):
         self.assertLessEqual(len(r["frames"][-1]["tracked"]["xs"]["cells"][0]), tracer.MAX_CELL_REPR)
 
 
+    def test_a_deque_is_recorded_front_to_back(self):
+        r = trace("from collections import deque\nq = deque([1, 2])\nq.append(3)\nq.appendleft(0)\nq.popleft()\n", watch=["q"])
+        cells = [f["tracked"]["q"]["cells"] for f in r["frames"] if "q" in f["tracked"]]
+        self.assertEqual(cells, [["1", "2"], ["1", "2", "3"], ["0", "1", "2", "3"], ["1", "2", "3"]])
+        self.assertEqual(r["frames"][-1]["tracked"]["q"]["type"], "deque")
+
+    def test_a_long_deque_is_cut_and_the_rest_counted(self):
+        r = trace("import collections\nq = collections.deque(range(100))\n", watch=["q"])
+        t = r["frames"][-1]["tracked"]["q"]
+        self.assertEqual((t["cells"][:2], len(t["cells"]), t["more"]), (["0", "1"], tracer.MAX_CELLS, 100 - tracer.MAX_CELLS))
+
+    def test_a_bounded_deque_is_recorded_as_it_stands(self):
+        r = trace("from collections import deque\nq = deque(maxlen=2)\nfor x in 'abc':\n    q.append(x)\n", watch=["q"])
+        self.assertEqual(r["frames"][-1]["tracked"]["q"]["cells"], ["'b'", "'c'"])
+
 class TrackedTables(unittest.TestCase):
     def test_a_watched_dict_is_recorded_as_rows_in_insertion_order(self):
         r = trace("d = {'b': 2, 'a': 1}\n", watch=["d"])

@@ -159,7 +159,7 @@ public sealed class WalkthroughValidatorTests : IDisposable
         var traced = Assert.Single(runner.Traced);
         Assert.Contains("result = double(4)", traced.Code);
         Assert.Equal("nums", Assert.Single(traced.Visuals).Variable);
-        Assert.Contains(errors, e => e.Contains("walkthrough") && e.Contains("'nums' is never a list or tuple"));
+        Assert.Contains(errors, e => e.Contains("walkthrough") && e.Contains("'nums' is never a list, tuple or deque"));
     }
 
     [Fact]

@@ -82,6 +82,8 @@
     --animate-row-in: row-in .6s var(--ease-app);
     --animate-row-flash: row-flash .9s var(--ease-app);
     --animate-row-out: row-out .9s var(--ease-app) forwards;
+    --animate-cell-in: cell-in .5s var(--ease-app) both;
+    --animate-cell-out: cell-out .7s var(--ease-app) forwards;
     --animate-pop: pop .45s cubic-bezier(.3, 1.6, .5, 1) both;
     --animate-turn: turn .7s var(--ease-app);
     --animate-shake: shake .4s var(--ease-app);
@@ -111,6 +113,16 @@
     @keyframes row-out {
         from { opacity: 1; }
         to { opacity: .55; }
+    }
+
+    /* A stack's or queue's cell grows in at the end it was pushed or enqueued at, and one popped or dequeued rises away. */
+    @keyframes cell-in {
+        from { opacity: 0; scale: .4; }
+        to { opacity: 1; scale: 1; }
+    }
+    @keyframes cell-out {
+        from { opacity: 1; translate: 0 0; }
+        to { opacity: 0; translate: 0 -1.75rem; }
     }
 
     /* Answers and tabs respond to what the person did: a pop for what became true, a shake for what did not. */

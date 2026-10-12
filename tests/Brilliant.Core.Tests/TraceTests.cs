@@ -341,6 +341,222 @@ public class TraceTests
     }
 
 
+    // ---- Stacks and queues ----
+
+    private static readonly Visual Stack = new("s", Visual.Stack, ["i"]);
+    private static readonly Visual Queue = new("q", Visual.Queue, []);
+
+    private static TraceFrame Seq(int? line, string name, string[] cells, string type = "list", string function = "<module>", int more = 0, params TraceLocal[] locals) =>
+        new(line is null ? "return" : "line", line, function, locals, new Dictionary<string, TrackedArray> { [name] = new(type, cells, more) });
+
+    private static ArrayView Last(IReadOnlyList<TraceState> states) => states[^1].Arrays.Single();
+
+    private static IEnumerable<(string, bool, bool)> Marks(ArrayView view) => view.Cells.Select(c => (c.Text, c.Changed, c.Added));
+
+    [Fact]
+    public void The_watch_list_includes_stacks_and_queues()
+    {
+        Assert.Equal("""["s","q"]""", TraceResultJson.SerializeWatch([Stack, Queue]));
+    }
+
+    [Fact]
+    public void A_stack_or_queue_is_drawn_with_its_kind_and_nothing_marked_the_first_time()
+    {
+        var states = Build(Run(Seq(1, "s", ["1", "2"]), Seq(1, "q", ["3"], "deque")), Stack, Queue);
+
+        Assert.Equal(Visual.Stack, states[0].Arrays[0].Kind);
+        Assert.Equal(["1", "2"], states[0].Arrays[0].Cells.Select(c => c.Text));
+        Assert.Equal(Visual.Queue, states[1].Arrays[0].Kind);
+        Assert.All(states.SelectMany(s => s.Arrays).SelectMany(a => a.Cells), c => Assert.False(c.Changed || c.Added));
+        Assert.All(states.SelectMany(s => s.Arrays), a => Assert.Empty(a.Gone));
+    }
+
+    [Fact]
+    public void An_array_keeps_index_ids_and_no_ghosts()
+    {
+        var states = Build(Run(Frame(1, arrays: ("nums", ["1", "2"])), Frame(2, arrays: ("nums", ["2"]))), Nums);
+
+        Assert.Equal(Visual.Array, Last(states).Kind);
+        Assert.Equal([0], Last(states).Cells.Select(c => c.Id));
+        Assert.Empty(Last(states).Gone);
+    }
+
+    [Theory]
+    [InlineData(Visual.Stack, "list", true)]
+    [InlineData(Visual.Stack, "deque", true)]
+    [InlineData(Visual.Stack, "tuple", false)]
+    [InlineData(Visual.Queue, "list", true)]
+    [InlineData(Visual.Queue, "deque", true)]
+    [InlineData(Visual.Queue, "tuple", false)]
+    [InlineData(Visual.Array, "deque", true)]
+    [InlineData(Visual.Array, "tuple", true)]
+    public void A_stack_or_queue_draws_a_list_or_a_deque(string kind, string type, bool drawn)
+    {
+        var states = Build(Run(Seq(1, "x", ["1"], type)), new Visual("x", kind, []));
+
+        Assert.Equal(drawn, states[0].Arrays.Count == 1);
+    }
+
+    [Fact]
+    public void A_push_comes_in_at_the_top_and_the_cells_below_keep_their_ids()
+    {
+        var states = Build(Run(Seq(1, "s", ["1", "2"]), Seq(2, "s", ["1", "2", "3"])), Stack);
+
+        Assert.Equal([("1", false, false), ("2", false, false), ("3", false, true)], Marks(Last(states)));
+        Assert.Equal(states[0].Arrays[0].Cells.Select(c => c.Id), Last(states).Cells.Take(2).Select(c => c.Id));
+        Assert.Empty(Last(states).Gone);
+    }
+
+    [Fact]
+    public void A_pop_leaves_from_the_top_as_a_ghost_for_one_step()
+    {
+        var states = Build(Run(Seq(1, "s", ["1", "2"]), Seq(2, "s", ["1"]), Seq(3, "s", ["1"])), Stack);
+
+        var popped = states[0].Arrays[0].Cells[1];
+        Assert.Equal([("1", false, false)], Marks(states[1].Arrays[0]));
+        Assert.Equal(new GoneCell(popped.Id, "2", AtFront: false), Assert.Single(states[1].Arrays[0].Gone));
+        Assert.Empty(states[2].Arrays[0].Gone);
+    }
+
+    [Fact]
+    public void Popping_the_last_item_leaves_an_empty_stack_with_its_ghost()
+    {
+        var states = Build(Run(Seq(1, "s", ["7"]), Seq(2, "s", [])), Stack);
+
+        Assert.Empty(Last(states).Cells);
+        Assert.Equal(("7", false), (Last(states).Gone.Single().Text, Last(states).Gone.Single().AtFront));
+    }
+
+    [Fact]
+    public void An_enqueue_comes_in_at_the_back()
+    {
+        var states = Build(Run(Seq(1, "q", ["1"], "deque"), Seq(2, "q", ["1", "2"], "deque")), Queue);
+
+        Assert.Equal([("1", false, false), ("2", false, true)], Marks(Last(states)));
+    }
+
+    [Fact]
+    public void A_dequeue_leaves_from_the_front_and_the_rest_keep_their_ids_so_they_slide_up()
+    {
+        var states = Build(Run(Seq(1, "q", ["1", "2", "3"], "deque"), Seq(2, "q", ["2", "3"], "deque")), Queue);
+
+        var before = states[0].Arrays[0].Cells;
+        Assert.Equal([("2", false, false), ("3", false, false)], Marks(Last(states)));
+        Assert.Equal([before[1].Id, before[2].Id], Last(states).Cells.Select(c => c.Id));
+        Assert.Equal(new GoneCell(before[0].Id, "1", AtFront: true), Assert.Single(Last(states).Gone));
+    }
+
+    [Fact]
+    public void Appendleft_comes_in_at_the_front_and_pop_leaves_from_the_back()
+    {
+        var states = Build(Run(
+            Seq(1, "q", ["1", "2"], "deque"),
+            Seq(2, "q", ["0", "1", "2"], "deque"),
+            Seq(3, "q", ["0", "1"], "deque")), Queue);
+
+        Assert.Equal([("0", false, true), ("1", false, false), ("2", false, false)], Marks(states[1].Arrays[0]));
+        Assert.Equal(("2", false), (states[2].Arrays[0].Gone.Single().Text, states[2].Arrays[0].Gone.Single().AtFront));
+    }
+
+    [Fact]
+    public void A_popleft_on_a_list_queue_is_a_dequeue_too()
+    {
+        var states = Build(Run(Seq(1, "q", ["a", "b"]), Seq(2, "q", ["b"])), Queue);
+
+        Assert.True(Last(states).Gone.Single().AtFront);
+    }
+
+    [Fact]
+    public void Turning_a_queue_round_in_one_step_dequeues_at_the_front_and_enqueues_at_the_back()
+    {
+        // q.append(q.popleft())
+        var states = Build(Run(Seq(1, "q", ["1", "2", "3"], "deque"), Seq(2, "q", ["2", "3", "1"], "deque")), Queue);
+
+        Assert.Equal([("2", false, false), ("3", false, false), ("1", false, true)], Marks(Last(states)));
+        Assert.Equal(("1", true), (Last(states).Gone.Single().Text, Last(states).Gone.Single().AtFront));
+    }
+
+    [Fact]
+    public void When_the_values_repeat_a_stack_loses_its_top_and_a_queue_its_front()
+    {
+        var stack = Build(Run(Seq(1, "s", ["1", "1"]), Seq(2, "s", ["1"])), Stack);
+        var queue = Build(Run(Seq(1, "q", ["1", "1"]), Seq(2, "q", ["1"])), Queue);
+
+        Assert.False(Last(stack).Gone.Single().AtFront);
+        Assert.Equal(stack[0].Arrays[0].Cells[0].Id, Last(stack).Cells[0].Id);
+        Assert.True(Last(queue).Gone.Single().AtFront);
+        Assert.Equal(queue[0].Arrays[0].Cells[1].Id, Last(queue).Cells[0].Id);
+    }
+
+    [Fact]
+    public void When_the_values_repeat_both_grow_at_the_back()
+    {
+        foreach (var visual in new[] { new Visual("x", Visual.Stack, []), new Visual("x", Visual.Queue, []) })
+        {
+            var states = Build(Run(Seq(1, "x", ["1", "1"]), Seq(2, "x", ["1", "1", "1"])), visual);
+
+            Assert.Equal([false, false, true], Last(states).Cells.Select(c => c.Added));
+        }
+    }
+
+    [Fact]
+    public void Setting_the_top_in_place_is_a_change_not_a_pop_and_a_push()
+    {
+        var states = Build(Run(Seq(1, "s", ["1", "2"]), Seq(2, "s", ["1", "5"])), Stack);
+
+        Assert.Equal([("1", false, false), ("5", true, false)], Marks(Last(states)));
+        Assert.Equal(states[0].Arrays[0].Cells[1].Id, Last(states).Cells[1].Id);
+        Assert.Empty(Last(states).Gone);
+    }
+
+    [Fact]
+    public void Setting_the_front_in_place_is_a_change_too()
+    {
+        var states = Build(Run(Seq(1, "q", ["1", "2"]), Seq(2, "q", ["9", "2"])), Queue);
+
+        Assert.Equal([("9", true, false), ("2", false, false)], Marks(Last(states)));
+        Assert.Empty(Last(states).Gone);
+    }
+
+    [Fact]
+    public void A_cell_that_comes_in_has_an_id_no_cell_of_the_step_before_had()
+    {
+        var states = Build(Run(Seq(1, "q", ["1", "2"]), Seq(2, "q", ["2"]), Seq(3, "q", ["2", "3"])), Queue);
+
+        var earlier = states[0].Arrays[0].Cells.Select(c => c.Id).Concat(states[1].Arrays[0].Gone.Select(g => g.Id));
+        Assert.DoesNotContain(Last(states).Cells[1].Id, earlier);
+    }
+
+    [Fact]
+    public void A_stack_or_queue_is_not_compared_across_functions()
+    {
+        var states = Build(Run(Seq(1, "s", ["1", "2"]), Seq(5, "s", ["1"], function: "f")), Stack);
+
+        Assert.Empty(Last(states).Gone);
+        Assert.All(Last(states).Cells, c => Assert.False(c.Changed || c.Added));
+    }
+
+    [Fact]
+    public void Cells_moving_into_view_past_the_cut_off_are_not_enqueued()
+    {
+        string[] Cells(int from) => Enumerable.Range(from, 3).Select(n => n.ToString()).ToArray();
+        var states = Build(Run(Seq(1, "q", Cells(0), "deque", more: 5), Seq(2, "q", Cells(1), "deque", more: 4)), Queue);
+
+        Assert.All(Last(states).Cells, c => Assert.False(c.Added));
+        Assert.True(Last(states).Gone.Single().AtFront);
+    }
+
+    [Fact]
+    public void Pointers_index_a_stack_as_they_do_an_array()
+    {
+        var states = Build(Run(
+            Seq(1, "s", ["1", "2", "3"], locals: Int("i", 2)),
+            Seq(2, "s", ["1", "2"], locals: Int("i", 2))), Stack);
+
+        Assert.Equal(("i", 2, false), (states[0].Arrays[0].Pointers[0].Name, states[0].Arrays[0].Pointers[0].Index!.Value, states[0].Arrays[0].Pointers[0].Moved));
+        Assert.Equal((null, true), (Last(states).Pointers[0].Index, Last(states).Pointers[0].Moved));
+    }
+
     // ---- Tables (dicts and sets) ----
 
     private static readonly Visual Counts = new("counts", Visual.Dict, ["word"]);
