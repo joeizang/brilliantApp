@@ -50,4 +50,23 @@ echo "== a bad setting is refused"
 if dc run --rm -T -e BACKUP_KEEP=0 backup once >/dev/null 2>&1; then fail "BACKUP_KEEP=0 should be refused"; fi
 if dc run --rm -T -e BACKUP_AT=25:00 backup once >/dev/null 2>&1; then fail "BACKUP_AT=25:00 should be refused"; fi
 
+echo "== zero in any spelling is refused before anything is touched; leading zeros are not octal"
+before=$(ls "$BACKUP_DIR")
+for zero in 0 00 000; do
+    if dc run --rm -T -e BACKUP_KEEP=$zero backup once >/dev/null 2>&1; then fail "BACKUP_KEEP=$zero should be refused"; fi
+    [ "$(ls -A "$BACKUP_DIR")" = "$before" ] || fail "BACKUP_KEEP=$zero changed the backup folder"
+done
+dc run --rm -T -e BACKUP_KEEP=08 backup once >/dev/null 2>&1 || fail "BACKUP_KEEP=08 should be accepted as 8"
+out=$(dc run --rm -T -e BACKUP_STALE_HOURS=08 -e BACKUP_AT=08:09 --entrypoint sh backup -c 'timeout 3 /backup.sh' 2>&1 || true)
+echo "$out" | grep -q "backup: starting" || fail "08 as a number of hours or minutes should not break the service: $out"
+
+echo "== if publishing the new dump fails, nothing old is pruned (the nightly loop's path)"
+sleep 1.2
+for n in 20260101-000001 20260101-000002 20260101-000003; do cp "$newest" "$BACKUP_DIR/brilliant-$n.dump"; done
+find "$BACKUP_DIR" -name 'brilliant-*.dump' ! -name 'brilliant-20260101-*' -delete
+dc run --rm -T -e BACKUP_KEEP=1 -e BACKUP_STALE_HOURS=0 --entrypoint sh backup -c \
+    'mkdir /shim; printf "#!/bin/sh\nexit 1\n" > /shim/mv; chmod +x /shim/mv; PATH=/shim:$PATH exec timeout 5 /backup.sh' >/dev/null 2>&1 || true
+[ "$(ls "$BACKUP_DIR" | grep -c '^brilliant-.*\.dump$')" = 3 ] || fail "old dumps were pruned although the new one was not published: $(ls -A "$BACKUP_DIR" | tr '\n' ' ')"
+[ -z "$(find "$BACKUP_DIR" -name '*.tmp')" ] || fail "the unpublished dump's .tmp file was left behind"
+
 echo "PASS"

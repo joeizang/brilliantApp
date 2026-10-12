@@ -16,7 +16,18 @@ umask 077
 
 log() { echo "$(date '+%Y-%m-%d %H:%M:%S') backup: $*"; }
 
-case "$KEEP" in ''|*[!0-9]*|0) log "BACKUP_KEEP must be a whole number of at least 1 (got '$KEEP')"; exit 2 ;; esac
+# A whole number as plain decimal: leading zeros dropped (so 08 isn't read as octal), empty and non-digits refused.
+decimal() {
+    case "$1" in ''|*[!0-9]*) return 1 ;; esac
+    n="${1#"${1%%[!0]*}"}"
+    echo "${n:-0}"
+}
+
+KEEP_RAW="$KEEP"
+KEEP="$(decimal "$KEEP_RAW")" || KEEP=0
+if [ "$KEEP" -lt 1 ]; then log "BACKUP_KEEP must be a whole number of at least 1 (got '$KEEP_RAW')"; exit 2; fi
+STALE_RAW="$STALE_HOURS"
+STALE_HOURS="$(decimal "$STALE_RAW")" || { log "BACKUP_STALE_HOURS must be a whole number of hours (got '$STALE_RAW')"; exit 2; }
 case "$AT" in [0-2][0-9]:[0-5][0-9]) ;; *) log "BACKUP_AT must look like 03:00 (got '$AT')"; exit 2 ;; esac
 AT_H="${AT%%:*}"; AT_M="${AT##*:}"
 if [ "$((${AT_H#0} + 0))" -gt 23 ]; then log "BACKUP_AT hour must be 00 to 23 (got '$AT')"; exit 2; fi
@@ -26,8 +37,8 @@ if [ "$((${AT_H#0} + 0))" -gt 23 ]; then log "BACKUP_AT hour must be 00 to 23 (g
 dump() {
     name="brilliant-$(date '+%Y%m%d-%H%M%S').dump"
     tmp="$DIR/.$name.tmp"
-    if pg_dump --format=custom --no-owner --file="$tmp" && pg_restore --list "$tmp" >/dev/null; then
-        mv "$tmp" "$DIR/$name"
+    # Publishing (the rename) is part of success: prune, and the "wrote" line, must only follow a dump that really exists.
+    if pg_dump --format=custom --no-owner --file="$tmp" && pg_restore --list "$tmp" >/dev/null && mv "$tmp" "$DIR/$name"; then
         log "wrote $name ($(wc -c < "$DIR/$name") bytes)"
         prune
     else
@@ -60,6 +71,7 @@ rm -f "$DIR"/.brilliant-*.dump.tmp   # left by a dump that was interrupted
 
 if [ "${1:-}" = "once" ]; then dump; exit $?; fi
 
+trap 'log "stopping"; exit 0' TERM INT   # docker compose stop: leave at once (a half-written .tmp is cleaned at the next start)
 log "starting: nightly at $AT ($(date +%Z)), keeping the last $KEEP, into $DIR"
 
 # The first night after a deploy shouldn't be unprotected, but a restart loop mustn't fill the folder: dump at start only
@@ -72,6 +84,6 @@ fi
 while true; do
     wait="$(seconds_until_next)"
     log "next dump in $((wait / 3600))h $((wait % 3600 / 60))m"
-    sleep "$wait"
+    sleep "$wait" & wait $!   # waiting on a child lets the TERM below act at once instead of after the sleep
     dump || true   # a failed night is logged and shows as unhealthy; the next night tries again
 done
