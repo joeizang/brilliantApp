@@ -9,8 +9,9 @@ namespace Brilliant.Core.Sync;
 /// <param name="PairingId">The server's ID for this device's pairing. A different pairing starts over (safe: both directions are idempotent).</param>
 /// <param name="PushedThrough">The local log's sequence number up to which events have been sent.</param>
 /// <param name="PulledThrough">The server's cursor up to which events have been received.</param>
+/// <param name="DraftsPulledThrough">The server's draft cursor up to which drafts have been received.</param>
 /// <param name="Rejected">IDs of this device's events the server cannot accept (over the size limits). They stay in the local log, are not sent again, and are shown to the learner.</param>
-public sealed record SyncState(string? PairingId, long PushedThrough, long PulledThrough, DateTimeOffset? LastSyncedAt, IReadOnlyList<string>? Rejected = null)
+public sealed record SyncState(string? PairingId, long PushedThrough, long PulledThrough, DateTimeOffset? LastSyncedAt, IReadOnlyList<string>? Rejected = null, long DraftsPulledThrough = 0)
 {
     public static SyncState None { get; } = new(null, 0, 0, null);
 

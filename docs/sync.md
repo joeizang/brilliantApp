@@ -42,6 +42,19 @@ One event the server will not accept must not stop the rest, so the learner's ot
 
 Because a lifted limit would not retroactively release held events, the limit is generous on purpose; the editor itself has no size cap.
 
+## Code drafts
+
+The learner's in-progress code for a write-code step ([mac-local-dev.md](mac-local-dev.md#code-drafts-issue-12)) travels with the same sync, but it is **not** an event log. A draft is mutable: there is one per step, and **the newest copy wins** (issue [#30](https://github.com/joeizang/brilliantApp/issues/30)).
+
+- **Which wins.** The draft with the later `UpdatedAt` replaces the other, on the server and on each device. On an exact tie the larger code wins (a reset counts as the smallest), so every party settles on the same draft whatever order it sees them in. `CodeDraft.Supersedes` is that rule, used by the store and the server alike.
+- **Resets travel.** Reset to starter leaves a tombstone (`Code` null, new `UpdatedAt`). A tombstone is a draft like any other: it beats an older edit on the other device, and loses to an edit made after it.
+- **Edits after a pull.** A local save is stamped no earlier than one tick after what the device already holds for that step, so typing on a phone whose clock is a little behind still beats the draft it has just received.
+- **Push.** After events, the device sends the drafts it changed since the server last took them (`Unsynced` in `drafts.db`; a file from before sync existed is upgraded and everything in it counts as unsynced). `POST /drafts` keeps a draft only if it supersedes the server's copy. Once sent, a draft is marked synced only if it has not been edited again since it was read, so a keystroke during a push goes up next time. Drafts the server could never take (over 1,000,000 characters) are not sent; they stay on the device.
+- **Pull.** `GET /drafts?after=DraftsPulledThrough`, page by page. The server gives a draft a new position in that order each time it is replaced, so a changed draft comes down again. `Merge` applies each one only if it supersedes the local draft; an older one is ignored and the local copy goes up instead. The cursor (`DraftsPulledThrough` in `sync-state.json`) is saved as each page lands.
+- **When you see it.** A draft is read when the step opens. A draft that arrives while its step is open is not swapped under the learner's cursor; reopen the step to see it.
+
+Because the winner is chosen by timestamp, two devices editing the *same step* between syncs lose the earlier edit entirely, not a merge of the two. That is the PRD's choice for drafts; submitted solutions are never lost, because each submission is its own event.
+
 ## When it runs
 
 - **At app start**, then **every 2 minutes**, by `SyncScheduler` (a `PeriodicTimer`). Errors are swallowed; a sync can never take the app down. In a Debug build started with `BRILLIANT_DEV_START_AT`, the scheduler stays off so scripted runs aren't disturbed.
@@ -76,7 +89,8 @@ Screens showing progress (Today, Review, and so on) redraw when events arrive fr
 - **A server restored from an older backup.** Device cursors would then sit ahead of the server's log and they'd skip new events. Pairing again resets a device's cursors (`SyncState.For`); a gentler recovery belongs with backups ([#32](https://github.com/joeizang/brilliantApp/issues/32)).
 - **One learner per household.** Events are not tagged with a learner, so everyone sharing a server shares progress.
 - **Plain HTTP** on the LAN, as described in [server.md](server.md#plain-http-on-the-home-network).
-- **Not synced here:** code drafts ([#30](https://github.com/joeizang/brilliantApp/issues/30)) and content packs ([#31](https://github.com/joeizang/brilliantApp/issues/31)).
+- **Draft clock skew.** The same applies, more sharply, to drafts: a device whose clock runs ahead keeps winning until the others catch up past its time (their own next edit does, by the one-tick rule above). A far-future clock can therefore hold a step's draft until it is edited again on another device.
+- **Not synced here:** content packs ([#31](https://github.com/joeizang/brilliantApp/issues/31)).
 
 ## Where the code is
 
@@ -84,9 +98,12 @@ Screens showing progress (Today, Review, and so on) redraw when events arrive fr
 |---|---|
 | `src/Brilliant.Core/Sync/SyncService.cs` | `SyncService`, `SyncScheduler`, `SyncResult` |
 | `src/Brilliant.Core/Sync/SyncClient.cs` | HTTP client for `/events`, and the failure mapping |
-| `src/Brilliant.Core/Sync/SyncState.cs` | the two cursors and last-synced time |
+| `src/Brilliant.Core/Sync/SyncState.cs` | the cursors and last-synced time |
 | `src/Brilliant.Core/Sync/ServerContracts.cs` | request and response types, `EventLimits` |
-| `src/Brilliant.Server/Endpoints.cs` | `POST` and `GET /events` |
+| `src/Brilliant.Server/Endpoints.cs` | `POST` and `GET /events`, `POST` and `GET /drafts` |
+| `src/Brilliant.Core/Drafts/CodeDrafts.cs` | `CodeDraft.Supersedes`, `IDraftSyncSource` |
+| `src/Brilliant.Data/SqliteCodeDraftStore.cs` | unsynced tracking and `Merge` on the device |
 | `src/Brilliant.Lessons.UI/PairingView.razor` | the status and **Sync now** |
 | `tests/Brilliant.Core.Tests/{SyncServiceTests,EventOrderTests}.cs` | the sync loop and order-independence |
-| `tests/Brilliant.Server.Tests/{EventSyncTests,TwoDeviceConvergenceTests}.cs` | endpoints and the two-device convergence against real Postgres |
+| `tests/Brilliant.Server.Tests/{EventSyncTests,DraftSyncTests,TwoDeviceConvergenceTests}.cs` | endpoints and the two-device convergence (events and drafts) against real Postgres |
+| `tests/Brilliant.Data.Tests/SqliteDraftSyncTests.cs`, `tests/Brilliant.Core.Tests/DraftSupersedesTests.cs` | the device side and the winning rule |

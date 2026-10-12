@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Brilliant.Core.Drafts;
 using Brilliant.Core.Progress;
 using Brilliant.Core.Sync;
 using Brilliant.Server.Data;
@@ -27,6 +28,8 @@ public static class Endpoints
         authed.MapDelete("/devices/{id:guid}", RevokeDevice);
         authed.MapPost("/events", PushEvents);
         authed.MapGet("/events", PullEvents);
+        authed.MapPost("/drafts", PushDrafts);
+        authed.MapGet("/drafts", PullDrafts);
     }
 
     // Serialises pushes so sequence numbers become visible in the order they are handed out. Without it a reader could pull past
@@ -72,6 +75,63 @@ public static class Endpoints
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
         return Results.Ok(new PushEventsResponse(accepted, valid.Count - accepted, rejected));
+    }
+
+    // Draft pushes take their own lock for the same reason: sequence numbers are handed out one push at a time.
+    public const long DraftLock = 2_900_002;
+
+    private static async Task<IResult> PushDrafts(PushDraftsRequest request, ClaimsPrincipal user, ServerDb db, TimeProvider clock, CancellationToken ct)
+    {
+        var drafts = request.Drafts;
+        if (drafts is null || drafts.Count > DraftLimits.MaxBatch || drafts.Any(d => d is null))
+            return Results.BadRequest(new { error = $"Send between 0 and {DraftLimits.MaxBatch} drafts at a time." });
+
+        var rejected = new List<RejectedEvent>();
+        var valid = new Dictionary<string, CodeDraft>();
+        foreach (var d in drafts)
+        {
+            if (DraftLimits.Problem(d) is { } why) rejected.Add(new RejectedEvent(d.StepId ?? "", why));
+            // Two versions of one step in a batch: only the better can matter.
+            else if (!valid.TryGetValue(d.StepId!, out var other) || d.Supersedes(other)) valid[d.StepId!] = d;
+        }
+        if (valid.Count == 0) return Results.Ok(new PushDraftsResponse(0, 0, rejected));
+
+        var pushedBy = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var now = clock.GetUtcNow();
+
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await db.Database.ExecuteSqlRawAsync($"SELECT pg_advisory_xact_lock({DraftLock})", ct);
+
+        var ids = valid.Keys.ToList();
+        var held = await db.Drafts.Where(r => ids.Contains(r.StepId)).ToDictionaryAsync(r => r.StepId, ct);
+        var seq = await db.Drafts.AnyAsync(ct) ? await db.Drafts.MaxAsync(r => r.Seq, ct) : 0;
+        var accepted = 0;
+        foreach (var d in valid.Values)
+        {
+            held.TryGetValue(d.StepId, out var row);
+            var current = row is null ? null : new CodeDraft(row.StepId, row.Code, new DateTimeOffset(row.UpdatedAtTicks, TimeSpan.Zero));
+            if (!d.Supersedes(current)) continue;
+            if (row is null) db.Drafts.Add(row = new DraftRecord { StepId = d.StepId });
+            (row.Seq, row.Code, row.UpdatedAtTicks, row.PushedBy, row.ReceivedAt) = (++seq, d.Code, d.UpdatedAt.UtcTicks, pushedBy, now);
+            accepted++;
+        }
+        await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+        return Results.Ok(new PushDraftsResponse(accepted, valid.Count - accepted, rejected));
+    }
+
+    private static async Task<IResult> PullDrafts(long? after, int? limit, ServerDb db, CancellationToken ct)
+    {
+        var cursor = after ?? 0;
+        if (cursor < 0) return Results.BadRequest(new { error = "after must not be negative." });
+        var take = Math.Clamp(limit ?? DraftLimits.MaxPullPage, 1, DraftLimits.MaxPullPage);
+
+        var rows = await db.Drafts.AsNoTracking().Where(r => r.Seq > cursor).OrderBy(r => r.Seq).Take(take + 1).ToListAsync(ct);
+        var hasMore = rows.Count > take;
+        if (hasMore) rows.RemoveAt(rows.Count - 1);
+
+        var drafts = rows.Select(r => new CodeDraft(r.StepId, r.Code, new DateTimeOffset(r.UpdatedAtTicks, TimeSpan.Zero))).ToList();
+        return Results.Ok(new PullDraftsResponse(drafts, rows.Count == 0 ? cursor : rows[^1].Seq, hasMore));
     }
 
     private static async Task<IResult> PullEvents(long? after, int? limit, ServerDb db, CancellationToken ct)

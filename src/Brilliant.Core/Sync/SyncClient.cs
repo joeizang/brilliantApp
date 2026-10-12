@@ -30,7 +30,7 @@ public sealed class SyncException(SyncFailure failure, string? detail = null, Ex
     public string? Detail => detail;
 }
 
-/// <summary>Talks to the server's <c>POST /events</c> and <c>GET /events</c>. The <see cref="HttpClient"/> is injected so tests can answer for the server.</summary>
+/// <summary>Talks to the server's <c>/events</c> and <c>/drafts</c> endpoints. The <see cref="HttpClient"/> is injected so tests can answer for the server.</summary>
 public sealed class SyncClient(HttpClient http)
 {
     public async Task<PushEventsResponse> PushAsync(DeviceCredentials credentials, IReadOnlyList<ProgressEvent> events, CancellationToken ct = default)
@@ -44,6 +44,19 @@ public sealed class SyncClient(HttpClient http)
     {
         using var request = Authorised(HttpMethod.Get, new Uri(credentials.Server, $"events?after={after}"), credentials);
         return await SendAsync<PullEventsResponse>(request, ct);
+    }
+
+    public async Task<PushDraftsResponse> PushDraftsAsync(DeviceCredentials credentials, IReadOnlyList<Drafts.CodeDraft> drafts, CancellationToken ct = default)
+    {
+        using var request = Authorised(HttpMethod.Post, new Uri(credentials.Server, "drafts"), credentials);
+        request.Content = JsonContent.Create(new PushDraftsRequest(drafts));
+        return await SendAsync<PushDraftsResponse>(request, ct);
+    }
+
+    public async Task<PullDraftsResponse> PullDraftsAsync(DeviceCredentials credentials, long after, CancellationToken ct = default)
+    {
+        using var request = Authorised(HttpMethod.Get, new Uri(credentials.Server, $"drafts?after={after}"), credentials);
+        return await SendAsync<PullDraftsResponse>(request, ct);
     }
 
     private static HttpRequestMessage Authorised(HttpMethod method, Uri uri, DeviceCredentials credentials)
