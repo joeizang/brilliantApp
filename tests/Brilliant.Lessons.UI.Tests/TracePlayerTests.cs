@@ -1,3 +1,4 @@
+using System.Globalization;
 using Brilliant.Core.Content;
 using Brilliant.Core.Python;
 using Bunit;
@@ -675,6 +676,84 @@ public class TracePlayerTests : ShortcutContext
         Assert.Equal(At(cut.FindAll("figure.stack g.cell")[1]).Y + 18, At(stackPointer).Y);   // level with its cell
         Assert.Equal("1", cut.Find("figure.queue g.pointer[data-name='i']").GetAttribute("data-index"));
         Assert.Contains("j is not on a cell right now.", cut.Find("figure.stack .off-array").TextContent);
+    }
+
+    [Fact]
+    public void Long_named_pointers_on_one_stack_cell_stand_apart_inside_the_drawing()
+    {
+        var run = RunOf(new TraceFrame("line", 1, "<module>", [new("read_position", "int", "1"), new("write_position", "int", "1"), new("i", "int", "0")],
+            new Dictionary<string, TrackedArray> { ["s"] = new("list", ["a", "b"], 0) }));
+        var cut = Start(run, [new Visual("s", Visual.Stack, ["read_position", "write_position", "i"])], out _);
+
+        // A name is drawn 12 units right of its arrow, about .6 of its 15.2-unit size per character.
+        static double Right(AngleSharp.Dom.IElement pointer, string name) => At(pointer).X + 12 + name.Length * 15.2 * .6;
+        var read = cut.Find("g.pointer[data-name='read_position']");
+        var write = cut.Find("g.pointer[data-name='write_position']");
+        Assert.True(At(write).X >= Right(read, "read_position"), $"{At(write).X} overlaps the label ending at {Right(read, "read_position")}");
+        Assert.Equal(At(read).X, At(cut.Find("g.pointer[data-name='i']")).X);   // the first column, on another cell
+        var viewBox = cut.Find("figure.stack svg").GetAttribute("viewBox")!.Split(' ');
+        Assert.True(double.Parse(viewBox[2], CultureInfo.InvariantCulture) >= Right(write, "write_position"));   // the scroll box reaches the last name
+    }
+
+    [Fact]
+    public void Long_named_pointers_on_neighbouring_queue_cells_take_separate_rows_inside_the_drawing()
+    {
+        var run = RunOf(new TraceFrame("line", 1, "<module>", [new("i", "int", "0"), new("read_position", "int", "1"), new("j", "int", "2")],
+            new Dictionary<string, TrackedArray> { ["q"] = new("deque", ["a", "b", "c", "d"], 0) }));
+        var cut = Start(run, [new Visual("q", Visual.Queue, ["i", "read_position", "j"])], out _);
+
+        static string Row(IRenderedComponent<TracePlayer> cut, string name) => cut.Find($"g.pointer[data-name='{name}']").GetAttribute("data-row")!;
+        Assert.Equal("0", Row(cut, "i"));
+        Assert.Equal("1", Row(cut, "read_position"));   // its name is wider than its cell, so it would run into i's and j's
+        Assert.Equal("0", Row(cut, "j"));
+        var read = At(cut.Find("g.pointer[data-name='read_position']"));
+        Assert.True(At(cut.Find("g.pointer[data-name='j']")).Y < read.Y);
+
+        // The name, centred on its arrow, stays inside the drawing on both sides.
+        var viewBox = cut.Find("figure.queue svg").GetAttribute("viewBox")!.Split(' ').Select(v => double.Parse(v, CultureInfo.InvariantCulture)).ToArray();
+        var half = "read_position".Length * 15.2 * .6 / 2;
+        Assert.True(viewBox[0] <= read.X - half && read.X + half <= viewBox[0] + viewBox[2]);
+    }
+
+    [Fact]
+    public void A_sequence_is_sized_in_rem_with_its_text_on_the_same_scale()
+    {
+        foreach (var kind in new[] { Visual.Stack, Visual.Queue })
+        {
+            var cut = Sequence(kind, "list", ["1234567", "1"]);
+            var svg = cut.Find("figure.sequence svg");
+            var viewBox = svg.GetAttribute("viewBox")!.Split(' ').Select(v => double.Parse(v, CultureInfo.InvariantCulture)).ToArray();
+
+            // 16 user units to 1rem, both ways, so the boxes grow with the text.
+            Assert.Equal($"width: {(viewBox[2] / 16).ToString(CultureInfo.InvariantCulture)}rem; height: {(viewBox[3] / 16).ToString(CultureInfo.InvariantCulture)}rem", svg.GetAttribute("style"));
+            Assert.Null(svg.GetAttribute("width"));
+            Assert.All(svg.QuerySelectorAll("text"), text =>
+            {
+                Assert.DoesNotContain("rem", text.ClassName ?? "");
+                Assert.NotNull(text.GetAttribute("font-size"));
+            });
+
+            // The longest value a cell shows fits inside its 60-unit box.
+            var longest = svg.QuerySelectorAll(".cell-text").Single(t => t.TextContent == "1234567");
+            Assert.True(7 * .6 * double.Parse(longest.GetAttribute("font-size")!, CultureInfo.InvariantCulture) <= 56);
+        }
+    }
+
+    [Fact]
+    public void Sizes_are_written_the_same_whatever_the_culture()
+    {
+        var culture = CultureInfo.CurrentCulture;
+        CultureInfo.CurrentCulture = new CultureInfo("de-DE");
+        try
+        {
+            var cut = Sequence(Visual.Stack, "list", ["1234567"]);
+            Assert.DoesNotContain(",", cut.Find("figure.stack svg").GetAttribute("style"));
+            Assert.All(cut.FindAll("figure.stack svg text"), t => Assert.DoesNotContain(",", t.GetAttribute("font-size")));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = culture;
+        }
     }
 
     [Fact]

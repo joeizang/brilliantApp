@@ -165,6 +165,10 @@ being "new" isn't a change the learner caused.
 - Colours are the theme tokens, so it follows light/dark. Everything is in `rem`, and a long list or queue scrolls sideways inside its
   own box; a tall stack scrolls up and down inside its own (at most 28rem high), with its top in view first. A stack's pointers sit to
   the right of its cells, pointing at them.
+- A stack or queue is laid out in SVG user units and sized in rem (16 units to 1rem), with its text in the same units, so cells and the
+  values in them grow together with the app's text size (a seven-character value is set a little smaller to fit its cell). A stack's
+  pointer names on one cell stand in columns as wide as the longest name in them; a queue's names take the first row below the cells
+  where they clear their neighbours'. Either way the drawing (and its scroll box) reaches the last name.
 - A trace step is finished with *Continue* (or Return), like an explanation: it records `StepCompleted`, nothing else.
 
 ### Playback
