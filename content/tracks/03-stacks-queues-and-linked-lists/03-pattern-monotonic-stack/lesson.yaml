@@ -1,0 +1,476 @@
+id: lesson.pattern-monotonic-stack
+title: "Pattern: the monotonic stack"
+concepts:
+  - id: concept.monotonic-stack
+    title: A stack of items still waiting for their answer
+  - id: concept.monotonic-stack-cost
+    title: Each item is pushed once and popped at most once
+  - id: concept.monotonic-stack-indices
+    title: Store indices, not values
+reviewItems:
+  - id: review.monotonic.predict-next-greater
+    concept: concept.monotonic-stack
+    step: step.monotonic.predict-next-greater
+  - id: review.monotonic.why-linear
+    concept: concept.monotonic-stack-cost
+    step: step.monotonic.check-why-linear
+  - id: review.monotonic.predict-temperatures
+    concept: concept.monotonic-stack-indices
+    step: step.monotonic.predict-temperatures
+  - id: review.monotonic.which-problem
+    concept: concept.monotonic-stack
+    step: step.monotonic.check-which-problem
+    kind: pattern
+  - id: review.monotonic.equal-values
+    concept: concept.monotonic-stack
+    step: step.monotonic.check-equal-values
+  - id: review.monotonic.why-indices
+    concept: concept.monotonic-stack-indices
+    step: step.monotonic.check-why-indices
+    kind: pattern
+patterns:
+  - id: pattern.monotonic-stack
+    title: Monotonic stack
+steps:
+  - id: step.monotonic.pattern
+    type: explain
+    title: Who is waiting for a bigger number?
+    body: |
+      Some problems ask, for **every** item, about the **first later item that beats it**. Watch for these words:
+
+      - *the next greater element*, *the next smaller element*
+      - *how many days until a warmer day*, *until the price goes up*
+      - *the first item to the right that is larger*, or to the left: *the previous greater*, *the span*
+
+      The brute-force answer scans right from every item: two loops, `O(n²)`. The **monotonic stack** does it in one pass.
+      Keep a stack of the items that are **still waiting** for their answer. When a new item arrives, it is the answer for
+      every waiting item it beats: pop them off and record it. Then push the new item, since it is now waiting too.
+
+      The stack is *monotonic* because of that rule: for "next greater", the values on it only ever go **down** from bottom to
+      top. Anything smaller than a newcomer has already been answered and popped.
+    comparison:
+      csharp: |
+        int[] NextGreater(int[] nums)
+        {
+            var result = Enumerable.Repeat(-1, nums.Length).ToArray();
+            var stack = new Stack<int>();          // indices
+            for (int i = 0; i < nums.Length; i++)
+            {
+                while (stack.Count > 0 && nums[stack.Peek()] < nums[i])
+                    result[stack.Pop()] = nums[i];
+                stack.Push(i);
+            }
+            return result;
+        }
+      python: |
+        def next_greater(nums):
+            result = [-1] * len(nums)
+            stack = []                              # indices
+            for i in range(len(nums)):
+                while stack and nums[stack[-1]] < nums[i]:
+                    result[stack.pop()] = nums[i]
+                stack.append(i)
+            return result
+  - id: step.monotonic.trace-next-greater
+    type: trace
+    title: Watch the waiting list
+    body: |
+      The stack holds **indices** of items whose answer isn't known yet. `1` waits on top of `2`. Then `5` arrives and beats
+      both: it pops `1`'s index, then `2`'s, and fills in their answers. `3` waits, `4` beats it, and at the end `5` and `4` are
+      still waiting: nothing to their right is bigger, so they keep `-1`.
+    code: |
+      nums = [2, 1, 5, 3, 4]
+      result = [-1] * len(nums)
+      stack = []
+      for i in range(len(nums)):
+          while stack and nums[stack[-1]] < nums[i]:
+              j = stack.pop()
+              result[j] = nums[i]
+          stack.append(i)
+    visualise:
+      - variable: nums
+        as: array
+        pointers: [i, j]
+      - variable: stack
+        as: stack
+      - variable: result
+        as: array
+  - id: step.monotonic.predict-next-greater
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      def next_greater(nums):
+          result = [-1] * len(nums)
+          stack = []
+          for i in range(len(nums)):
+              while stack and nums[stack[-1]] < nums[i]:
+                  result[stack.pop()] = nums[i]
+              stack.append(i)
+          return result
+
+
+      print(next_greater([4, 5, 2, 25]))
+    accepted:
+      - "[5, 25, 25, -1]"
+    mistakes:
+      - answers:
+          - "[5, 25, 25, 25]"
+        feedback: "Nothing comes after `25`, so it is never popped. It keeps the starting value, `-1`."
+      - answers:
+          - "[25, 25, 25, -1]"
+        feedback: "The answer is the **first** bigger item to the right, not the biggest. For `4`, that's `5`, which arrives straight after it."
+      - answers:
+          - "[5, -1, 25, -1]"
+        feedback: "`5` is still waiting when `25` arrives, and `25 > 5`, so `25` is popped in as `5`'s answer too."
+    hints:
+      - "Step through it: which indices are on the stack when `25` arrives?"
+      - "`25` beats everything still waiting. Only items after it could beat `25`, and there are none."
+  - id: step.monotonic.check-why-linear
+    type: choice
+    title: A loop inside a loop, yet O(n)
+    prompt: |
+      `next_greater` has a `while` loop inside a `for` loop, but it runs in `O(n)`, not `O(n²)`. Why?
+    options:
+      - text: "Each index is pushed exactly once and popped at most once, so across the whole run the `while` loop body runs at most `n` times in total."
+        correct: true
+        feedback: "Right. Count the pops over the whole run, not per pass. There can't be more pops than pushes, and there are `n` pushes."
+      - text: The `while` loop only ever runs once per pass.
+        correct: false
+        feedback: "It can run many times in one pass: when `5` arrived in the trace it popped twice. It's the total over all passes that is bounded."
+      - text: Popping from a list is `O(1)`, so the nesting doesn't count.
+        correct: false
+        feedback: "`pop()` is `O(1)`, but that alone doesn't help: `n` passes of up to `n` pops would still be `O(n²)`. The bound comes from each index being popped only once."
+      - text: The stack never holds more than two items.
+        correct: false
+        feedback: "It can hold many: on a decreasing list like `[5, 4, 3, 2, 1]`, every index is still on the stack at the end."
+    hints:
+      - "Don't ask how many times the `while` runs in one pass. Ask how many times it can run in total."
+      - "Once an index is popped, can it ever be pushed again?"
+  - id: step.monotonic.indices
+    type: explain
+    title: Why the stack holds indices
+    body: |
+      The stack in `next_greater` holds **indices**, and reads the value with `nums[stack[-1]]`. An index gives you both: the
+      value, and the position to write the answer into. Many problems also want a **distance**, which only positions can give.
+
+      *Daily temperatures*: for each day, how many days until a warmer one? The waiting stack is the same; the only change is
+      what gets recorded. When day `i` pops day `j`, the answer for `j` is `i - j`.
+    comparison:
+      csharp: |
+        while (stack.Count > 0 && temps[stack.Peek()] < temps[i])
+        {
+            int j = stack.Pop();
+            answer[j] = i - j;
+        }
+        stack.Push(i);
+      python: |
+        while stack and temps[stack[-1]] < temps[i]:
+            j = stack.pop()
+            answer[j] = i - j
+        stack.append(i)
+  - id: step.monotonic.predict-temperatures
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      def daily_temperatures(temps):
+          answer = [0] * len(temps)
+          stack = []
+          for i, t in enumerate(temps):
+              while stack and temps[stack[-1]] < t:
+                  j = stack.pop()
+                  answer[j] = i - j
+              stack.append(i)
+          return answer
+
+
+      print(daily_temperatures([30, 40, 35, 32, 38, 45]))
+    accepted:
+      - "[1, 4, 2, 1, 1, 0]"
+    mistakes:
+      - answers:
+          - "[40, 45, 38, 38, 45, 0]"
+        feedback: "This version records `i - j`, the number of days to wait, not the warmer temperature itself."
+      - answers:
+          - "[1, 3, 2, 1, 1, 0]"
+        feedback: "Day 1 (`40`) waits until day 5 (`45`): the days in between are all cooler. That's `5 - 1 = 4` days."
+      - answers:
+          - "[1, 4, 2, 1, 1, -1]"
+        feedback: "`answer` starts as all zeros, and the last day is never popped, so it keeps `0`."
+    hints:
+      - "For each day, look right for the first hotter day and count the steps."
+      - "Day 1 is `40`. Which is the first day after it that is hotter than `40`?"
+  - id: step.monotonic.check-why-indices
+    type: choice
+    title: Values or positions?
+    prompt: |
+      A learner rewrites `daily_temperatures` to push temperatures (`stack.append(t)`) instead of indices. What goes wrong?
+    options:
+      - text: "When a day is popped, the code knows its temperature but not which day it was, so it can't compute `i - j` or know where to write the answer."
+        correct: true
+        feedback: "Right. An index gives both the value (`temps[j]`) and the position. A value alone loses the position, and this problem's answer *is* a distance between positions."
+      - text: Nothing; values and indices work equally well here.
+        correct: false
+        feedback: "Values are fine if you only want the next warmer *temperature*. This problem wants the number of *days*, which needs positions."
+      - text: The stack would grow too large.
+        correct: false
+        feedback: "It would hold the same number of items either way. The problem is what each item can tell you when it is popped."
+      - text: "Temperatures can repeat, so `pop()` would remove the wrong one."
+        correct: false
+        feedback: "`pop()` always removes the top, whatever the values. The problem is that a bare value doesn't say which day it came from."
+    hints:
+      - "When day `j` is popped, what do you need to know about it to fill in its answer?"
+      - "`answer[j] = i - j`: where does `j` come from?"
+  - id: step.monotonic.check-equal-values
+    type: choice
+    title: Strictly greater
+    prompt: |
+      `next_greater` pops while `nums[stack[-1]] < nums[i]`. What happens to `next_greater([2, 2, 3])` if `<` is changed
+      to `<=`?
+    options:
+      - text: "It returns `[2, 3, -1]`: the second `2` pops the first one and is recorded as its answer, but `2` isn't *greater* than `2`."
+        correct: true
+        feedback: "Right. With `<`, an equal value waits alongside, and both get `3`: `[3, 3, -1]`. The comparison decides whether ties count."
+      - text: It still returns `[3, 3, -1]`.
+        correct: false
+        feedback: "With `<=`, the second `2` satisfies `2 <= 2` and pops the first `2`, writing `2` as its answer."
+      - text: It loops forever.
+        correct: false
+        feedback: "Every pass of the `while` pops an item, so it always ends. The change only alters which items are popped."
+      - text: "It returns `[-1, -1, -1]`."
+        correct: false
+        feedback: "`3` is bigger than both `2`s, so at least the second `2` gets `3` either way."
+    hints:
+      - "Run `[2, 2, 3]` through with `<=`. What happens when the second `2` arrives?"
+      - "Is `2` the *next greater* element of `2`?"
+  - id: step.monotonic.check-which-problem
+    type: choice
+    title: Which problem fits?
+    prompt: Which of these problems is the waiting-stack idea from this lesson built for?
+    options:
+      - text: "For each day's share price, find how many days you must wait until the price is higher."
+        correct: true
+        feedback: "Right. \"For each item, wait until the first later item that beats it\" is exactly this lesson. Days waiting for a higher price sit on the stack."
+      - text: Check that every opening tag in a document is closed in the right order.
+        correct: false
+        feedback: "That's a stack too, but the matching kind from the last lesson: push openers, pop when a closer arrives. Nothing is compared by size."
+      - text: Find the largest sum of any `k` consecutive prices.
+        correct: false
+        feedback: "A fixed-size window: add the item entering, subtract the one leaving."
+      - text: In a sorted list of prices, find two that add up to a budget.
+        correct: false
+        feedback: "Sorted, and a pair with a target sum: two pointers from both ends."
+    hints:
+      - "This lesson answers the same question for every item: when does something bigger (or smaller) come along?"
+      - "Which option says *for each* and *until*?"
+  - id: step.monotonic.fill-next-greater
+    type: fill-blank
+    title: Complete next greater
+    pattern: pattern.monotonic-stack
+    patternCue: "\"For each item, the first later item that is bigger\": keep the indices still waiting on a stack; a bigger newcomer pops and answers them."
+    prompt: |
+      Fill in the blanks so that `next_greater(nums)` gives, for each item, the first item to its right that is strictly
+      greater, or `-1` if there is none.
+    template: |
+      def next_greater(nums):
+          result = [-1] * len(nums)
+          stack = []
+          for i in range(len(nums)):
+              while stack and nums[{{top}}] < nums[i]:
+                  result[stack.pop()] = {{answer}}
+              stack.append({{push}})
+          return result
+    blanks:
+      - id: top
+        accepted:
+          - "stack[-1]"
+          - "stack[len(stack) - 1]"
+        mistakes:
+          - answers:
+              - "stack[0]"
+            feedback: "`stack[0]` is the bottom of the stack, the item that has been waiting longest. Compare with the top: `stack[-1]`."
+          - answers:
+              - "stack.pop()"
+            feedback: "Popping in the condition would remove the item even when the newcomer doesn't beat it. Peek with `stack[-1]` and pop in the body."
+      - id: answer
+        accepted:
+          - "nums[i]"
+        mistakes:
+          - answers:
+              - "i"
+            feedback: "That's the position of the bigger item. The problem asks for its value: `nums[i]`."
+      - id: push
+        accepted:
+          - "i"
+        mistakes:
+          - answers:
+              - "nums[i]"
+            feedback: "The stack holds indices: the condition reads `nums[stack[-1]]` and `result[stack.pop()]` writes by position. Push `i`."
+    hints:
+      - "The stack holds indices. The top index is `stack[-1]`."
+      - "The newcomer at `i` is the answer for everything it pops, and then it waits on the stack itself."
+  - id: step.monotonic.order-next-smaller
+    type: parsons
+    title: Flip it to next smaller
+    pattern: pattern.monotonic-stack
+    patternCue: "\"The next smaller item to the right\": the same waiting stack with the comparison flipped, so a smaller newcomer pops and answers."
+    prompt: |
+      Arrange the lines into `next_smaller(nums)`, which gives, for each item, the first item to its right that is strictly
+      smaller, or `-1` if there is none.
+    solution: |
+      def next_smaller(nums):
+          result = [-1] * len(nums)
+          stack = []
+          for i in range(len(nums)):
+              while stack and nums[stack[-1]] > nums[i]:
+                  result[stack.pop()] = nums[i]
+              stack.append(i)
+          return result
+    hints:
+      - "It is `next_greater` with one comparison turned around."
+      - "The `while` is inside the `for`; the `append` comes after the `while`, still inside the `for`."
+  - id: step.monotonic.write-temperatures
+    type: write-code
+    largeScreenPreferred: true
+    title: Days until warmer
+    pattern: pattern.monotonic-stack
+    patternCue: "\"How many days until a warmer day\", for every day: days wait on a stack of indices, and a warmer day pops each one with `i - j`."
+    prompt: |
+      Write `daily_temperatures(temps)`. For each day, return how many days you have to wait for a strictly warmer day, or
+      `0` if no warmer day comes. `[30, 40, 35, 32, 38, 45]` gives `[1, 4, 2, 1, 1, 0]`. Aim for `O(n)`.
+    language: python
+    entrypoint: daily_temperatures
+    starter: |
+      def daily_temperatures(temps):
+          pass
+    solution: |
+      def daily_temperatures(temps):
+          answer = [0] * len(temps)
+          stack = []
+          for i, t in enumerate(temps):
+              while stack and temps[stack[-1]] < t:
+                  j = stack.pop()
+                  answer[j] = i - j
+              stack.append(i)
+          return answer
+    tests:
+      - input: "[30, 40, 35, 32, 38, 45]"
+        expected: "[1, 4, 2, 1, 1, 0]"
+      - input: "[73, 74, 75, 71, 69, 72, 76, 73]"
+        expected: "[1, 1, 4, 2, 1, 1, 0, 0]"
+      - input: "[50, 40, 30]"
+        expected: "[0, 0, 0]"
+      - input: "[20, 20, 21]"
+        expected: "[2, 1, 0]"
+      - input: "[]"
+        expected: "[]"
+    hints:
+      - "Start `answer` as all zeros, so days that never get a warmer one need no special case."
+      - "Keep a stack of day indices still waiting. While today is warmer than the day on top, pop it and record the gap."
+      - "Use `<`, not `<=`: a day of the same temperature isn't warmer."
+    walkthrough:
+      call: result = daily_temperatures([30, 40, 35, 32, 38, 45])
+      visualise:
+        - variable: temps
+          as: array
+          pointers: [i, j]
+        - variable: stack
+          as: stack
+        - variable: answer
+          as: array
+      explanation: |
+        `40` answers `30` at once. Then `35` and `32` pile up on top of `40`, each cooler than the one below: the stack goes down
+        from bottom to top. `38` pops `32` and `35` but not `40`. Finally `45` pops `38` and `40`, and `40`'s answer is
+        `5 - 1 = 4` days.
+  - id: step.monotonic.write-final-prices
+    type: write-code
+    largeScreenPreferred: true
+    title: Shop discounts
+    pattern: pattern.monotonic-stack
+    patternCue: "\"The first later item that is less than or equal to it\": a next-smaller-or-equal search for every item, so a waiting stack of indices, popping on `>=`."
+    prompt: |
+      A shop sells items in order, with prices `prices`. Item `i` gets a discount equal to `prices[j]`, where `j` is the first
+      item after `i` with `prices[j] <= prices[i]`. With no such item there's no discount. Write `final_prices(prices)` that
+      returns what each item finally costs. `[8, 4, 6, 2, 3]` gives `[4, 2, 4, 2, 3]`.
+    language: python
+    entrypoint: final_prices
+    starter: |
+      def final_prices(prices):
+          pass
+    solution: |
+      def final_prices(prices):
+          result = list(prices)
+          stack = []
+          for i, p in enumerate(prices):
+              while stack and prices[stack[-1]] >= p:
+                  j = stack.pop()
+                  result[j] = prices[j] - p
+              stack.append(i)
+          return result
+    tests:
+      - input: "[8, 4, 6, 2, 3]"
+        expected: "[4, 2, 4, 2, 3]"
+      - input: "[1, 2, 3, 4, 5]"
+        expected: "[1, 2, 3, 4, 5]"
+      - input: "[10, 1, 1, 6]"
+        expected: "[9, 0, 1, 6]"
+      - input: "[5]"
+        expected: "[5]"
+    hints:
+      - "Start from a copy of the prices: an item that never finds a discount pays full price."
+      - "Each item waits on the stack for the first later price that is less than or equal to its own."
+      - "When `p` pops item `j`, item `j` costs `prices[j] - p`. Pop on `>=`, since an equal price counts."
+    walkthrough:
+      call: result = final_prices([8, 4, 6, 2, 3])
+      visualise:
+        - variable: prices
+          as: array
+          pointers: [i, j]
+        - variable: stack
+          as: stack
+        - variable: result
+          as: array
+      explanation: |
+        `4` arrives and pops `8`, which costs `8 - 4`. `6` waits on top of `4`. `2` pops both, so `6` costs `4` and `4` costs
+        `2`. `2` and `3` are left waiting with no cheaper item after them, so they keep their full price.
+  - id: step.monotonic.write-span
+    type: write-code
+    largeScreenPreferred: true
+    title: Price span
+    pattern: pattern.monotonic-stack
+    patternCue: "\"Consecutive days up to today with a price at most today's\": look left for the previous greater price. Pop the stack while its top is not greater; whatever is left is that day."
+    prompt: |
+      The *span* of a day's share price is the number of consecutive days, ending with today and going back, on which the
+      price was less than or equal to today's. Write `spans(prices)` returning each day's span.
+      `[100, 80, 60, 70, 60, 75, 85]` gives `[1, 1, 1, 2, 1, 4, 6]`. Aim for `O(n)`.
+    language: python
+    entrypoint: spans
+    starter: |
+      def spans(prices):
+          pass
+    solution: |
+      def spans(prices):
+          result = []
+          stack = []
+          for i, p in enumerate(prices):
+              while stack and prices[stack[-1]] <= p:
+                  stack.pop()
+              result.append(i - stack[-1] if stack else i + 1)
+              stack.append(i)
+          return result
+    tests:
+      - input: "[100, 80, 60, 70, 60, 75, 85]"
+        expected: "[1, 1, 1, 2, 1, 4, 6]"
+      - input: "[1, 2, 3]"
+        expected: "[1, 2, 3]"
+      - input: "[3, 2, 1]"
+        expected: "[1, 1, 1]"
+      - input: "[5, 5, 5]"
+        expected: "[1, 2, 3]"
+      - input: "[]"
+        expected: "[]"
+    hints:
+      - "Today's span reaches back to the previous day with a strictly higher price. Find that day."
+      - "Pop every index whose price is `<=` today's: they can never be the answer for today or any later day. What's left on top is the previous higher day."
+      - "The span is `i - stack[-1]`, or `i + 1` when the stack is empty because no earlier day was higher."
