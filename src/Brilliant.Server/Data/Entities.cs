@@ -48,3 +48,21 @@ public sealed class EventRecord
 
     public DateTimeOffset ReceivedAt { get; set; }
 }
+
+/// <summary>
+/// The household's current code for one step, whichever device wrote it. Unlike events a draft is replaced in place: the newest
+/// <see cref="UpdatedAtTicks"/> wins, and <see cref="Seq"/> moves to the head of the line each time it is replaced so devices pulling
+/// by cursor see the change. A null <see cref="Code"/> is a reset, kept so other devices learn of it.
+/// </summary>
+public sealed class DraftRecord
+{
+    public string StepId { get; set; } = "";
+    public long Seq { get; set; }
+    public string? Code { get; set; }
+
+    /// <summary>UTC ticks, as the device recorded them.</summary>
+    public long UpdatedAtTicks { get; set; }
+
+    public Guid PushedBy { get; set; }
+    public DateTimeOffset ReceivedAt { get; set; }
+}

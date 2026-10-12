@@ -8,6 +8,7 @@ public sealed class ServerDb(DbContextOptions<ServerDb> options) : DbContext(opt
     public DbSet<Device> Devices => Set<Device>();
     public DbSet<PairingCode> PairingCodes => Set<PairingCode>();
     public DbSet<EventRecord> Events => Set<EventRecord>();
+    public DbSet<DraftRecord> Drafts => Set<DraftRecord>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -33,6 +34,12 @@ public sealed class ServerDb(DbContextOptions<ServerDb> options) : DbContext(opt
             e.Property(x => x.Type).HasMaxLength(EventLimits.MaxIdLength).IsRequired();
             e.Property(x => x.LessonId).HasMaxLength(EventLimits.MaxIdLength);
             e.Property(x => x.StepId).HasMaxLength(EventLimits.MaxIdLength);
+        });
+        model.Entity<DraftRecord>(d =>
+        {
+            d.HasKey(x => x.StepId);
+            d.Property(x => x.StepId).HasMaxLength(EventLimits.MaxIdLength);
+            d.HasIndex(x => x.Seq).IsUnique();
         });
     }
 }

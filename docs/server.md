@@ -1,6 +1,6 @@
 # The household server
 
-A small ASP.NET Core API and PostgreSQL, run with Docker Compose on one machine at home (the Ubuntu laptop). Devices pair with it once using a short code, and from then on carry a long-lived device token. It began as the tracer from [#28](https://github.com/joeizang/brilliantApp/issues/28) (pairing and device management) and now also holds the household's progress event log ([#29](https://github.com/joeizang/brilliantApp/issues/29); how that sync works is in [sync.md](sync.md)). Content distribution ([#31](https://github.com/joeizang/brilliantApp/issues/31)) builds on it next.
+A small ASP.NET Core API and PostgreSQL, run with Docker Compose on one machine at home (the Ubuntu laptop). Devices pair with it once using a short code, and from then on carry a long-lived device token. It began as the tracer from [#28](https://github.com/joeizang/brilliantApp/issues/28) (pairing and device management) and now also holds the household's progress event log ([#29](https://github.com/joeizang/brilliantApp/issues/29)) and the current code draft for each step ([#30](https://github.com/joeizang/brilliantApp/issues/30)); how that sync works is in [sync.md](sync.md). Content distribution ([#31](https://github.com/joeizang/brilliantApp/issues/31)) builds on it next.
 
 ## Prerequisites
 
@@ -76,6 +76,8 @@ A revoked device gets `401` on everything except `/health` and `/pair`. Revoking
 | `GET /devices` | device | the household's devices |
 | `DELETE /devices/{id}` | device | revoke; `204` (also if already revoked), `404` if unknown |
 | `POST /events` | device | `{events:[…]}` (at most 500) → `{accepted, duplicates, rejected:[{id, reason}]}`. Idempotent by event ID. Judged event by event: valid ones are stored and an invalid one is named in `rejected` (the response is still `200`), so one bad event never blocks the rest. Only a malformed batch (no list, a null entry, over 500 events) is a `400` that stores nothing |
+| `POST /drafts` | device | `{drafts:[{stepId, code, updatedAt}]}` (at most 200) → `{accepted, ignored, rejected:[{id, reason}]}`. A draft replaces the server's copy only if it is newer (a tie goes to the larger code; `code: null` is a reset and is kept). Over-limit drafts are named in `rejected`; only a malformed batch is a `400` |
+| `GET /drafts?after=N&limit=M` | device | drafts changed after cursor `N`, oldest change first, at most `M` (default and maximum 500) → `{drafts, cursor, hasMore}`. A draft that is replaced moves to the end of this order. See [sync.md](sync.md#code-drafts) |
 | `GET /events?after=N&limit=M` | device | events after cursor `N` (default 0), oldest first, at most `M` (default and maximum 1000) → `{events, cursor, hasMore}`. Pass `cursor` back as `after` |
 
 ## Plain HTTP on the home network

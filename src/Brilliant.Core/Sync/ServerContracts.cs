@@ -32,6 +32,35 @@ public sealed record PushEventsResponse(int Accepted, int Duplicates, IReadOnlyL
 /// </summary>
 public sealed record PullEventsResponse(IReadOnlyList<ProgressEvent> Events, long Cursor, bool HasMore);
 
+/// <summary>Drafts the device wants the server to hold. Each is kept only if it is newer than the server's copy (<see cref="Drafts.CodeDraft.Supersedes"/>), so sending again is harmless.</summary>
+public sealed record PushDraftsRequest(IReadOnlyList<Drafts.CodeDraft> Drafts);
+
+/// <summary><paramref name="Accepted"/> replaced (or created) the server's copy; <paramref name="Ignored"/> were not newer than it; <paramref name="Rejected"/> broke <see cref="DraftLimits"/>.</summary>
+public sealed record PushDraftsResponse(int Accepted, int Ignored, IReadOnlyList<RejectedEvent>? Rejected = null);
+
+/// <summary>Drafts changed after the cursor, oldest change first. Tombstones (null code) are included: they are how a reset reaches other devices.</summary>
+public sealed record PullDraftsResponse(IReadOnlyList<Drafts.CodeDraft> Drafts, long Cursor, bool HasMore);
+
+/// <summary>Limits on drafts, shared like <see cref="EventLimits"/>.</summary>
+public static class DraftLimits
+{
+    public const int MaxBatch = 200;
+    public const int MaxPullPage = 500;
+
+    /// <summary>Per push, counting code only.</summary>
+    public const int MaxBatchData = EventLimits.MaxBatchData;
+
+    public static string? Problem(Drafts.CodeDraft d)
+    {
+        if (string.IsNullOrWhiteSpace(d.StepId) || d.StepId.Length > EventLimits.MaxIdLength) return $"The step ID must be 1 to {EventLimits.MaxIdLength} characters.";
+        // PostgreSQL text cannot hold U+0000; one such draft would otherwise fail the whole push and be retried for ever.
+        if (d.StepId.Contains('\0') || (d.Code?.Contains('\0') ?? false)) return "The draft contains a NUL character, which the server cannot store.";
+        if ((d.Code?.Length ?? 0) > EventLimits.MaxDataLength) return $"The draft is {d.Code!.Length:N0} characters; the limit is {EventLimits.MaxDataLength:N0}.";
+        if (d.UpdatedAt <= DateTimeOffset.MinValue.AddYears(1) || d.UpdatedAt >= DateTimeOffset.MaxValue.AddYears(-1)) return "The draft's time is out of range.";
+        return null;
+    }
+}
+
 /// <summary>The limits the server enforces on pushed events, shared so the client can batch to fit and can tell which events could never be accepted.</summary>
 public static class EventLimits
 {

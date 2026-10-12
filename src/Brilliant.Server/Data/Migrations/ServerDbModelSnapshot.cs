@@ -55,6 +55,35 @@ namespace Brilliant.Server.Data.Migrations
                     b.ToTable("Devices");
                 });
 
+            modelBuilder.Entity("Brilliant.Server.Data.DraftRecord", b =>
+                {
+                    b.Property<string>("StepId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Code")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("PushedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ReceivedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("Seq")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("UpdatedAtTicks")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("StepId");
+
+                    b.HasIndex("Seq")
+                        .IsUnique();
+
+                    b.ToTable("Drafts");
+                });
+
             modelBuilder.Entity("Brilliant.Server.Data.EventRecord", b =>
                 {
                     b.Property<long>("Seq")

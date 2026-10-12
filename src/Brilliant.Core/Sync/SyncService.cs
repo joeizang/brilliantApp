@@ -1,9 +1,10 @@
+using Brilliant.Core.Drafts;
 using Brilliant.Core.Progress;
 
 namespace Brilliant.Core.Sync;
 
 /// <summary>The outcome of one sync attempt. <see cref="At"/> is when it finished. <see cref="Rejected"/> counts events found this time that the server cannot accept.</summary>
-public sealed record SyncResult(int Pushed, int Pulled, SyncFailure? Failure, string? Detail, DateTimeOffset At, int Rejected = 0)
+public sealed record SyncResult(int Pushed, int Pulled, SyncFailure? Failure, string? Detail, DateTimeOffset At, int Rejected = 0, int DraftsPushed = 0, int DraftsPulled = 0)
 {
     public bool Succeeded => Failure is null;
 }
@@ -11,10 +12,11 @@ public sealed record SyncResult(int Pushed, int Pulled, SyncFailure? Failure, st
 /// <summary>
 /// Keeps this device's progress log and the server's in step. Pushes this device's own events the server hasn't seen, then pulls
 /// everything after its cursor; both directions are idempotent by event ID, so an interrupted or repeated sync is harmless.
+/// Code drafts (when a draft store is given) go the same way, but are mutable: the newer copy of a step's draft wins on both sides.
 /// Nothing here throws at the learner: when the server can't be reached the app carries on from its local log.
 /// </summary>
 public sealed class SyncService(
-    IProgressEventLog log, string deviceId, IDeviceCredentialStore credentials, SyncClient client, ISyncStateStore stateStore, TimeProvider? clock = null)
+    IProgressEventLog log, string deviceId, IDeviceCredentialStore credentials, SyncClient client, ISyncStateStore stateStore, TimeProvider? clock = null, IDraftSyncSource? drafts = null)
 {
     private readonly TimeProvider _clock = clock ?? TimeProvider.System;
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -59,11 +61,17 @@ public sealed class SyncService(
 
     private async Task<SyncResult> RunAsync(CancellationToken ct)
     {
-        int pushed = 0, pulled = 0;
+        int pushed = 0, pulled = 0, draftsPushed = 0, draftsPulled = 0;
         try
         {
             var creds = await credentials.LoadAsync(ct) ?? throw new SyncException(SyncFailure.NotPaired);
-            var state = stateStore.Load().For(creds.DeviceId);
+            var loaded = stateStore.Load();
+            var state = loaded.For(creds.DeviceId);
+
+            // "Sent" for drafts means sent to one server. A different pairing (another server, or this one after pairing again) hasn't been
+            // told of any of them, and the cursors start over for the same reason. This happens before the new state is saved, so an
+            // interrupted first sync marks them again rather than skipping it.
+            if (drafts is not null && loaded.PairingId != creds.DeviceId) drafts.MarkAllUnsynced();
 
             // Push: this device's own events after the cursor. Events pulled from elsewhere are not ours to send back.
             // An event the server could never accept is not sent, and one it refuses by name is set aside; either way it stays in the
@@ -98,21 +106,60 @@ public sealed class SyncService(
                 if (!page.HasMore) break;
             }
 
+            // Drafts: what changed here goes up, then what changed elsewhere comes down. A draft is only replaced by a newer one.
+            if (drafts is not null)
+            {
+                foreach (var batch in DraftBatches(drafts.ReadUnsynced().Where(d => DraftLimits.Problem(d) is null)))
+                {
+                    var response = await client.PushDraftsAsync(creds, batch, ct);
+                    draftsPushed += response.Accepted;
+                    drafts.MarkSynced(batch);
+                }
+                while (true)
+                {
+                    var page = await client.PullDraftsAsync(creds, state.DraftsPulledThrough, ct);
+                    draftsPulled += drafts.Merge(page.Drafts);
+                    if (page.Cursor <= state.DraftsPulledThrough) break;
+                    state = state with { DraftsPulledThrough = page.Cursor };
+                    stateStore.Save(state);
+                    if (!page.HasMore) break;
+                }
+            }
+
             var now = _clock.GetUtcNow();
             stateStore.Save(state with { LastSyncedAt = now });
             if (pulled > 0) EventsPulled?.Invoke();
-            return new SyncResult(pushed, pulled, null, null, now, refused.Count);
+            return new SyncResult(pushed, pulled, null, null, now, refused.Count, draftsPushed, draftsPulled);
         }
         catch (SyncException e)
         {
             if (pulled > 0) EventsPulled?.Invoke();
-            return new SyncResult(pushed, pulled, e.Failure, e.Detail, _clock.GetUtcNow());
+            return new SyncResult(pushed, pulled, e.Failure, e.Detail, _clock.GetUtcNow(), DraftsPushed: draftsPushed, DraftsPulled: draftsPulled);
         }
         catch (Exception e) when (e is not OperationCanceledException)
         {
             if (pulled > 0) EventsPulled?.Invoke();
-            return new SyncResult(pushed, pulled, SyncFailure.LocalError, e.GetBaseException().Message, _clock.GetUtcNow());
+            return new SyncResult(pushed, pulled, SyncFailure.LocalError, e.GetBaseException().Message, _clock.GetUtcNow(), DraftsPushed: draftsPushed, DraftsPulled: draftsPulled);
         }
+    }
+
+    /// <summary>Batches of at most <see cref="DraftLimits.MaxBatch"/> drafts and <see cref="DraftLimits.MaxBatchData"/> characters of code, in order.</summary>
+    private static IEnumerable<List<CodeDraft>> DraftBatches(IEnumerable<CodeDraft> drafts)
+    {
+        var batch = new List<CodeDraft>();
+        var size = 0;
+        foreach (var d in drafts)
+        {
+            var length = d.Code?.Length ?? 0;
+            if (batch.Count > 0 && (batch.Count == DraftLimits.MaxBatch || size + length > DraftLimits.MaxBatchData))
+            {
+                yield return batch;
+                (batch, size) = ([], 0);
+            }
+            batch.Add(d);
+            size += length;
+        }
+        if (batch.Count > 0) yield return batch;
     }
 
     /// <summary>Batches of at most <see cref="EventLimits.MaxBatch"/> events and <see cref="EventLimits.MaxBatchData"/> characters of data, in order. An event too big to share a batch goes alone.</summary>

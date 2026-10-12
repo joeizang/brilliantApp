@@ -31,25 +31,38 @@ public sealed class TwoDeviceConvergenceTests(PostgresFixture postgres) : IAsync
     private sealed class Device : IDisposable
     {
         public SqliteProgressEventLog Log { get; } = new("Data Source=:memory:");
+        public SqliteCodeDraftStore Drafts { get; }
         public ProgressRecorder Recorder { get; }
         public SyncService Sync { get; }
         public bool Online { get; set; } = true;
 
+        private readonly MemoryCredentials _credentials;
+        private HttpMessageInvoker _route;
+
         public Device(string name, HttpMessageHandler server, string token, SyncFixtures.Clock clock)
         {
+            _route = new HttpMessageInvoker(server);
             Recorder = new ProgressRecorder(Log, name, clock);
-            var link = new HttpClient(new Link(this, server));
-            Sync = new SyncService(Log, name, new MemoryCredentials(new DeviceCredentials(new Uri("http://localhost/"), name, token)),
-                new SyncClient(link), new MemoryState(), clock);
+            Drafts = new SqliteCodeDraftStore("Data Source=:memory:", () => clock.GetUtcNow());
+            var link = new HttpClient(new Link(this));
+            _credentials = new MemoryCredentials(new DeviceCredentials(new Uri("http://localhost/"), name, token));
+            Sync = new SyncService(Log, name, _credentials, new SyncClient(link), new MemoryState(), clock, Drafts);
         }
 
-        public void Dispose() => Log.Dispose();
+        public void Dispose() { Log.Dispose(); Drafts.Dispose(); }
 
         /// <summary>The network between the device and the server: passes requests through while the device is online, and fails as a missing route does when it is not.</summary>
-        private sealed class Link(Device device, HttpMessageHandler server) : DelegatingHandler(server)
+        private sealed class Link(Device device) : HttpMessageHandler
         {
             protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>
-                device.Online ? base.SendAsync(request, ct) : throw new HttpRequestException("No route to host");
+                device.Online ? device._route.SendAsync(request, ct) : throw new HttpRequestException("No route to host");
+        }
+
+        /// <summary>Forgets the server and pairs with another (a new pairing ID), as the learner does when the household server is replaced.</summary>
+        public void PairWith(HttpMessageHandler server, string pairingId, string token)
+        {
+            _route = new HttpMessageInvoker(server);
+            _credentials.Held = new DeviceCredentials(new Uri("http://localhost/"), pairingId, token);
         }
     }
 
@@ -210,5 +223,143 @@ public sealed class TwoDeviceConvergenceTests(PostgresFixture postgres) : IAsync
         await SettleAsync();
         Assert.Contains("goal=25", Print(_b));
         Assert.Equal(1, _a.Sync.RejectedCount("device-a"));
+    }
+
+    [Fact]
+    public async Task A_draft_edited_on_one_device_appears_on_the_other_after_sync()
+    {
+        _a.Drafts.Save("step.sum", "def total(xs):\n    return sum(xs)\n");
+
+        await SettleAsync();
+
+        Assert.Equal("def total(xs):\n    return sum(xs)\n", _b.Drafts.Get("step.sum"));
+        Assert.Empty(_a.Drafts.ReadUnsynced());
+        Assert.Empty(_b.Drafts.ReadUnsynced());   // what arrived is not sent back
+    }
+
+    [Fact]
+    public async Task When_both_devices_edit_the_same_step_the_newer_edit_wins_on_both()
+    {
+        _a.Drafts.Save("step.sum", "mac, earlier");
+        _clock.Now = _clock.Now.AddMinutes(3);
+        _b.Drafts.Save("step.sum", "phone, later");
+
+        // The Mac syncs last, so it is the one that has to give way even though it pushed first.
+        foreach (var d in new[] { _a, _b, _a })
+            Assert.True((await d.Sync.SyncAsync()).Succeeded);
+
+        Assert.Equal("phone, later", _a.Drafts.Get("step.sum"));
+        Assert.Equal("phone, later", _b.Drafts.Get("step.sum"));
+    }
+
+    [Fact]
+    public async Task The_newer_edit_wins_whichever_device_syncs_first()
+    {
+        _b.Drafts.Save("step.sum", "phone, earlier");
+        _clock.Now = _clock.Now.AddMinutes(3);
+        _a.Drafts.Save("step.sum", "mac, later");
+
+        foreach (var d in new[] { _b, _a, _b })
+            Assert.True((await d.Sync.SyncAsync()).Succeeded);
+
+        Assert.Equal("mac, later", _a.Drafts.Get("step.sum"));
+        Assert.Equal("mac, later", _b.Drafts.Get("step.sum"));
+    }
+
+    [Fact]
+    public async Task A_reset_on_one_device_clears_the_other_unless_it_was_edited_after()
+    {
+        _a.Drafts.Save("step.one", "work");
+        _a.Drafts.Save("step.two", "work");
+        await SettleAsync();
+
+        _clock.Now = _clock.Now.AddMinutes(1);
+        _b.Drafts.Reset("step.one");
+        _b.Drafts.Reset("step.two");
+        _clock.Now = _clock.Now.AddMinutes(1);
+        _a.Drafts.Save("step.two", "edited after the reset");   // the Mac had not synced yet
+        await SettleAsync();
+
+        Assert.Null(_a.Drafts.Get("step.one"));
+        Assert.Null(_b.Drafts.Get("step.one"));
+        Assert.Equal("edited after the reset", _a.Drafts.Get("step.two"));
+        Assert.Equal("edited after the reset", _b.Drafts.Get("step.two"));
+    }
+
+    [Fact]
+    public async Task Drafts_made_while_a_device_was_away_arrive_when_it_comes_back_and_syncing_again_changes_nothing()
+    {
+        _b.Online = false;
+        _b.Drafts.Save("step.offline", "written on the train");
+        Assert.Equal(SyncFailure.Unreachable, (await _b.Sync.SyncAsync()).Failure);
+        Assert.Single(_b.Drafts.ReadUnsynced());   // still waiting to go
+
+        _b.Online = true;
+        await SettleAsync();
+        Assert.Equal("written on the train", _a.Drafts.Get("step.offline"));
+
+        foreach (var d in new[] { _a, _b })
+        {
+            var again = await d.Sync.SyncAsync();
+            Assert.Equal((0, 0), (again.DraftsPushed, again.DraftsPulled));
+        }
+    }
+
+    [Fact]
+    public async Task Drafts_and_progress_sync_together_without_disturbing_each_other()
+    {
+        SyncFixtures.TwoDevicesApart(_a.Recorder, _b.Recorder, _clock);
+        _a.Drafts.Save("step.sum", "mine");
+
+        await SettleAsync();
+
+        Assert.Equal(Ids(_a), Ids(_b));
+        Assert.Equal(Print(_a), Print(_b));
+        Assert.Equal("mine", _b.Drafts.Get("step.sum"));
+    }
+
+    [Fact]
+    public async Task A_draft_too_big_for_the_server_stays_on_its_device_and_blocks_no_other_draft()
+    {
+        _a.Drafts.Save("step.huge", new string('x', EventLimits.MaxDataLength + 1));
+        _a.Drafts.Save("step.ok", "fine");
+
+        await SettleAsync();
+
+        Assert.Equal("fine", _b.Drafts.Get("step.ok"));
+        Assert.Null(_b.Drafts.Get("step.huge"));
+        Assert.StartsWith("x", _a.Drafts.Get("step.huge"));   // the learner's work is still there
+    }
+
+    [Fact]
+    public async Task Drafts_already_synced_to_one_server_go_up_again_when_the_device_pairs_with_another()
+    {
+        _a.Drafts.Save("step.sum", "synced to the old server");
+        Assert.True((await _a.Sync.SyncAsync()).Succeeded);
+        Assert.Empty(_a.Drafts.ReadUnsynced());
+
+        await using var replacement = await ServerHarness.StartAsync(postgres);
+        var (_, paired) = await replacement.PairDeviceAsync("Mac, again");
+        _a.PairWith(replacement.Server.CreateHandler(), "device-a-new-pairing", paired.Token);
+        Assert.True((await _a.Sync.SyncAsync()).Succeeded);
+
+        // The new server has it, so a phone paired there gets it too.
+        var (_, phone) = await replacement.PairDeviceAsync("Phone");
+        _b.PairWith(replacement.Server.CreateHandler(), "device-b-new-pairing", phone.Token);
+        Assert.True((await _b.Sync.SyncAsync()).Succeeded);
+        Assert.Equal("synced to the old server", _b.Drafts.Get("step.sum"));
+    }
+
+    [Fact]
+    public async Task A_draft_with_a_nul_character_stays_on_the_device_and_does_not_stop_the_others()
+    {
+        _a.Drafts.Save("step.nul", "a\0b");
+        _a.Drafts.Save("step.valid", "print(1)");
+
+        await SettleAsync();
+
+        Assert.Equal("print(1)", _b.Drafts.Get("step.valid"));
+        Assert.Equal("a\0b", _a.Drafts.Get("step.nul"));
+        Assert.Null(_b.Drafts.Get("step.nul"));
     }
 }

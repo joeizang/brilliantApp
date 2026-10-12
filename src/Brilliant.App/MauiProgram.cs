@@ -42,8 +42,10 @@ public static class MauiProgram
             new ProgressRecorder(sp.GetRequiredService<IProgressEventLog>(), DeviceId.GetOrCreate(dataDir)));
 
         // Code drafts are mutable (last write wins), so they live apart from the append-only event log.
-        builder.Services.AddSingleton<ICodeDraftStore>(_ =>
-            new SqliteCodeDraftStore($"Data Source={Path.Combine(dataDir, "drafts.db")}"));
+        // Sync reads and merges them through IDraftSyncSource, the same store.
+        builder.Services.AddSingleton(_ => new SqliteCodeDraftStore($"Data Source={Path.Combine(dataDir, "drafts.db")}"));
+        builder.Services.AddSingleton<ICodeDraftStore>(sp => sp.GetRequiredService<SqliteCodeDraftStore>());
+        builder.Services.AddSingleton<IDraftSyncSource>(sp => sp.GetRequiredService<SqliteCodeDraftStore>());
 
         // Shortcuts and menu commands reach whichever step is on screen through one bus, shared by the webview's key listener and the native menu.
         builder.Services.AddSingleton<StepShortcuts>();
@@ -64,7 +66,8 @@ public static class MauiProgram
         builder.Services.AddSingleton<ISyncStateStore>(_ => new FileSyncStateStore(Path.Combine(dataDir, "sync-state.json")));
         builder.Services.AddSingleton(sp => new SyncService(
             sp.GetRequiredService<IProgressEventLog>(), DeviceId.GetOrCreate(dataDir),
-            sp.GetRequiredService<IDeviceCredentialStore>(), sp.GetRequiredService<SyncClient>(), sp.GetRequiredService<ISyncStateStore>()));
+            sp.GetRequiredService<IDeviceCredentialStore>(), sp.GetRequiredService<SyncClient>(), sp.GetRequiredService<ISyncStateStore>(),
+            drafts: sp.GetRequiredService<IDraftSyncSource>()));
         builder.Services.AddSingleton(sp => new SyncScheduler(sp.GetRequiredService<SyncService>(), TimeSpan.FromMinutes(2)));
 
         // The Python runtime talks to the webview it lives in, so it is scoped to the BlazorWebView.
