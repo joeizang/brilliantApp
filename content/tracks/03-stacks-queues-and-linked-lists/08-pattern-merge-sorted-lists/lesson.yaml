@@ -1,0 +1,655 @@
+id: lesson.pattern-merge-sorted-lists
+title: "Pattern: merge two sorted lists"
+concepts:
+  - id: concept.merge-tail
+    title: Merging with a dummy and a tail
+  - id: concept.merge-leftover
+    title: Attaching what's left
+  - id: concept.merge-sort-list
+    title: Sorting a linked list by merging
+reviewItems:
+  - id: review.merge.lost-leftover
+    concept: concept.merge-leftover
+    step: step.merge.predict-leftover
+  - id: review.merge.stuck-tail
+    concept: concept.merge-tail
+    step: step.merge.predict-stuck-tail
+  - id: review.merge.why-dummy
+    concept: concept.merge-tail
+    step: step.merge.check-why-dummy
+  - id: review.merge.which-problem
+    concept: concept.merge-tail
+    step: step.merge.check-which-problem
+    kind: pattern
+  - id: review.merge.why-not-sort
+    concept: concept.merge-sort-list
+    step: step.merge.check-why-not-sort
+    kind: pattern
+patterns:
+  - id: pattern.merge-sorted-lists
+    title: Merge with a tail pointer
+steps:
+  - id: step.merge.idea
+    type: explain
+    title: Take the smaller head
+    body: |
+      Two lists, each already sorted: `1 → 4 → 6` and `2 → 3 → 7`. The smallest value overall is one of the two **heads**, so
+      take the smaller, and repeat with what's left. No new nodes: you relink the ones you have.
+
+      - A **dummy** node starts the result, so the first node is attached like every other (lesson 5).
+      - `tail` is the last node of the result so far. Attach the smaller head with `tail.next = ...`, then move `tail` on.
+      - When one list runs out, the other's rest is already sorted and linked: attach it **in one step**, `tail.next = a or b`.
+
+      `O(n + m)` time, `O(1)` extra memory. It's the same idea as merging two sorted Python lists with an index into each,
+      except nothing is copied.
+    comparison:
+      csharp: |
+        var dummy = new Node(0);
+        var tail = dummy;
+        while (a != null && b != null)
+        {
+            if (a.Val <= b.Val) { tail.Next = a; a = a.Next; }
+            else                { tail.Next = b; b = b.Next; }
+            tail = tail.Next;
+        }
+        tail.Next = a ?? b;   // the rest is already sorted
+        return dummy.Next;
+      python: |
+        dummy = Node(0)
+        tail = dummy
+        while a and b:
+            if a.val <= b.val:
+                tail.next = a
+                a = a.next
+            else:
+                tail.next = b
+                b = b.next
+            tail = tail.next
+        tail.next = a or b    # the rest is already sorted
+        return dummy.next
+  - id: step.merge.trace
+    type: trace
+    title: Merging 1 → 4 → 6 and 2 → 3 → 7
+    body: |
+      The result grows from `dummy`, one node at a time, while `a` and `b` move along what's left of each list. After `6` is
+      attached `a` is `None`, so the loop stops and `7`, the rest of `b`, is attached in one go.
+    code: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      a = Node(1, Node(4, Node(6)))
+      b = Node(2, Node(3, Node(7)))
+      dummy = Node(0)
+      tail = dummy
+      while a and b:
+          if a.val <= b.val:
+              tail.next = a
+              a = a.next
+          else:
+              tail.next = b
+              b = b.next
+          tail = tail.next
+      tail.next = a or b
+      head = dummy.next
+    visualise:
+      - variable: dummy
+        as: linked_list
+        pointers: [tail, a, b]
+  - id: step.merge.predict-leftover
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      This `merge` leaves out the last line before `return`. What does it print?
+    code: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def to_list(head):
+          values = []
+          while head:
+              values.append(head.val)
+              head = head.next
+          return values
+
+
+      def merge(a, b):
+          dummy = Node(0)
+          tail = dummy
+          while a and b:
+              if a.val <= b.val:
+                  tail.next = a
+                  a = a.next
+              else:
+                  tail.next = b
+                  b = b.next
+              tail = tail.next
+          return dummy.next
+
+
+      print(to_list(merge(Node(1, Node(5)), Node(2, Node(3)))))
+    accepted:
+      - "[1, 2, 3]"
+    mistakes:
+      - answers:
+          - "[1, 2, 3, 5]"
+        feedback: "That's the right merge, but `5` is never attached. The loop stops when `b` runs out, `tail` is on `3`, and `3.next` is still `None`: `tail.next = a or b` is missing."
+      - answers:
+          - "[1, 5]"
+        feedback: "`1` was attached while it still linked to `5`, but when `2` is smaller, `tail.next = b` rewires `1.next` to `2`."
+      - answers:
+          - "[1]"
+        feedback: "The loop runs while both lists have nodes: `1`, then `2` and `3` are attached before `b` runs out."
+    hints:
+      - "Follow `tail`, `a` and `b` through each pass. What stops the loop?"
+      - "When the loop stops, what is `tail`, and what is `tail.next`?"
+  - id: step.merge.check-why-dummy
+    type: choice
+    title: Why a dummy?
+    prompt: |
+      `merge` starts with `dummy = Node(0)` and returns `dummy.next`. What does the dummy save you?
+    options:
+      - text: "Before anything is attached there is no last node to attach to. The dummy is one, so the first node is attached with `tail.next = ...` like the rest."
+        correct: true
+        feedback: "Right. Without it you'd pick the first node by hand, before the loop, and handle an empty list there too."
+      - text: "It holds the smallest value, so the comparisons are faster."
+        correct: false
+        feedback: "Its value is never compared, and it isn't in the answer: `dummy.next` is returned."
+      - text: "It stops the two lists from being changed."
+        correct: false
+        feedback: "The merge relinks the original nodes either way. The dummy is only a place to start attaching."
+      - text: "It is needed so that `tail.next = a or b` works."
+        correct: false
+        feedback: "That line works on any node. The dummy is there for the *first* node, when there's no tail yet."
+    hints:
+      - "What would `tail` be before the first node is attached?"
+  - id: step.merge.predict-stuck-tail
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      This `merge` forgets to move `tail` on. What does it print?
+    code: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def to_list(head):
+          values = []
+          while head:
+              values.append(head.val)
+              head = head.next
+          return values
+
+
+      def merge(a, b):
+          dummy = Node(0)
+          tail = dummy
+          while a and b:
+              if a.val <= b.val:
+                  tail.next = a
+                  a = a.next
+              else:
+                  tail.next = b
+                  b = b.next
+          tail.next = a or b
+          return dummy.next
+
+
+      print(to_list(merge(Node(1, Node(4)), Node(2, Node(3)))))
+    accepted:
+      - "[4]"
+    mistakes:
+      - answers:
+          - "[1, 2, 3, 4]"
+        feedback: "`tail` never leaves `dummy`, so every attach overwrites `dummy.next`. The last one, `tail.next = a or b`, sets it to `4`."
+      - answers:
+          - "[3, 4]"
+        feedback: "`3` was attached to `dummy` but its own `next` is still `None` from its list. Then `tail.next = a or b` replaces it with `4`."
+      - answers:
+          - "[1]"
+        feedback: "`dummy.next` is `1` only until the next attach overwrites it. `tail` is stuck on `dummy`, so each attach replaces the last."
+    hints:
+      - "`tail` is `dummy` the whole time. What does each `tail.next = ...` replace?"
+      - "Which assignment to `dummy.next` comes last?"
+  - id: step.merge.pattern
+    type: explain
+    title: "Pattern: merging, and sorting by merging"
+    body: |
+      Watch for:
+
+      - *merge two sorted lists*, *combine two sorted linked lists into one sorted list*
+      - *merge `k` sorted lists*: merge them two at a time
+      - *sort a linked list* in `O(n log n)`: **merge sort**, built from the patterns of this track
+
+      **Merge sort on a linked list.** A list of zero or one node is sorted. Otherwise find the middle with fast and slow, cut
+      the list in two there (`slow.next = None`), sort each half the same way, and merge the two sorted halves. For the cut,
+      start `fast` on `head.next`, so `slow` stops on the *first* middle and a two-node list splits into two single nodes.
+    comparison:
+      csharp: |
+        Node? SortList(Node? head)
+        {
+            if (head?.Next == null) return head;
+            Node slow = head, fast = head.Next;
+            while (fast?.Next != null) { slow = slow.Next!; fast = fast.Next.Next; }
+            var second = slow.Next;
+            slow.Next = null;                 // cut in two
+            return Merge(SortList(head), SortList(second));
+        }
+      python: |
+        def sort_list(head):
+            if head is None or head.next is None:
+                return head
+            slow = head
+            fast = head.next
+            while fast and fast.next:
+                slow = slow.next
+                fast = fast.next.next
+            second = slow.next
+            slow.next = None                  # cut in two
+            return merge(sort_list(head), sort_list(second))
+  - id: step.merge.check-which-problem
+    type: choice
+    title: Which problem is a merge?
+    prompt: |
+      Each of these works on linked lists. Which one is solved by repeatedly attaching the smaller of two heads to a tail?
+    options:
+      - text: "Two lists of timestamps, each in order, must become one list in order, without creating new nodes."
+        correct: true
+        feedback: "Right. Both inputs are sorted, so the next smallest is always one of the two heads."
+      - text: "Find whether a list loops back on itself."
+        correct: false
+        feedback: "That's fast and slow pointers: the fast one catches the slow one inside a loop."
+      - text: "Reverse the first `k` nodes of a list."
+        correct: false
+        feedback: "That's the `prev`, `cur`, `nxt` walk, run `k` times."
+      - text: "Remove every node with a given value, including the head."
+        correct: false
+        feedback: "That's a dummy head with a `prev` pointer, and only one list."
+    hints:
+      - "Which problem has two inputs that are each already sorted?"
+  - id: step.merge.check-why-not-sort
+    type: choice
+    title: Why not just sort?
+    prompt: |
+      You could copy both lists' values into a Python list, call `sorted`, and build new nodes. Why merge instead?
+    options:
+      - text: "Merging uses that both are sorted: `O(n + m)` time and no extra memory, against `O((n + m) log(n + m))` time and a copy of everything."
+        correct: true
+        feedback: "Right. *Each input is already sorted* is the cue: one pass, comparing heads, is enough."
+      - text: "`sorted` doesn't work on numbers from a linked list."
+        correct: false
+        feedback: "Once copied into a Python list they're ordinary values and `sorted` works. It's just slower and copies everything."
+      - text: "Merging is faster only when the lists are the same length."
+        correct: false
+        feedback: "Merging is `O(n + m)` whatever the lengths; when one runs out, the other's rest is attached in one step."
+      - text: "There is no difference; both are `O(n + m)`."
+        correct: false
+        feedback: "Sorting from scratch is `O(k log k)` for `k = n + m` values. Merging is linear because the inputs are already in order."
+    hints:
+      - "What does the merge know about its inputs that `sorted` ignores?"
+  - id: step.merge.fill
+    type: fill-blank
+    title: Complete sort_list
+    pattern: pattern.merge-sorted-lists
+    patternCue: "\"Sort a linked list in `O(n log n)`\": cut it at the middle, sort each half, and merge the two sorted halves."
+    prompt: |
+      `merge(a, b)` is written. Fill in the blanks so that `sort_list(head)` sorts the list by merge sort and returns the new
+      head.
+    template: |
+      def sort_list(head):
+          if head is None or head.next is None:
+              return head
+          slow = head
+          fast = head.next
+          while fast and fast.next:
+              slow = slow.next
+              fast = fast.next.next
+          second = {{second}}
+          slow.next = {{cut}}
+          return merge({{left}}, {{right}})
+    blanks:
+      - id: second
+        accepted:
+          - "slow.next"
+        mistakes:
+          - answers:
+              - "slow"
+            feedback: "`slow` is the last node of the *first* half. The second half starts after it."
+      - id: cut
+        accepted:
+          - "None"
+        mistakes:
+          - answers:
+              - "second"
+            feedback: "`slow.next` already is `second`, so the halves stay joined. Set it to `None` to cut the list in two."
+      - id: left
+        accepted:
+          - "sort_list(head)"
+        mistakes:
+          - answers:
+              - "head"
+            feedback: "`merge` needs two *sorted* lists. Sort the first half first: `sort_list(head)`."
+      - id: right
+        accepted:
+          - "sort_list(second)"
+        mistakes:
+          - answers:
+              - "second"
+            feedback: "`merge` needs two *sorted* lists. Sort the second half first: `sort_list(second)`."
+    hints:
+      - "The second half starts right after `slow`."
+      - "Cut the list by ending the first half: its last node's `next` becomes `None`."
+      - "Sort each half with `sort_list`, then merge them."
+  - id: step.merge.order
+    type: parsons
+    title: Merge two sorted lists
+    pattern: pattern.merge-sorted-lists
+    patternCue: "\"Merge two sorted linked lists\": the next smallest is one of the two heads, so attach it to a tail behind a dummy."
+    prompt: |
+      Arrange the lines into `merge(a, b)`, which merges two sorted lists into one sorted list and returns its head.
+    solution: |
+      def merge(a, b):
+          dummy = Node(0)
+          tail = dummy
+          while a and b:
+              if a.val <= b.val:
+                  tail.next = a
+                  a = a.next
+              else:
+                  tail.next = b
+                  b = b.next
+              tail = tail.next
+          tail.next = a or b
+          return dummy.next
+    hints:
+      - "A dummy starts the result and `tail` starts on it."
+      - "Attach the smaller head, move that list on, then move `tail` on."
+      - "After the loop, attach whatever is left and return `dummy.next`."
+  - id: step.merge.write-merge
+    type: write-code
+    largeScreenPreferred: true
+    title: Merge two sorted lists
+    pattern: pattern.merge-sorted-lists
+    patternCue: "\"Merge two sorted linked lists into one\": compare the two heads, attach the smaller to a tail, and attach the leftover in one step."
+    compare: linked_list
+    prompt: |
+      Write `merge(a, b)` that merges two lists, each sorted from smallest to largest, into one sorted list and returns its
+      head. Relink the existing nodes; don't create new ones (a dummy is fine). Either list may be `None`.
+
+      `Node` and `build` are in the starter; keep them.
+    language: python
+    entrypoint: merge
+    starter: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def merge(a, b):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def merge(a, b):
+          dummy = Node(0)
+          tail = dummy
+          while a and b:
+              if a.val <= b.val:
+                  tail.next = a
+                  a = a.next
+              else:
+                  tail.next = b
+                  b = b.next
+              tail = tail.next
+          tail.next = a or b
+          return dummy.next
+    tests:
+      - input: "build([1, 4, 6]), build([2, 3, 7])"
+        expected: "[1, 2, 3, 4, 6, 7]"
+      - input: "build([1, 2]), build([1, 2])"
+        expected: "[1, 1, 2, 2]"
+      - input: "build([5, 6, 7]), build([1])"
+        expected: "[1, 5, 6, 7]"
+      - input: "None, build([3])"
+        expected: "[3]"
+      - input: "None, None"
+        expected: "[]"
+    hints:
+      - "Start with `dummy = Node(0)` and `tail = dummy`."
+      - "While both lists have nodes, attach the smaller head to `tail.next`, move that list on, then move `tail` on."
+      - "After the loop, `tail.next = a or b`, and return `dummy.next`."
+    walkthrough:
+      call: result = merge(build([1, 4, 6]), build([2, 3, 7]))
+      visualise:
+        - variable: dummy
+          as: linked_list
+          pointers: [tail, a, b]
+      explanation: |
+        `1`, `2`, `3`, `4` and `6` are attached in turn, each the smaller of the two heads. Then `a` is `None`, so
+        `tail.next = a or b` attaches `7`, the rest of `b`, in one step. The answer starts at `dummy.next`.
+  - id: step.merge.write-merge-k
+    type: write-code
+    largeScreenPreferred: true
+    title: Merge k sorted lists
+    pattern: pattern.merge-sorted-lists
+    patternCue: "\"Merge `k` sorted linked lists\": merging is two at a time, so fold the lists into one result with `merge`."
+    compare: linked_list
+    prompt: |
+      `lists` is a Python list of heads of sorted linked lists (any of them may be `None`, and `lists` may be empty). Write
+      `merge_k(lists)` that merges them all into one sorted list and returns its head. Write a two-list `merge` and use it.
+
+      `Node` and `build` are in the starter; keep them.
+    language: python
+    entrypoint: merge_k
+    starter: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def merge_k(lists):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def merge(a, b):
+          dummy = Node(0)
+          tail = dummy
+          while a and b:
+              if a.val <= b.val:
+                  tail.next = a
+                  a = a.next
+              else:
+                  tail.next = b
+                  b = b.next
+              tail = tail.next
+          tail.next = a or b
+          return dummy.next
+
+
+      def merge_k(lists):
+          result = None
+          for head in lists:
+              result = merge(result, head)
+          return result
+    tests:
+      - input: "[build([1, 4, 5]), build([1, 3, 4]), build([2, 6])]"
+        expected: "[1, 1, 2, 3, 4, 4, 5, 6]"
+      - input: "[build([2]), None, build([1])]"
+        expected: "[1, 2]"
+      - input: "[build([3, 8])]"
+        expected: "[3, 8]"
+      - input: "[]"
+        expected: "[]"
+    hints:
+      - "First write `merge(a, b)` for two lists."
+      - "Start with `result = None`, the empty list, and merge each list into it."
+      - "An empty `lists` leaves `result` as `None`."
+    phoneAlternative:
+      id: step.merge.write-merge-k.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        `merge(a, b)` is written. Write `merge_k(lists)`, which merges a Python list of sorted linked lists into one sorted list
+        and returns its head. Arrange the lines instead of typing them.
+      solution: |
+        def merge_k(lists):
+            result = None
+            for head in lists:
+                result = merge(result, head)
+            return result
+      hints:
+        - "Start with the empty list, `None`."
+        - "Merge each list into the result in turn."
+  - id: step.merge.write-sort-list
+    type: write-code
+    largeScreenPreferred: true
+    title: Sort a linked list
+    pattern: pattern.merge-sorted-lists
+    patternCue: "\"Sort a linked list in `O(n log n)`\": fast and slow find the middle, cut there, sort each half, and merge them."
+    compare: linked_list
+    prompt: |
+      Write `sort_list(head)` that sorts a linked list from smallest to largest by merge sort and returns the new head. Don't
+      copy the values into a Python list. `head` may be `None`.
+
+      `Node` and `build` are in the starter; keep them.
+    language: python
+    entrypoint: sort_list
+    starter: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def sort_list(head):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def merge(a, b):
+          dummy = Node(0)
+          tail = dummy
+          while a and b:
+              if a.val <= b.val:
+                  tail.next = a
+                  a = a.next
+              else:
+                  tail.next = b
+                  b = b.next
+              tail = tail.next
+          tail.next = a or b
+          return dummy.next
+
+
+      def sort_list(head):
+          if head is None or head.next is None:
+              return head
+          slow = head
+          fast = head.next
+          while fast and fast.next:
+              slow = slow.next
+              fast = fast.next.next
+          second = slow.next
+          slow.next = None
+          return merge(sort_list(head), sort_list(second))
+    tests:
+      - input: "build([4, 2, 1, 3])"
+        expected: "[1, 2, 3, 4]"
+      - input: "build([5, 1, 4, 1, 3])"
+        expected: "[1, 1, 3, 4, 5]"
+      - input: "build([2, 1])"
+        expected: "[1, 2]"
+      - input: "build([7])"
+        expected: "[7]"
+      - input: "None"
+        expected: "[]"
+    hints:
+      - "Write `merge(a, b)` first. A list of zero or one node is already sorted."
+      - "Find the middle with `slow = head`, `fast = head.next`, then cut: `second = slow.next`, `slow.next = None`."
+      - "Return `merge(sort_list(head), sort_list(second))`."
+    phoneAlternative:
+      id: step.merge.write-sort-list.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        `merge(a, b)` is written. Write `sort_list(head)`, which sorts a linked list by merge sort and returns the new head.
+        Arrange the lines instead of typing them.
+      solution: |
+        def sort_list(head):
+            if head is None or head.next is None:
+                return head
+            slow = head
+            fast = head.next
+            while fast and fast.next:
+                slow = slow.next
+                fast = fast.next.next
+            second = slow.next
+            slow.next = None
+            return merge(sort_list(head), sort_list(second))
+      hints:
+        - "Zero or one node is already sorted."
+        - "Find the first middle, cut the list after it, sort both halves and merge."
