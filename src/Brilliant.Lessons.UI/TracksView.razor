@@ -6,6 +6,7 @@
     var learner = Recorder.Project(Content);
     var due = learner.Queue.Items.Count;
     var practice = PracticeSelector.Availability(learner);
+    var interview = OnOpenInterview.HasDelegate ? InterviewRuns.Open(Recorder.Log.ReadAll()) : null;
 }
 @if (OnBack.HasDelegate)
 {
@@ -39,6 +40,14 @@ else
             <span class="practice-reason card-meta text-[.9rem] text-fg-secondary">@PracticeText.Unavailable(practice)</span>
         </button>
     }
+}
+@if (OnOpenInterview.HasDelegate)
+{
+    @* A run in progress is open whatever Practice's state: it has to be finished, and its clock is already running. *@
+    <button class="@InterviewCard mt-4" disabled="@(interview is null && !practice.IsAvailable)" @onclick="() => OnOpenInterview.InvokeAsync()">
+        <span class="card-title text-[1.2rem] font-semibold tracking-[-.01em]">Timed interview</span>
+        <span class="interview-status card-meta text-[.9rem] text-fg-secondary">@InterviewStatus(interview, practice)</span>
+    </button>
 }
 <ul class="cards content-column mt-4 mb-6 grid list-none gap-4">
     @foreach (var state in learner.Tracks)
@@ -76,9 +85,19 @@ else
 
     /// <summary>Opens Practice. Without it there is no Practice card.</summary>
     [Parameter] public EventCallback OnOpenPractice { get; set; }
+
+    /// <summary>Opens the timed interview. Without it there is no interview card.</summary>
+    [Parameter] public EventCallback OnOpenInterview { get; set; }
     [Parameter] public EventCallback OnOpenFlagged { get; set; }
     [Parameter] public EventCallback OnOpenSync { get; set; }
 
     /// <summary>Back to Today, when Tracks is reached from there.</summary>
     [Parameter] public EventCallback OnBack { get; set; }
+
+    private static readonly string InterviewCard = Styling.PracticeCard.Replace("practice-card", "interview-card");
+
+    private string InterviewStatus(InterviewRun? run, PracticeAvailability practice) =>
+        run is null ? practice.IsAvailable ? "2 or 3 problems against one clock." : PracticeText.Unavailable(practice)
+        : run.IsOver(Recorder.Now) ? "Time's up. See how you did."
+        : $"In progress: {Math.Max(1, (int)Math.Ceiling(run.Left(Recorder.Now).TotalMinutes))} min left.";
 }

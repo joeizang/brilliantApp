@@ -74,7 +74,7 @@
                 @StdoutBlock(section.Label, section.Text)
             }
 
-            @if (result.Status == TestRunStatus.Passed)
+            @if (result.Status == TestRunStatus.Passed && OfferContinue)
             {
                 <button class="primary btn-primary" @onclick="() => OnContinue.InvokeAsync()">Continue</button>
             }
@@ -102,6 +102,9 @@
 
     /// <summary>Raised when the learner continues after all tests pass.</summary>
     [Parameter] public EventCallback OnContinue { get; set; }
+
+    /// <summary>Offer Continue once the tests pass. An interview doesn't: the learner submits when ready, and moves on from there.</summary>
+    [Parameter] public bool OfferContinue { get; set; } = true;
 
     private string Key => DraftKey ?? Step.Id;
     private CodeEditor _editor = default!;
@@ -131,7 +134,7 @@
             case StepCommand.Run when !_running:
                 await Submit();
                 break;
-            case StepCommand.Advance when _result is { Status: TestRunStatus.Passed }:
+            case StepCommand.Advance when _result is { Status: TestRunStatus.Passed } && OfferContinue:
                 await OnContinue.InvokeAsync();
                 return;
         }
@@ -165,6 +168,16 @@
             Drafts.Reset(Key);
             _resetting = false;
         }
+    }
+
+    /// <summary>
+    /// Runs the code in the editor against the tests, as the Run button does, and returns how it did: null when Python itself couldn't
+    /// run. An interview submits a solution this way, so what is judged is the code as it stands.
+    /// </summary>
+    public async Task<Submission?> RunAsync()
+    {
+        await Submit();
+        return _result is { } result ? new Submission(await _editor.GetCodeAsync(), result) : null;
     }
 
     private async Task Submit()

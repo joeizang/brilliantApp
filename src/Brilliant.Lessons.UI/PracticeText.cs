@@ -14,9 +14,11 @@ internal static class PracticeText
 
     /// <summary>The learned pattern with the lowest mastery, e.g. "Prefix sums: learning, 34%". Null when none is learned.</summary>
     public static string? Weakest(LearnerState state) =>
-        state.Patterns.Where(p => p.IsLearned).OrderBy(p => p.Mastery).FirstOrDefault() is { } weakest
-            ? $"{weakest.Pattern.Title}: {ConceptText.Level(weakest.Level).ToLowerInvariant()}, {(int)Math.Round(100 * weakest.Mastery)}%"
-            : null;
+        state.Patterns.Where(p => p.IsLearned).OrderBy(p => p.Mastery).FirstOrDefault() is { } weakest ? Standing(weakest) : null;
+
+    /// <summary>A pattern's title, level and mastery: "Prefix sums: learning, 34%".</summary>
+    public static string Standing(PatternMastery pattern) =>
+        $"{pattern.Pattern.Title}: {ConceptText.Level(pattern.Level).ToLowerInvariant()}, {(int)Math.Round(100 * pattern.Mastery)}%";
 
     /// <summary>How long until something is due, as Review says it: "within the hour", "in 5 hours", "in 3 days".</summary>
     public static string Describe(TimeSpan wait) =>

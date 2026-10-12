@@ -1,4 +1,5 @@
-@* "Which pattern solves this?" One answer, locked when checked: a wrong pick is told the right pattern and what in the prompt points to it, and moves on; it is not retried. *@
+@* "Which pattern solves this?" One answer, locked when checked: a wrong pick is told the right pattern and what in the prompt points to it, and moves on; it is not retried.
+   Blind (an interview), the pick is only locked in: nothing says whether it was right until the run's summary. *@
 @implements IDisposable
 @inject StepShortcuts Shortcuts
 
@@ -20,7 +21,11 @@
 
     @if (!_locked)
     {
-        <button class="primary btn-primary" disabled="@(_selected is null)" @onclick="Check">Check</button>
+        <button class="primary btn-primary" disabled="@(_selected is null)" @onclick="Check">@(Blind ? "Lock in" : "Check")</button>
+    }
+    else if (Blind)
+    {
+        <p class="pick-locked font-semibold" role="status">Locked in: @Choices[_selected!.Value].Title.</p>
     }
     else
     {
@@ -62,6 +67,9 @@
 
     [Parameter] public string ContinueText { get; set; } = "Continue";
 
+    /// <summary>An interview: the pick is locked in without a verdict, a cue or a Continue, and the options aren't marked right or wrong.</summary>
+    [Parameter] public bool Blind { get; set; }
+
     private IDisposable? _shortcuts;
     private int? _selected;
     private bool _locked;
@@ -94,7 +102,7 @@
             case StepCommand.Run or StepCommand.Advance when !_locked:
                 await Check();
                 break;
-            case StepCommand.Advance:
+            case StepCommand.Advance when !Blind:
                 await OnContinue.InvokeAsync();
                 return;
         }
@@ -104,7 +112,7 @@
     // After the check, the pick is marked right or wrong and the right pattern, if it wasn't the pick, is marked right too.
     private string OptionClass(int index, bool picked)
     {
-        if (!_locked) return Styling.Option(picked ? OptionState.Selected : OptionState.Idle);
+        if (!_locked || Blind) return Styling.Option(picked ? OptionState.Selected : OptionState.Idle);
         if (Choices[index].Id == Right.Id) return Styling.Option(OptionState.Right);
         return Styling.Option(picked ? OptionState.Wrong : OptionState.Idle);
     }

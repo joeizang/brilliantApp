@@ -156,11 +156,11 @@ else
 
     private void NextProblem() => Show(_problem?.Step.Id);
 
-    private static RenderFragment Mark(bool right) => right
+    internal static RenderFragment Mark(bool right) => right
         ? @<span class="practice-mark right grid size-7 flex-none place-items-center rounded-full bg-success-tint text-success"><Icon Name="check" Class="size-4" /><span class="sr-only">right</span></span>
         : @<span class="practice-mark wrong grid size-7 flex-none place-items-center rounded-full bg-danger-soft text-danger"><Icon Name="cross" Class="size-4" /><span class="sr-only">wrong</span></span>;
 
-    private static string Duration(TimeSpan t) =>
+    internal static string Duration(TimeSpan t) =>
         t < TimeSpan.FromMinutes(1) ? $"{Math.Max(1, (int)t.TotalSeconds)}s" : $"{(int)t.TotalMinutes}m {t.Seconds:00}s";
 
     private static string Describe(TimeSpan wait) => PracticeText.Describe(wait);
