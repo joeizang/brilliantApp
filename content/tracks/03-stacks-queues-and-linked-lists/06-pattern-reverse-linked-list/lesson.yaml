@@ -1,0 +1,688 @@
+id: lesson.pattern-reverse-linked-list
+title: "Pattern: reverse a linked list"
+concepts:
+  - id: concept.reverse-three-pointers
+    title: "Reversing with prev, cur and nxt"
+  - id: concept.reverse-part
+    title: Reversing part of a list
+reviewItems:
+  - id: review.reverse-list.lost-rest
+    concept: concept.reverse-three-pointers
+    step: step.reverse-list.predict-lost-rest
+  - id: review.reverse-list.return-prev
+    concept: concept.reverse-three-pointers
+    step: step.reverse-list.check-return-prev
+  - id: review.reverse-list.reattach
+    concept: concept.reverse-part
+    step: step.reverse-list.predict-reattach
+  - id: review.reverse-list.which-problem
+    concept: concept.reverse-three-pointers
+    step: step.reverse-list.check-which-problem
+    kind: pattern
+  - id: review.reverse-list.line-order
+    concept: concept.reverse-three-pointers
+    step: step.reverse-list.check-line-order
+    kind: pattern
+patterns:
+  - id: pattern.reverse-linked-list
+    title: "Reverse with prev, cur and nxt"
+steps:
+  - id: step.reverse-list.idea
+    type: explain
+    title: Turn every arrow round
+    body: |
+      To reverse `1 → 2 → 3` you don't move any values. You turn every `next` round, so `3 → 2 → 1`, and the old last node is
+      the new head. It's one pass, `O(n)` time and `O(1)` extra memory: no new nodes and no Python list.
+
+      Walk with three fingers:
+
+      - `prev`: the part already reversed (starts as `None`, the end of the new list)
+      - `cur`: the node being turned round
+      - `nxt`: the rest of the list, saved before `cur`'s arrow is changed
+
+      Each pass is four lines, always in this order: **save, turn, step, step.** When `cur` falls off the end, `prev` holds the
+      new head.
+    comparison:
+      csharp: |
+        Node? prev = null, cur = head;
+        while (cur != null)
+        {
+            var nxt = cur.Next;   // save the rest
+            cur.Next = prev;      // turn the arrow round
+            prev = cur;           // step prev on
+            cur = nxt;            // step cur on
+        }
+        return prev;
+      python: |
+        prev = None
+        cur = head
+        while cur:
+            nxt = cur.next        # save the rest
+            cur.next = prev       # turn the arrow round
+            prev = cur            # step prev on
+            cur = nxt             # step cur on
+        return prev
+  - id: step.reverse-list.trace
+    type: trace
+    title: Reversing 1 → 2 → 3
+    body: |
+      Watch each arrow turn round as `cur.next = prev` runs. The reversed part, reached only from `prev`, grows on the row below
+      while `cur` and `nxt` move along the rest. At the end `head` is pointed at `prev`, the old last node.
+    code: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      head = Node(1, Node(2, Node(3)))
+      prev = None
+      cur = head
+      while cur:
+          nxt = cur.next
+          cur.next = prev
+          prev = cur
+          cur = nxt
+      head = prev
+    visualise:
+      - variable: head
+        as: linked_list
+        pointers: [prev, cur, nxt]
+  - id: step.reverse-list.predict-lost-rest
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      This version doesn't save `nxt`. What does it print?
+    code: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def to_list(head):
+          values = []
+          while head:
+              values.append(head.val)
+              head = head.next
+          return values
+
+
+      def reverse(head):
+          prev = None
+          cur = head
+          while cur:
+              cur.next = prev
+              prev = cur
+              cur = cur.next
+          return prev
+
+
+      print(to_list(reverse(Node(1, Node(2, Node(3))))))
+    accepted:
+      - "[1]"
+    mistakes:
+      - answers:
+          - "[3, 2, 1]"
+        feedback: "By the time `cur = cur.next` runs, `cur.next` has just been set to `prev`, which is `None` on the first pass. The loop stops after one node, and `2 → 3` is lost."
+      - answers:
+          - "[]"
+        feedback: "One pass does run: `1` is turned round (pointing at `None`) and becomes `prev`, so the answer is the one-node list `[1]`."
+      - answers:
+          - "[1, 2, 3]"
+        feedback: "The first pass sets `1.next = None`, cutting `1` off from `2`. Whatever happens next, `1 → 2` is gone."
+    hints:
+      - "On the first pass, what is `cur.next` right after `cur.next = prev`?"
+      - "So where does `cur = cur.next` take `cur`?"
+  - id: step.reverse-list.check-return-prev
+    type: choice
+    title: Why return prev?
+    prompt: |
+      When the loop ends, the function returns `prev`, not `cur` or `head`. Why?
+    options:
+      - text: "The loop runs until `cur` is `None`, so `cur` is past the end. `prev` is the last node it turned round: the old tail, now the head."
+        correct: true
+        feedback: "Right. `prev` is always the head of the reversed part, and at the end the reversed part is the whole list."
+      - text: "`cur` would also work; `prev` is just the convention."
+        correct: false
+        feedback: "`cur` is `None` when the loop ends, so returning it would return an empty list."
+      - text: "`head` would be wrong only for a list of one node."
+        correct: false
+        feedback: "It's wrong for any list of two or more: `head` still holds the old first node, which is now the *last*, so you'd get a one-node list."
+      - text: "`prev` holds a copy of the reversed list."
+        correct: false
+        feedback: "No copies are made. `prev` refers to one of the original nodes; the nodes' arrows were turned round in place."
+    hints:
+      - "What is `cur` when `while cur:` stops?"
+      - "Which node did the last pass turn round?"
+  - id: step.reverse-list.check-line-order
+    type: choice
+    title: Save, turn, step, step
+    prompt: |
+      The four lines in the loop are `nxt = cur.next`, `cur.next = prev`, `prev = cur`, `cur = nxt`. Why must
+      `nxt = cur.next` come first?
+    options:
+      - text: "`cur.next = prev` overwrites the only reference to the rest of the list, so it must be saved before that line runs."
+        correct: true
+        feedback: "Right. Once `cur`'s arrow is turned round, nothing else points at the next node. Save it first, then turn."
+      - text: Python reads assignments right to left, so the order doesn't actually matter.
+        correct: false
+        feedback: "Each line runs in turn, and later lines see what earlier ones changed. Swap them and the rest of the list is lost."
+      - text: "It is only needed when the list has an even number of nodes."
+        correct: false
+        feedback: "Every pass but the last needs it, whatever the length. Without it the loop stops after the first node."
+      - text: "So that `prev` can be moved on before `cur`."
+        correct: false
+        feedback: "`prev = cur` doesn't need `nxt` at all. `nxt` exists because turning `cur`'s arrow round would otherwise lose the rest of the list."
+    hints:
+      - "After `cur.next = prev`, how could you still reach the node that used to come after `cur`?"
+  - id: step.reverse-list.pattern
+    type: explain
+    title: "Pattern: reverse in place"
+    body: |
+      Watch for:
+
+      - *reverse the list*, *in place*, *with `O(1)` extra memory*
+      - *reverse the first `k` nodes*, *reverse the second half*, *reverse between positions `i` and `j`*
+      - work that is easier **from the end**, on a list you can only walk from the front: adding to a number stored
+        most-significant digit first, comparing a list with itself backwards
+
+      **Reversing only part.** Run the same loop `k` times instead of until `None`. Afterwards `prev` is the head of the
+      reversed part, `cur` is the first node *not* reversed, and the old head is now the reversed part's **tail**. Its `next`
+      is still `None` from the first pass, so join it to the rest: `head.next = cur`. Forgetting that line drops everything
+      after the reversed part.
+
+      Reversing twice gets the original back, so "reverse, work from the front, reverse again" is a fair way to work from the end.
+    comparison:
+      csharp: |
+        Node? prev = null, cur = head;
+        for (int i = 0; i < k; i++)
+        {
+            var nxt = cur!.Next;
+            cur.Next = prev;
+            prev = cur;
+            cur = nxt;
+        }
+        head!.Next = cur;     // the old head is now the tail
+        return prev;
+      python: |
+        prev = None
+        cur = head
+        for _ in range(k):
+            nxt = cur.next
+            cur.next = prev
+            prev = cur
+            cur = nxt
+        head.next = cur       # the old head is now the tail
+        return prev
+  - id: step.reverse-list.trace-first-k
+    type: trace
+    title: Reversing only the first 3
+    body: |
+      The loop runs three times, so `cur` stops on `4`. The reversed part `3 → 2 → 1` hangs below, ending at `None`, until
+      `head.next = cur` joins `1` (the old head, now its tail) to `4`.
+    code: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      head = Node(1, Node(2, Node(3, Node(4, Node(5)))))
+      k = 3
+      prev = None
+      cur = head
+      for _ in range(k):
+          nxt = cur.next
+          cur.next = prev
+          prev = cur
+          cur = nxt
+      head.next = cur
+      head = prev
+    visualise:
+      - variable: head
+        as: linked_list
+        pointers: [prev, cur]
+  - id: step.reverse-list.predict-reattach
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      `reverse_first(head, k)` is meant to reverse the first `k` nodes and keep the rest. What does this print?
+    code: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def to_list(head):
+          values = []
+          while head:
+              values.append(head.val)
+              head = head.next
+          return values
+
+
+      def reverse_first(head, k):
+          prev = None
+          cur = head
+          for _ in range(k):
+              nxt = cur.next
+              cur.next = prev
+              prev = cur
+              cur = nxt
+          return prev
+
+
+      print(to_list(reverse_first(Node(1, Node(2, Node(3))), 2)))
+    accepted:
+      - "[2, 1]"
+    mistakes:
+      - answers:
+          - "[2, 1, 3]"
+        feedback: "That's what it's meant to print. But `1` was turned round to point at `None` on the first pass, and nothing joins it to `3` afterwards: `head.next = cur` is missing."
+      - answers:
+          - "[3, 2, 1]"
+        feedback: "The loop runs `k = 2` times, so only `1` and `2` are turned round. `3` is left where it was, and then left behind."
+      - answers:
+          - "[1]"
+        feedback: "`nxt` is saved before each arrow is turned, so both passes run. `prev` ends on `2`, whose arrow points at `1`."
+    hints:
+      - "After two passes, what is `prev`, and what is `cur`?"
+      - "What does `1.next` refer to now? Is anything pointing at `3`?"
+  - id: step.reverse-list.check-which-problem
+    type: choice
+    title: Which problem is a reversal?
+    prompt: |
+      Each of these works on a linked list. Which one is solved by turning the arrows round with `prev`, `cur` and `nxt`?
+    options:
+      - text: "The digits of a number are stored most-significant first, `1 → 2 → 9` for 129. Add one to it, changing the list in place."
+        correct: true
+        feedback: "Right. Adding starts at the last digit, but the list only walks forwards. Reverse it, add with a carry from the front, and reverse it back."
+      - text: Remove every node whose value is negative.
+        correct: false
+        feedback: "That deletes nodes, and the head might go: a dummy head, from the last lesson."
+      - text: Insert a value into a list that is sorted from smallest to largest.
+        correct: false
+        feedback: "Walk from a dummy to the node before the spot and link the new node in. Nothing needs reversing."
+      - text: For each number in a plain Python list, find the next larger number to its right.
+        correct: false
+        feedback: "That's the monotonic stack, and there is no linked list in it."
+    hints:
+      - "Which problem would be easy if you could walk the list from the back?"
+  - id: step.reverse-list.fill
+    type: fill-blank
+    title: Complete reverse
+    pattern: pattern.reverse-linked-list
+    patternCue: "\"Reverse the linked list in place\": walk with `prev`, `cur` and `nxt`, turning each arrow round: save, turn, step, step."
+    prompt: |
+      Fill in the blanks so that `reverse(head)` reverses the list in place and returns its new head.
+    template: |
+      def reverse(head):
+          prev = None
+          cur = head
+          while cur:
+              nxt = {{save}}
+              cur.next = {{turn}}
+              prev = cur
+              cur = {{step}}
+          return {{result}}
+    blanks:
+      - id: save
+        accepted:
+          - "cur.next"
+        mistakes:
+          - answers:
+              - "prev"
+            feedback: "`nxt` is the rest of the list, ahead of `cur`: `cur.next`, saved before the next line overwrites it."
+      - id: turn
+        accepted:
+          - "prev"
+        mistakes:
+          - answers:
+              - "nxt"
+            feedback: "`cur.next` already *is* `nxt`, so that changes nothing. Turn the arrow round to point back at `prev`."
+          - answers:
+              - "None"
+            feedback: "Only the first node should point at `None`. Every other node points back at the one before it: `prev`."
+      - id: step
+        accepted:
+          - "nxt"
+        mistakes:
+          - answers:
+              - "cur.next"
+            feedback: "`cur.next` was just turned round to `prev`, so that steps backwards. The saved `nxt` is the way forward."
+      - id: result
+        accepted:
+          - "prev"
+        mistakes:
+          - answers:
+              - "head"
+            feedback: "`head` is still the old first node, which is now the last. The new head is the last node turned round: `prev`."
+          - answers:
+              - "cur"
+            feedback: "The loop ends when `cur` is `None`. The new head is `prev`."
+    hints:
+      - "Save, turn, step, step."
+      - "Before turning `cur.next` round, save the node it points at."
+      - "When `cur` is `None`, which finger is on the new head?"
+  - id: step.reverse-list.order-first-k
+    type: parsons
+    title: Reverse the first k
+    pattern: pattern.reverse-linked-list
+    patternCue: "\"Reverse the first `k` nodes\": run the reverse loop `k` times, then join the old head (now the tail) to what's left."
+    prompt: |
+      Arrange the lines into `reverse_first(head, k)`, which reverses the first `k` nodes, keeps the rest in order after them,
+      and returns the new head. The list has at least `k` nodes, and `k` is at least 1.
+    solution: |
+      def reverse_first(head, k):
+          prev = None
+          cur = head
+          for _ in range(k):
+              nxt = cur.next
+              cur.next = prev
+              prev = cur
+              cur = nxt
+          head.next = cur
+          return prev
+    hints:
+      - "The loop body is the usual four lines: save, turn, step, step."
+      - "After the loop, the old head is the tail of the reversed part. Join it to `cur`."
+  - id: step.reverse-list.write-reverse
+    type: write-code
+    largeScreenPreferred: true
+    title: Reverse a linked list
+    pattern: pattern.reverse-linked-list
+    patternCue: "\"Reverse the list, in place\": no new nodes, just turn every arrow round with `prev`, `cur` and `nxt`."
+    compare: linked_list
+    prompt: |
+      Write `reverse(head)` that reverses the linked list in place and returns the new head. Don't create new nodes. `None` (the
+      empty list) reverses to `None`. The tests compare the list you return by its values.
+
+      `Node` and `build` are in the starter; keep them.
+    language: python
+    entrypoint: reverse
+    starter: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def reverse(head):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def reverse(head):
+          prev = None
+          cur = head
+          while cur:
+              nxt = cur.next
+              cur.next = prev
+              prev = cur
+              cur = nxt
+          return prev
+    tests:
+      - input: "build([1, 2, 3, 4])"
+        expected: "[4, 3, 2, 1]"
+      - input: "build([7, 8])"
+        expected: "[8, 7]"
+      - input: "build([5])"
+        expected: "[5]"
+      - input: "None"
+        expected: "[]"
+    hints:
+      - "Three fingers: `prev = None`, `cur = head`, and `nxt` inside the loop."
+      - "Each pass: `nxt = cur.next`, `cur.next = prev`, `prev = cur`, `cur = nxt`."
+      - "When `cur` is `None`, return `prev`."
+    walkthrough:
+      call: result = reverse(build([1, 2, 3, 4]))
+      visualise:
+        - variable: head
+          as: linked_list
+          pointers: [prev, cur, nxt]
+      explanation: |
+        Each pass saves the rest in `nxt`, turns `cur`'s arrow back to `prev`, then moves both fingers on. `head` stays on `1`,
+        which ends up last, pointing at `None`. When `cur` falls off the end, `prev` is on `4`, the new head.
+    phoneAlternative:
+      id: step.reverse-list.write-reverse.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `reverse(head)`, which reverses the linked list in place and returns the new head. Arrange the lines instead of
+        typing them.
+      solution: |
+        def reverse(head):
+            prev = None
+            cur = head
+            while cur:
+                nxt = cur.next
+                cur.next = prev
+                prev = cur
+                cur = nxt
+            return prev
+      hints:
+        - "Three fingers: `prev` starts at `None`, `cur` at `head`."
+        - "Each pass: save, turn, step, step."
+        - "When `cur` is `None`, `prev` is on the new head."
+  - id: step.reverse-list.write-first-k
+    type: write-code
+    largeScreenPreferred: true
+    title: Reverse the first k
+    pattern: pattern.reverse-linked-list
+    patternCue: "\"Reverse the first `k` nodes, keep the rest\": the reverse loop runs `k` times, then the old head, now the tail, is joined to the rest."
+    compare: linked_list
+    prompt: |
+      Write `reverse_first(head, k)` that reverses the first `k` nodes of the list in place, keeps the rest after them in their
+      order, and returns the new head. If the list has fewer than `k` nodes, reverse all of it. `k` is at least 1.
+      `reverse_first(build([1, 2, 3, 4, 5]), 3)` gives `3 → 2 → 1 → 4 → 5`.
+
+      `Node` and `build` are in the starter; keep them.
+    language: python
+    entrypoint: reverse_first
+    starter: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def reverse_first(head, k):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def reverse_first(head, k):
+          if head is None:
+              return None
+          prev = None
+          cur = head
+          for _ in range(k):
+              if cur is None:
+                  break
+              nxt = cur.next
+              cur.next = prev
+              prev = cur
+              cur = nxt
+          head.next = cur
+          return prev
+    tests:
+      - input: "build([1, 2, 3, 4, 5]), 3"
+        expected: "[3, 2, 1, 4, 5]"
+      - input: "build([1, 2, 3]), 1"
+        expected: "[1, 2, 3]"
+      - input: "build([1, 2, 3]), 3"
+        expected: "[3, 2, 1]"
+      - input: "build([1, 2]), 5"
+        expected: "[2, 1]"
+      - input: "None, 2"
+        expected: "[]"
+    hints:
+      - "Run the reverse loop at most `k` times; stop early if `cur` becomes `None`."
+      - "After the loop, `prev` is the new head and `cur` is the first node not reversed."
+      - "The old head is now the tail of the reversed part: `head.next = cur`. Check `head is None` first."
+    walkthrough:
+      call: result = reverse_first(build([1, 2, 3, 4, 5]), 3)
+      visualise:
+        - variable: head
+          as: linked_list
+          pointers: [prev, cur]
+      explanation: |
+        Three passes turn `1`, `2` and `3` round, leaving `cur` on `4`. `head` is still on `1`, now the tail of `3 → 2 → 1`, so
+        `head.next = cur` joins it to `4`. The new head is `prev`, on `3`.
+  - id: step.reverse-list.write-plus-one
+    type: write-code
+    largeScreenPreferred: true
+    title: Add one to a number
+    pattern: pattern.reverse-linked-list
+    patternCue: "\"Add one to a number stored most-significant digit first\": the carry starts at the end, so reverse, add from the front, and reverse back."
+    compare: linked_list
+    prompt: |
+      A non-negative number is stored one digit per node, most significant digit first: `1 → 2 → 9` is 129. Write
+      `plus_one(head)` that adds one to the number and returns the head of the result: `1 → 3 → 0`. Change the existing
+      nodes; add a node only if the number grows a digit (`9 → 9` becomes `1 → 0 → 0`). The list has at least one node.
+
+      `Node` and `build` are in the starter; keep them.
+    language: python
+    entrypoint: plus_one
+    starter: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def plus_one(head):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def reverse(head):
+          prev = None
+          cur = head
+          while cur:
+              nxt = cur.next
+              cur.next = prev
+              prev = cur
+              cur = nxt
+          return prev
+
+
+      def plus_one(head):
+          head = reverse(head)
+          carry = 1
+          cur = head
+          while cur and carry:
+              total = cur.val + carry
+              cur.val = total % 10
+              carry = total // 10
+              cur = cur.next
+          head = reverse(head)
+          if carry:
+              head = Node(1, head)
+          return head
+    tests:
+      - input: "build([1, 2, 9])"
+        expected: "[1, 3, 0]"
+      - input: "build([1, 2, 3])"
+        expected: "[1, 2, 4]"
+      - input: "build([9, 9])"
+        expected: "[1, 0, 0]"
+      - input: "build([0])"
+        expected: "[1]"
+      - input: "build([1, 9, 9])"
+        expected: "[2, 0, 0]"
+    hints:
+      - "The carry moves from the last digit towards the first, but the list walks the other way. Reverse it first."
+      - "Walk the reversed list with `carry = 1`: each digit becomes `(val + carry) % 10`, and the carry `(val + carry) // 10`. Stop when the carry is 0."
+      - "Reverse it back. If a carry is left over, put a new `Node(1, head)` in front."
+    walkthrough:
+      call: result = plus_one(build([1, 9, 9]))
+      visualise:
+        - variable: head
+          as: linked_list
+          pointers: [cur]
+      explanation: |
+        Reversed, the list is `9 → 9 → 1`, least significant digit first. `9 + 1` is `10`: write `0`, carry `1`, twice. Then
+        `1 + 1` is `2` with no carry, so the walk stops. Reversing back gives `2 → 0 → 0`. A carry left over at the end (as for
+        `99`) means a new `1` in front.
+    phoneAlternative:
+      id: step.reverse-list.write-plus-one.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `plus_one(head)`, which adds one to a number stored most significant digit first (`1 → 2 → 9` is 129) and returns
+        the head of the result. `reverse(head)` from earlier is already written. Arrange the lines instead of typing them.
+      solution: |
+        def plus_one(head):
+            head = reverse(head)
+            carry = 1
+            cur = head
+            while cur and carry:
+                total = cur.val + carry
+                cur.val = total % 10
+                carry = total // 10
+                cur = cur.next
+            head = reverse(head)
+            if carry:
+                head = Node(1, head)
+            return head
+      hints:
+        - "Reverse first, so the walk starts at the least significant digit."
+        - "Each digit becomes `total % 10`, and the carry `total // 10`. Stop when the carry is 0."
+        - "Reverse back, then put a new `1` in front if a carry is left."
