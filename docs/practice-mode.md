@@ -44,7 +44,7 @@ steps:
 
 1. a step whose pick or solve was last answered wrong, or has a re-solve item due;
 2. steps never practised;
-3. steps on the learner's lowest-mastery patterns ([mastery.md](mastery.md));
+3. steps on the learner's lowest pattern mastery ([see Mastery below](#mastery));
 4. the rest, least recently practised first.
 
 The same problem is not offered twice in a row. This is a pure function (`PracticeSelector`) of the completed lessons, the log and a random seed, so it is unit-testable.
@@ -91,11 +91,28 @@ A practice answer is a `ReviewAnswered` event on a review item, scored by the sa
 Both items are **derived**, never authored, like re-solves today. Differences from today's rules, which the implementation must change in `LearnerStateProjector`:
 
 1. A `resolve.<step>` item currently exists only if the lesson attempt failed or used a hint. It now **also exists once the step has been practised**, so a correct practice solve starts its own schedule. A `pick.<step>` item exists once the step has been practised.
-2. Practice and interview answers are written as a new event type, `PracticeAnswered` `{ step, part: "pick"|"solve", correct, hintsUsed, elapsedMs, rating, mode, run? }`, which the projector folds through FSRS like `ReviewAnswered` but which is ignored by lesson progress. (A separate event keeps the log honest about where an answer came from, and keeps today's `ReviewAnswered` meaning unchanged.)
+2. Practice and interview answers are written as a new event type, `PracticeAnswered` `{ step, part: "pick"|"solve", correct, picked?, hintsUsed, elapsedMs, rating, mode, run? }`, which the projector folds through FSRS like `ReviewAnswered` but which is ignored by lesson progress. (A separate event keeps the log honest about where an answer came from, and keeps today's `ReviewAnswered` meaning unchanged.)
 3. Only the **first** answer to a part in a given practice visit or interview run is scheduled; retrying is practice, as in Review.
 4. Interview unanswered problems are recorded as `Again` for both parts when the run ends.
 
-Practice never changes lesson completion or unlocking. Mastery ([mastery.md](mastery.md)) is built on review items, so practice moves it automatically.
+**The chosen pattern is persisted.** A `pick` answer carries `picked`: the stable ID of the pattern the learner chose, so two different wrong choices are distinguishable. A pick that was never made (an interview problem left unanswered) is written by the finishing step with `picked: null` and `correct: false`. Anything that shows a pick reads it from the log, never from UI state:
+
+- the interview summary shows "you picked X, it was Y" from the `pick` answer for that run and step, and "no answer" when `picked` is `null`;
+- resuming an open run restores each problem's locked pick and any submitted solution from the run's `PracticeAnswered` events, so a reopened or synced run looks the same on any device;
+- if the same part has several answers in a run (a retry), the first is the scheduled and displayed one, matching rule 3.
+
+Practice never changes lesson completion or unlocking.
+
+### Mastery
+
+Practice does **not** move the existing concept and track mastery bars. Those are the mean of a concept's *authored* review items; derived `resolve.` items belong to no concept and are excluded by design ([mastery.md](mastery.md)), and `pick.` items are the same. Pretending otherwise would leave the bars unchanged while the docs promised they moved. Instead practice gets its own measure, **pattern mastery**:
+
+- A step's score is the mean of its two items' mastery (`min(1, stability / 21 days) × retrievability now`, the item rule in [mastery.md](mastery.md)), a part never practised counting as zero.
+- A pattern's mastery is the mean of the scores of the tagged problem steps of that pattern in completed lessons, so one practised problem out of five is a fifth of the way, as with concepts. A pattern with no tagged steps in completed lessons has no value and is never offered.
+- It is a pure projection, like concept mastery: `LearnerState.Patterns` (`PatternMastery`: pattern, lesson, mastery, steps practised, steps tagged), computed by the projector from the log and the content, with the same level names (not started, seen, learning, known).
+- It is what the selector's "lowest-mastery patterns" ranking reads, and what the interview summary and the Practice card show ("Prefix sums: learning, 34%").
+
+Concept mastery is unchanged by this feature. Linking a pattern to a concept so that practice also lifts the concept bar is a possible later step, not part of this one.
 
 In Review, a `pick.` item is shown as the same unlabelled problem with the pattern choice. A `resolve.` item behaves as today.
 
@@ -109,7 +126,7 @@ In Review, a `pick.` item is shown as the same unlabelled problem with the patte
 ## Proposed slices
 
 1. **Content model**: `patterns:` on lessons, `pattern:` on problem steps, validator rules and the warning, tags on the existing Tracks 1–2 content, and a note in the content-authoring docs.
-2. **Practice core** (pure, Brilliant.Core): `PracticeSelector`, the `PracticeAnswered` event and the projector changes for `pick.` and `resolve.`, with tests.
+2. **Practice core** (pure, Brilliant.Core): `PracticeSelector`, the `PracticeAnswered` event (with `picked`), the projector changes for `pick.` and `resolve.`, `PatternMastery` / `LearnerState.Patterns`, and the matching update to [mastery.md](mastery.md), with tests.
 3. **Practice UI**: the card, the pick-then-solve flow, results, `pick.` items in Review.
 4. **Interview mode**: `InterviewStarted` / `InterviewFinished`, the clock, resume, the summary.
 
