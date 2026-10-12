@@ -55,6 +55,7 @@ public sealed class PackPublisher(PackClient client, IDeviceCredentialStore cred
     private static string Describe(SyncException e) => e.Failure switch
     {
         SyncFailure.Unauthorized => "the server no longer accepts this computer. Pair it again: brilliant pair <server> <code>",
+        SyncFailure.Untrusted => CliPairing.UntrustedAdvice,
         SyncFailure.Unreachable => $"the server could not be reached ({e.Detail}).",
         _ => e.Detail ?? e.Failure.ToString(),
     };
@@ -63,6 +64,9 @@ public sealed class PackPublisher(PackClient client, IDeviceCredentialStore cred
 /// <summary><c>brilliant pair</c>: pairs this computer with the household server so it can publish.</summary>
 public sealed class CliPairing(PairingService pairing)
 {
+    /// <summary>The CLI trusts what the computer trusts, so it works once the household's certificate authority is installed here.</summary>
+    public const string UntrustedAdvice = "this computer does not trust the server's certificate. Install the household's certificate authority on it (docs/https.md).";
+
     public async Task<int> PairAsync(string server, string code, string name, TextWriter output, TextWriter error, CancellationToken ct = default)
     {
         var outcome = await pairing.PairAsync(server, code, name, ct);
@@ -73,11 +77,12 @@ public sealed class CliPairing(PairingService pairing)
         }
         error.WriteLine("error: " + outcome.Failure switch
         {
-            PairingFailure.BadAddress => "that is not a server address (try 192.168.1.20:8080).",
+            PairingFailure.BadAddress => "that is not a server address (try 192.168.1.20:8443; the server speaks https).",
             PairingFailure.CodeRejected => "the code is wrong, expired or already used. Mint a new one: docker compose exec -T server dotnet Brilliant.Server.dll pairing-code",
             PairingFailure.TooManyAttempts => "too many wrong tries; wait a minute.",
             PairingFailure.Rejected => "the server refused the request (is the device name empty?).",
             PairingFailure.CouldNotSave => $"paired, but the credentials could not be saved ({outcome.Detail}). Revoke the device on the server and try again.",
+            PairingFailure.Untrusted => UntrustedAdvice,
             _ => $"the server could not be reached ({outcome.Detail}).",
         });
         return 1;

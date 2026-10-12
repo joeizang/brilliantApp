@@ -1,5 +1,6 @@
 # The Brilliant home server: the API plus its PostgreSQL database. See docs/server.md.
 #   cp .env.example .env   (then set POSTGRES_PASSWORD)
+#   scripts/local-ca.sh    (the HTTPS certificate; docs/https.md)
 #   docker compose up -d --build
 services:
   postgres:
@@ -22,13 +23,20 @@ services:
       context: .
       dockerfile: src/Brilliant.Server/Dockerfile
     restart: unless-stopped
+    # The TLS key is readable by its owner alone (scripts/local-ca.sh), so the server runs as that user; the script sets these in .env.
+    user: "${SERVER_UID:-1000}:${SERVER_GID:-1000}"
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       ConnectionStrings__Postgres: Host=postgres;Database=brilliant;Username=brilliant;Password=${POSTGRES_PASSWORD};GSS Encryption Mode=Disable
+      # HTTPS only, with the certificate scripts/local-ca.sh made (docs/https.md). The server refuses to start without it.
+      Tls__CertificatePath: /tls/server.pem
+      Tls__KeyPath: /tls/server.key
+    volumes:
+      - ${TLS_DIR:-./tls}:/tls:ro
     ports:
-      - "${SERVER_PORT:-8080}:8080"
+      - "${SERVER_PORT:-8443}:8443"
 
   # Nightly pg_dump into BACKUP_DIR (default ./backups), keeping the last BACKUP_KEEP. See docs/backup.md.
   backup:

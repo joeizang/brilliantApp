@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The household server is HTTPS with a certificate from the household's own certificate authority (docs/https.md). Cleartext is off
+  everywhere. Android 7+ ignores certificate authorities a person installs unless an app opts in, so "user" is listed beside "system":
+  without it the phone would refuse the server even after the authority is installed.
+-->
+<network-security-config>
+	<base-config cleartextTrafficPermitted="false">
+		<trust-anchors>
+			<certificates src="system" />
+			<certificates src="user" />
+		</trust-anchors>
+	</base-config>
+</network-security-config>

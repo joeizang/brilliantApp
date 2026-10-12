@@ -66,7 +66,7 @@ else
         <div class="grid gap-1">
             <label class="font-semibold" for="pair-address">Server address</label>
             <input id="pair-address" class="pair-address @InputClass" type="text" inputmode="url" autocapitalize="none" autocorrect="off" spellcheck="false"
-                   placeholder="192.168.1.20:8080" @bind="_address" @bind:event="onchange" />
+                   placeholder="192.168.1.20:8443" @bind="_address" @bind:event="onchange" />
         </div>
         <div class="grid gap-1">
             <label class="font-semibold" for="pair-code">Pairing code</label>
@@ -153,6 +153,7 @@ else
 
     private static string FailureText(SyncFailure failure) => failure switch
     {
+        SyncFailure.Untrusted => "This device doesn't trust the server's certificate. Install the household's certificate authority on it (see docs/https.md), then sync again.",
         SyncFailure.Unreachable => "Couldn't reach the server. Your progress is safe on this device and will sync when it's back.",
         SyncFailure.Unauthorized => "The server no longer accepts this device; it may have been revoked. Forget it here and pair again.",
         SyncFailure.NotPaired => "This device isn't paired with a server.",
@@ -186,7 +187,8 @@ else
                 _detail = outcome.Detail;
                 _error = outcome.Failure switch
                 {
-                    PairingFailure.BadAddress => "That doesn't look like a server address. Try something like 192.168.1.20:8080.",
+                    PairingFailure.BadAddress => "That doesn't look like a server address. Try something like 192.168.1.20:8443 (the server speaks https; http:// addresses aren't used).",
+                    PairingFailure.Untrusted => "This device doesn't trust the server's certificate. Install the household's certificate authority on it (see docs/https.md), then try again.",
                     PairingFailure.CodeRejected => "That code didn't work. It may have expired or been used already; ask the server for a new one.",
                     PairingFailure.TooManyAttempts => "Too many tries. Wait a minute and try again.",
                     PairingFailure.CouldNotSave => "The server accepted this device, but it couldn't be remembered here. Revoke it on the server and try again.",

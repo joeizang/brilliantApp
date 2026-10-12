@@ -11,6 +11,8 @@ RUN dotnet publish src/Brilliant.Server/Brilliant.Server.csproj -c Release --no-
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /app .
-EXPOSE 8080
+# The base image listens on plain 8080 by default; this server is HTTPS only, on 8443 (see ServerTls).
+ENV ASPNETCORE_HTTP_PORTS=
+EXPOSE 8443
 USER $APP_UID
 ENTRYPOINT ["dotnet", "Brilliant.Server.dll"]

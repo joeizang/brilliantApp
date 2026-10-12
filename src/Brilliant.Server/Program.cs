@@ -8,6 +8,17 @@ using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Behind docker compose the server speaks HTTPS only, with the household's certificate (docs/https.md). Without the settings it keeps
+// the default plain endpoint, for `dotnet run` and the tests.
+var tls = ServerTls.From(builder.Configuration);
+if (tls is not null)
+{
+    var certificate = ServerTls.Load(tls, TimeProvider.System);
+    if (ServerTls.ExpiresSoon(certificate, TimeProvider.System))
+        Console.Error.WriteLine($"warn: the TLS certificate expires on {certificate.NotAfter:yyyy-MM-dd}. Run scripts/local-ca.sh to renew it (docs/https.md).");
+    builder.WebHost.ConfigureKestrel(o => ServerTls.Listen(o, certificate, tls.Port));
+}
+
 builder.Services.AddDbContext<ServerDb>(o => o.UseNpgsql(
     builder.Configuration.GetConnectionString("Postgres") ?? throw new InvalidOperationException("ConnectionStrings:Postgres is not set.")));
 builder.Services.AddSingleton(TimeProvider.System);

@@ -126,7 +126,7 @@ public class PairingViewTests : BunitContext
 
         cut.Find("form.pair-form").Submit();
 
-        cut.WaitForAssertion(() => Assert.Contains("nuc.local:8080", cut.Find(".paired-server").TextContent));
+        cut.WaitForAssertion(() => Assert.Contains("nuc.local:8443", cut.Find(".paired-server").TextContent));
         Assert.Equal("tok-1", _store.Saved!.Token);
         Assert.Empty(cut.FindAll("form.pair-form"));
     }
@@ -187,6 +187,43 @@ public class PairingViewTests : BunitContext
         cut.Find("form.pair-form").Submit();
 
         cut.WaitForAssertion(() => Assert.Contains("Couldn't reach", cut.Find(".pair-error").TextContent));
+    }
+
+    private sealed class Untrusted : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>
+            throw new HttpRequestException(HttpRequestError.SecureConnectionError, "The SSL connection could not be established");
+    }
+
+    [Fact]
+    public void A_certificate_the_device_does_not_trust_says_to_install_the_authority_not_to_check_the_network()
+    {
+        Services.AddSingleton(new PairingService(new PairingClient(new HttpClient(new Untrusted())), _store));
+        Services.AddSingleton(new SyncService(new EmptyLog(), "me", _store, new SyncClient(new HttpClient(_syncServer)), _syncState, _clock));
+        Services.AddSingleton<TimeProvider>(_clock);
+        var cut = Render<PairingView>();
+        Fill(cut);
+
+        cut.Find("form.pair-form").Submit();
+
+        cut.WaitForAssertion(() =>
+        {
+            var text = cut.Find(".pair-error").TextContent;
+            Assert.Contains("doesn't trust the server's certificate", text);
+            Assert.DoesNotContain("Couldn't reach", text);
+        });
+    }
+
+    [Fact]
+    public void An_address_typed_with_plain_http_is_turned_away_with_what_to_type()
+    {
+        var cut = Open();
+        Fill(cut, address: "http://nuc.local:8080");
+
+        cut.Find("form.pair-form").Submit();
+
+        cut.WaitForAssertion(() => Assert.Contains("https", cut.Find(".pair-error").TextContent));
+        Assert.Equal(0, _server.Calls);
     }
 
     [Fact]

@@ -55,7 +55,7 @@ docker compose exec -T postgres pg_restore -U brilliant -d brilliant --clean --i
 docker compose start server
 ```
 
-`--clean --if-exists` drops each object before recreating it, so the restore also works on a database that already has data (and on an empty one). Errors about objects that "do not exist" don't occur with `--if-exists`; anything else printed is worth reading. Check it with `curl http://localhost:8080/health` and `docker compose exec -T postgres psql -U brilliant -d brilliant -c 'select count(*) from "Events"'`.
+`--clean --if-exists` drops each object before recreating it, so the restore also works on a database that already has data (and on an empty one). Errors about objects that "do not exist" don't occur with `--if-exists`; anything else printed is worth reading. Check it with `curl --cacert tls/brilliant-ca.crt https://localhost:8443/health` and `docker compose exec -T postgres psql -U brilliant -d brilliant -c 'select count(*) from "Events"'`.
 
 On a **new machine** (after a lost disk), bring the stack up first so Postgres and the schema exist (`docker compose up -d`), then restore as above.
 

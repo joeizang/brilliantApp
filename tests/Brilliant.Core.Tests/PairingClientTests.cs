@@ -7,14 +7,15 @@ namespace Brilliant.Core.Tests;
 public class ServerAddressTests
 {
     [Theory]
-    [InlineData("192.168.1.20:9000", "http://192.168.1.20:9000/")]
-    [InlineData("nuc.local", "http://nuc.local:8080/")]
-    [InlineData("  nuc.local:8080/  ", "http://nuc.local:8080/")]
-    [InlineData("http://nuc.local", "http://nuc.local:8080/")]
-    [InlineData("http://nuc.local:80", "http://nuc.local/")]
+    [InlineData("192.168.1.20:9000", "https://192.168.1.20:9000/")]
+    [InlineData("192.168.1.20", "https://192.168.1.20:8443/")]
+    [InlineData("nuc.local", "https://nuc.local:8443/")]
+    [InlineData("  nuc.local:8443/  ", "https://nuc.local:8443/")]
+    [InlineData("https://nuc.local:8443", "https://nuc.local:8443/")]
     [InlineData("https://learn.example.com", "https://learn.example.com/")]
-    [InlineData("https://learn.example.com:8443/", "https://learn.example.com:8443/")]
-    [InlineData("[fe80::1]:8080", "http://[fe80::1]:8080/")]
+    [InlineData("https://learn.example.com:9443/", "https://learn.example.com:9443/")]
+    [InlineData("[fe80::1]:8443", "https://[fe80::1]:8443/")]
+    [InlineData("[fe80::1]", "https://[fe80::1]:8443/")]
     public void Addresses_people_type_are_understood(string typed, string expected)
     {
         Assert.True(ServerAddress.TryParse(typed, out var address));
@@ -26,11 +27,19 @@ public class ServerAddressTests
     [InlineData("")]
     [InlineData("   ")]
     [InlineData("ftp://nuc.local")]
-    [InlineData("http://nuc.local/api")]
-    [InlineData("http://nuc.local/?x=1")]
-    [InlineData("http://user:pw@nuc.local")]
-    [InlineData("http://")]
+    [InlineData("https://nuc.local/api")]
+    [InlineData("https://nuc.local/?x=1")]
+    [InlineData("https://user:pw@nuc.local")]
+    [InlineData("https://")]
     public void Addresses_we_cannot_use_are_refused(string? typed) => Assert.False(ServerAddress.TryParse(typed, out _));
+
+    // Neither app can send cleartext (Android's network security config and Mac's ATS both refuse it), so a typed http:// could only
+    // ever fail later with a confusing network error. It is refused here, where the screen can say what to type instead.
+    [Theory]
+    [InlineData("http://nuc.local")]
+    [InlineData("http://nuc.local:8080")]
+    [InlineData("HTTP://192.168.1.20:8080/")]
+    public void Plain_http_is_refused(string typed) => Assert.False(ServerAddress.TryParse(typed, out _));
 }
 
 public class PairingClientTests
@@ -70,8 +79,8 @@ public class PairingClientTests
         var outcome = await client.PairAsync("nuc.local", "abcd-2345", "My Mac");
 
         Assert.True(outcome.Succeeded);
-        Assert.Equal(new DeviceCredentials(new Uri("http://nuc.local:8080/"), "dev-1", "tok-1"), outcome.Credentials);
-        Assert.Equal("http://nuc.local:8080/pair", handler.Seen!.RequestUri!.ToString());
+        Assert.Equal(new DeviceCredentials(new Uri("https://nuc.local:8443/"), "dev-1", "tok-1"), outcome.Credentials);
+        Assert.Equal("https://nuc.local:8443/pair", handler.Seen!.RequestUri!.ToString());
         var sent = await handler.Seen.Content!.ReadFromJsonAsync<PairRequest>();
         Assert.Equal(new PairRequest("abcd-2345", "My Mac"), sent);
     }

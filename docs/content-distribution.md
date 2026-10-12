@@ -12,7 +12,7 @@ One-time, from the Mac that has the `content/` folder: pair the command line wit
 
 ```bash
 docker compose exec -T server dotnet Brilliant.Server.dll pairing-code
-dotnet run --project tools/Brilliant.Cli -- pair 192.168.1.20:8080 ABCD-2345 --name "Mac CLI"
+dotnet run --project tools/Brilliant.Cli -- pair 192.168.1.20:8443 ABCD-2345 --name "Mac CLI"
 ```
 
 The CLI keeps its credentials in `~/.brilliant/cli-credentials.json` (mode 600; override the path with `BRILLIANT_CLI_CREDENTIALS`). It shows up in the server's device list like any device and is revoked the same way. **Any paired device may publish**; the household is the trust boundary, as it is for progress.
