@@ -24,3 +24,6 @@ dist/
 
 # Database dumps from the backup service
 backups/
+
+# The server's TLS certificate and key from scripts/local-ca.sh (docs/https.md). The CA's own key lives in ~/.brilliant/ca.
+tls/

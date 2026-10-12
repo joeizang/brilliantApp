@@ -181,6 +181,30 @@ public sealed class PublishTests : IDisposable
     }
 
     [Fact]
+    public async Task A_server_whose_certificate_is_not_trusted_says_to_install_the_authority()
+    {
+        WriteContent();
+        var server = new FakeServer(_ => throw new HttpRequestException(HttpRequestError.SecureConnectionError, "The SSL connection could not be established"));
+
+        var code = await Run(server, new MemoryStore(Paired), "publish", _root);
+
+        Assert.Equal(1, code);
+        Assert.Contains("does not trust the server's certificate", _err.ToString());
+        Assert.Contains("docs/https.md", _err.ToString());
+    }
+
+    [Fact]
+    public async Task Pairing_with_a_certificate_that_is_not_trusted_says_to_install_the_authority()
+    {
+        var server = new FakeServer(_ => throw new HttpRequestException(HttpRequestError.SecureConnectionError, "The SSL connection could not be established"));
+
+        var code = await Run(server, new MemoryStore(null), "pair", "nuc", "ABCD-2345");
+
+        Assert.Equal(1, code);
+        Assert.Contains("does not trust the server's certificate", _err.ToString());
+    }
+
+    [Fact]
     public async Task Pairing_stores_the_credentials_for_publish_to_use()
     {
         var server = new FakeServer(_ => Json(HttpStatusCode.OK, new PairResponse("dev-9", "tok-9")));
@@ -189,7 +213,7 @@ public sealed class PublishTests : IDisposable
         var code = await Run(server, store, "pair", "nuc", "ABCD-2345", "--name", "Joseph's Mac");
 
         Assert.Equal(0, code);
-        Assert.Equal(new DeviceCredentials(new Uri("http://nuc:8080/"), "dev-9", "tok-9"), store.Saved);
+        Assert.Equal(new DeviceCredentials(new Uri("https://nuc:8443/"), "dev-9", "tok-9"), store.Saved);
         Assert.DoesNotContain("tok-9", _out.ToString() + _err.ToString());   // the token is never printed
     }
 

@@ -14,6 +14,9 @@ public enum SyncFailure
     /// <summary>The server couldn't be reached (away from home, switched off, wrong network).</summary>
     Unreachable,
 
+    /// <summary>The server answered, but this device doesn't trust its certificate: the household's certificate authority isn't installed on it (docs/https.md).</summary>
+    Untrusted,
+
     /// <summary>The server answered but no longer accepts this device's token: it was revoked, or the server was reset.</summary>
     Unauthorized,
 
@@ -78,7 +81,7 @@ public sealed class SyncClient(HttpClient http)
         catch (Exception e) when (e is HttpRequestException or TaskCanceledException or JsonException)
         {
             if (ct.IsCancellationRequested) throw;
-            throw new SyncException(e is JsonException ? SyncFailure.ServerError : SyncFailure.Unreachable, e.GetBaseException().Message, e);
+            throw new SyncException(e is JsonException ? SyncFailure.ServerError : UntrustedCertificate.Explains(e) ? SyncFailure.Untrusted : SyncFailure.Unreachable, e.GetBaseException().Message, e);
         }
     }
 }

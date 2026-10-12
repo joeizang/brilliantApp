@@ -88,7 +88,7 @@ public sealed class PackClient(HttpClient http)
         catch (Exception e) when (e is HttpRequestException or TaskCanceledException or JsonException)
         {
             if (ct.IsCancellationRequested) throw;
-            throw new SyncException(e is JsonException ? SyncFailure.ServerError : SyncFailure.Unreachable, e.GetBaseException().Message, e);
+            throw new SyncException(e is JsonException ? SyncFailure.ServerError : UntrustedCertificate.Explains(e) ? SyncFailure.Untrusted : SyncFailure.Unreachable, e.GetBaseException().Message, e);
         }
     }
 }

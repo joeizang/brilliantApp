@@ -43,10 +43,10 @@ The app is called **Brilliant**, id `com.joeizang.brilliantapp`, and needs Andro
    docker compose exec -T server dotnet Brilliant.Server.dll pairing-code
    ```
 2. The phone must be on the **same Wi-Fi** as the server. Find the server's LAN address (for example `192.168.1.20`).
-3. In the app: **Tracks → Sync**. Enter the address (`192.168.1.20:8080`; a bare host gets `http://` and port 8080), the code, and a name for the phone (it suggests the phone's model), then **Pair**.
+3. In the app: **Tracks → Sync**. Enter the address (`192.168.1.20:8443`; a bare host gets `https://` and port 8443), the code, and a name for the phone (it suggests the phone's model), then **Pair**.
 4. The first sync runs at once, then every 2 minutes while the app is open, and **Sync now** forces one. Everything done offline is pushed at the next sync.
 
-The server speaks plain HTTP, so Android is told to allow cleartext traffic (`usesCleartextTraffic` in `AndroidManifest.xml`). Android cannot limit that to private addresses; HTTPS with a local CA is [#35](https://github.com/joeizang/brilliantApp/issues/35). Do not expose the server's port to the internet.
+The server speaks HTTPS with a certificate from the household's own certificate authority ([https.md](https.md), [#35](https://github.com/joeizang/brilliantApp/issues/35)). The app allows no cleartext traffic (`res/xml/network_security_config.xml`) and trusts the phone's user-installed CAs as well as the system ones, so **install `tls/brilliant-ca.crt` on the phone first** (steps in [https.md](https.md#android)); until then the Sync screen says the device doesn't trust the server's certificate. An APK built before #35 can't pair with this server. Do not expose the server's port to the internet.
 
 The device token is kept in the Android Keystore through MAUI's `SecureStorage`, and falls back to a private file in the app's data directory if the keystore refuses it (see [server.md](server.md)).
 
@@ -55,7 +55,7 @@ The device token is kept in the Android Keystore through MAUI's `SecureStorage`,
 An emulator is a good stand-in for the build, the install and the offline behaviour; the real phone is the final check.
 
 - On Apple Silicon use an **arm64** image. If the device boots to a black screen or a locked keyguard that never clears, cold-boot it: `emulator -avd <name> -no-snapshot -gpu swiftshader_indirect`. (`Pixel_9_Pro_XL` worked; `Medium_Phone_API_36` got stuck.)
-- From the emulator the host machine is **`10.0.2.2`**, so pair with `10.0.2.2:8080`.
+- From the emulator the host machine is **`10.0.2.2`**, so pair with `10.0.2.2:8443` (install the CA on the emulator too; the certificate already lists `10.0.2.2`).
 - A Release build is not WebView-debuggable. Drive it with `adb shell input tap`, read it with `adb shell uiautomator dump`, and look at `adb exec-out screencap -p`.
 - To check offline use, turn the network off (`adb shell svc wifi disable; adb shell svc data disable`) and run a lesson's code step.
 

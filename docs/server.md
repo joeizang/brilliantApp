@@ -13,7 +13,8 @@ From the repo root:
 
 ```bash
 cp .env.example .env
-# edit .env: set POSTGRES_PASSWORD (and SERVER_PORT if 8080 is taken)
+# edit .env: set POSTGRES_PASSWORD (and SERVER_PORT if 8443 is taken)
+scripts/local-ca.sh 192.168.1.20      # the HTTPS certificate: see https.md; the server won't start without it
 docker compose up -d --build
 ```
 
@@ -22,7 +23,7 @@ docker compose up -d --build
 Check it is up:
 
 ```bash
-curl http://<server-address>:8080/health
+curl --cacert tls/brilliant-ca.crt https://<server-address>:8443/health
 # {"status":"ok"}   (503 if the database is unreachable)
 ```
 
@@ -46,7 +47,7 @@ docker compose exec server dotnet Brilliant.Server.dll pairing-code
 
 **From an already paired device**, `POST /pairing-codes` with its token returns a new code.
 
-Then, in the app: **Sync** in the sidebar, enter the server's address (for example `192.168.1.20:8080`; a bare host gets `http://` and port 8080), the code, and a name for the device, and press **Pair**. A wrong, used or expired code is refused, and after 10 wrong tries a minute from one address the server answers `429` until the minute is up.
+Then, in the app: **Sync** in the sidebar, enter the server's address (for example `192.168.1.20:8443`; a bare host gets `https://` and port 8443; the device must trust the household CA first, see [https.md](https.md)), the code, and a name for the device, and press **Pair**. A wrong, used or expired code is refused, and after 10 wrong tries a minute from one address the server answers `429` until the minute is up.
 
 The token is returned once and only a hash of it is stored on the server. On the device it is kept in the platform's secure storage (the keychain on a Mac, the keystore on Android). If that is unavailable, as in an unsigned Mac build (`MissingEntitlement`), it falls back to a file readable only by you (`0600`) inside the app's sandbox container. That file is authoritative whenever it holds anything, and it only changes once the replacement is committed: a pairing the keystore accepts empties it, one the keystore refuses is written into it, and a failed or cancelled save leaves it as it was (writes go to a temporary file that is moved into place). **Forget this server** always leaves a "forgotten" marker in it, because the platform can report a failed keychain removal as a plain `false` instead of an error, so an old token the keystore kept can never override a forget or a newer pairing. If the marker can't be written, the Sync screen says so instead of reporting success. Forgetting clears the credentials on the device; it does not revoke them (see below).
 
@@ -58,10 +59,10 @@ All of these need a device token (`Authorization: Bearer <token>`):
 
 ```bash
 # list devices (id, name, when paired, last seen, revoked)
-curl -H "Authorization: Bearer $TOKEN" http://<server>:8080/devices
+curl -H "Authorization: Bearer $TOKEN" https://<server>:8443/devices
 
 # revoke one: its token stops working immediately
-curl -X DELETE -H "Authorization: Bearer $TOKEN" http://<server>:8080/devices/<id>
+curl -X DELETE -H "Authorization: Bearer $TOKEN" https://<server>:8443/devices/<id>
 ```
 
 A revoked device gets `401` on everything except `/health` and `/pair`. Revoking is permanent; to bring a device back, pair it again (it then appears as a new device). A device may revoke itself. If you lose every device, `docker compose exec server dotnet Brilliant.Server.dll pairing-code` still works and starts you over.
@@ -83,21 +84,20 @@ A revoked device gets `401` on everything except `/health` and `/pair`. Revoking
 | `GET /packs` | device | `{packs:[{packId, version, formatVersion, sha256, size, publishedAt}]}`, the newest version of each pack |
 | `GET /packs/{packId}/{version}` | device | the pack's zip (`ETag` is its SHA-256); `404` if unknown |
 
-## Plain HTTP on the home network
+## HTTPS on the home network
 
-The server speaks plain HTTP, and the pairing code and token cross your LAN unencrypted. That is a deliberate tracer-stage choice for a trusted home network: do not expose the port to the internet. Local-CA HTTPS is tracked in [#35](https://github.com/joeizang/brilliantApp/issues/35).
+The server speaks **HTTPS only**, with a certificate signed by the household's own certificate authority ([https.md](https.md), [#35](https://github.com/joeizang/brilliantApp/issues/35)), so the pairing code and device tokens never cross the Wi-Fi in the clear. Each device must trust that authority once (you install `tls/brilliant-ca.crt` on it). The apps allow no cleartext exceptions: Android's `network_security_config.xml` forbids cleartext, and the Mac app has no App Transport Security exceptions. It is still a home server: do not forward its port to the internet.
 
-The apps allow it narrowly:
-
-- **Mac:** `NSAllowsLocalNetworking` in `Platforms/MacCatalyst/Info.plist` permits HTTP to IP addresses and `.local` names only.
-- **Android** ([android.md](android.md)): `android:usesCleartextTraffic="true"` in `AndroidManifest.xml` permits cleartext to any host. Android cannot restrict it to private ranges, so it is lifted when #35 lands.
+Devices paired before #35 remember `http://…:8080` and must pair again ([https.md](https.md#pair-over-https)).
 
 ## Configuration
 
 | Setting | Where | Default |
 |---|---|---|
 | `POSTGRES_PASSWORD` | `.env` | required |
-| `SERVER_PORT` | `.env` | `8080` |
+| `SERVER_PORT` | `.env` | `8443` |
+| `TLS_DIR` | `.env` | `./tls` (holds `server.pem`, `server.key`; see [https.md](https.md)) |
+| `Tls__CertificatePath`, `Tls__KeyPath`, `Tls__Port` | set in `docker-compose.yml` | `/tls/server.pem`, `/tls/server.key`, `8443` |
 | `ConnectionStrings__Postgres` | set in `docker-compose.yml` | the compose Postgres |
 | `BACKUP_DIR`, `BACKUP_KEEP`, `BACKUP_AT`, `BACKUP_TZ`, `BACKUP_UID`, `BACKUP_GID` | `.env` | `./backups`, `14`, `03:00`, `UTC`, root; see [backup.md](backup.md) |
 | `Pairing__CodeLifetimeMinutes` | environment | `15` |

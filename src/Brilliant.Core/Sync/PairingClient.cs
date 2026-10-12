@@ -10,6 +10,9 @@ public enum PairingFailure
     /// <summary>The server couldn't be reached, or didn't answer like a Brilliant server.</summary>
     Unreachable,
 
+    /// <summary>The server answered, but this device doesn't trust its certificate: the household's certificate authority isn't installed on it (docs/https.md).</summary>
+    Untrusted,
+
     /// <summary>The server answered, but the code is wrong, expired or already used.</summary>
     CodeRejected,
 
@@ -57,7 +60,7 @@ public sealed class PairingClient(HttpClient http)
         catch (Exception e) when (e is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
         {
             if (ct.IsCancellationRequested) throw;
-            return PairingOutcome.Failed(PairingFailure.Unreachable, e.GetBaseException().Message);
+            return PairingOutcome.Failed(UntrustedCertificate.Explains(e) ? PairingFailure.Untrusted : PairingFailure.Unreachable, e.GetBaseException().Message);
         }
     }
 }
