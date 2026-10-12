@@ -84,7 +84,7 @@ public static class TestRunResultJson
         System.Text.Json.JsonSerializer.Deserialize<TestRunResult>(json, Options)
         ?? throw new InvalidOperationException("The Python runtime returned an empty result.");
 
-    /// <summary>The tests as the harness expects them: <c>[{"input": ..., "expected": ...}]</c>.</summary>
+    /// <summary>The tests as the harness expects them: <c>[{"input": ..., "expected": ..., "compare": null | "linked_list"}]</c>.</summary>
     public static string SerializeTests(IEnumerable<CodeTest> tests) =>
-        System.Text.Json.JsonSerializer.Serialize(tests.Select(t => new { input = t.Input, expected = t.Expected }));
+        System.Text.Json.JsonSerializer.Serialize(tests.Select(t => new { input = t.Input, expected = t.Expected, compare = t.Compare }));
 }

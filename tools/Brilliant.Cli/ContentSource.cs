@@ -260,6 +260,8 @@ public static partial class ContentValidator
         var preferred = dto.LargeScreenPreferred ?? false;
         if (preferred && !QuestionTypes.Contains(dto.Type))
             report.Add(file, $"{label}: 'largeScreenPreferred' only applies to questions (choice, predict-output, write-code, fill-blank or parsons).");
+        if (dto.Compare is not null && dto.Type != "write-code")
+            report.Add(file, $"{label}: 'compare' only applies to write-code steps.");
         if (isAlternative && preferred)
             report.Add(file, $"{label}: a phone alternative is for phones; it can't be 'largeScreenPreferred' itself.");
 
@@ -679,6 +681,10 @@ public static partial class ContentValidator
         if (!string.IsNullOrWhiteSpace(dto.Entrypoint) && !PythonIdentifier.IsMatch(dto.Entrypoint))
             report.Add(file, $"{label}: entrypoint '{dto.Entrypoint}' is not a valid Python function name.");
 
+        if (dto.Compare is not null && dto.Compare != CodeTest.CompareLinkedList)
+            report.Add(file, $"{label}: unknown 'compare' '{dto.Compare}' (supported: {CodeTest.CompareLinkedList}, for a function that returns the head of a linked list).");
+        var compare = dto.Compare == CodeTest.CompareLinkedList ? dto.Compare : null;
+
         var tests = new List<CodeTest>();
         if (dto.Tests is null or { Count: 0 })
             report.Add(file, $"{label}: a write-code step needs at least one hidden test.");
@@ -690,7 +696,7 @@ public static partial class ContentValidator
                 // 'input' may be empty (a function with no arguments); 'expected' never is.
                 if (t.Input is null) report.Add(file, $"{label}: tests[{i}] needs 'input' (the call's arguments as Python source; \"\" for none).");
                 if (string.IsNullOrWhiteSpace(t.Expected)) report.Add(file, $"{label}: tests[{i}] needs 'expected' (a Python expression).");
-                tests.Add(new CodeTest(t.Input ?? "", t.Expected ?? ""));
+                tests.Add(new CodeTest(t.Input ?? "", t.Expected ?? "", compare));
             }
 
         if (report.Errors.Count != errorsBefore) return null;
@@ -783,6 +789,7 @@ public static partial class ContentValidator
         public List<string>? Hints { get; set; }
         public string? Starter { get; set; }
         public string? Entrypoint { get; set; }
+        public string? Compare { get; set; }
         public string? Solution { get; set; }
         public string? Template { get; set; }
         public List<BlankDto>? Blanks { get; set; }

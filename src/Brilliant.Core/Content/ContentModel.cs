@@ -152,8 +152,18 @@ public sealed record PredictOutputStep(
 /// <summary>
 /// One hidden test of a write-code step: the learner's function is called as <c>entrypoint(<see cref="Input"/>)</c> and the
 /// result must equal the Python expression <see cref="Expected"/>. Both are Python source text, e.g. <c>[3, 1, 2], 2</c> and <c>(1, 3)</c>.
+/// <see cref="Compare"/> is null to compare the result itself, or <see cref="CompareLinkedList"/> when the function returns the head of
+/// a linked list: the harness then follows <c>.next</c> from it, collects each node's <c>.val</c> into a list, and compares that list
+/// (<c>None</c> is the empty list).
 /// </summary>
-public sealed record CodeTest(string Input, string Expected);
+public sealed record CodeTest(
+    string Input,
+    string Expected,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    string? Compare = null)
+{
+    public const string CompareLinkedList = "linked_list";
+}
 
 /// <summary>
 /// "Write the function." The learner edits <see cref="Starter"/> code; on submit it is run against the hidden

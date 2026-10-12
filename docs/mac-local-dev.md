@@ -138,6 +138,12 @@ Every `write-code` step in `content/` needs a `solution:` (authoring-only, never
 against the step's tests with the same `harness.py` under CPython (`python3`, or the interpreter in `BRILLIANT_PYTHON`) and refuse to
 produce a pack if any fails, reporting lesson file, step, test, expected and actual.
 
+A write-code step whose function returns the head of a linked list adds `compare: linked_list` (issue #86). The harness then walks the
+returned node's `.next` chain and compares the list of `.val`s with `expected`, so tests are written as `expected: "[1, 2, 3]"` (and `"[]"`
+for `None`). A returned value that is not a node, or a chain that loops back on itself, fails the test with a plain message rather than a
+traceback. It applies to every test of the step, ships on each test in the pack, and the validator rejects any other value or a `compare` on
+another step type.
+
 Steps that need typing code on a keyboard carry `largeScreenPreferred: true`, and most have a tap-friendly `phoneAlternative` (Parsons or fill-blank). `validate` checks the rules and the unique id; see [responsive-layouts.md](responsive-layouts.md).
 
 ## Code drafts (issue #12)

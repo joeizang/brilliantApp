@@ -61,6 +61,8 @@ the step or its phone alternative, is a **warning**: `brilliant validate`, `pack
 | `pattern.stack-matching` (Matching with a stack) | Track 3 lesson 2 | its 5 problems |
 | `pattern.monotonic-stack` (Monotonic stack) | Track 3 lesson 3 | its 5 problems |
 | `pattern.window-deque` (A deque for the window) | Track 3 lesson 4 | its 4 problems (the Josephus `survivor` is a plain queue drill, untagged) |
+| `pattern.dummy-head` (A dummy head node) | Track 3 lesson 5 | its 4 problems (the `to_list` drill is untagged) |
+| `pattern.reverse-linked-list` (Reverse with prev, cur and nxt) | Track 3 lesson 6 | its 5 problems |
 
 Left untagged: every problem in Track 1 lessons 1–6 (Python and Big-O drills), Track 2 lesson 6's `count_subarrays` (its prompt says
 "prefix sums and a dict" on purpose, to teach when a window fails) and `count_palindromes` (expand-around-centre, not one of the eight).

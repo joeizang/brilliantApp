@@ -459,6 +459,30 @@ public sealed class ValidatorTests : IDisposable
         Assert.Contains(m, x => x.Contains("tests[2]") && x.Contains("entry is empty"));
     }
 
+    [Fact]
+    public void Write_code_compare_linked_list_is_stored_on_each_test()
+    {
+        WriteValidPack(LessonHeader + "steps:\n" + WriteCodeHead + "    compare: linked_list\n" + WriteCodeBody
+            + "      - input: \"\"\n        expected: \"[]\"\n");
+        var outPath = Path.Combine(_root, "out", "p.zip");
+
+        var report = ContentPacker.Pack(_root, outPath, new FakeRunner(_ => Outcome(TestRunStatus.Passed)));
+
+        Assert.True(report.IsValid, string.Join("\n", report.Errors));
+        var step = Assert.IsType<WriteCodeStep>(ContentPackFormat.Load(outPath).Get<Step>("step.one.w"));
+        Assert.Equal([new CodeTest("1, 2", "3", "linked_list"), new CodeTest("", "[]", "linked_list")], step.Tests);
+    }
+
+    [Fact]
+    public void Compare_must_be_known_and_only_on_write_code()
+    {
+        var unknown = LessonErrors(LessonHeader + "steps:\n" + WriteCodeHead + "    compare: tree\n" + WriteCodeBody);
+        Assert.Contains(unknown, x => x.Contains("unknown 'compare' 'tree'"));
+
+        var misplaced = LessonErrors(LessonHeader + "steps:\n" + QuestionStep + "    compare: linked_list\n");
+        Assert.Contains(misplaced, x => x.Contains("'compare' only applies to write-code steps"));
+    }
+
     private const string FillHead = "  - id: step.one.f\n    type: fill-blank\n    title: F\n    prompt: Fill it in\n";
     private const string FillBody = "    template: |\n      for i in {{iter}}:\n          total {{op}} i\n    blanks:\n      - id: iter\n        accepted: [range(n)]\n      - id: op\n        accepted: [\"+=\"]\n";
 
