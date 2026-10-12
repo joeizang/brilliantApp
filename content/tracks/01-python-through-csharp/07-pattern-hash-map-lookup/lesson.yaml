@@ -226,6 +226,7 @@ steps:
   - id: step.hashlookup.fill-two-sum
     type: fill-blank
     pattern: pattern.hash-map-lookup
+    patternCue: "\"Two numbers that add up to `target`\" in a list that isn't sorted: for each number the partner you need is `target - x`, and a dict of the numbers seen so far answers \"have I seen it?\" in one step."
     title: Complete the function
     prompt: |
       Fill in the blanks to finish `two_sum`. It should return the positions of two numbers that add up to `target`,
@@ -275,6 +276,7 @@ steps:
   - id: step.hashlookup.order-two-sum
     type: parsons
     pattern: pattern.hash-map-lookup
+    patternCue: "Finding a pair that adds up to a target, with positions to return: look up each number's complement in a dict of what came before, then store the number. That order of check and store is the lookup pattern."
     title: Put the loop in order
     prompt: |
       Arrange these lines into `two_sum`. The order of the check and the store matters.
@@ -316,6 +318,7 @@ steps:
   - id: step.hashlookup.write-two-sum
     type: write-code
     pattern: pattern.hash-map-lookup
+    patternCue: "\"Two numbers that add up to `target`\", positions returned, and nothing says the list is sorted: each number's partner is `target - x`, so a dict from value to position finds it in one look instead of a second loop."
     largeScreenPreferred: true
     title: Write Two Sum
     prompt: |
@@ -401,6 +404,7 @@ steps:
   - id: step.hashlookup.write-pair-count
     type: write-code
     pattern: pattern.hash-map-lookup
+    patternCue: "\"How many pairs ... `nums[i] + nums[j] == target`\": every number needs its complement `target - x`, and a dict counting the numbers seen so far tells you how many partners each one has, without comparing every pair."
     largeScreenPreferred: true
     title: Count the pairs
     prompt: |

@@ -248,6 +248,7 @@ steps:
   - id: step.varwindow.fill-unique
     type: fill-blank
     pattern: pattern.variable-window
+    patternCue: "\"The longest stretch ... with no repeated letter\": grow the stretch to the right, and when a letter repeats, shrink from the left until it doesn't. The window's size changes."
     title: Complete the function
     prompt: |
       Fill in the blanks so that `longest_unique` returns the length of the longest stretch of `s` with no repeated letter.
@@ -284,6 +285,7 @@ steps:
   - id: step.varwindow.order-shortest
     type: parsons
     pattern: pattern.variable-window
+    patternCue: "\"The shortest stretch of positive numbers with a sum of at least `target`\": grow the window until the sum is big enough, then shrink it from the left while it still is. Positive numbers make shrinking safe."
     title: The shortest stretch that is big enough
     prompt: |
       Arrange these lines into `min_len(target, nums)`, which returns the length of the shortest stretch of positive numbers with a
@@ -307,6 +309,7 @@ steps:
   - id: step.varwindow.write-ones
     type: write-code
     pattern: pattern.variable-window
+    patternCue: "\"The longest stretch that contains at most `k` zeros\": extend to the right, and when the window has too many zeros, move the left edge in. A longest stretch under a limit is a variable window."
     largeScreenPreferred: true
     title: Flip at most k zeros
     prompt: |
@@ -354,6 +357,7 @@ steps:
   - id: step.varwindow.write-distinct
     type: write-code
     pattern: pattern.variable-window
+    patternCue: "\"The longest stretch ... with at most `k` different letters\": grow the window, count its letters, and shrink from the left while there are more than `k` kinds."
     largeScreenPreferred: true
     title: At most k different letters
     prompt: |
@@ -414,6 +418,7 @@ steps:
   - id: step.varwindow.write-count
     type: write-code
     pattern: pattern.variable-window
+    patternCue: "\"How many stretches ... have a sum less than `limit`\", all **positive**: for each right end, shrink the left until the sum fits. Every start from left to right then counts, so add the window's length."
     largeScreenPreferred: true
     title: Counting every window
     prompt: |

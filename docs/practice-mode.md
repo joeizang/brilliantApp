@@ -204,8 +204,20 @@ shortcut) returns to Tracks. Each visit is one run, a fresh GUID. For each probl
 4. The result: a tick or cross for the pattern and the solution, the time from showing the problem to leaving the solve, and when each
    item comes back in Review. *Next problem* asks the selector again, never repeating the problem just done; *Finish* returns to Tracks.
 
-**Feedback cue.** The design asks the pick's feedback to name the cue in the prompt. No cue is authored yet, so the feedback names the
-right pattern only. Authoring a cue per tagged step is a content change for later.
+**Feedback cue.** Every tagged step also carries an authored `patternCue`: one or two sentences (markdown) naming what in the prompt
+points to its pattern and why, e.g. "*\"Sorted in ascending order\" plus \"two numbers that add up to `target`\": the order lets two
+pointers at the ends decide which way to move.*" `PatternPick` shows it under the verdict once the pick is checked, right or wrong, in
+Practice and for `pick.` items in Review; it is never in the page before the check, since it would give the answer away.
+
+```yaml
+  - id: step.converging.write-two-sum
+    type: write-code
+    pattern: pattern.converging-pointers
+    patternCue: "\"Sorted in ascending order\" plus \"two numbers that add up to `target`\": ..."
+```
+
+The validator requires `patternCue` on every step with a `pattern`, and rejects an empty cue, a cue without a `pattern`, and a cue on a
+phone alternative (it shares its step's). `Step.PatternCue` is optional in the pack, so the pack format stays at version 1.
 
 **Pick items in Review.** A due `pick.` item shows the same `ProblemPrompt` and `PatternPick`, with choices drawn by
 `PracticeSelector.Choices` each time it is asked, and no hint ladder (a pattern-hint rung would give it away). The first pick is recorded

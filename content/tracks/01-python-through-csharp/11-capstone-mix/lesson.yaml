@@ -194,6 +194,7 @@ steps:
   - id: step.capstone.fill-first-unique
     type: fill-blank
     pattern: pattern.counting
+    patternCue: "\"Appears exactly once\": uniqueness depends on how often a character occurs in the whole string, so count first, then find the first character whose count is 1."
     title: Complete the function
     prompt: |
       Fill in the blanks to finish `first_unique`. It returns the index of the first character that appears exactly once, or
@@ -259,6 +260,7 @@ steps:
   - id: step.capstone.order-pair-difference
     type: parsons
     pattern: pattern.hash-map-lookup
+    patternCue: "\"Two different positions hold numbers whose difference is exactly `d`\": for each number, its partner is `x - d` or `x + d`, and a set or dict of what you've seen answers whether that partner exists."
     title: A pair with a given gap
     prompt: |
       Arrange these lines into `has_pair_with_difference`. It returns `True` if two different positions hold numbers whose
@@ -296,6 +298,7 @@ steps:
   - id: step.capstone.write-count-pairs
     type: write-code
     pattern: pattern.hash-map-lookup
+    patternCue: "\"How many pairs ... `nums[i] + nums[j] == target`\": each number's partner is `target - x`, and a dict counting earlier numbers says how many partners it has, so repeated `3`s are counted without a second loop."
     largeScreenPreferred: true
     title: How many pairs?
     prompt: |
@@ -372,6 +375,7 @@ steps:
   - id: step.capstone.write-anagram-groups
     type: write-code
     pattern: pattern.grouping-by-key
+    patternCue: "\"Groups of anagrams\": words with the same letters share a key (their sorted letters). Group by that key; the number of distinct keys is the answer."
     largeScreenPreferred: true
     title: How many families?
     prompt: |
@@ -430,6 +434,7 @@ steps:
   - id: step.capstone.write-top-k
     type: write-code
     pattern: pattern.counting
+    patternCue: "\"The `k` numbers that appear most often\": \"how often\" is a count. Count every number, then sort by count (and by value for ties)."
     largeScreenPreferred: true
     title: The k favourites
     prompt: |
@@ -467,6 +472,7 @@ steps:
   - id: step.capstone.write-count-splits
     type: write-code
     pattern: pattern.prefix-sums
+    patternCue: "\"A left part and a right part with equal sums\" at every cut: the left sum is a running total and the right sum is the total minus it, so one pass of running totals checks every cut."
     largeScreenPreferred: true
     title: Where can it split?
     prompt: |

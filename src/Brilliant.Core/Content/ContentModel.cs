@@ -91,6 +91,12 @@ public abstract record Step(string Id, string Title) : ContentItem(Id)
     /// </summary>
     public string? Pattern { get; init; }
 
+    /// <summary>
+    /// What in the prompt points to <see cref="Pattern"/>, shown once the learner has picked a pattern in Practice or Review, right or
+    /// wrong. Every tagged step has one; null when <see cref="Pattern"/> is.
+    /// </summary>
+    public string? PatternCue { get; init; }
+
     /// <summary>The form of this question to put in front of the learner on a screen of this class: the phone alternative on a phone, else the step itself.</summary>
     public Step For(ScreenClass screen) => screen == ScreenClass.Phone && PhoneAlternative is { } alt ? alt : this;
 }

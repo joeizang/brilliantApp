@@ -264,6 +264,7 @@ steps:
   - id: step.readwrite.fill-remove
     type: fill-blank
     pattern: pattern.reader-writer
+    patternCue: "\"Keeps every number that isn't `val`, in the same order\" and returns how many were kept: one pointer reads every item, another writes only the keepers. The kept count is where the writer stopped."
     title: Complete the function
     prompt: |
       Fill in the blanks so that `remove_value` keeps every number that isn't `val`, in the same order, and returns how many were
@@ -298,6 +299,7 @@ steps:
   - id: step.readwrite.order-move-zeros
     type: parsons
     pattern: pattern.reader-writer
+    patternCue: "\"In place\", \"keeping the other numbers in order\": a reader walks the list and a writer copies each non-zero forward, then the rest is filled with zeros."
     title: Move the zeros to the end
     prompt: |
       Arrange these lines into `move_zeros(nums)`, which moves every `0` to the end of the list while keeping the other numbers
@@ -317,6 +319,7 @@ steps:
   - id: step.readwrite.write-dedupe
     type: write-code
     pattern: pattern.reader-writer
+    patternCue: "\"Removes the duplicate values in place, without building a second list\" and returns `nums[:k]`: the reader scans, and the writer only advances when it sees a new value. `k` is the writer."
     largeScreenPreferred: true
     title: Remove duplicates
     prompt: |
@@ -379,6 +382,7 @@ steps:
   - id: step.readwrite.write-twice
     type: write-code
     pattern: pattern.reader-writer
+    patternCue: "\"Keeps each value at most twice, in place\" and returns `nums[:write]`: the name even gives the writer away. Read every item, write it only if it isn't a third copy of what's already written."
     largeScreenPreferred: true
     title: At most twice
     prompt: |
@@ -417,6 +421,7 @@ steps:
   - id: step.readwrite.write-subsequence
     type: write-code
     pattern: pattern.reader-writer
+    patternCue: "\"Appear in `t` in the same order, though not necessarily next to each other\": one pointer walks `t` reading every letter, and the other only moves on through `s` when it finds a match."
     largeScreenPreferred: true
     title: Is it a subsequence?
     prompt: |
@@ -477,6 +482,7 @@ steps:
   - id: step.readwrite.write-merge
     type: write-code
     pattern: pattern.reader-writer
+    patternCue: "Two **sorted** lists and \"one pointer on each list\": compare the items at the two pointers, take the smaller, and advance only that pointer. Each pointer reads its own list at its own pace."
     largeScreenPreferred: true
     title: Merge two sorted lists
     prompt: |

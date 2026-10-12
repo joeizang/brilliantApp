@@ -36,6 +36,7 @@ public class PracticeViewTests : ShortcutContext
                 [new Blank("b", ["x"], [])])
             {
                 Pattern = $"pattern.{name}",
+                PatternCue = $"The `{name}` in the prompt points to pattern {name}.",
                 Hints = ["A nudge", "The pattern"],
             },
         ])
@@ -200,6 +201,7 @@ public class PracticeViewTests : ShortcutContext
         Assert.Equal("practice", pick.GetProperty("mode").GetString());
         Assert.Equal((int)Rating.Easy, pick.GetProperty("rating").GetInt32());
         Assert.Contains($"Right: it's Pattern {name}.", cut.Find(".pattern-pick .verdict").TextContent);
+        Assert.Contains($"points to pattern {name}", cut.Find(".pattern-pick .pattern-cue").TextContent);
     }
 
     [Fact]
@@ -209,6 +211,7 @@ public class PracticeViewTests : ShortcutContext
         var cut = Open();
         var name = Shown(cut);
         var wrong = WrongPattern(cut);
+        Assert.Empty(cut.FindAll(".pattern-cue"));
 
         PickPattern(cut, wrong);
 
@@ -216,6 +219,8 @@ public class PracticeViewTests : ShortcutContext
         Assert.False(pick.GetProperty("correct").GetBoolean());
         Assert.Equal("pattern." + wrong[^1..], pick.GetProperty("picked").GetString());
         Assert.Contains($"Not this time: it's Pattern {name}.", cut.Find(".pattern-pick .verdict").TextContent);
+        Assert.Equal($"The {name} in the prompt points to pattern {name}.", cut.Find(".pattern-pick .pattern-cue").TextContent.Trim());
+        Assert.NotNull(cut.Find(".pattern-pick .pattern-cue code"));
         Assert.Single(cut.FindAll(".pattern-pick ul.options li.right"));
         Assert.Single(cut.FindAll(".pattern-pick ul.options li.wrong"));
         Assert.All(cut.FindAll(".pattern-pick ul.options input"), i => Assert.True(i.HasAttribute("disabled")));
@@ -358,6 +363,7 @@ public class PracticeViewTests : ShortcutContext
         Assert.Equal("Problem", review.Find(".problem-prompt h2").TextContent.Trim());
         Assert.Empty(review.FindAll(".hint-ladder"));
         Assert.Empty(review.FindAll("input.blank"));
+        Assert.Empty(review.FindAll(".pattern-cue"));
 
         _clock.Now += TimeSpan.FromSeconds(30);
         var index = review.FindAll(".pattern-pick ul.options li").ToList().FindIndex(li => li.TextContent.Trim() == "Pattern " + name);
@@ -370,5 +376,6 @@ public class PracticeViewTests : ShortcutContext
         Assert.True(data.GetProperty("correct").GetBoolean());
         Assert.Equal((int)RatingInference.InferPick(true, TimeSpan.FromSeconds(30)), data.GetProperty("rating").GetInt32());
         Assert.Contains("You'll see this again", review.Markup);
+        Assert.Contains($"points to pattern {name}", review.Find(".pattern-pick .pattern-cue").TextContent);
     }
 }

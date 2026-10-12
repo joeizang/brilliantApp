@@ -1,4 +1,4 @@
-@* "Which pattern solves this?" One answer, locked when checked: a wrong pick is told the right pattern and moves on, it is not retried. *@
+@* "Which pattern solves this?" One answer, locked when checked: a wrong pick is told the right pattern and what in the prompt points to it, and moves on; it is not retried. *@
 @implements IDisposable
 @inject StepShortcuts Shortcuts
 
@@ -32,6 +32,11 @@
         {
             <p class="verdict incorrect font-semibold text-danger" role="status">Not this time: it's @Right.Title.</p>
         }
+        @if (!string.IsNullOrWhiteSpace(Cue))
+        {
+            @* Only after the check: before it, the cue would give the answer away. *@
+            <div class="pattern-cue mt-2 mb-4 text-[.95rem] [&_p]:m-0">@((MarkupString)MarkdownHtml.ToHtml(Cue))</div>
+        }
         <button class="primary btn-primary" @onclick="() => OnContinue.InvokeAsync()">@ContinueText</button>
     }
 </section>
@@ -51,6 +56,9 @@
 
     /// <summary>Raised when the learner continues after the verdict.</summary>
     [Parameter] public EventCallback OnContinue { get; set; }
+
+    /// <summary>What in the prompt points to <see cref="Right"/> (the step's <c>PatternCue</c>), shown once the pick is checked.</summary>
+    [Parameter] public string? Cue { get; set; }
 
     [Parameter] public string ContinueText { get; set; } = "Continue";
 

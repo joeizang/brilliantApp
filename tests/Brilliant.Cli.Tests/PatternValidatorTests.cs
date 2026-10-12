@@ -27,6 +27,9 @@ public sealed class PatternValidatorTests : IDisposable
 
     private const string PrefixSums = "patterns:\n  - id: pattern.prefix-sums\n    title: Prefix sums\n";
 
+    /// <summary>A step's tag and the cue that explains it, which go together.</summary>
+    private const string Tagged = "    pattern: pattern.prefix-sums\n    patternCue: \"\\\"The sum of `nums[i:j]`\\\" many times: running totals\"\n";
+
     /// <summary>A lesson with one Parsons problem (no reference run needed), optionally tagged and with extra lesson-level YAML.</summary>
     private static string Lesson(string id, string head = "", string stepExtra = "", string prompt = "Put these in order", string type = "parsons") =>
         $"id: lesson.{id}\ntitle: {id}\n" + head + "steps:\n"
@@ -41,7 +44,7 @@ public sealed class PatternValidatorTests : IDisposable
     [Fact]
     public void Declared_patterns_and_step_tags_load_into_the_pack()
     {
-        Write("tracks/t/l1/lesson.yaml", Lesson("one", PrefixSums, "    pattern: pattern.prefix-sums\n"));
+        Write("tracks/t/l1/lesson.yaml", Lesson("one", PrefixSums, Tagged));
         var outPath = Path.Combine(_root, "out", "p.zip");
 
         var report = ContentPacker.Pack(_root, outPath);
@@ -51,15 +54,16 @@ public sealed class PatternValidatorTests : IDisposable
         var graph = ContentPackFormat.Load(outPath);
         Assert.Equal("Prefix sums", Assert.Single(graph.Get<Lesson>("lesson.one").Patterns).Title);
         Assert.Equal("pattern.prefix-sums", graph.Get<Step>("step.one.p").Pattern);
+        Assert.Equal("\"The sum of `nums[i:j]`\" many times: running totals", graph.Get<Step>("step.one.p").PatternCue);
     }
 
     [Fact]
     public void A_step_may_name_a_pattern_from_an_earlier_lesson_or_another_track()
     {
         Write("tracks/t/l1/lesson.yaml", Lesson("one", PrefixSums));
-        Write("tracks/t/l2/lesson.yaml", Lesson("two", stepExtra: "    pattern: pattern.prefix-sums\n"));
+        Write("tracks/t/l2/lesson.yaml", Lesson("two", stepExtra: Tagged));
         Write("tracks/u/track.yaml", "id: track.u\ntitle: U\n");
-        Write("tracks/u/l1/lesson.yaml", Lesson("three", stepExtra: "    pattern: pattern.prefix-sums\n"));
+        Write("tracks/u/l1/lesson.yaml", Lesson("three", stepExtra: Tagged));
 
         Assert.Empty(Errors());
     }
@@ -67,7 +71,7 @@ public sealed class PatternValidatorTests : IDisposable
     [Fact]
     public void A_pattern_no_lesson_declares_is_rejected()
     {
-        Write("tracks/t/l1/lesson.yaml", Lesson("one", stepExtra: "    pattern: pattern.nowhere\n"));
+        Write("tracks/t/l1/lesson.yaml", Lesson("one", stepExtra: "    pattern: pattern.nowhere\n    patternCue: Sums of ranges\n"));
 
         var error = Assert.Single(Errors());
         Assert.Contains("tracks/t/l1/lesson.yaml", error);
@@ -77,7 +81,7 @@ public sealed class PatternValidatorTests : IDisposable
     [Fact]
     public void A_pattern_taught_by_a_later_lesson_of_the_same_track_is_rejected()
     {
-        Write("tracks/t/l1/lesson.yaml", Lesson("one", stepExtra: "    pattern: pattern.prefix-sums\n"));
+        Write("tracks/t/l1/lesson.yaml", Lesson("one", stepExtra: Tagged));
         Write("tracks/t/l2/lesson.yaml", Lesson("two", PrefixSums));
 
         var error = Assert.Single(Errors());
@@ -108,7 +112,7 @@ public sealed class PatternValidatorTests : IDisposable
     [Fact]
     public void Only_problems_the_learner_solves_carry_a_pattern()
     {
-        Write("tracks/t/l1/lesson.yaml", Lesson("one", PrefixSums, "    pattern: pattern.prefix-sums\n", type: "choice"));
+        Write("tracks/t/l1/lesson.yaml", Lesson("one", PrefixSums, Tagged, type: "choice"));
 
         Assert.Contains(Errors(), e => e.Contains("'pattern' only applies to problems the learner solves (write-code, fill-blank or parsons)"));
     }
@@ -119,7 +123,7 @@ public sealed class PatternValidatorTests : IDisposable
         var write = "id: lesson.one\ntitle: One\n" + PrefixSums + "steps:\n"
             + "  - id: step.one.w\n    type: write-code\n    title: W\n    prompt: Write it\n    language: python\n    entrypoint: f\n"
             + "    solution: |\n      def f():\n          return 1\n    tests:\n      - input: \"\"\n        expected: \"1\"\n"
-            + "    largeScreenPreferred: true\n    pattern: pattern.prefix-sums\n"
+            + "    largeScreenPreferred: true\n    pattern: pattern.prefix-sums\n    patternCue: Sums of ranges\n"
             + "    phoneAlternative:\n      id: step.one.w.arrange\n      type: parsons\n      title: A\n      prompt: Arrange\n"
             + "      solution: |\n        def f():\n            return 1\n      pattern: pattern.prefix-sums\n";
         Write("tracks/t/l1/lesson.yaml", write);
@@ -138,7 +142,7 @@ public sealed class PatternValidatorTests : IDisposable
     [Fact]
     public void A_prompt_that_names_its_own_pattern_is_a_warning_not_an_error()
     {
-        Write("tracks/t/l1/lesson.yaml", Lesson("one", PrefixSums, "    pattern: pattern.prefix-sums\n", prompt: "Use prefix sums to answer"));
+        Write("tracks/t/l1/lesson.yaml", Lesson("one", PrefixSums, Tagged, prompt: "Use prefix sums to answer"));
 
         var report = Validate();
 
@@ -154,7 +158,7 @@ public sealed class PatternValidatorTests : IDisposable
         var write = "id: lesson.one\ntitle: One\n" + PrefixSums + "steps:\n"
             + "  - id: step.one.w\n    type: write-code\n    title: W\n    prompt: Write it\n    language: python\n    entrypoint: f\n"
             + "    solution: |\n      def f():\n          return 1\n    tests:\n      - input: \"\"\n        expected: \"1\"\n"
-            + "    largeScreenPreferred: true\n    pattern: pattern.prefix-sums\n"
+            + "    largeScreenPreferred: true\n    pattern: pattern.prefix-sums\n    patternCue: Sums of ranges\n"
             + "    phoneAlternative:\n      id: step.one.w.arrange\n      type: parsons\n      title: A\n      prompt: Arrange it with prefix sums\n"
             + "      solution: |\n        def f():\n            return 1\n";
         Write("tracks/t/l1/lesson.yaml", write);
@@ -168,7 +172,7 @@ public sealed class PatternValidatorTests : IDisposable
     [Fact]
     public void A_pattern_title_split_across_lines_of_the_prompt_is_still_found()
     {
-        Write("tracks/t/l1/lesson.yaml", Lesson("one", PrefixSums, "    pattern: pattern.prefix-sums\n", prompt: "|\n      Use prefix\n      sums to answer"));
+        Write("tracks/t/l1/lesson.yaml", Lesson("one", PrefixSums, Tagged, prompt: "|\n      Use prefix\n      sums to answer"));
 
         Assert.Single(Validate().Warnings);
     }
@@ -176,7 +180,7 @@ public sealed class PatternValidatorTests : IDisposable
     [Fact]
     public async Task Warnings_are_printed_and_do_not_fail_validate()
     {
-        Write("tracks/t/l1/lesson.yaml", Lesson("one", PrefixSums, "    pattern: pattern.prefix-sums\n", prompt: "Use prefix sums to answer"));
+        Write("tracks/t/l1/lesson.yaml", Lesson("one", PrefixSums, Tagged, prompt: "Use prefix sums to answer"));
         var output = new StringWriter();
         var error = new StringWriter();
 
@@ -198,5 +202,44 @@ public sealed class PatternValidatorTests : IDisposable
         public Task<Brilliant.Core.Sync.DeviceCredentials?> LoadAsync(CancellationToken ct = default) => Task.FromResult<Brilliant.Core.Sync.DeviceCredentials?>(null);
         public Task SaveAsync(Brilliant.Core.Sync.DeviceCredentials credentials, CancellationToken ct = default) => Task.CompletedTask;
         public Task ClearAsync(CancellationToken ct = default) => Task.CompletedTask;
+    }
+
+    [Fact]
+    public void A_tagged_step_without_a_cue_is_rejected()
+    {
+        Write("tracks/t/l1/lesson.yaml", Lesson("one", PrefixSums, "    pattern: pattern.prefix-sums\n"));
+
+        var error = Assert.Single(Errors());
+        Assert.Contains("steps[0] ('step.one.p'): a step with 'pattern' needs a 'patternCue'", error);
+    }
+
+    [Fact]
+    public void A_cue_without_a_pattern_is_rejected()
+    {
+        Write("tracks/t/l1/lesson.yaml", Lesson("one", stepExtra: "    patternCue: Running totals\n"));
+
+        Assert.Contains(Errors(), e => e.Contains("'patternCue' explains a 'pattern'; add the 'pattern' it explains or remove it"));
+    }
+
+    [Fact]
+    public void An_empty_cue_is_rejected()
+    {
+        Write("tracks/t/l1/lesson.yaml", Lesson("one", PrefixSums, "    pattern: pattern.prefix-sums\n    patternCue: \" \"\n"));
+
+        Assert.Contains(Errors(), e => e.Contains("'patternCue' is empty"));
+    }
+
+    [Fact]
+    public void A_phone_alternative_takes_its_cue_from_its_step()
+    {
+        var write = "id: lesson.one\ntitle: One\n" + PrefixSums + "steps:\n"
+            + "  - id: step.one.w\n    type: write-code\n    title: W\n    prompt: Write it\n    language: python\n    entrypoint: f\n"
+            + "    solution: |\n      def f():\n          return 1\n    tests:\n      - input: \"\"\n        expected: \"1\"\n"
+            + "    largeScreenPreferred: true\n" + Tagged
+            + "    phoneAlternative:\n      id: step.one.w.arrange\n      type: parsons\n      title: A\n      prompt: Arrange\n"
+            + "      solution: |\n        def f():\n            return 1\n      patternCue: Running totals\n";
+        Write("tracks/t/l1/lesson.yaml", write);
+
+        Assert.Contains(Errors(), e => e.Contains("a phone alternative shares its step's pattern; put 'patternCue' on the step itself"));
     }
 }

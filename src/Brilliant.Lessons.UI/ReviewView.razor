@@ -32,7 +32,7 @@
         {
             @* A pattern pick from Practice: the same unlabelled problem and the choice of patterns, with no hints (the pattern rung is the answer). *@
             <ProblemPrompt Step="item.Presented" />
-            <PatternPick Choices="pick.Choices" Right="pick.Right" Name="@item.Item.Id" OnPicked="p => Answered(item, p.Correct)" OnContinue="Next" />
+            <PatternPick Choices="pick.Choices" Right="pick.Right" Name="@item.Item.Id" Cue="@item.Question.PatternCue" OnPicked="p => Answered(item, p.Correct)" OnContinue="Next" />
         }
         else
         {

@@ -244,6 +244,7 @@ steps:
   - id: step.window.fill-max-sum
     type: fill-blank
     pattern: pattern.fixed-window
+    patternCue: "\"The largest sum of any `k` items in a row\": the window is a fixed size `k`. Slide it one step at a time, adding the item that enters and subtracting the one that leaves."
     title: Complete the function
     prompt: |
       Fill in the blanks to finish `max_window_sum`, which returns the largest sum of any `k` items in a row.
@@ -286,6 +287,7 @@ steps:
   - id: step.window.order-window-sums
     type: parsons
     pattern: pattern.fixed-window
+    patternCue: "\"The total of every window of `k` items\": a fixed-size window. Each next total is the last one plus the new item minus the item that fell off."
     title: Every window's total
     prompt: |
       Arrange these lines into `window_sums(nums, k)`, which returns a list with the total of every window of `k` items.
@@ -304,6 +306,7 @@ steps:
   - id: step.window.write-max-sum
     type: write-code
     pattern: pattern.fixed-window
+    patternCue: "\"Any `k` consecutive items\": every candidate is a window of exactly `k`. Keep a running window sum and update it with one add and one subtract per step."
     largeScreenPreferred: true
     title: Largest sum of k in a row
     prompt: |
@@ -344,6 +347,7 @@ steps:
   - id: step.window.write-average
     type: write-code
     pattern: pattern.fixed-window
+    patternCue: "\"Windows of `k` consecutive items\": fixed size. Keep the window's sum as it slides; an average of at least `threshold` is a sum of at least `k * threshold`."
     largeScreenPreferred: true
     title: Windows that average enough
     prompt: |
@@ -383,6 +387,7 @@ steps:
   - id: step.window.write-nearby
     type: write-code
     pattern: pattern.fixed-window
+    patternCue: "\"At most `k` apart\": only the last `k` values matter for each item, so keep a set of the window behind you, dropping the value that slides out."
     largeScreenPreferred: true
     title: Duplicates close together
     prompt: |
@@ -463,6 +468,7 @@ steps:
   - id: step.window.write-permutation
     type: write-code
     pattern: pattern.fixed-window
+    patternCue: "\"Some window of `s`\" with \"`len(p)` letters\": a fixed window size. Slide it across `s` keeping letter counts for the window, and compare them with `p`'s."
     largeScreenPreferred: true
     title: A permutation inside a string
     prompt: |

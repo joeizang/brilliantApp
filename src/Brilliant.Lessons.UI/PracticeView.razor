@@ -21,7 +21,7 @@ else
         @if (_phase == Phase.Pick)
         {
             <ProblemPrompt Step="_presented" />
-            <PatternPick Choices="problem.Choices" Right="problem.Pattern" Name="@($"pick.{_run}.{_count}")" OnPicked="Picked" OnContinue="StartSolving" ContinueText="Solve it" />
+            <PatternPick Choices="problem.Choices" Right="problem.Pattern" Name="@($"pick.{_run}.{_count}")" OnPicked="Picked" OnContinue="StartSolving" Cue="@problem.Step.PatternCue" ContinueText="Solve it" />
         }
         else if (_phase == Phase.Solve)
         {
