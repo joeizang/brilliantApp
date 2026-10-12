@@ -23,6 +23,9 @@ public sealed class ContentGraph
     }
 
     public PackManifest Manifest { get; }
+
+    /// <summary>Every ID in the pack (tracks, lessons, steps, concepts, review items). IDs are what progress is recorded against.</summary>
+    public IReadOnlyCollection<string> Ids => _byId.Keys;
     public IReadOnlyList<Track> Tracks { get; }
     public IReadOnlyList<Lesson> Lessons { get; }
 

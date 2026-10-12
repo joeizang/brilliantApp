@@ -182,8 +182,11 @@ public sealed class SyncService(
     }
 }
 
-/// <summary>Runs <see cref="SyncService"/> when the app starts and then at an interval, quietly, for as long as the app does.</summary>
-public sealed class SyncScheduler(SyncService sync, TimeSpan interval) : IDisposable
+/// <summary>
+/// Runs <see cref="SyncService"/> when the app starts and then at an interval, quietly, for as long as the app does.
+/// <paramref name="alsoEachTime"/> (the content update check) runs after each sync and, like it, can never take the app down.
+/// </summary>
+public sealed class SyncScheduler(SyncService sync, TimeSpan interval, Func<CancellationToken, Task>? alsoEachTime = null) : IDisposable
 {
     private CancellationTokenSource? _stop;
 
@@ -203,6 +206,11 @@ public sealed class SyncScheduler(SyncService sync, TimeSpan interval) : IDispos
             {
                 try { await sync.SyncAsync(ct); }
                 catch (Exception e) when (e is not OperationCanceledException) { /* a sync that goes wrong must never take the app down with it */ }
+                if (alsoEachTime is not null)
+                {
+                    try { await alsoEachTime(ct); }
+                    catch (Exception e) when (e is not OperationCanceledException) { }
+                }
             }
             while (await timer.WaitForNextTickAsync(ct));
         }
