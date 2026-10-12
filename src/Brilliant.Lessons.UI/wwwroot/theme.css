@@ -27,6 +27,7 @@
     --dot: rgba(160, 185, 255, .07);         /* the graph-paper dots behind every screen */
     --ember: #ff9a3c;                        /* the flame and the daily goal ring */
     --ember-hot: #ff5a1f;
+    --ember-text: #ff9a3c;                   /* ember for words and for badges with words on them; --ember itself is for drawing */
     --ember-core: #ffe08a;
     --ember-glow: rgba(255, 128, 40, .5);
     --success: #4cc27f;
@@ -67,6 +68,7 @@
         --dot: rgba(36, 86, 214, .09);
         --ember: #ee6a10;
         --ember-hot: #d9400a;
+        --ember-text: #c2410c;               /* 5.2:1 on white; --ember is only 3.1:1 */
         --ember-core: #ffc94d;
         --ember-glow: rgba(238, 106, 16, .38);
         --success: #1f7a42;

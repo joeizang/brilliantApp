@@ -46,7 +46,7 @@
                                 disabled="@(l.Status == LessonStatus.Locked)"
                                 aria-current="@(l.Lesson.Id == CurrentLesson?.Id ? "page" : null)"
                                 @onclick="() => OnOpenLesson.InvokeAsync((track.Track, l.Lesson, l.Status == LessonStatus.Completed && l.NewStepCount == 0))">
-                            <span class="status flex-none @(l.Status == LessonStatus.Completed ? "text-success" : l.Status == LessonStatus.InProgress ? "text-ember" : "")" aria-hidden="true"><Icon Name="@IconName(l.Status)" Class="size-5" /></span>
+                            <span class="status flex-none @(l.Status == LessonStatus.Completed ? "text-success" : l.Status == LessonStatus.InProgress ? "text-ember-text" : "")" aria-hidden="true"><Icon Name="@IconName(l.Status)" Class="size-5" /></span>
                             <span>@l.Lesson.Title</span>
                         </button>
                     </li>

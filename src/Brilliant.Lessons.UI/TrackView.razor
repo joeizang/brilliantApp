@@ -90,7 +90,7 @@
     private static string StatusBadge(LessonStatus s) => "grid size-10 flex-none place-items-center rounded-full " + s switch
     {
         LessonStatus.Completed => "bg-success-tint text-success",
-        LessonStatus.InProgress => "bg-ember-wash text-ember",
+        LessonStatus.InProgress => "bg-ember-wash text-ember-text",
         LessonStatus.Locked => "bg-surface text-fg-secondary",
         _ => "bg-accent-tint text-accent",
     };

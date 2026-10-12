@@ -61,7 +61,7 @@
     @if (today.NextLesson is { } next)
     {
         <section class="today-next panel grid gap-[.2rem] px-6 py-5 shadow-(--shadow-card)">
-            <span class="next-label text-[.9rem] font-semibold text-ember">Up next</span>
+            <span class="next-label text-[.9rem] font-semibold text-ember-text">Up next</span>
             <span class="next-title text-[1.2rem] font-semibold tracking-[-.01em]">@next.Lesson.Title</span>
             <span class="next-meta text-[.9rem] text-fg-secondary">@TrackTitle(next) · @Caption(next)</span>
         </section>
