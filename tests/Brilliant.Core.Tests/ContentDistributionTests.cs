@@ -20,10 +20,65 @@ internal static class Packs
         return ms.ToArray();
     }
 
+    /// <summary>A pack whose parts are as given, whether or not they agree with each other.</summary>
+    public static byte[] BuildFrom(string version, IEnumerable<Track> tracks, IEnumerable<Lesson> lessons, string packId = "pack.t")
+    {
+        using var ms = new MemoryStream();
+        ContentPackFormat.Write(ms, new PackManifest(packId, version, ContentPackFormat.CurrentFormatVersion), tracks, lessons);
+        return ms.ToArray();
+    }
+
+    /// <summary>Packs that load as JSON but whose references lead nowhere, by what is wrong with them.</summary>
+    public static IEnumerable<(string What, byte[] Pack)> Dangling(string version)
+    {
+        var lesson = new Lesson("lesson.1", "One", "track.a", [Explain("step.a"), Explain("step.b")]);
+        yield return ("a track lists a lesson that is not in the pack", BuildFrom(version, [new Track("track.a", "A", ["lesson.missing"])], [lesson]));
+        yield return ("a track lists an ID that is a step, not a lesson", BuildFrom(version, [new Track("track.a", "A", ["step.a"])], [lesson]));
+        yield return ("a lesson belongs to a track that is not in the pack", BuildFrom(version, [new Track("track.a", "A", [lesson.Id])], [lesson with { TrackId = "track.missing" }]));
+        yield return ("a review item points at a concept the lesson does not have",
+            BuildFrom(version, [new Track("track.a", "A", [lesson.Id])], [lesson with { ReviewItems = [new ReviewItem("review.1", "concept.missing", "step.a")] }]));
+        yield return ("a review item points at a step the lesson does not have",
+            BuildFrom(version, [new Track("track.a", "A", [lesson.Id])], [lesson with { Concepts = [new Concept("concept.1", "C")], ReviewItems = [new ReviewItem("review.1", "concept.1", "step.missing")] }]));
+    }
+
     public static ContentGraph Graph(byte[] pack) => ContentPackFormat.Load(new MemoryStream(pack));
 
+    /// <summary>The manifest alone, readable even from a pack whose references are broken.</summary>
+    public static PackManifest Manifest(byte[] pack)
+    {
+        using var zip = new System.IO.Compression.ZipArchive(new MemoryStream(pack));
+        using var entry = zip.GetEntry(ContentPackFormat.ManifestEntry)!.Open();
+        return System.Text.Json.JsonSerializer.Deserialize<PackManifest>(entry, ContentPackFormat.JsonOptions)!;
+    }
+
     public static PackInfo Info(byte[] pack, string? version = null, string? packId = null, int format = ContentPackFormat.CurrentFormatVersion) =>
-        new(packId ?? Graph(pack).Manifest.PackId, version ?? Graph(pack).Manifest.Version, format, Convert.ToHexStringLower(SHA256.HashData(pack)), pack.Length, DateTimeOffset.UnixEpoch);
+        new(packId ?? Manifest(pack).PackId, version ?? Manifest(pack).Version, format, Convert.ToHexStringLower(SHA256.HashData(pack)), pack.Length, DateTimeOffset.UnixEpoch);
+}
+
+public class PackReferenceTests
+{
+    public static TheoryData<string> Cases() => new(Packs.Dangling("1.0.0").Select(c => c.What));
+
+    [Theory]
+    [MemberData(nameof(Cases))]
+    public void A_pack_whose_references_lead_nowhere_does_not_load(string what)
+    {
+        var pack = Packs.Dangling("1.0.0").Single(c => c.What == what).Pack;
+
+        Assert.Throws<ContentPackException>(() => Packs.Graph(pack));
+    }
+
+    [Fact]
+    public void A_pack_whose_references_all_resolve_loads()
+    {
+        var lesson = new Lesson("lesson.1", "One", "track.a", [Packs.Explain("step.a")])
+        {
+            Concepts = [new Concept("concept.1", "C")],
+            ReviewItems = [new ReviewItem("review.1", "concept.1", "step.a")],
+        };
+
+        Assert.NotNull(Packs.Graph(Packs.BuildFrom("1.0.0", [new Track("track.a", "A", [lesson.Id])], [lesson])));
+    }
 }
 
 public class PackVersionTests
@@ -86,6 +141,27 @@ public sealed class PackCacheTests : IDisposable
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "brilliant-packcache-" + Guid.NewGuid().ToString("N"));
     private PackCache Cache => new(_dir);
     public void Dispose() { if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true); }
+
+    [Fact]
+    public void A_pack_with_dangling_references_is_not_stored_and_the_app_keeps_its_content()
+    {
+        var broken = Packs.Dangling("2.0.0").First().Pack;
+
+        Assert.Throws<ContentPackException>(() => Cache.Store("pack.t", PackVersion.Parse("2.0.0"), broken));
+        Assert.Null(Cache.Newest("pack.t"));
+        Assert.Equal("1.0.0", PackStartup.Choose(() => new MemoryStream(Packs.Build("1.0.0")), Cache).Manifest.Version);
+    }
+
+    [Fact]
+    public void A_cached_pack_with_dangling_references_is_skipped_at_start_and_removed()
+    {
+        File.WriteAllBytes(Directory.CreateDirectory(_dir).FullName + "/pack.t_2.0.0.zip", Packs.Dangling("2.0.0").First().Pack);
+
+        var graph = PackStartup.Choose(() => new MemoryStream(Packs.Build("1.0.0")), Cache);
+
+        Assert.Equal("1.0.0", graph.Manifest.Version);
+        Assert.Null(Cache.Newest("pack.t"));
+    }
 
     [Fact]
     public void A_stored_pack_is_found_when_it_is_newer_than_what_runs()
@@ -243,7 +319,7 @@ public sealed class ContentUpdateServiceTests : IDisposable
             }
             Downloads++;
             var wanted = path.Split('/')[^1];
-            var bytes = Held.FirstOrDefault(b => Packs.Graph(b).Manifest.Version == wanted);
+            var bytes = Held.FirstOrDefault(b => Packs.Manifest(b).Version == wanted);
             return Task.FromResult(bytes is null ? new HttpResponseMessage(HttpStatusCode.NotFound) : new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(Corrupt(bytes)) });
         }
     }
@@ -409,6 +485,54 @@ public sealed class ContentUpdateServiceTests : IDisposable
     private sealed class Down : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) => throw new HttpRequestException("Connection refused");
+    }
+
+    [Fact]
+    public async Task A_pack_with_dangling_references_is_refused_and_not_fetched_again()
+    {
+        var (service, server, cache) = Start();
+        server.Held.Add(Packs.Dangling("1.1.0").First().Pack);
+
+        var first = await service.CheckAsync();
+        var second = await service.CheckAsync();
+
+        Assert.Equal(ContentUpdateOutcome.Failed, first.Outcome);
+        Assert.Null(cache.Newest("pack.t"));
+        Assert.Null(service.PendingVersion);
+        Assert.Equal(ContentUpdateOutcome.UpToDate, second.Outcome);
+        Assert.Equal(1, server.Downloads);
+    }
+
+    [Theory]
+    [InlineData("{\"packs\":null}")]
+    [InlineData("{}")]
+    [InlineData("{\"packs\":[null]}")]
+    [InlineData("{\"packs\":[{\"packId\":null,\"version\":null,\"formatVersion\":1,\"sha256\":null,\"size\":1}]}")]
+    [InlineData("[]")]
+    public async Task A_malformed_pack_list_is_a_failed_check_not_an_exception(string body)
+    {
+        var service = new ContentUpdateService(Packs.Graph(Packs.Build("1.0.0")), new PackCache(_dir),
+            new PackClient(new HttpClient(new Fixed(body))), new MemoryStore(Paired));
+
+        var result = await service.CheckAsync();
+
+        Assert.Equal((ContentUpdateOutcome.Failed, SyncFailure.ServerError), (result.Outcome, result.Failure));
+    }
+
+    [Fact]
+    public async Task A_malformed_pack_list_is_a_server_error_from_the_client()
+    {
+        var client = new PackClient(new HttpClient(new Fixed("{\"packs\":null}")));
+
+        var e = await Assert.ThrowsAsync<SyncException>(() => client.ListAsync(Paired));
+
+        Assert.Equal(SyncFailure.ServerError, e.Failure);
+    }
+
+    private sealed class Fixed(string body) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") });
     }
 
     [Fact]

@@ -24,7 +24,7 @@ dotnet run --project tools/Brilliant.Cli -- publish content
 ```
 
 - **The content is validated first**, with the same checks as `validate` (including reference solutions). If anything fails, the errors are printed, `nothing was published.` is said, and nothing is sent.
-- The server then checks the pack **again**, whoever sent it: the zip must load as a Content Pack of the format it understands, the pack ID must be 1 to 100 letters, digits, `.`, `-` or `_` (not starting with a dot), the version must be three numbers (`1.2.3`), it may unpack to at most 100 MB, and the upload is at most 20 MB.
+- The server then checks the pack **again**, whoever sent it: the zip must load as a Content Pack of the format it understands **with every reference resolving** (a track's lessons, a lesson's track, a review item's concept and step; the app applies the same check before it caches or starts a downloaded pack, so a broken update is refused and the previous content stays), the pack ID must be 1 to 100 letters, digits, `.`, `-` or `_` (not starting with a dot), the version must be three numbers (`1.2.3`), it may unpack to at most 100 MB, and the upload is at most 20 MB.
 - **Versions only go up** (compared as numbers, so `0.10.0` is newer than `0.9.0`):
   - Publishing the same version with the **same bytes** again is fine and changes nothing (packs are byte-reproducible, so an unchanged `content/` gives the same bytes).
   - The same version with **different contents** is refused (`409`): raise the version.
@@ -39,7 +39,7 @@ Every version is kept whole on the server, so older versions stay downloadable. 
 - If that version is newer than the running one **and** newer than anything already downloaded, the app downloads it, checks the **size and SHA-256** against the listing, checks that it loads and really is the ID and version it claims, and stores it in `<app data>/packs/{packId}_{version}.zip` (the newest two are kept).
 - **The new content is used at the next app start.** It is never swapped under a learner who is in the middle of a lesson. The Sync screen says `Content 0.2.0 downloaded. Restart the app to use it (you're on 0.1.0).`, or `Content 0.1.0 is up to date.`.
 - At start, the app runs the cached pack if it is newer than the bundled one, otherwise the bundled one. A cached file that is damaged, or isn't what its name says, is deleted and the app starts from what it had. **Nothing about the cache can stop the app starting.**
-- The check never throws at the learner: a server that is away, refuses, or sends a pack that doesn't match its listing just leaves the content as it was (the Sync screen says it couldn't check). A pack the device downloaded and couldn't use isn't fetched again every two minutes.
+- The check never throws at the learner: a server that is away, refuses, sends a malformed pack list, or sends a pack that doesn't match its listing or whose references don't resolve just leaves the content as it was (the Sync screen says it couldn't check). A pack the device downloaded and couldn't use isn't fetched again every two minutes.
 - Offline, the app uses what it has: the bundled pack plus whatever was downloaded earlier.
 
 ## Progress survives an update

@@ -39,6 +39,22 @@ public sealed class PackEndpointTests(PostgresFixture postgres)
         (await client.GetFromJsonAsync<PackListResponse>("/packs"))!.Packs;
 
     [Fact]
+    public async Task A_pack_whose_references_lead_nowhere_is_refused_and_nothing_is_stored()
+    {
+        await using var server = await ServerHarness.StartAsync(postgres);
+        var (client, _) = await server.PairDeviceAsync();
+        var lesson = new Lesson("lesson.1", "One", "track.a", [new ExplainStep("step.a", "a", "body", [], null)]);
+        using var ms = new MemoryStream();
+        ContentPackFormat.Write(ms, new PackManifest("pack.t", "2.0.0", ContentPackFormat.CurrentFormatVersion), [new Track("track.a", "A", ["lesson.missing"])], [lesson]);
+
+        var response = await Publish(client, ms.ToArray());
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("lesson.missing", await Error(response));
+        Assert.Empty(await List(client));
+    }
+
+    [Fact]
     public async Task A_valid_pack_is_published_and_listed()
     {
         await using var server = await ServerHarness.StartAsync(postgres);

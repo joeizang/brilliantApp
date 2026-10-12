@@ -20,6 +20,9 @@ public sealed class PackClient(HttpClient http)
         using var request = Authorised(HttpMethod.Get, new Uri(credentials.Server, "packs"), credentials);
         var list = await SendAsync(request, async response =>
             await response.Content.ReadFromJsonAsync<PackListResponse>(ct) ?? throw new SyncException(SyncFailure.ServerError, "The server's answer was empty."), ct);
+        // A 200 can still carry nonsense ({"packs":null}, null entries): that is the server misbehaving, not something to blow up on later.
+        if (list.Packs is null || list.Packs.Any(p => p is null || p.PackId is null || p.Version is null || p.Sha256 is null))
+            throw new SyncException(SyncFailure.ServerError, "The server's list of packs was malformed.");
         return list.Packs;
     }
 
