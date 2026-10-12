@@ -7,22 +7,33 @@
  */
 @layer theme, base, components, utilities;
 
+/* The app's two typefaces ship with it (SIL Open Font Licence; see fonts/OFL-*.txt), so the lessons look the same offline, on Android
+   and on the Mac: Bricolage Grotesque for the interface, JetBrains Mono for code. Variable fonts, so one file covers every weight. */
+@font-face { font-family: "Bricolage"; src: url("fonts/bricolage-grotesque-latin-wght-normal.woff2") format("woff2"); font-weight: 200 800; font-style: normal; font-display: swap; }
+@font-face { font-family: "JetBrains Mono"; src: url("fonts/jetbrains-mono-latin-wght-normal.woff2") format("woff2"); font-weight: 100 800; font-style: normal; font-display: swap; }
+
 :root {
     color-scheme: dark;
-    --bg: #121214;
+    --bg: #0b101b;
     --surface: rgba(255, 255, 255, .06);
-    --surface-raised: #1c1c1f;
-    --fg: #f5f5f7;
-    --fg-secondary: #a1a1a6;
+    --surface-raised: #151c2d;
+    --fg: #f2f4fa;
+    --fg-secondary: #9ba6bd;
     --border: rgba(255, 255, 255, .24);      /* controls: inputs, answer options, buttons (3:1 against the background) */
     --hairline: rgba(255, 255, 255, .1);     /* decoration: dividers and card edges */
     --track: rgba(255, 255, 255, .16);
-    --accent: #6ea0ff;
-    --on-accent: #0b1020;
+    --accent: #78a8ff;
+    --on-accent: #08101f;
+    --dot: rgba(160, 185, 255, .07);         /* the graph-paper dots behind every screen */
+    --ember: #ff9a3c;                        /* the flame and the daily goal ring */
+    --ember-hot: #ff5a1f;
+    --ember-text: #ff9a3c;                   /* ember for words and for badges with words on them; --ember itself is for drawing */
+    --ember-core: #ffe08a;
+    --ember-glow: rgba(255, 128, 40, .5);
     --success: #4cc27f;
     --danger: #ff7b7b;
     --warn-bg: rgba(245, 166, 35, .28);
-    --shadow-card: 0 .25rem 1.5rem rgba(0, 0, 0, .35);
+    --shadow-card: 0 .25rem 1.5rem rgba(0, 0, 0, .4);
     --shadow-lift: 0 .5rem 2rem rgba(0, 0, 0, .5);
     /* Code editor: VS Code Dark+ */
     --code-bg: #1e1e1e;
@@ -44,21 +55,27 @@
 @media (prefers-color-scheme: light) {
     :root {
         color-scheme: light;
-        --bg: #ffffff;
+        --bg: #f3f6fc;
         --surface: rgba(0, 0, 0, .04);
-        --surface-raised: #f5f5f7;
-        --fg: #1d1d1f;
-        --fg-secondary: #6e6e73;
+        --surface-raised: #ffffff;
+        --fg: #121a2e;
+        --fg-secondary: #5a6479;
         --border: rgba(0, 0, 0, .24);
         --hairline: rgba(0, 0, 0, .08);
         --track: rgba(0, 0, 0, .12);
-        --accent: #2f6fe0;
+        --accent: #2456d6;
         --on-accent: #ffffff;
+        --dot: rgba(36, 86, 214, .09);
+        --ember: #ee6a10;
+        --ember-hot: #d9400a;
+        --ember-text: #c2410c;               /* 5.2:1 on white; --ember is only 3.1:1 */
+        --ember-core: #ffc94d;
+        --ember-glow: rgba(238, 106, 16, .38);
         --success: #1f7a42;
         --danger: #c0322f;
         --warn-bg: rgba(245, 166, 35, .3);
-        --shadow-card: 0 .25rem 1.5rem rgba(0, 0, 0, .06);
-        --shadow-lift: 0 .5rem 2rem rgba(0, 0, 0, .12);
+        --shadow-card: 0 .25rem 1.25rem rgba(30, 50, 110, .09);
+        --shadow-lift: 0 .5rem 2rem rgba(30, 50, 110, .16);
         /* Code editor: VS Code Light+ */
         --code-bg: #f5f5f5;
         --code-fg: #1f1f1f;

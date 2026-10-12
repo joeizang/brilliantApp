@@ -20,7 +20,7 @@
 else if (_paired is { } paired)
 {
     <div class="paired content-column mt-4 grid gap-3">
-        <p class="paired-status m-0">✓ Paired with <strong class="paired-server">@paired.Server.Authority</strong></p>
+        <p class="paired-status m-0 flex items-center gap-2"><Icon Name="check" Class="icon-draw size-6 text-success" />Paired with <strong class="paired-server">@paired.Server.Authority</strong></p>
         <div class="sync-status grid gap-2" role="status">
             <p class="last-synced m-0">@LastSyncedText(paired)</p>
             @if (Sync.RejectedCount(paired.DeviceId) is var held and > 0)

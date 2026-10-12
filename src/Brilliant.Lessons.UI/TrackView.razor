@@ -6,16 +6,16 @@
     var state = learner.Track(Track.Id)!;
     var concepts = learner.ConceptsOf(Track.Id).ToList();
 }
-<div class="crumbs content-column mt-2 text-[.95rem]"><button class="link btn-link" @onclick="() => OnBack.InvokeAsync()">← Tracks</button></div>
+<div class="crumbs content-column mt-2 text-[.95rem]"><button class="link btn-link" @onclick="() => OnBack.InvokeAsync()"><Icon Name="back" Class="size-5" /> Tracks</button></div>
 <h1 class="screen-title content-column mt-0 mb-1">@Track.Title</h1>
 <p class="track-meta content-column mt-0 mb-0 text-fg-secondary">@state.CompletedLessons of @state.TotalLessons lessons complete</p>
-<div class="track-mastery mt-2"><MasteryBar Value="learner.TrackMastery(Track.Id)" Label="@("Mastery of " + Track.Title)" Suffix="mastered" /></div>
+<div class="track-mastery content-column mt-2"><MasteryBar Value="learner.TrackMastery(Track.Id)" Label="@("Mastery of " + Track.Title)" Suffix="mastered" /></div>
 
 <ol class="lessons content-column mt-6 mb-6 grid list-none gap-3">
     @foreach (var l in state.Lessons)
     {
         <li class="lesson @l.Status.ToString().ToLowerInvariant() @LessonClass(l.Status)">
-            <span class="status w-6 text-center text-[1.2rem] @(l.Status == LessonStatus.Completed ? "text-success" : "")" aria-hidden="true">@Icon(l.Status)</span>
+            <span class="status @StatusBadge(l.Status)" aria-hidden="true"><Icon Name="@IconName(l.Status)" Class="@(l.Status == LessonStatus.Completed ? "icon-draw size-6" : "size-6")" /></span>
             <span class="lesson-name grid flex-1 font-semibold">
                 @l.Lesson.Title
                 <small class="font-normal text-fg-secondary">@Caption(l)</small>
@@ -67,23 +67,32 @@
     /// <summary>A concept was picked; carries its ID.</summary>
     [Parameter] public EventCallback<string> OnOpenConcept { get; set; }
 
-    private static string LessonClass(LessonStatus s) => "panel flex items-center gap-4 px-5 py-4 shadow-(--shadow-card)" + s switch
+    // A locked card dims its contents, not the card: an opacity on the card itself lets its own shadow show through the panel.
+    private static string LessonClass(LessonStatus s) => "panel flex items-center gap-4 px-5 py-4" + s switch
     {
-        LessonStatus.Locked => " opacity-60",
-        LessonStatus.Completed => " border-success/50",
-        _ => "",
+        LessonStatus.Locked => " [&>*]:opacity-60",
+        LessonStatus.Completed => " border-success/50 shadow-(--shadow-card)",
+        _ => " shadow-(--shadow-card)",
     };
 
     private static string ConceptButton(ConceptLevel level) =>
         "panel grid min-h-(--touch) w-full cursor-pointer grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 px-5 py-3 font-inherit text-left text-inherit transition-[translate,box-shadow] duration-250 ease-app hover:-translate-y-[.0625rem] hover:shadow-(--shadow-card) [&_.mastery]:col-span-full"
         + (level == ConceptLevel.NotStarted ? " opacity-75" : "");
 
-    private static string Icon(LessonStatus s) => s switch
+    private static string IconName(LessonStatus s) => s switch
     {
-        LessonStatus.Completed => "✓",
-        LessonStatus.Locked => "🔒",
-        LessonStatus.InProgress => "◐",
-        _ => "○",
+        LessonStatus.Completed => "check",
+        LessonStatus.Locked => "lock",
+        LessonStatus.InProgress => "half",
+        _ => "circle",
+    };
+
+    private static string StatusBadge(LessonStatus s) => "grid size-10 flex-none place-items-center rounded-full " + s switch
+    {
+        LessonStatus.Completed => "bg-success-tint text-success",
+        LessonStatus.InProgress => "bg-ember-wash text-ember-text",
+        LessonStatus.Locked => "bg-surface text-fg-secondary",
+        _ => "bg-accent-tint text-accent",
     };
 
     private static string Caption(LessonState l) => l.Status switch

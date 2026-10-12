@@ -1,0 +1,32 @@
+@* One icon from the app's own set: outlined, drawn in the current text colour, so it follows light/dark, the accent and the tab's state.
+   Replaces the emoji the app used before, which Android and macOS draw differently and which could be neither tinted nor animated.
+   Size comes from the `icon` rule (1.5rem); a caller passes a Tailwind size class to change it. Decorative: pair it with text. *@
+<svg class="icon icon-@Name @Class" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+    @((MarkupString)Paths(Name))
+</svg>
+
+@code {
+    /// <summary>home, tracks, review, sync, check, cross, lock, back, plus, minus, half, circle.</summary>
+    [Parameter, EditorRequired] public string Name { get; set; } = "";
+
+    /// <summary>Extra classes, for a size (`size-7`), a colour or an animation (`icon-draw`).</summary>
+    [Parameter] public string? Class { get; set; }
+
+    // `pathLength="1"` lets the draw-on animation use a dash of 1 whatever the path's real length.
+    private static string Paths(string name) => name switch
+    {
+        "home" => "<path d=\"M3 11.5 12 4l9 7.5\"/><path d=\"M5.5 10v9.5h13V10\"/><path d=\"M10 19.5v-5h4v5\"/>",
+        "tracks" => "<path d=\"M12 3 3 8l9 5 9-5-9-5z\"/><path d=\"m3 13 9 5 9-5\"/>",
+        "review" => "<g class=\"icon-turn\"><path d=\"m17 2.5 3.5 3.5L17 9.5\"/><path d=\"M3.5 11v-1a4 4 0 0 1 4-4h13\"/><path d=\"M7 21.5 3.5 18 7 14.5\"/><path d=\"M20.5 13v1a4 4 0 0 1-4 4h-13\"/></g>",
+        "sync" => "<g class=\"icon-turn\"><path d=\"M20 11a8 8 0 0 0-14.5-4.5L3 9\"/><path d=\"M3 4v5h5\"/><path d=\"M4 13a8 8 0 0 0 14.5 4.5L21 15\"/><path d=\"M21 20v-5h-5\"/></g>",
+        "check" => "<path class=\"icon-stroke\" pathLength=\"1\" d=\"m4.5 12.5 5 5 10-11\"/>",
+        "cross" => "<path d=\"M6 6l12 12\"/><path d=\"M18 6 6 18\"/>",
+        "lock" => "<rect x=\"5.5\" y=\"11\" width=\"13\" height=\"9.5\" rx=\"2\"/><path d=\"M8.5 11V8a3.5 3.5 0 0 1 7 0v3\"/>",
+        "back" => "<path d=\"M19 12H5\"/><path d=\"m11 6-6 6 6 6\"/>",
+        "plus" => "<path d=\"M12 5v14\"/><path d=\"M5 12h14\"/>",
+        "minus" => "<path d=\"M5 12h14\"/>",
+        "circle" => "<circle cx=\"12\" cy=\"12\" r=\"8\"/>",
+        "half" => "<circle cx=\"12\" cy=\"12\" r=\"8\"/><path fill=\"currentColor\" stroke=\"none\" d=\"M12 4a8 8 0 0 1 0 16z\"/>",
+        _ => throw new ArgumentOutOfRangeException(nameof(name), name, "Unknown icon."),
+    };
+}
