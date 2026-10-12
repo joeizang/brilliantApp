@@ -96,6 +96,7 @@ The apps allow it narrowly:
 | `POSTGRES_PASSWORD` | `.env` | required |
 | `SERVER_PORT` | `.env` | `8080` |
 | `ConnectionStrings__Postgres` | set in `docker-compose.yml` | the compose Postgres |
+| `BACKUP_DIR`, `BACKUP_KEEP`, `BACKUP_AT`, `BACKUP_TZ`, `BACKUP_UID`, `BACKUP_GID` | `.env` | `./backups`, `14`, `03:00`, `UTC`, root; see [backup.md](backup.md) |
 | `Pairing__CodeLifetimeMinutes` | environment | `15` |
 | `Pairing__AttemptsPerMinute` | environment | `10` |
 
@@ -115,5 +116,5 @@ dotnet test tests/Brilliant.Server.Tests
 |---|---|
 | `src/Brilliant.Server` | The API: endpoints, device-token authentication, pairing codes, the event log, EF Core migrations |
 | `src/Brilliant.Core/Sync` | Contracts shared with the apps, the pairing and sync clients, `SyncService`, credential stores |
-| `docker-compose.yml`, `src/Brilliant.Server/Dockerfile` | Postgres and the server |
+| `docker-compose.yml`, `src/Brilliant.Server/Dockerfile` | Postgres, the server and the nightly backup ([backup.md](backup.md)) |
 | `tests/Brilliant.Server.Tests` | Integration tests against real Postgres |

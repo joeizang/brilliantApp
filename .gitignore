@@ -21,3 +21,6 @@ __pycache__/
 
 # Signed APK from scripts/build-apk.sh
 dist/
+
+# Database dumps from the backup service
+backups/

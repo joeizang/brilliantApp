@@ -30,5 +30,32 @@ services:
     ports:
       - "${SERVER_PORT:-8080}:8080"
 
+  # Nightly pg_dump into BACKUP_DIR (default ./backups), keeping the last BACKUP_KEEP. See docs/backup.md.
+  backup:
+    image: postgres:17-alpine   # same major version as the database, so pg_dump and pg_restore match it
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["/backup.sh"]
+    user: "${BACKUP_UID:-0}:${BACKUP_GID:-0}"
+    environment:
+      PGHOST: postgres
+      PGDATABASE: brilliant
+      PGUSER: brilliant
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (copy .env.example)}
+      BACKUP_AT: ${BACKUP_AT:-03:00}
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+      TZ: ${BACKUP_TZ:-UTC}
+    volumes:
+      - ./scripts/backup/backup.sh:/backup.sh:ro
+      - ${BACKUP_DIR:-./backups}:/backups
+    healthcheck:   # unhealthy if there is no dump from the last 36 hours (docker compose ps shows it)
+      test: ["CMD-SHELL", "find /backups -name 'brilliant-*.dump' -mmin -2160 | grep -q ."]
+      interval: 1h
+      timeout: 10s
+      start_period: 5m
+      retries: 1
+
 volumes:
   pgdata:
