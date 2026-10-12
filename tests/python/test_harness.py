@@ -120,6 +120,13 @@ class Errors(unittest.TestCase):
         self.assertEqual(r["status"], "error")
         self.assertIn("broken test", r["message"])
 
+    def test_a_dataclass_can_be_defined_and_the_module_is_not_left_behind(self):
+        code = ("from dataclasses import dataclass\n\n@dataclass\nclass Point:\n    x: int\n    y: int\n\n"
+                "def f(x, y):\n    return repr(Point(x, y)) + ' ' + str(Point(x, y) == Point(x, y))\n")
+        r = run(code, tests=[("1, 2", "'Point(x=1, y=2) True'")])
+        self.assertEqual(r["status"], "passed", r)
+        self.assertNotIn("learner", __import__("sys").modules)
+
     def test_learner_cannot_change_what_is_expected(self):
         r = run("list = 5\ndef f(x):\n    return x\n", tests=[("2", "list((2,))[0]")])
         self.assertEqual(r["status"], "passed")

@@ -14,7 +14,9 @@ import contextlib
 import io
 import json
 import linecache
+import sys
 import traceback
+import types
 
 LEARNER_FILE = "<your code>"
 MAX_OUTPUT = 4000      # characters of stdout / repr kept, so a print loop can't flood the UI
@@ -52,7 +54,20 @@ def _result(status, stdout="", message=None, tb=None, line=None, tests=None):
 def run_tests(code, entrypoint, tests_json):
     tests = json.loads(tests_json)
     linecache.cache[LEARNER_FILE] = (len(code), None, code.splitlines(True), LEARNER_FILE)
-    namespace = {"__name__": "learner"}
+    # The code runs as a module that is in sys.modules while it runs, as @dataclass needs to look up its class's module.
+    module = types.ModuleType("learner")
+    replaced = sys.modules.get(module.__name__)
+    sys.modules[module.__name__] = module
+    try:
+        return _run(code, entrypoint, tests, module.__dict__)
+    finally:
+        if replaced is None:
+            del sys.modules[module.__name__]
+        else:
+            sys.modules[module.__name__] = replaced
+
+
+def _run(code, entrypoint, tests, namespace):
     out = io.StringIO()
 
     # 1. Load the learner's code (compile, then run top-level statements).
