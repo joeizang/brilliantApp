@@ -1,0 +1,741 @@
+id: lesson.linked-lists
+title: "Linked lists: walk, insert, delete"
+concepts:
+  - id: concept.linked-list-costs
+    title: "Linked list or array: what each is fast at"
+  - id: concept.linked-list-traverse
+    title: "Walking a list: while cur"
+  - id: concept.linked-list-relink
+    title: Insert and delete by relinking
+  - id: concept.dummy-head
+    title: The dummy head
+reviewItems:
+  - id: review.linked-lists.costs
+    concept: concept.linked-list-costs
+    step: step.linked-lists.check-costs
+  - id: review.linked-lists.walk-one-short
+    concept: concept.linked-list-traverse
+    step: step.linked-lists.predict-walk
+  - id: review.linked-lists.insert-order
+    concept: concept.linked-list-relink
+    step: step.linked-lists.check-insert-order
+  - id: review.linked-lists.lost-head
+    concept: concept.dummy-head
+    step: step.linked-lists.predict-lost-head
+  - id: review.linked-lists.which-problem
+    concept: concept.dummy-head
+    step: step.linked-lists.check-which-problem
+    kind: pattern
+  - id: review.linked-lists.why-dummy
+    concept: concept.dummy-head
+    step: step.linked-lists.check-why-dummy
+    kind: pattern
+patterns:
+  - id: pattern.dummy-head
+    title: A dummy head node
+steps:
+  - id: step.linked-lists.what
+    type: explain
+    title: What a linked list is good at
+    body: |
+      In the classes lesson you built a chain of `Node`s, each holding a `val` and a `next` that refers to the next node, or
+      `None` at the end. The list is just its **head**, the first node; everything else is reached by following `next`.
+
+      Compared with a Python list (an array):
+
+      - **Reaching item `i`** is `O(n)`: there is no index, so you walk `i` links. An array does it in `O(1)`.
+      - **Inserting or deleting next to a node you already hold** is `O(1)`: change one or two links and nothing shifts. An
+        array shifts everything after the spot, `O(n)`.
+      - **Adding at the front** is `O(1)`: `head = Node(x, head)`. On an array that's `insert(0, x)`, `O(n)`.
+
+      C# has `LinkedList<T>`, and Python's `deque` is built from linked blocks. You'll rarely write a linked list in
+      production code, but interviews love them: the code is short, and every line moves a reference.
+    comparison:
+      csharp: |
+        class Node
+        {
+            public int Val;
+            public Node? Next;
+            public Node(int val, Node? next = null)
+                => (Val, Next) = (val, next);
+        }
+
+        var head = new Node(1, new Node(2, new Node(3)));
+        head = new Node(0, head);      // O(1): add at the front
+      python: |
+        class Node:
+            def __init__(self, val, next=None):
+                self.val = val
+                self.next = next
+
+        head = Node(1, Node(2, Node(3)))
+        head = Node(0, head)           # O(1): add at the front
+  - id: step.linked-lists.check-costs
+    type: choice
+    title: Which is faster on a linked list?
+    prompt: |
+      Which of these is `O(1)` on a linked list but `O(n)` on a Python list of the same `n` items?
+    options:
+      - text: Adding a new item at the front.
+        correct: true
+        feedback: "Right. `head = Node(x, head)` touches one link. `items.insert(0, x)` shifts all `n` items up one place."
+      - text: Reading the item at position `n // 2`.
+        correct: false
+        feedback: "That's the other way round: an array jumps straight to any index, while a linked list walks `n // 2` links to get there."
+      - text: Finding whether the value `7` is in it.
+        correct: false
+        feedback: "Both have to look at the items one by one, so both are `O(n)`. Neither keeps its values in order or in a hash table."
+      - text: Adding a new item at the back, when you only hold the head.
+        correct: false
+        feedback: "`append` on a Python list is `O(1)`. A linked list with only its head has to walk to the last node first, `O(n)`."
+    hints:
+      - "A linked list has no index. Which of these never needs to find a position?"
+      - "Which operation makes an array shift its items?"
+  - id: step.linked-lists.walk
+    type: explain
+    title: "Walking the list: while cur"
+    body: |
+      Almost every linked-list function starts with the same three lines. `cur` is a finger on the current node: do something
+      with it, then move the finger on. When `cur` steps off the last node it is `None`, which is falsy, and the loop stops.
+
+      - `while cur:` visits **every** node, including the last one.
+      - `while cur.next:` stops **on** the last node without visiting it. Use it when you need to hold the last node (to
+        append after it, say), and only when `cur` can't be `None` to begin with.
+
+      Never move `head` itself while walking: it's the only way back to the start of the list.
+    comparison:
+      csharp: |
+        int total = 0;
+        for (var cur = head; cur != null; cur = cur.Next)
+            total += cur.Val;
+      python: |
+        total = 0
+        cur = head
+        while cur:
+            total += cur.val
+            cur = cur.next
+  - id: step.linked-lists.trace-walk
+    type: trace
+    title: A finger moving down the list
+    body: |
+      `cur` starts on the head and moves one link per pass. On the last pass it moves onto the `None` at the end, and the loop
+      stops. `head` never moves.
+    code: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      head = Node(4, Node(7, Node(1)))
+      total = 0
+      cur = head
+      while cur:
+          total += cur.val
+          cur = cur.next
+    visualise:
+      - variable: head
+        as: linked_list
+        pointers: [cur]
+  - id: step.linked-lists.predict-walk
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      This loop is meant to count the nodes. What does it print?
+    code: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      head = Node(1, Node(2, Node(3)))
+      count = 0
+      cur = head
+      while cur.next:
+          count += 1
+          cur = cur.next
+      print(count, cur.val)
+    accepted:
+      - "2 3"
+    mistakes:
+      - answers:
+          - "3 3"
+        feedback: "`while cur.next` stops as soon as `cur` is on the last node, before counting it. That's why it ends holding `3`, but only counts `2`."
+      - answers:
+          - "3 None"
+          - "AttributeError: 'NoneType' object has no attribute 'val'"
+        feedback: "`cur` never reaches `None` here: the loop stops while `cur` is still on the last node, so `cur.val` is `3`."
+      - answers:
+          - "2 2"
+        feedback: "The second pass moves `cur` from `2` to `3`, and only then does the check `cur.next` fail."
+    hints:
+      - "Follow `cur` and `count` pass by pass. When does `cur.next` become `None`?"
+      - "The loop stops with `cur` on the last node. Was that node counted?"
+  - id: step.linked-lists.relink
+    type: explain
+    title: Insert and delete by relinking
+    body: |
+      You never move nodes; you change which node a `next` refers to.
+
+      **Insert after `node`:** point the new node at what comes next, *then* point `node` at the new one.
+
+      ```python
+      new = Node(x)
+      new.next = node.next   # 1. the new node holds on to the rest
+      node.next = new        # 2. then node lets go of it
+      ```
+
+      Swap those two lines and `node.next` is overwritten before anyone saved it: the rest of the list is lost.
+
+      **Delete the node after `prev`:** skip over it. Nothing refers to it any more, so Python frees it.
+
+      ```python
+      prev.next = prev.next.next
+      ```
+
+      Notice that both need the node **before** the spot. A singly linked list can't step backwards, so you walk with a finger
+      one node behind where the change happens.
+    comparison:
+      csharp: |
+        // insert after node
+        var added = new Node(x);
+        added.Next = node.Next;
+        node.Next = added;
+
+        // delete the node after prev
+        prev.Next = prev.Next!.Next;
+      python: |
+        # insert after node
+        new = Node(x)
+        new.next = node.next
+        node.next = new
+
+        # delete the node after prev
+        prev.next = prev.next.next
+  - id: step.linked-lists.trace-relink
+    type: trace
+    title: Insert a 3, then delete the 2
+    body: |
+      `3` goes in after `two`: first it points at `4`, then `two` points at it. Then `head.next` skips over the `2`. `two` still
+      holds the `2`, so you see it hanging below the list; the list itself no longer reaches it.
+    code: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      head = Node(1, Node(2, Node(4)))
+      two = head.next
+      new = Node(3)
+      new.next = two.next
+      two.next = new
+      head.next = head.next.next
+    visualise:
+      - variable: head
+        as: linked_list
+        pointers: [two, new]
+  - id: step.linked-lists.check-insert-order
+    type: choice
+    title: The lines in the wrong order
+    prompt: |
+      To insert `new` after `node`, someone writes the two lines the other way round:
+
+      ```python
+      node.next = new
+      new.next = node.next
+      ```
+
+      What happens?
+    options:
+      - text: "Every node after `node` is lost, and `new.next` refers to `new` itself, a loop."
+        correct: true
+        feedback: "Right. The first line overwrites the only reference to the rest of the list. By the second line `node.next` *is* `new`, so `new` points at itself."
+      - text: It works the same; the order of two assignments doesn't matter.
+        correct: false
+        feedback: "It does here: the second line reads `node.next`, which the first line just changed."
+      - text: "`new` ends up at the end of the list."
+        correct: false
+        feedback: "`new` does follow `node`, but nothing follows `new` except `new` itself. The old rest of the list is unreachable."
+      - text: Python raises an `AttributeError`.
+        correct: false
+        feedback: "No error: every name holds a node. The list is silently broken, which is worse."
+    hints:
+      - "After `node.next = new`, what does `node.next` refer to?"
+      - "Then `new.next = node.next` sets `new.next` to... what?"
+  - id: step.linked-lists.dummy
+    type: explain
+    title: "Pattern: the dummy head"
+    body: |
+      Deleting or inserting needs the node **before** the spot. The head has no node before it, so code that might change the
+      head grows a special case: `if head.val == target: head = head.next`, then a loop for everything else, and bugs in the gap
+      between them.
+
+      The fix is a **dummy** node in front of the head, made up for the occasion:
+
+      1. `dummy = Node(0, head)`: now every real node has a node before it.
+      2. Walk with `prev`, starting at `dummy`, and look at `prev.next`.
+      3. Return **`dummy.next`**, not `head`. If the old head was removed, `head` still refers to it.
+
+      Watch for problems where **the first node might change**: *remove every node that...*, *insert into a sorted list*,
+      *insert at position `i`*, *build a new list* (append to a tail that starts at the dummy). The dummy's value is never
+      read, so any value will do.
+    comparison:
+      csharp: |
+        var dummy = new Node(0, head);
+        var prev = dummy;
+        while (prev.Next != null)
+        {
+            if (prev.Next.Val == target) prev.Next = prev.Next.Next;
+            else prev = prev.Next;
+        }
+        return dummy.Next;
+      python: |
+        dummy = Node(0, head)
+        prev = dummy
+        while prev.next:
+            if prev.next.val == target:
+                prev.next = prev.next.next
+            else:
+                prev = prev.next
+        return dummy.next
+  - id: step.linked-lists.trace-dummy
+    type: trace
+    title: Removing every 6
+    body: |
+      `prev` only moves on when it keeps the next node: after a delete, the node now after `prev` hasn't been checked yet. The
+      first `6` is removed exactly like the second, with no special case, because `dummy` stands before it. At the end `head`
+      still holds the removed `6`, which is why the answer is `dummy.next`.
+    code: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      head = Node(6, Node(1, Node(6, Node(2))))
+      dummy = Node(0, head)
+      prev = dummy
+      while prev.next:
+          if prev.next.val == 6:
+              prev.next = prev.next.next
+          else:
+              prev = prev.next
+      result = dummy.next
+    visualise:
+      - variable: dummy
+        as: linked_list
+        pointers: [prev, head, result]
+  - id: step.linked-lists.predict-lost-head
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      This `remove` has no dummy. What does it print?
+    code: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def to_list(head):
+          values = []
+          while head:
+              values.append(head.val)
+              head = head.next
+          return values
+
+
+      def remove(head, target):
+          cur = head
+          while cur and cur.next:
+              if cur.next.val == target:
+                  cur.next = cur.next.next
+              else:
+                  cur = cur.next
+          return head
+
+
+      print(to_list(remove(Node(7, Node(1, Node(7))), 7)))
+    accepted:
+      - "[7, 1]"
+    mistakes:
+      - answers:
+          - "[1]"
+        feedback: "The loop only ever looks at `cur.next`, so the head itself is never checked. The first `7` stays. A dummy in front would have made it a `next` too."
+      - answers:
+          - "[7, 1, 7]"
+        feedback: "The last `7` is `cur.next` while `cur` is on the `1`, so it is removed. Only the head escapes the check."
+      - answers:
+          - "[]"
+        feedback: "Only nodes equal to `7` are removed, and the `1` isn't one."
+    hints:
+      - "Which nodes does the loop ever compare with `target`? It only looks at `cur.next`."
+      - "Is the head ever anybody's `next`?"
+  - id: step.linked-lists.check-why-dummy
+    type: choice
+    title: What the dummy buys you
+    prompt: |
+      Why does `dummy = Node(0, head)` make removing nodes simpler?
+    options:
+      - text: "Every real node, the head included, now has a node before it, so removing the head is the same `prev.next = prev.next.next` as any other."
+        correct: true
+        feedback: "Right. One rule for every node, no special case for the first. Return `dummy.next`, since the head may have gone."
+      - text: It stops the loop from running off the end of the list.
+        correct: false
+        feedback: "The dummy sits at the front, not the end. The loop still stops when `prev.next` is `None`."
+      - text: It makes the list a cycle, so the walk can come back round to the head.
+        correct: false
+        feedback: "Nothing links back to the dummy. It's an ordinary node whose `next` is the head."
+      - text: It keeps a copy of the list in case something goes wrong.
+        correct: false
+        feedback: "It copies nothing: `dummy.next` is the same head node, and every change is made to the real list."
+    hints:
+      - "Deleting a node needs the node before it. Which node had none?"
+      - "After the dummy is added, which node is before the head?"
+  - id: step.linked-lists.check-which-problem
+    type: choice
+    title: Which problem wants a dummy head?
+    prompt: |
+      Each of these takes the head of a linked list. Which one is the dummy head made for?
+    options:
+      - text: "Remove every node whose value is negative, and return the new head."
+        correct: true
+        feedback: "Right. The first node might be negative, so the head might change. With a dummy in front, it's removed like any other node."
+      - text: Return the largest value in the list.
+        correct: false
+        feedback: "That reads the list and changes nothing, so the head can't change. A plain `while cur:` walk is enough."
+      - text: Count how many nodes the list has.
+        correct: false
+        feedback: "Counting only reads. Walk with `cur` and add one per node."
+      - text: Check whether a string's brackets are balanced.
+        correct: false
+        feedback: "That's matching with a stack, and it has no linked list in it."
+    hints:
+      - "A dummy helps when the first node might change. Which of these can change the list at all?"
+      - "Which problem might remove the head?"
+  - id: step.linked-lists.fill-remove
+    type: fill-blank
+    title: Complete remove_all
+    pattern: pattern.dummy-head
+    patternCue: "\"Remove every node that...\": the head might be removed, so put a dummy in front, delete with `prev.next = prev.next.next`, and return `dummy.next`."
+    prompt: |
+      Fill in the blanks so that `remove_all(head, target)` removes every node equal to `target` and returns the head of what
+      is left.
+    template: |
+      def remove_all(head, target):
+          dummy = Node(0, {{start}})
+          prev = dummy
+          while prev.next:
+              if prev.next.val == target:
+                  prev.next = {{skip}}
+              else:
+                  prev = prev.next
+          return {{result}}
+    blanks:
+      - id: start
+        accepted:
+          - "head"
+        mistakes:
+          - answers:
+              - "None"
+            feedback: "Then the dummy is a list on its own and never sees the real nodes. Its `next` must be the head."
+      - id: skip
+        accepted:
+          - "prev.next.next"
+        mistakes:
+          - answers:
+              - "None"
+            feedback: "That cuts off the matching node *and everything after it*. Skip only one node: `prev.next.next`."
+          - answers:
+              - "prev.next"
+            feedback: "That changes nothing: `prev.next` is already `prev.next`. Point past the matching node instead."
+      - id: result
+        accepted:
+          - "dummy.next"
+        mistakes:
+          - answers:
+              - "head"
+            feedback: "If the first node matched, `head` still refers to that removed node. The real list starts at `dummy.next`."
+          - answers:
+              - "dummy"
+            feedback: "The dummy isn't part of the answer: its `0` would show up as a first value. Return the node after it."
+    hints:
+      - "The dummy goes in front of the real list."
+      - "Removing the node after `prev` means pointing `prev` past it."
+      - "The head may have been removed. Where does the list start now?"
+  - id: step.linked-lists.order-insert-at
+    type: parsons
+    title: Insert at a position
+    pattern: pattern.dummy-head
+    patternCue: "\"Insert at position `i`\", where `i` can be `0`: with a dummy in front, walk `i` steps from the dummy to the node before the spot, and position `0` needs no special case."
+    prompt: |
+      Arrange the lines into `insert_at(head, index, val)`, which inserts a new node holding `val` so that it ends up at
+      position `index` (`0` is the front), and returns the head. `Node` is already defined, and `index` is never more than the
+      length of the list.
+    solution: |
+      def insert_at(head, index, val):
+          dummy = Node(0, head)
+          prev = dummy
+          for _ in range(index):
+              prev = prev.next
+          prev.next = Node(val, prev.next)
+          return dummy.next
+    hints:
+      - "Start a finger on the dummy and walk it `index` steps: it's then on the node before the spot."
+      - "`Node(val, prev.next)` makes the new node point at the rest, so one assignment links it in."
+  - id: step.linked-lists.write-to-list
+    type: write-code
+    largeScreenPreferred: true
+    title: The values, in order
+    prompt: |
+      Write `to_list(head)` that returns the values of the linked list as a Python list, first to last. `None` is the empty
+      list, so `to_list(None)` is `[]`.
+
+      The starter has the `Node` class and `build(values)`, which makes a linked list from a Python list. The tests call
+      `build`, so keep both.
+    language: python
+    entrypoint: to_list
+    starter: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def to_list(head):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def to_list(head):
+          values = []
+          cur = head
+          while cur:
+              values.append(cur.val)
+              cur = cur.next
+          return values
+    tests:
+      - input: "build([4, 7, 1])"
+        expected: "[4, 7, 1]"
+      - input: "build([5])"
+        expected: "[5]"
+      - input: "None"
+        expected: "[]"
+    hints:
+      - "Walk with `cur` from the head, appending each `cur.val`."
+      - "`while cur:` stops after the last node, so it also handles `None` without a special case."
+  - id: step.linked-lists.write-remove-all
+    type: write-code
+    largeScreenPreferred: true
+    title: Remove every match
+    pattern: pattern.dummy-head
+    patternCue: "\"Remove every node equal to `target`\": the head itself may go, so a dummy in front lets every node be removed the same way."
+    compare: linked_list
+    prompt: |
+      Write `remove_all(head, target)` that removes every node whose value is `target` and returns the head of the list that
+      is left (`None` if nothing is). The tests compare the list you return by its values, so returning the list `1 → 2` shows
+      as `[1, 2]`.
+
+      `Node` and `build` are in the starter; keep them.
+    language: python
+    entrypoint: remove_all
+    starter: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def remove_all(head, target):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def remove_all(head, target):
+          dummy = Node(0, head)
+          prev = dummy
+          while prev.next:
+              if prev.next.val == target:
+                  prev.next = prev.next.next
+              else:
+                  prev = prev.next
+          return dummy.next
+    tests:
+      - input: "build([6, 1, 6, 2]), 6"
+        expected: "[1, 2]"
+      - input: "build([7, 7, 7]), 7"
+        expected: "[]"
+      - input: "build([1, 2, 3]), 4"
+        expected: "[1, 2, 3]"
+      - input: "build([1, 2, 2]), 2"
+        expected: "[1]"
+      - input: "None, 1"
+        expected: "[]"
+    hints:
+      - "Put a dummy in front of the head and walk with `prev`, looking at `prev.next`."
+      - "If `prev.next` matches, skip it with `prev.next = prev.next.next` and don't move `prev`: the new `prev.next` hasn't been checked."
+      - "Return `dummy.next`. `head` may be one of the removed nodes."
+    walkthrough:
+      call: result = remove_all(build([6, 1, 6, 2]), 6)
+      visualise:
+        - variable: dummy
+          as: linked_list
+          pointers: [prev]
+      explanation: |
+        The dummy's `next` is the first `6`, so it is removed by the same line as the second one. `prev` stays put after each
+        removal and moves on only past a node it keeps. The list starts at `dummy.next`: `1 → 2`.
+    phoneAlternative:
+      id: step.linked-lists.write-remove-all.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `remove_all(head, target)`, which removes every node whose value is `target` and returns the new head. The head
+        itself may be removed. Arrange the lines instead of typing them.
+      solution: |
+        def remove_all(head, target):
+            dummy = Node(0, head)
+            prev = dummy
+            while prev.next:
+                if prev.next.val == target:
+                    prev.next = prev.next.next
+                else:
+                    prev = prev.next
+            return dummy.next
+      hints:
+        - "Put a dummy in front of `head` and walk `prev` from it, always looking at `prev.next`."
+        - "If `prev.next` matches, skip it. Only move `prev` on when it doesn't, so two matches in a row are both removed."
+        - "Return `dummy.next`, the head after any removals."
+  - id: step.linked-lists.write-insert-sorted
+    type: write-code
+    largeScreenPreferred: true
+    title: Insert into a sorted list
+    pattern: pattern.dummy-head
+    patternCue: "\"Insert into a sorted linked list\": the new value may belong before the head, so walk from a dummy to the last node smaller than it."
+    compare: linked_list
+    prompt: |
+      `head` is a linked list sorted from smallest to largest. Write `insert_sorted(head, val)` that inserts a new node holding
+      `val` where it belongs, so the list stays sorted, and returns the head. `insert_sorted(build([1, 3, 5]), 4)` gives
+      `1 → 3 → 4 → 5`.
+
+      `Node` and `build` are in the starter; keep them.
+    language: python
+    entrypoint: insert_sorted
+    starter: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def insert_sorted(head, val):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def insert_sorted(head, val):
+          dummy = Node(0, head)
+          prev = dummy
+          while prev.next and prev.next.val < val:
+              prev = prev.next
+          prev.next = Node(val, prev.next)
+          return dummy.next
+    tests:
+      - input: "build([1, 3, 5]), 4"
+        expected: "[1, 3, 4, 5]"
+      - input: "build([2, 3]), 1"
+        expected: "[1, 2, 3]"
+      - input: "build([1, 2]), 9"
+        expected: "[1, 2, 9]"
+      - input: "None, 5"
+        expected: "[5]"
+      - input: "build([2, 2]), 2"
+        expected: "[2, 2, 2]"
+    hints:
+      - "Find the node *before* the spot: the last node whose value is smaller than `val`. Starting from a dummy, that may be the dummy itself."
+      - "Move `prev` on while `prev.next` exists and `prev.next.val < val`."
+      - "Then `prev.next = Node(val, prev.next)`, and return `dummy.next`."
+    walkthrough:
+      call: result = insert_sorted(build([1, 3, 5]), 4)
+      visualise:
+        - variable: dummy
+          as: linked_list
+          pointers: [prev]
+      explanation: |
+        `prev` walks past `1` and `3`, which are smaller than `4`, and stops when `prev.next` is `5`. The new node points at `5`,
+        then `3` points at it. Had `val` been smallest, `prev` would never have left the dummy, and the same line would insert
+        at the front.
+    phoneAlternative:
+      id: step.linked-lists.write-insert-sorted.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `insert_sorted(head, val)`, which inserts a new node holding `val` into a list sorted from smallest to largest,
+        keeps it sorted, and returns the new head. Arrange the lines instead of typing them.
+      solution: |
+        def insert_sorted(head, val):
+            dummy = Node(0, head)
+            prev = dummy
+            while prev.next and prev.next.val < val:
+                prev = prev.next
+            prev.next = Node(val, prev.next)
+            return dummy.next
+      hints:
+        - "Start `prev` on a dummy in front of `head`, so a value smaller than the head is handled like any other."
+        - "Move `prev` on while the next node is smaller than `val`."
+        - "Link the new node in after `prev`, and return `dummy.next`."
