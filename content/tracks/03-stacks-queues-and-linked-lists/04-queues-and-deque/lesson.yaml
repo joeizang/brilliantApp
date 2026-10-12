@@ -232,8 +232,8 @@ steps:
     title: Only the last 3000 milliseconds
     body: |
       Each ping is a time in milliseconds. A ping joins at the back; any ping more than 3000 ms older than the newest leaves
-      from the front. The deque always holds exactly the recent pings, so `len(q)` is the answer. Watch `1` and `100` leave
-      when `3002` arrives.
+      from the front. The deque always holds exactly the recent pings, so `len(q)` is the answer. When `3002` arrives the
+      cut-off is `2`: watch `1` leave, while `100` stays.
     code: |
       from collections import deque
 
