@@ -1,4 +1,5 @@
 using Brilliant.Core.Content;
+using Brilliant.Core.Practice;
 using Brilliant.Core.Review;
 
 namespace Brilliant.Core.Progress;
@@ -52,6 +53,16 @@ public sealed record ReviewItemState(Lesson Lesson, ReviewItem Item, Step Questi
     public bool IsNew => Card is null;
 
     /// <summary>
+    /// A <c>pick.&lt;step&gt;</c> item derived from practice: "which pattern solves this problem?". <see cref="Question"/> is the problem,
+    /// but the answer is a pattern, so it is rated as a pick. Authored pattern questions always belong to a concept and are not picks.
+    /// </summary>
+    public bool IsPracticePick => Item.Kind == ReviewKind.Pattern && Item.ConceptId.Length == 0
+        && Item.Id.StartsWith(PracticeAnswer.PickPrefix, StringComparison.Ordinal);
+
+    /// <summary>The rating of the latest answer, from Review or practice; null until answered.</summary>
+    public Rating? LastRating { get; init; }
+
+    /// <summary>
     /// Lesson help that counts against the first review: someone who needed the answer shown while learning it hasn't yet proved they own it.
     /// A re-solve is exempt (it exists to test that very problem again), as is anything already reviewed.
     /// </summary>
@@ -69,9 +80,12 @@ public sealed record ReviewItemState(Lesson Lesson, ReviewItem Item, Step Questi
 /// <param name="Queue">What Review offers today: the due items, capped and ordered by the Review Queue Builder.</param>
 /// <param name="Concepts">Mastery of every concept of the current content, in track and lesson order.</param>
 /// <param name="Today">The daily goal, streak, next lesson and session, for the Today screen.</param>
+/// <param name="Patterns">Mastery of every pattern the current content declares, in track and lesson order.</param>
 public sealed record LearnerState(DateTimeOffset AsOf, IReadOnlyList<TrackState> Tracks, IReadOnlyList<ReviewItemState> Reviews, ReviewQueue Queue,
-    IReadOnlyList<ConceptMastery> Concepts, TodayState Today)
+    IReadOnlyList<ConceptMastery> Concepts, TodayState Today, IReadOnlyList<PatternMastery> Patterns)
 {
+    public PatternMastery? Pattern(string patternId) => Patterns.FirstOrDefault(p => p.Pattern.Id == patternId);
+
     public TrackState? Track(string trackId) => Tracks.FirstOrDefault(t => t.Track.Id == trackId);
 
     public LessonState? Lesson(string lessonId) =>

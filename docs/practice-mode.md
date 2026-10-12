@@ -1,6 +1,6 @@
 # Practice mode and timed interview simulation
 
-Issue [#36](https://github.com/joeizang/brilliantApp/issues/36) (PRD milestone M4). **Status: design agreed (PR #93). Slice 1, the content model, is built; slices 2–4 follow ([Proposed slices](#proposed-slices)).**
+Issue [#36](https://github.com/joeizang/brilliantApp/issues/36) (PRD milestone M4). **Status: design agreed (PR #93). Slices 1 (content model) and 2 (practice core) are built; slices 3–4 follow ([Proposed slices](#proposed-slices)).**
 
 The skill the app exists to train is the one the learner fails interviews on: looking at a problem with no label on it and knowing which pattern it is. Lessons name the pattern in their titles. Practice takes the names away.
 
@@ -108,7 +108,7 @@ The time left is always `startedAt + limit − now`. If the app is reopened with
 
 ## How results feed Review
 
-A practice answer is a `ReviewAnswered` event on a review item, scored by the same rating inference (wrong → Again, hints and time as today) and scheduled by the same FSRS.
+A practice answer is scheduled on a review item, scored by the same rating inference (wrong → Again, hints and time as today) and scheduled by the same FSRS.
 
 | Practice result | Review item it updates | Kind (queue weight) |
 |---|---|---|
@@ -142,6 +142,46 @@ Practice does **not** move the existing concept and track mastery bars. Those ar
 Concept mastery is unchanged by this feature. Linking a pattern to a concept so that practice also lifts the concept bar is a possible later step, not part of this one.
 
 In Review, a `pick.` item is shown as the same unlabelled problem with the pattern choice. A `resolve.` item behaves as today.
+
+### As built (slice 2)
+
+Pure code in `Brilliant.Core` (`src/Brilliant.Core/Practice/`); nothing on screen yet. Tests: `tests/Brilliant.Core.Tests/PracticeTests.cs`.
+
+**The event.** `ProgressRecorder.PracticePicked(lesson, step, picked, correct, elapsed, mode, run)` and
+`PracticeSolved(lesson, presented, step, correct, hints, elapsed, mode, run)` write `PracticeAnswered`, with the step and lesson IDs on
+the event as usual and `{ step, part, correct, picked, hintsUsed, elapsedMs, rating, mode, run }` as data (`PracticeAnswer`).
+`run` names the practice visit or the interview run; slice 3 gives each visit a fresh ID. A pick with `picked: null` is
+always wrong. A solve is rated like Review, from the form actually solved (a phone alternative has its own time thresholds). A pick has
+no hints and is rated by time alone (`RatingInference.InferPick`): it involves reading an unlabelled problem first, so it gets
+longer than a choice question, Easy under 15 seconds and Hard from a minute. The same rule rates a `pick.` item answered in Review
+(`ReviewItemState.IsPracticePick`): its question is the problem, but the answer only names the pattern, so the problem's own format
+(write-code, Parsons, or its phone form) never sets the rating. Authored `kind: pattern` questions and re-solves keep their rules. A malformed event, or one whose `step` disagrees
+with its `StepId`, is ignored.
+
+**The projector.**
+- `resolve.<step>` exists once the problem was failed or hinted in its lesson (as before) **or solved** in practice.
+- `pick.<step>` (kind Pattern, so weight 2.0 in the queue) exists once the step was **picked** in practice and is still tagged. Untagging it retires the item.
+- A pick alone doesn't create the re-solve, so abandoning a problem after naming its pattern leaves nothing new due in Review.
+- Answers from both events are folded through FSRS in time order. Within one `run`, only the first answer to each part of each problem counts.
+- Practice changes no lesson progress, daily goal, daily review cap or concept mastery.
+- Help asked during practice is recorded with the item ID (`HintUsed` with `item: "resolve.<step>"`), so it is never mistaken for lesson help.
+- `ReviewItemState.LastRating` now holds the rating of the latest answer.
+
+**Pattern mastery** is described in [mastery.md](mastery.md#pattern-mastery).
+
+**The selector.** `PracticeSelector.Availability(state)` reports the learned patterns and the problems on offer. Practice is available
+with 3 or more learned patterns and at least one problem. A pattern counts as *learned* when its teaching lesson is completed. A problem is on offer when it is tagged, its lesson is completed, **and its
+pattern is learned**, so the right answer is always one the learner was taught (a later track's lesson can use an earlier track's
+pattern before that track is finished). `Next(state, random, previousStepId)` ranks the problems into tiers:
+
+1. needs work: the pick or re-solve was last rated Again, or the re-solve is due;
+2. never practised;
+3. the rest.
+
+Within a tier it orders by lowest pattern mastery, then least recently practised, then content order. It draws at random from the first
+three of the weakest non-empty tier, skipping the previous problem unless it is the only one. Drawing only from that tier means a
+problem answered wrong always comes back first. `Choices` gives the right pattern plus three other learned ones, shuffled. All
+randomness comes from the `Random` passed in, so a seed reproduces a visit.
 
 ## Not in this slice
 

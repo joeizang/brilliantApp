@@ -33,6 +33,21 @@ complete": the track bar says how much of the whole track you could use today.
 Pure and order-independent like the rest of the projector: duplicate events and event order change nothing, and a deleted question step takes
 its review history with it.
 
+## Pattern mastery
+
+Practice ([practice-mode.md](practice-mode.md)) has its own measure, and never moves a concept or track bar: its review items (pattern
+picks and re-solves) belong to no concept.
+
+- **A practice problem** (a problem step tagged with a pattern) scores the mean of its two derived items, `pick.<step>` and
+  `resolve.<step>`, each by the item rule above. A part never answered counts as zero, so a right pick with no solve is half-way
+  (`MasteryModel.OfPracticeStep`).
+- **A pattern** is the mean of its problems: the steps tagged with it in *completed* lessons of any track, so one practised problem out
+  of five is a fifth of the way. It is zero, and Not started, until the lesson that teaches it is completed. Levels follow the concept
+  rule: Seen once learned, Learning once any of its problems has a pick or re-solve answered, Known from 80%.
+
+`LearnerState.Patterns` holds a `PatternMastery` for every declared pattern in content order (pattern, teaching lesson, mastery,
+level, its problems as `PatternStep`s, `StepsPractised` / `StepsTagged`), and `Pattern(id)` finds one. The Practice Selector ranks by it.
+
 ## Accuracy and history
 
 A concept's evidence is its review items' question steps. Every answer to them counts:

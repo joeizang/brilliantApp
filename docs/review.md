@@ -107,6 +107,7 @@ matches. (Events are stored in UTC; their local date is taken with the offset of
 | Concept | `reviewItems:` in `lesson.yaml` (the default) | choice, predict-output |
 | Pattern | the same, with `kind: pattern` ("which pattern fits this problem?") | choice, predict-output |
 | Re-solve | derived by the projector, never authored | write-code, fill-blank, Parsons |
+| Pattern pick | derived from practice, never authored (`pick.<step id>`, kind Pattern) | the problem with a choice of patterns |
 
 A **re-solve** appears for each problem step (write-code, fill-blank, Parsons) that has at least one failed attempt in the log (a
 `StepAnswered` with `correct: false`, or a `CodeSubmitted` that did not pass) **or** a hint used in the lesson (`HintUsed` with no review item; see [hints.md](hints.md)). Its ID is `resolve.<step id>`, it unlocks with its
@@ -114,6 +115,11 @@ lesson like any other item, and from then on it is scheduled by FSRS like any ot
 with that item ID). Wrong answers and hints given *during Review* are not lesson attempts, so they don't create more re-solves. A re-solve
 retires if its problem step is deleted. A write-code re-solve keeps its own code draft (`review.<item id>.<answers so far>`), so it starts from
 the starter instead of the solution the learner saved in the lesson, never overwrites that lesson draft, resumes if interrupted, and starts afresh at the next due attempt. Choice and predict-output steps never get re-solves: the lesson's own review items cover them.
+
+Practice ([practice-mode.md](practice-mode.md)) adds to this. Solving a problem in practice or an interview also creates its re-solve,
+and naming the pattern of a tagged problem creates a **pattern pick**, `pick.<step id>`. Their practice answers are
+`PracticeAnswered` events, folded into the same FSRS schedule as the item's `ReviewAnswered` answers, in time order. They don't count
+toward the daily review cap or the daily goal.
 
 The validator accepts `kind: concept` or `kind: pattern` and rejects anything else (including `resolve`). There are no pattern items
 in Track 1 (it teaches Python syntax); the first arrive with the DSA tracks.

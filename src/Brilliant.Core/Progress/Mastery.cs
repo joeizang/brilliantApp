@@ -64,6 +64,16 @@ public static class MasteryModel
     public static double OfConcept(IReadOnlyList<ReviewItemState> items, DateTimeOffset now) =>
         items.Count == 0 ? 0 : items.Average(i => OfItem(i.Card, now));
 
+    /// <summary>
+    /// A practice problem: the mean of its pattern pick and its re-solve, a part never answered (or with no item yet) counting as zero.
+    /// </summary>
+    public static double OfPracticeStep(ReviewItemState? pick, ReviewItemState? resolve, DateTimeOffset now) =>
+        (OfItem(pick?.Card, now) + OfItem(resolve?.Card, now)) / 2;
+
+    /// <summary>The level of a pattern, by the concept rule: learning once any of its problems has a pick or re-solve answered.</summary>
+    public static ConceptLevel LevelOf(bool lessonCompleted, IReadOnlyList<Practice.PatternStep> steps, double mastery) =>
+        LevelOf(lessonCompleted, steps.SelectMany(s => new[] { s.Pick, s.Resolve }).OfType<ReviewItemState>().ToList(), mastery);
+
     public static ConceptLevel LevelOf(bool lessonCompleted, IReadOnlyList<ReviewItemState> items, double mastery) =>
         !lessonCompleted ? ConceptLevel.NotStarted
         : mastery >= KnownThreshold ? ConceptLevel.Known

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Brilliant.Core.Content;
+using Brilliant.Core.Practice;
 using Brilliant.Core.Review;
 
 namespace Brilliant.Core.Progress;
@@ -86,12 +87,42 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
         Append(ProgressEventTypes.ReviewAnswered, lessonId, item.StepId,
             JsonSerializer.Serialize(new { item = item.Id, correct, hintsUsed, elapsedMs = (int)elapsed.TotalMilliseconds, rating = (int)rating }));
 
-    /// <summary>Records a review answer, inferring the FSRS rating from correctness, hints and time. Returns the rating.</summary>
+    /// <summary>
+    /// Records a review answer, inferring the FSRS rating from correctness, hints and time. Returns the rating. A derived pattern pick
+    /// is rated as a pick (<see cref="RatingInference.InferPick"/>): its question is the problem, but the answer only names the pattern.
+    /// </summary>
     public Rating ReviewAnswered(ReviewItemState review, bool correct, int hintsUsed, TimeSpan elapsed)
     {
-        var rating = RatingInference.Infer(correct, hintsUsed, elapsed, review.Presented);
+        var rating = review.IsPracticePick
+            ? RatingInference.InferPick(correct, elapsed, hintsUsed)
+            : RatingInference.Infer(correct, hintsUsed, elapsed, review.Presented);
         ReviewAnswered(review.Lesson.Id, review.Item, correct, hintsUsed, elapsed, rating);
         return rating;
+    }
+
+    /// <summary>
+    /// Records the pattern pick of a practice or interview problem: <paramref name="picked"/> is the pattern ID chosen, or null when the
+    /// learner never chose (an interview problem left unanswered, which counts as wrong). Returns the rating inferred from correctness and time.
+    /// </summary>
+    public Rating PracticePicked(string lessonId, string stepId, string? picked, bool correct, TimeSpan elapsed, PracticeMode mode, string run)
+    {
+        correct = correct && picked is not null;
+        var answer = new PracticeAnswer(stepId, PracticePart.Pick, correct, picked, 0, elapsed, RatingInference.InferPick(correct, elapsed), mode, run);
+        Append(ProgressEventTypes.PracticeAnswered, lessonId, stepId, answer.ToJson());
+        return answer.Rating;
+    }
+
+    /// <summary>
+    /// Records the solution of a practice or interview problem, rated from correctness, hints and time as in Review.
+    /// <paramref name="presented"/> is the form that was solved (the step or its phone alternative), which sets the time thresholds.
+    /// Returns the rating.
+    /// </summary>
+    public Rating PracticeSolved(string lessonId, Step presented, string stepId, bool correct, int hintsUsed, TimeSpan elapsed, PracticeMode mode, string run)
+    {
+        var answer = new PracticeAnswer(stepId, PracticePart.Solve, correct, null, hintsUsed, elapsed,
+            RatingInference.Infer(correct, hintsUsed, elapsed, presented), mode, run);
+        Append(ProgressEventTypes.PracticeAnswered, lessonId, stepId, answer.ToJson());
+        return answer.Rating;
     }
 
     /// <summary>Records the daily goal in steps (kept within <see cref="TodayState.MinGoal"/>–<see cref="TodayState.MaxGoal"/>). Returns the goal as stored.</summary>
