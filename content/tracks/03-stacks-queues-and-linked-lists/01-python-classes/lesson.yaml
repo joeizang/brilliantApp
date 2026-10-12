@@ -1,0 +1,536 @@
+id: lesson.python-classes
+title: Python classes through C# eyes
+concepts:
+  - id: concept.python-class-init-self
+    title: "class, __init__ and an explicit self"
+  - id: concept.python-repr-and-eq
+    title: "__repr__ and __eq__: printing and comparing objects"
+  - id: concept.python-dataclass
+    title: "@dataclass, Python's record"
+  - id: concept.python-references
+    title: Every name is a reference
+  - id: concept.python-none-attribute
+    title: "None has no attributes (Python's NullReferenceException)"
+reviewItems:
+  - id: review.python-classes.missing-self
+    concept: concept.python-class-init-self
+    step: step.python-classes.check-missing-self
+  - id: review.python-classes.counter
+    concept: concept.python-class-init-self
+    step: step.python-classes.predict-counter
+  - id: review.python-classes.default-eq
+    concept: concept.python-repr-and-eq
+    step: step.python-classes.predict-default-eq
+  - id: review.python-classes.dataclass
+    concept: concept.python-dataclass
+    step: step.python-classes.predict-dataclass
+  - id: review.python-classes.alias
+    concept: concept.python-references
+    step: step.python-classes.predict-alias
+  - id: review.python-classes.none-attribute
+    concept: concept.python-none-attribute
+    step: step.python-classes.check-none-attribute
+steps:
+  - id: step.python-classes.why
+    type: explain
+    title: Why classes, and why now
+    body: |
+      So far every value has been a built-in: numbers, strings, lists, dicts, sets. This track needs one more thing. A **linked
+      list** is made of small objects that each hold a value and a reference to the next one, and Python has no built-in for
+      that. You write the class yourself.
+
+      The good news: a Python class is a C# class with the ceremony taken out. This lesson maps what you know across, and points
+      out the three places where Python surprises C# developers: the explicit `self`, how objects print and compare, and the fact
+      that **every** variable is a reference.
+  - id: step.python-classes.class-init-self
+    type: explain
+    title: "class, __init__ and self"
+    body: |
+      - `class Name:` opens the class. There are no access modifiers: everything is public. A leading underscore (`_balance`)
+        is the convention for "internal, please don't touch".
+      - The constructor is always called `__init__`. You don't declare fields; **assigning `self.x` inside `__init__` creates
+        the attribute.**
+      - Every method takes the object as its first parameter, by convention named `self`. C# passes `this` silently; Python
+        makes you write it. Inside a method, an attribute is always `self.count`, never just `count`.
+      - You create an object by calling the class like a function. There is no `new`.
+    comparison:
+      csharp: |
+        public class Counter
+        {
+            public int Count;
+
+            public Counter(int start = 0)
+            {
+                Count = start;
+            }
+
+            public void Increment()
+            {
+                Count++;
+            }
+        }
+
+        var c = new Counter(5);
+        c.Increment();
+      python: |
+        class Counter:
+            def __init__(self, start=0):
+                self.count = start
+
+            def increment(self):
+                self.count += 1
+
+
+        c = Counter(5)
+        c.increment()
+  - id: step.python-classes.predict-counter
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      class Counter:
+          def __init__(self, start=0):
+              self.count = start
+
+          def increment(self):
+              self.count += 1
+
+
+      a = Counter()
+      b = Counter(10)
+      a.increment()
+      a.increment()
+      b.increment()
+      print(a.count, b.count)
+    accepted:
+      - "2 11"
+    mistakes:
+      - answers:
+          - "3 11"
+          - "3 3"
+        feedback: "Each object has its own `count`. `self.count` belongs to the object the method was called on, so `b.increment()` doesn't touch `a`."
+      - answers:
+          - "2 1"
+        feedback: "`b` started at `10` (the argument to `Counter(10)`), not at the default `0`."
+    hints:
+      - "`self` is whichever object is before the dot: in `a.increment()`, `self` is `a`."
+      - "`a` starts at `0` and is incremented twice. `b` starts at `10` and is incremented once."
+  - id: step.python-classes.check-missing-self
+    type: choice
+    title: The forgotten self
+    prompt: |
+      A C# developer writes this method and then calls `c.increment()`. What happens?
+
+      ```python
+      class Counter:
+          def __init__(self):
+              self.count = 0
+
+          def increment():
+              self.count += 1
+      ```
+    options:
+      - text: "A `TypeError`: `increment() takes 0 positional arguments but 1 was given`. Python passes the object as the first argument, and the method has no parameter to receive it."
+        correct: true
+        feedback: "Right. `c.increment()` is really `Counter.increment(c)`. The object is always passed; the method must name it, as `self`."
+      - text: It works, because Python adds `self` automatically, like C# adds `this`.
+        correct: false
+        feedback: "Python *passes* the object automatically but doesn't *declare* the parameter for you. You write `self` in every method's parameter list."
+      - text: It increments a global variable called `count`.
+        correct: false
+        feedback: "Python never gets that far. The call fails before the body runs, because one argument (the object) arrives at a method that takes none."
+      - text: Nothing happens; the method is skipped.
+        correct: false
+        feedback: Python doesn't skip methods. The call raises an error.
+    hints:
+      - "`c.increment()` is shorthand for `Counter.increment(c)`. How many arguments is that?"
+      - How many parameters does `increment` declare?
+  - id: step.python-classes.repr-eq
+    type: explain
+    title: How an object prints and compares
+    body: |
+      Two defaults catch C# developers out.
+
+      **Printing.** `print(p)` on a plain object shows something like `<__main__.Point object at 0x10a3f2d90>`: the class and a
+      memory address. To control it, define `__repr__`. It is Python's `ToString()`, and the REPL, `print` and the tests in this
+      app all use it.
+
+      **Comparing.** `==` on a plain object compares **identity**, exactly like `==` on a C# class (not a record): two objects with
+      the same attributes are *not* equal unless they are the same object. To compare by value, define `__eq__`, Python's
+      `Equals`. And `is` always means "the very same object", like `ReferenceEquals`.
+
+      Methods with double underscores on both sides (`__init__`, `__repr__`, `__eq__`) are called *dunder* methods. You don't call
+      them yourself; Python calls them for you when you construct, print or compare.
+    comparison:
+      csharp: |
+        public class Point
+        {
+            public int X, Y;
+            public Point(int x, int y) { X = x; Y = y; }
+
+            public override string ToString() => $"Point({X}, {Y})";
+
+            public override bool Equals(object? o) =>
+                o is Point p && p.X == X && p.Y == Y;
+            public override int GetHashCode() => HashCode.Combine(X, Y);
+        }
+      python: |
+        class Point:
+            def __init__(self, x, y):
+                self.x = x
+                self.y = y
+
+            def __repr__(self):
+                return f"Point({self.x}, {self.y})"
+
+            def __eq__(self, other):
+                return isinstance(other, Point) and (self.x, self.y) == (other.x, other.y)
+  - id: step.python-classes.predict-default-eq
+    type: predict-output
+    title: Predict the output
+    prompt: This class has no `__eq__`. What does this print?
+    code: |
+      class Point:
+          def __init__(self, x, y):
+              self.x = x
+              self.y = y
+
+
+      a = Point(1, 2)
+      b = Point(1, 2)
+      c = a
+      print(a == b, a == c, a is c)
+    accepted:
+      - "False True True"
+    mistakes:
+      - answers:
+          - "True True True"
+        feedback: "Without `__eq__`, `==` asks \"same object?\", like `==` on a C# class. `a` and `b` hold equal numbers but are two separate objects."
+      - answers:
+          - "False False True"
+          - "False False False"
+        feedback: "`c = a` doesn't copy anything. `c` and `a` are two names for the same object, so `a == c` and `a is c` are both true."
+    hints:
+      - How many objects are created? Count the calls to `Point(...)`.
+      - "With no `__eq__`, `==` falls back to `is`: the same object or not."
+  - id: step.python-classes.dataclass
+    type: explain
+    title: "@dataclass, Python's record"
+    body: |
+      Writing `__init__`, `__repr__` and `__eq__` by hand gets old. `@dataclass` writes them for you, from a list of annotated
+      fields, much as a C# `record` does.
+
+      - Each field is `name: type`, with an optional default. The type annotation is required by `@dataclass` but not enforced:
+        Python won't stop you storing a string in an `int` field.
+      - The generated `__repr__` prints `Point(x=1, y=2)`, and the generated `__eq__` compares the fields in order.
+      - Unlike a C# record, a dataclass is **mutable** by default. `@dataclass(frozen=True)` makes it read-only, and then it can be
+        a dict key or a set member.
+      - You can still add your own methods underneath the fields.
+    comparison:
+      csharp: |
+        public record Point(int X, int Y = 0);
+
+        var p = new Point(1, 2);
+        Console.WriteLine(p);              // Point { X = 1, Y = 2 }
+        Console.WriteLine(p == new Point(1, 2));   // True
+      python: |
+        from dataclasses import dataclass
+
+        @dataclass
+        class Point:
+            x: int
+            y: int = 0
+
+        p = Point(1, 2)
+        print(p)                    # Point(x=1, y=2)
+        print(p == Point(1, 2))     # True
+  - id: step.python-classes.predict-dataclass
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      from dataclasses import dataclass
+
+
+      @dataclass
+      class Item:
+          name: str
+          price: int = 1
+
+
+      a = Item("pen")
+      b = Item("pen", 1)
+      b.price = 3
+      print(a, a == b)
+    accepted:
+      - "Item(name='pen', price=1) False"
+    mistakes:
+      - answers:
+          - "Item(name='pen', price=1) True"
+        feedback: "They were equal until `b.price = 3`. A dataclass is mutable by default, and `==` compares the fields as they are now."
+      - answers:
+          - "Item(name=pen, price=1) False"
+        feedback: "The generated `__repr__` uses the `repr` of each field, so a string keeps its quotes: `name='pen'`."
+      - answers:
+          - "Item('pen', 1) False"
+          - "Item(pen, 1) False"
+        feedback: "A dataclass's `__repr__` names each field: `Item(name='pen', price=1)`."
+    hints:
+      - "`a` takes the default price. Then `b` is changed after it was created."
+      - "The generated repr is `ClassName(field=repr(value), ...)`."
+  - id: step.python-classes.references
+    type: explain
+    title: Every name is a reference
+    body: |
+      In C#, a `struct` is copied on assignment and a `class` is shared. Python has no structs: **every** variable is a reference,
+      to a number, a list or one of your objects alike. `b = a` never copies; it makes `b` a second name for the object `a` names.
+      Changing the object through one name is visible through the other.
+
+      An attribute can hold a reference too, which is how objects link to each other. `None` is Python's `null`: "refers to no
+      object". Test for it with `is None`, not `== None`, because `==` can be redefined by `__eq__` and `is` can't.
+
+      Reading an attribute of `None` raises `AttributeError: 'NoneType' object has no attribute 'next'`. That is the
+      `NullReferenceException` of Python, and it is the most common error in linked-list code.
+    comparison:
+      csharp: |
+        var a = new Node(1);
+        var b = a;          // the same object
+        b.Val = 99;         // a.Val is 99 too
+
+        Node? n = null;
+        if (n == null) { }
+        n.Val = 1;          // NullReferenceException
+      python: |
+        a = Node(1)
+        b = a               # the same object
+        b.val = 99          # a.val is 99 too
+
+        n = None
+        if n is None:
+            pass
+        n.val = 1           # AttributeError
+  - id: step.python-classes.trace-chain
+    type: trace
+    title: Objects that point at objects
+    body: |
+      Each `Node` holds a value and a reference to another node, or `None`. Watch the chain grow as `next` is set, and watch the
+      name `second` land on the node that `head.next` refers to. It is not a copy: when `second.val` changes, the chain changes.
+    code: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      head = Node(1)
+      head.next = Node(2)
+      head.next.next = Node(3)
+      second = head.next
+      second.val = 20
+      second = None
+    visualise:
+      - variable: head
+        as: linked_list
+        pointers: [second]
+  - id: step.python-classes.predict-alias
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      head = Node(1, Node(2, Node(3)))
+      second = head.next
+      second.val = 20
+      second = Node(99)
+      print(head.val, head.next.val, head.next.next.val)
+    accepted:
+      - "1 20 3"
+    mistakes:
+      - answers:
+          - "1 2 3"
+        feedback: "`second = head.next` makes `second` another name for the second node, so `second.val = 20` changes that node, which is still in the chain."
+      - answers:
+          - "1 99 3"
+        feedback: "`second = Node(99)` only moves the *name* `second` to a new object. It doesn't change what `head.next` refers to."
+    hints:
+      - Changing an attribute (`second.val = ...`) changes the object. Assigning a name (`second = ...`) only moves the name.
+      - After `second = head.next`, which object does `second` name, and is that object in the chain?
+  - id: step.python-classes.check-none-attribute
+    type: choice
+    title: Off the end of the chain
+    prompt: |
+      `head` is the three-node chain `1 → 2 → 3 → None`. What does `head.next.next.next.val` do?
+    options:
+      - text: "Raises `AttributeError: 'NoneType' object has no attribute 'val'`. `head.next.next.next` is `None`, and `None` has no attributes."
+        correct: true
+        feedback: "Right. This is Python's `NullReferenceException`. Linked-list code avoids it by checking `while node is not None` (or `while node`) before reading `node.val`."
+      - text: It returns `None`.
+        correct: false
+        feedback: Python doesn't quietly return `None` for a missing attribute. Reading any attribute of `None` raises an error.
+      - text: It returns `3`.
+        correct: false
+        feedback: "`head.next.next` is the node holding `3`. One more `.next` steps off the end, onto `None`."
+      - text: "Raises `IndexError`."
+        correct: false
+        feedback: "There is no indexing here. The error is about a missing attribute: `AttributeError`."
+    hints:
+      - Count the hops. `head` is the 1, `head.next` the 2, `head.next.next` the 3. What is one more `.next`?
+      - What happens when you read an attribute of `None`?
+  - id: step.python-classes.order-class
+    type: parsons
+    title: Build a class
+    prompt: |
+      Arrange the lines into a class `Account` that starts with a balance of `0` and has a `deposit(amount)` method that adds to
+      the balance and returns the new balance.
+    solution: |
+      class Account:
+          def __init__(self):
+              self.balance = 0
+
+          def deposit(self, amount):
+              self.balance += amount
+              return self.balance
+    hints:
+      - The two methods are at the same level, one indent inside the class.
+      - Every method takes `self` first, and every attribute is read and written as `self.balance`.
+  - id: step.python-classes.fill-dataclass
+    type: fill-blank
+    title: Complete the dataclass
+    prompt: |
+      Fill in the blanks so that `Node(5)` makes a node holding `5` with no next node, and `print(Node(5))` shows
+      `Node(val=5, next=None)`.
+    template: |
+      from dataclasses import {{module}}
+
+      @dataclass
+      class Node:
+          val: int
+          next: "Node | None" = {{default}}
+    blanks:
+      - id: module
+        accepted:
+          - "dataclass"
+        mistakes:
+          - answers:
+              - "Dataclass"
+              - "data_class"
+            feedback: "The decorator is spelled all lowercase, in one word: `dataclass`."
+      - id: default
+        accepted:
+          - "None"
+        mistakes:
+          - answers:
+              - "null"
+              - "Null"
+            feedback: "Python's null is `None`, with a capital N."
+          - answers:
+              - "0"
+            feedback: "`next` refers to another node, or to no node at all. \"No node\" is `None`, not `0`."
+    hints:
+      - "The decorator comes from the `dataclasses` module and has the singular name."
+      - "What value means \"refers to no object\" in Python?"
+  - id: step.python-classes.write-manhattan
+    type: write-code
+    largeScreenPreferred: true
+    title: A point and a distance
+    prompt: |
+      Define a dataclass `Point` with integer fields `x` and `y`, and a function `manhattan(a, b)` that returns the Manhattan
+      distance between two points: `|a.x - b.x| + |a.y - b.y|`. For example `manhattan(Point(1, 2), Point(4, 6))` is `7`.
+      The tests build the points with your `Point`.
+    language: python
+    entrypoint: manhattan
+    starter: |
+      from dataclasses import dataclass
+
+
+      # Define Point here.
+
+
+      def manhattan(a, b):
+          pass
+    solution: |
+      from dataclasses import dataclass
+
+
+      @dataclass
+      class Point:
+          x: int
+          y: int
+
+
+      def manhattan(a, b):
+          return abs(a.x - b.x) + abs(a.y - b.y)
+    tests:
+      - input: "Point(1, 2), Point(4, 6)"
+        expected: "7"
+      - input: "Point(0, 0), Point(0, 0)"
+        expected: "0"
+      - input: "Point(5, -3), Point(-1, 2)"
+        expected: "11"
+      - input: "Point(x=2, y=9), Point(y=1, x=2)"
+        expected: "8"
+    hints:
+      - "Four lines make the class: the decorator, `class Point:`, and one `name: type` line per field."
+      - "`abs` gives the absolute value. Read the coordinates as `a.x`, `b.y` and so on."
+  - id: step.python-classes.write-to-list
+    type: write-code
+    largeScreenPreferred: true
+    title: Walk a chain of nodes
+    prompt: |
+      `Node` is given: each node has a `val` and a `next` (another node, or `None`). Write `to_list(head)` that follows the chain
+      from `head` and returns the values in order as a Python list. An empty chain is `head = None`, which gives `[]`. For example
+      `to_list(Node(1, Node(2, Node(3))))` is `[1, 2, 3]`.
+    language: python
+    entrypoint: to_list
+    starter: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def to_list(head):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def to_list(head):
+          values = []
+          node = head
+          while node is not None:
+              values.append(node.val)
+              node = node.next
+          return values
+    tests:
+      - input: "Node(1, Node(2, Node(3)))"
+        expected: "[1, 2, 3]"
+      - input: "None"
+        expected: "[]"
+      - input: "Node(7)"
+        expected: "[7]"
+      - input: "Node('a', Node('b'))"
+        expected: "['a', 'b']"
+    hints:
+      - Keep a name, say `node`, on the node you are looking at. Start it at `head`.
+      - "Loop `while node is not None`: append `node.val`, then move on with `node = node.next`."
+      - "When `node` becomes `None` you have walked off the end, and the loop stops before reading `None.val`."
+    walkthrough:
+      call: result = to_list(Node(1, Node(2, Node(3))))
+      visualise:
+        - variable: head
+          as: linked_list
+          pointers: [node]
+        - variable: values
+          as: array
+      explanation: |
+        `node` starts on the head. Each pass copies `node.val` into `values` and moves `node` one link along. After the third node,
+        `node.next` is `None`, so `node` becomes `None` and the loop stops: it never reads an attribute of `None`.

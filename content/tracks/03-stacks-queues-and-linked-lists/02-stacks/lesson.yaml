@@ -1,0 +1,482 @@
+id: lesson.stacks
+title: Stacks with a list
+concepts:
+  - id: concept.list-as-stack
+    title: "A list is a stack: append, pop, [-1]"
+  - id: concept.empty-stack
+    title: Popping or peeking an empty stack
+  - id: concept.stack-matching
+    title: A stack remembers the most recent unmatched item
+reviewItems:
+  - id: review.stacks.predict-ops
+    concept: concept.list-as-stack
+    step: step.stacks.predict-ops
+  - id: review.stacks.empty
+    concept: concept.empty-stack
+    step: step.stacks.check-empty
+  - id: review.stacks.predict-valid
+    concept: concept.stack-matching
+    step: step.stacks.predict-valid
+  - id: review.stacks.which-problem
+    concept: concept.stack-matching
+    step: step.stacks.check-which-problem
+    kind: pattern
+  - id: review.stacks.why-not-count
+    concept: concept.stack-matching
+    step: step.stacks.check-why-not-count
+    kind: pattern
+patterns:
+  - id: pattern.stack-matching
+    title: Matching with a stack
+steps:
+  - id: step.stacks.list-as-stack
+    type: explain
+    title: A list is already a stack
+    body: |
+      A **stack** is last in, first out: you add to the top and take from the top, like a pile of plates. C# has a `Stack<T>`
+      class. Python doesn't need one, because a plain list does the job from its end:
+
+      - **push** is `stack.append(x)`
+      - **pop** is `stack.pop()`: it removes the last item and returns it
+      - **peek** is `stack[-1]`: it reads the last item and leaves it there
+      - **is it empty?** is `if not stack:`, since an empty list is falsy
+
+      All three operations work at the end of the list, so each is `O(1)`. Nothing shifts.
+
+      One difference from C#: there is no `TryPop`. `pop()` on an empty list raises `IndexError: pop from empty list`, and
+      `stack[-1]` on an empty list raises `IndexError: list index out of range`. Check `if stack:` first.
+    comparison:
+      csharp: |
+        var stack = new Stack<int>();
+        stack.Push(1);
+        stack.Push(2);
+        int top = stack.Peek();    // 2
+        int x = stack.Pop();       // 2, and the stack is [1]
+        if (stack.Count == 0) { }
+        if (stack.TryPop(out var y)) { }
+      python: |
+        stack = []
+        stack.append(1)
+        stack.append(2)
+        top = stack[-1]            # 2
+        x = stack.pop()            # 2, and the stack is [1]
+        if not stack:
+            pass
+        if stack:
+            y = stack.pop()
+  - id: step.stacks.trace-ops
+    type: trace
+    title: Push and pop
+    body: |
+      The list is drawn standing up, index `0` at the bottom. Each `append` lands on top; each `pop` takes the top away and
+      hands it back, which is why `popped` gets `"c"`, the last item in, not `"a"`.
+    code: |
+      stack = []
+      stack.append("a")
+      stack.append("b")
+      stack.append("c")
+      popped = stack.pop()
+      peeked = stack[-1]
+      stack.append("d")
+      popped = stack.pop()
+      popped = stack.pop()
+    visualise:
+      - variable: stack
+        as: stack
+  - id: step.stacks.predict-ops
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      stack = []
+      for x in [3, 1, 4]:
+          stack.append(x)
+      stack.pop()
+      stack.append(5)
+      top = stack.pop()
+      print(top, stack[-1], stack)
+    accepted:
+      - "5 1 [3, 1]"
+    mistakes:
+      - answers:
+          - "4 1 [3, 1]"
+        feedback: "The first `pop()` removed the `4`, then `5` was pushed. So the next `pop()` returns `5`, the most recent push."
+      - answers:
+          - "3 1 [1, 5]"
+          - "3 5 [1, 5]"
+        feedback: "`pop()` with no argument takes from the **end** of the list, which is the top of the stack, not the front."
+      - answers:
+          - "5 1 [3, 1, 5]"
+          - "5 5 [3, 1, 5]"
+        feedback: "`pop()` removes the item as well as returning it. `stack[-1]` only reads; `stack.pop()` takes."
+    hints:
+      - "Write the list down after each line. After the loop it is `[3, 1, 4]`."
+      - "`pop()` removes and returns the last item. `stack[-1]` reads the last item without removing it."
+  - id: step.stacks.check-empty
+    type: choice
+    title: Peeking at nothing
+    prompt: |
+      `stack` is an empty list. Which line safely reads the top item, if there is one, without raising an error?
+    options:
+      - text: "`top = stack[-1] if stack else None`"
+        correct: true
+        feedback: "Right. `if stack` is false for an empty list, so `stack[-1]` is only evaluated when there is something to read."
+      - text: "`top = stack[-1]`"
+        correct: false
+        feedback: "On an empty list this raises `IndexError: list index out of range`. Index `-1` means the last item, and there isn't one."
+      - text: "`top = stack.pop()`"
+        correct: false
+        feedback: "Two problems: on an empty list it raises `IndexError: pop from empty list`, and on a non-empty one it removes the top instead of just reading it."
+      - text: "`top = stack.peek()`"
+        correct: false
+        feedback: "Python lists have no `peek` method (that is C#'s `Stack<T>`). This raises `AttributeError`. Peek is `stack[-1]`."
+    hints:
+      - "Which of these would raise on `[]`? Try each in your head."
+      - "An empty list is falsy, so `if stack` is a cheap emptiness check."
+  - id: step.stacks.pattern
+    type: explain
+    title: "Pattern: the most recent thing still open"
+    body: |
+      A stack is the answer whenever a problem keeps asking about **the most recent thing that hasn't been dealt with yet**. Watch
+      for these words:
+
+      - *valid parentheses*, *balanced brackets*, *properly nested*, *matching tags*
+      - *cancel*, *undo*, *backspace*, *remove adjacent pairs*
+      - *the most recent*, *the last unmatched*
+
+      The pattern: walk the input once. When something **opens** (an opening bracket, a character that might be cancelled
+      later), push it. When something **closes**, it can only match the item on top: pop it and check. Anything still on the
+      stack at the end never got closed.
+
+      Why the top? Because nesting means the last thing opened must be the first thing closed. In `{[()]}` the `)` closes the
+      `(`, not the `{`. A stack gives you exactly that item in `O(1)`, and the whole walk is `O(n)`.
+    comparison:
+      csharp: |
+        bool IsValid(string s)
+        {
+            var pairs = new Dictionary<char, char>
+                { [')'] = '(', [']'] = '[', ['}'] = '{' };
+            var stack = new Stack<char>();
+            foreach (var ch in s)
+            {
+                if ("([{".Contains(ch)) stack.Push(ch);
+                else if (stack.Count == 0 || stack.Pop() != pairs[ch])
+                    return false;
+            }
+            return stack.Count == 0;
+        }
+      python: |
+        def is_valid(s):
+            pairs = {")": "(", "]": "[", "}": "{"}
+            stack = []
+            for ch in s:
+                if ch in "([{":
+                    stack.append(ch)
+                elif not stack or stack.pop() != pairs[ch]:
+                    return False
+            return not stack
+  - id: step.stacks.trace-brackets
+    type: trace
+    title: Checking brackets
+    body: |
+      Each opener goes on the stack. Each closer pops the top and checks it is the matching opener. Watch the stack fill to
+      three deep and empty again in reverse order: `(` comes off first because it went on last. The string is valid because
+      every pop matched and nothing is left over.
+    code: |
+      pairs = {")": "(", "]": "[", "}": "{"}
+      stack = []
+      ok = True
+      for ch in "{[()]}":
+          if ch in "([{":
+              stack.append(ch)
+          elif not stack or stack.pop() != pairs[ch]:
+              ok = False
+              break
+      ok = ok and not stack
+    visualise:
+      - variable: stack
+        as: stack
+  - id: step.stacks.predict-valid
+    type: predict-output
+    title: Predict the output
+    prompt: Using the bracket checker from before, what does this print?
+    code: |
+      def is_valid(s):
+          pairs = {")": "(", "]": "[", "}": "{"}
+          stack = []
+          for ch in s:
+              if ch in "([{":
+                  stack.append(ch)
+              elif not stack or stack.pop() != pairs[ch]:
+                  return False
+          return not stack
+
+
+      print([is_valid(s) for s in ["()[]", "([)]", "((", "))"]])
+    accepted:
+      - "[True, False, False, False]"
+    mistakes:
+      - answers:
+          - "[True, True, False, False]"
+        feedback: "In `([)]`, the `)` arrives when `[` is on top. The pop gives `[`, which isn't `(`, so the check fails. The counts balance but the nesting doesn't."
+      - answers:
+          - "[True, False, True, False]"
+        feedback: "`((` never closes anything, so both openers are still on the stack at the end. `return not stack` gives `False`."
+      - answers:
+          - "[True, False, False, True]"
+        feedback: "The first `)` arrives with nothing on the stack, so `not stack` is true and the function returns `False` straight away."
+    hints:
+      - "Run each string by hand, writing the stack down after each character."
+      - "There are two ways to fail: a closer that doesn't match the top (or finds the stack empty), and openers left on the stack at the end."
+  - id: step.stacks.check-which-problem
+    type: choice
+    title: Which problem wants a stack?
+    prompt: Which of these problems is a stack the natural tool for?
+    options:
+      - text: "Given a document of tags like `<b><i></i></b>`, check that every closing tag closes the most recently opened tag that is still open."
+        correct: true
+        feedback: "Right. \"The most recently opened that is still open\" is the top of a stack. Push each opening tag; each closing tag pops and must match."
+      - text: Given a sorted list, find two numbers that add up to a target.
+        correct: false
+        feedback: "Sorted, and a pair adding up to a target: that is two pointers from both ends. Nothing has to be remembered in last-in order."
+      - text: Find the length of the longest substring with no repeated character.
+        correct: false
+        feedback: "A longest stretch that obeys a rule is a variable-size sliding window, with a set or dict for what's inside it."
+      - text: Count how many times each word appears in a sentence.
+        correct: false
+        feedback: "That's counting with a dict (or `Counter`). Order doesn't matter at all."
+    hints:
+      - "A stack answers one question quickly: what is the most recent item that is still open?"
+      - "Which problem's wording talks about the *most recent* thing?"
+  - id: step.stacks.check-why-not-count
+    type: choice
+    title: Why not just count?
+    prompt: |
+      A shortcut for brackets: keep a counter per bracket type, add 1 for an opener and subtract 1 for a closer, and say the
+      string is valid if every counter ends at 0 and never goes negative. Why does this give the wrong answer for `([)]`?
+    options:
+      - text: "Counting only checks how many of each bracket there are, not their order. In `([)]` the `)` arrives while `[` is the most recent opener, which is invalid, but every count still balances."
+        correct: true
+        feedback: "Right. Validity depends on *which* opener is most recent, and only a stack keeps that order."
+      - text: The counters overflow on long strings.
+        correct: false
+        feedback: "Python integers don't overflow. The problem shows up on a four-character string; it's about order, not size."
+      - text: The counter for `)` goes negative.
+        correct: false
+        feedback: "The `(` comes first, so the counter for round brackets goes 1, then back to 0. It never goes negative. That's exactly why the shortcut is fooled."
+      - text: It doesn't; counting gets `([)]` right.
+        correct: false
+        feedback: "Counting says valid (both kinds balance), but `([)]` is invalid: the `)` tries to close a `(` while a `[` opened inside it is still open."
+    hints:
+      - Walk the counters through `([)]`. Where do they end?
+      - Is `([)]` properly nested? What would the stack say when the `)` arrives?
+  - id: step.stacks.fill-valid
+    type: fill-blank
+    title: Complete the checker
+    pattern: pattern.stack-matching
+    patternCue: "\"Balanced\" or \"properly nested\" brackets: push each opener; a closer pops the top, which must be its partner; anything left over at the end was never closed."
+    prompt: |
+      Fill in the blanks so that `is_valid(s)` returns whether every bracket in `s` is closed by the right partner in the
+      right order.
+    template: |
+      def is_valid(s):
+          pairs = {")": "(", "]": "[", "}": "{"}
+          stack = []
+          for ch in s:
+              if ch in "([{":
+                  stack.{{push}}(ch)
+              elif not stack or stack.{{pop}}() != pairs[ch]:
+                  return False
+          return {{done}}
+    blanks:
+      - id: push
+        accepted:
+          - "append"
+        mistakes:
+          - answers:
+              - "push"
+              - "Push"
+            feedback: "Python lists have no `push`. Pushing onto a list stack is `append`."
+          - answers:
+              - "insert"
+            feedback: "`insert` needs a position, and inserting at the front is `O(n)`. The top of a list stack is its end: `append`."
+      - id: pop
+        accepted:
+          - "pop"
+        mistakes:
+          - answers:
+              - "Pop"
+            feedback: "Python's method names are lowercase: `pop`."
+          - answers:
+              - "remove"
+            feedback: "`remove(x)` searches for a value and returns nothing. You want to take the top item and get it back: `pop`."
+      - id: done
+        accepted:
+          - "not stack"
+          - "len(stack) == 0"
+          - "stack == []"
+        mistakes:
+          - answers:
+              - "True"
+            feedback: "Not quite: `((` gets here with two openers still on the stack and would wrongly return `True`. Valid means nothing is left open."
+          - answers:
+              - "stack"
+            feedback: "That's backwards. A non-empty stack means something was never closed, so the answer should be true only when the stack is empty."
+    hints:
+      - "Push and pop on a list stack are both list methods that work at the end."
+      - "When the loop finishes without a mismatch, the string is valid only if no opener is still waiting."
+  - id: step.stacks.order-duplicates
+    type: parsons
+    title: Cancel the pairs
+    pattern: pattern.stack-matching
+    patternCue: "\"Remove adjacent equal pairs, repeatedly\": each new character either cancels the one on top of the stack or is pushed to wait."
+    prompt: |
+      Arrange the lines into `remove_pairs(s)`, which repeatedly deletes two equal letters that sit next to each other until
+      none are left. `"abbaca"` becomes `"ca"`: deleting `bb` brings the two `a`s together, and they go too.
+    solution: |
+      def remove_pairs(s):
+          stack = []
+          for ch in s:
+              if stack and stack[-1] == ch:
+                  stack.pop()
+              else:
+                  stack.append(ch)
+          return "".join(stack)
+    hints:
+      - "The stack holds the letters that survive so far. The newest survivor is on top."
+      - "A new letter equal to the top cancels it (pop); otherwise it joins the survivors (append)."
+      - "The `else` lines up with the `if`, inside the loop."
+  - id: step.stacks.write-valid
+    type: write-code
+    largeScreenPreferred: true
+    title: Valid brackets
+    pattern: pattern.stack-matching
+    patternCue: "\"Every closer matches the right opener, in the right order\": push openers; a closer must find its partner on top."
+    prompt: |
+      Write `is_valid(s)`. `s` contains only the characters `()[]{}`. Return `True` if every opening bracket is closed by the same
+      kind of bracket, in the right order, and every closing bracket has an opener; otherwise `False`. The empty string is
+      valid.
+    language: python
+    entrypoint: is_valid
+    starter: |
+      def is_valid(s):
+          pass
+    solution: |
+      def is_valid(s):
+          pairs = {")": "(", "]": "[", "}": "{"}
+          stack = []
+          for ch in s:
+              if ch in "([{":
+                  stack.append(ch)
+              elif not stack or stack.pop() != pairs[ch]:
+                  return False
+          return not stack
+    tests:
+      - input: '"()[]{}"'
+        expected: "True"
+      - input: '"{[()]}"'
+        expected: "True"
+      - input: '"([)]"'
+        expected: "False"
+      - input: '"(("'
+        expected: "False"
+      - input: '"]"'
+        expected: "False"
+      - input: '""'
+        expected: "True"
+    hints:
+      - "A dict from each closer to its opener, `{\")\": \"(\", ...}`, saves a chain of `if`s."
+      - "A closer fails if the stack is empty or if the popped opener isn't its partner."
+      - "After the loop, return whether the stack is empty."
+    walkthrough:
+      call: result = is_valid("{[()]}")
+      visualise:
+        - variable: stack
+          as: stack
+      explanation: |
+        Three openers go on: `{`, `[`, `(`. Then the closers arrive in mirror order, and each pop hands back exactly the partner
+        it needs: `(` first, because it went on last. The stack ends empty, so the string is valid.
+  - id: step.stacks.write-pairs
+    type: write-code
+    largeScreenPreferred: true
+    title: Remove adjacent pairs
+    pattern: pattern.stack-matching
+    patternCue: "\"Removing a pair can bring two new letters together\": a stack of survivors means each new letter only has to compare with the top."
+    prompt: |
+      Write `remove_pairs(s)`. Repeatedly delete any two equal letters that are next to each other, until no such pair is left,
+      and return what remains. `"abbaca"` gives `"ca"`, and `"azxxzy"` gives `"ay"`. Aim for one pass over `s`.
+    language: python
+    entrypoint: remove_pairs
+    starter: |
+      def remove_pairs(s):
+          pass
+    solution: |
+      def remove_pairs(s):
+          stack = []
+          for ch in s:
+              if stack and stack[-1] == ch:
+                  stack.pop()
+              else:
+                  stack.append(ch)
+          return "".join(stack)
+    tests:
+      - input: '"abbaca"'
+        expected: "'ca'"
+      - input: '"azxxzy"'
+        expected: "'ay'"
+      - input: '"aa"'
+        expected: "''"
+      - input: '"abc"'
+        expected: "'abc'"
+      - input: '""'
+        expected: "''"
+    hints:
+      - "Keep a stack of the letters that have survived so far."
+      - "If the new letter equals the top, both vanish: pop. Otherwise push the new letter."
+      - "`\"\".join(stack)` turns the survivors back into a string."
+    walkthrough:
+      call: result = remove_pairs("azxxzy")
+      visualise:
+        - variable: stack
+          as: stack
+      explanation: |
+        `a`, `z`, `x` are pushed. The second `x` matches the top and pops it, which leaves `z` on top, so the next `z` cancels
+        that too. One pass catches the chain reaction that "delete and rescan" would need several passes for.
+  - id: step.stacks.write-backspace
+    type: write-code
+    largeScreenPreferred: true
+    title: Typing with backspace
+    pattern: pattern.stack-matching
+    patternCue: "\"Backspace deletes the most recent character still standing\": push each character, and pop on `#` when there is something to pop."
+    prompt: |
+      Someone types `s` into a text box, where `#` is the backspace key. Write `typed(s)` that returns the text left in the box.
+      A backspace on an empty box does nothing. `"ab#c"` gives `"ac"`, and `"a##b"` gives `"b"`.
+    language: python
+    entrypoint: typed
+    starter: |
+      def typed(s):
+          pass
+    solution: |
+      def typed(s):
+          stack = []
+          for ch in s:
+              if ch != "#":
+                  stack.append(ch)
+              elif stack:
+                  stack.pop()
+          return "".join(stack)
+    tests:
+      - input: '"ab#c"'
+        expected: "'ac'"
+      - input: '"a##b"'
+        expected: "'b'"
+      - input: '"###"'
+        expected: "''"
+      - input: '"abc"'
+        expected: "'abc'"
+      - input: '"xy##z#w"'
+        expected: "'w'"
+    hints:
+      - "Each ordinary character goes on the stack."
+      - "A `#` removes the top, but only if the stack isn't empty."
+      - "Join the stack into a string at the end."
