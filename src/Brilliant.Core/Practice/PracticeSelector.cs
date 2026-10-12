@@ -53,17 +53,48 @@ public static class PracticeSelector
     public static PracticeProblem? Next(LearnerState state, Random random, string? previousStepId = null)
     {
         if (!Availability(state).IsAvailable) return null;
-        var eligible = Eligible(state);
-        if (eligible.Count > 1) eligible = eligible.Where(e => e.Step.Step.Id != previousStepId).ToList();
-
-        var ranked = eligible
-            .Select((e, index) => (e.Step, e.Pattern, Index: index, Tier: e.Step.NeedsWork(state.AsOf) ? 0 : e.Step.IsPractised ? 2 : 1))
-            .OrderBy(e => e.Tier).ThenBy(e => e.Pattern.Mastery)
-            .ThenBy(e => e.Step.LastPractised ?? DateTimeOffset.MinValue).ThenBy(e => e.Index)
-            .ToList();
-        var band = ranked.Where(e => e.Tier == ranked[0].Tier).Take(Band).ToList();
-        var chosen = band[random.Next(band.Count)];
+        var ranked = Ranked(state);
+        if (ranked.Count > 1) ranked = ranked.Where(e => e.Step.Step.Id != previousStepId).ToList();
+        var chosen = Draw(ranked, random);
         return new PracticeProblem(chosen.Step, chosen.Pattern.Pattern, Choices(state, chosen.Pattern.Pattern, random));
+    }
+
+    /// <summary>
+    /// The problems of an interview run: up to <paramref name="count"/> different problems, each drawn like <see cref="Next"/> but
+    /// preferring a pattern not already in the set, so a run tests as many patterns as it can. Fewer when fewer are on offer; empty when
+    /// Practice isn't available.
+    /// </summary>
+    public static IReadOnlyList<PracticeProblem> Set(LearnerState state, Random random, int count)
+    {
+        var set = new List<PracticeProblem>();
+        if (!Availability(state).IsAvailable) return set;
+        var remaining = Ranked(state);
+        while (set.Count < count && remaining.Count > 0)
+        {
+            var fresh = remaining.Where(r => set.All(p => p.Pattern.Id != r.Pattern.Pattern.Id)).ToList();
+            var chosen = Draw(fresh.Count > 0 ? fresh : remaining, random);
+            remaining.Remove(chosen);
+            set.Add(new PracticeProblem(chosen.Step, chosen.Pattern.Pattern, Choices(state, chosen.Pattern.Pattern, random)));
+        }
+        return set;
+    }
+
+    private sealed record Candidate(PatternStep Step, PatternMastery Pattern, int Tier);
+
+    // Every problem on offer, weakest first: by tier, then lowest pattern mastery, least recently practised, content order.
+    private static List<Candidate> Ranked(LearnerState state) =>
+        Eligible(state)
+            .Select((e, index) => (Candidate: new Candidate(e.Step, e.Pattern, e.Step.NeedsWork(state.AsOf) ? 0 : e.Step.IsPractised ? 2 : 1), Index: index))
+            .OrderBy(e => e.Candidate.Tier).ThenBy(e => e.Candidate.Pattern.Mastery)
+            .ThenBy(e => e.Candidate.Step.LastPractised ?? DateTimeOffset.MinValue).ThenBy(e => e.Index)
+            .Select(e => e.Candidate)
+            .ToList();
+
+    // One of the first Band problems of the weakest tier present. Ranked lists only, never empty.
+    private static Candidate Draw(List<Candidate> ranked, Random random)
+    {
+        var band = ranked.Where(e => e.Tier == ranked[0].Tier).Take(Band).ToList();
+        return band[random.Next(band.Count)];
     }
 
     /// <summary>

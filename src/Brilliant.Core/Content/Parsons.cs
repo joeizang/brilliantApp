@@ -70,6 +70,19 @@ public sealed class ParsonsBoard
             throw new ArgumentException("The order must contain every line of the step exactly once.", nameof(order));
     }
 
+    /// <summary>
+    /// A board as the learner left it: every line once, each indented within <see cref="MaxLevel"/>. Null when the arrangement doesn't
+    /// fit the step (it has changed since), so the caller starts afresh.
+    /// </summary>
+    public static ParsonsBoard? Restore(ParsonsStep step, IReadOnlyList<ParsonsPlacement> rows)
+    {
+        if (rows.Count != step.Lines.Count || rows.Select(r => r.Piece).Order().Where((p, i) => p != i).Any()) return null;
+        var board = new ParsonsBoard(step, rows.Select(r => r.Piece));
+        if (rows.Any(r => r.Level < 0 || r.Level > board.MaxLevel)) return null;
+        for (var i = 0; i < rows.Count; i++) board._rows[i] = rows[i];
+        return board;
+    }
+
     /// <summary>A random order that isn't already the solution's, unless the step has no other order.</summary>
     public static ParsonsBoard Shuffled(ParsonsStep step, Random? random = null)
     {

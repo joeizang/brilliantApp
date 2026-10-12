@@ -32,7 +32,7 @@
 
     @if (_result is null)
     {
-        <button class="primary btn-primary" disabled="@(!CanCheck)" @onclick="Check">Check</button>
+        <button class="primary btn-primary" disabled="@(!CanCheck)" @onclick="Check">@CheckText</button>
     }
     else if (_result.IsCorrect)
     {
@@ -65,6 +65,15 @@
     /// <summary>Shown instead of the step's title: Practice shows a problem as "Problem", so the title can't name its pattern.</summary>
     [Parameter] public string? Title { get; set; }
 
+    /// <summary>The label of the button that checks the answer. An interview says "Submit": the answer is taken without a verdict.</summary>
+    [Parameter] public string CheckText { get; set; } = "Check";
+
+    /// <summary>What is in the blanks to begin with, by blank ID: an interview restores what the learner typed before switching problems.</summary>
+    [Parameter] public IReadOnlyDictionary<string, string>? Initial { get; set; }
+
+    /// <summary>Raised as the learner types, with what is in every blank.</summary>
+    [Parameter] public EventCallback<IReadOnlyDictionary<string, string>> OnChanged { get; set; }
+
     /// <summary>Raised each time the learner checks their answers (correct or not).</summary>
     [Parameter] public EventCallback<Attempt> OnAnswered { get; set; }
 
@@ -80,7 +89,12 @@
 
     private IDisposable? _shortcuts;
 
-    protected override void OnInitialized() => _shortcuts = Shortcuts.Subscribe(OnShortcut);
+    protected override void OnInitialized()
+    {
+        foreach (var blank in Step.Blanks)
+            if (Initial?.GetValueOrDefault(blank.Id) is { } text) _responses[blank.Id] = text;
+        _shortcuts = Shortcuts.Subscribe(OnShortcut);
+    }
 
     private Task OnShortcut(StepShortcut s) => InvokeAsync(async () =>
     {
@@ -103,7 +117,11 @@
 
     protected override void OnParametersSet() => _lines = FillBlankTemplate.Lines(Step.Template);
 
-    private void Set(string id, ChangeEventArgs e) => _responses[id] = e.Value?.ToString() ?? "";
+    private async Task Set(string id, ChangeEventArgs e)
+    {
+        _responses[id] = e.Value?.ToString() ?? "";
+        await OnChanged.InvokeAsync(new Dictionary<string, string>(_responses));
+    }
 
     private string Value(string id) => _responses.GetValueOrDefault(id, "");
 

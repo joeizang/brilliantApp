@@ -125,6 +125,37 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
         return answer.Rating;
     }
 
+    /// <summary>
+    /// Starts a timed interview run on <paramref name="problems"/> (from <see cref="PracticeSelector.Set"/>) and returns it. The clock
+    /// starts now. Returns null, recording nothing, when another run is still open: at most one runs at a time.
+    /// </summary>
+    public InterviewRun? StartInterview(InterviewPreset preset, IReadOnlyList<PracticeProblem> problems)
+    {
+        if (problems.Count == 0 || InterviewRuns.Open(log.ReadAll()) is not null) return null;
+        var run = Guid.NewGuid().ToString("N");
+        var set = problems.Select(p => new InterviewProblem(p.Lesson.Id, p.Step.Id, p.Choices.Select(c => c.Id).ToList())).ToList();
+        Append(ProgressEventTypes.InterviewStarted, "", "", InterviewRuns.StartedJson(run, preset, set, InterviewPresets.Limit(preset)));
+        return InterviewRuns.Get(log.ReadAll(), run);
+    }
+
+    /// <summary>
+    /// Ends an interview run: every part still unanswered is recorded as wrong (a pick of nothing, a failed solve, both rated Again, with
+    /// no time spent answering), then InterviewFinished. <paramref name="steps"/> finds each problem's step, which rates the solve. Does nothing for a run that is
+    /// unknown or already finished, so two devices ending the same run add nothing that counts twice.
+    /// </summary>
+    public void FinishInterview(string runId, Func<string, Step?> steps)
+    {
+        if (InterviewRuns.Get(log.ReadAll(), runId) is not { IsFinished: false } run) return;
+        foreach (var problem in run.Problems)
+        {
+            if (run.Answer(problem.StepId, PracticePart.Pick) is null)
+                PracticePicked(problem.LessonId, problem.StepId, null, false, TimeSpan.Zero, PracticeMode.Interview, run.Id);
+            if (run.Answer(problem.StepId, PracticePart.Solve) is null && steps(problem.StepId) is { } step)
+                PracticeSolved(problem.LessonId, step, problem.StepId, false, 0, TimeSpan.Zero, PracticeMode.Interview, run.Id);
+        }
+        Append(ProgressEventTypes.InterviewFinished, "", "", InterviewRuns.FinishedJson(run.Id));
+    }
+
     /// <summary>Records the daily goal in steps (kept within <see cref="TodayState.MinGoal"/>–<see cref="TodayState.MaxGoal"/>). Returns the goal as stored.</summary>
     public int SetDailyGoal(int steps)
     {

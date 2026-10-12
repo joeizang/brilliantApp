@@ -25,6 +25,10 @@
         {
             <FlaggedView Content="Content" OnBack="GoToToday" />
         }
+        else if (_practising && _interview)
+        {
+            <InterviewView Content="Content" OnExit="BackToTracks" OnProgress="() => StateHasChanged()" />
+        }
         else if (_practising)
         {
             <PracticeView Content="Content" OnExit="BackToTracks" OnProgress="() => StateHasChanged()" />
@@ -47,7 +51,7 @@
         }
         else if (_browsing)
         {
-            <TracksView Content="Content" OnOpenTrack="OpenTrack" OnOpenReview="OpenReview" OnOpenPractice="OpenPractice" OnOpenFlagged="OpenFlagged" OnOpenSync="OpenSync" OnBack="GoToToday" />
+            <TracksView Content="Content" OnOpenTrack="OpenTrack" OnOpenReview="OpenReview" OnOpenPractice="OpenPractice" OnOpenInterview="OpenInterview" OnOpenFlagged="OpenFlagged" OnOpenSync="OpenSync" OnBack="GoToToday" />
         }
         else
         {
@@ -69,6 +73,9 @@
     private bool _review;
     private bool _reviewing;
     private bool _practising;
+
+    // Which practice screen _practising shows: the timed interview rather than open practice. Meaningless while _practising is false.
+    private bool _interview;
     private bool _session;
     private bool _flagged;
     private bool _sync;
@@ -158,7 +165,17 @@
     private void OpenLessonFromSidebar((Track Track, Lesson Lesson, bool Review) target) => (_track, _lesson, _concept, _review, _reviewing, _session, _browsing, _flagged, _sync, _practising) = (target.Track, target.Lesson, null, target.Review, false, false, false, false, false, false);
     private void OpenFlagged() => (_lesson, _track, _concept, _reviewing, _session, _browsing, _flagged, _sync, _practising) = (null, null, null, false, false, false, true, false, false);
     private void OpenSync() => (_lesson, _track, _concept, _reviewing, _session, _browsing, _flagged, _sync, _practising) = (null, null, null, false, false, false, false, true, false);
-    private void OpenPractice() => (_lesson, _track, _concept, _reviewing, _session, _browsing, _flagged, _sync, _practising) = (null, null, null, false, false, false, false, false, true);
+    private void OpenPractice()
+    {
+        (_lesson, _track, _concept, _reviewing, _session, _browsing, _flagged, _sync, _practising) = (null, null, null, false, false, false, false, false, true);
+        _interview = false;
+    }
+
+    private void OpenInterview()
+    {
+        OpenPractice();
+        _interview = true;
+    }
     private void OpenReview() => (_lesson, _track, _concept, _reviewing, _session, _browsing, _flagged, _sync, _practising) = (null, null, null, true, false, false, false, false, false);
 
     // An unfinished session stays open in the log; Today offers to resume it.

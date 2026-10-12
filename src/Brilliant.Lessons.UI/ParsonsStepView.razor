@@ -51,7 +51,7 @@
 
     @if (_result is null)
     {
-        <button class="primary btn-primary" @onclick="Check">Check</button>
+        <button class="primary btn-primary" @onclick="Check">@CheckText</button>
     }
     else if (_result.IsCorrect)
     {
@@ -73,6 +73,15 @@
 
     /// <summary>Shown instead of the step's title: Practice shows a problem as "Problem", so the title can't name its pattern.</summary>
     [Parameter] public string? Title { get; set; }
+
+    /// <summary>The label of the button that checks the answer. An interview says "Submit": the answer is taken without a verdict.</summary>
+    [Parameter] public string CheckText { get; set; } = "Check";
+
+    /// <summary>The arrangement to begin with: an interview restores the learner's from before switching problems. Ignored if it doesn't fit the step.</summary>
+    [Parameter] public IReadOnlyList<ParsonsPlacement>? Initial { get; set; }
+
+    /// <summary>Raised after each move or indent, with the whole arrangement.</summary>
+    [Parameter] public EventCallback<IReadOnlyList<ParsonsPlacement>> OnChanged { get; set; }
 
     /// <summary>Raised each time the learner checks their arrangement (correct or not).</summary>
     [Parameter] public EventCallback<Attempt> OnAnswered { get; set; }
@@ -97,7 +106,7 @@
 
     protected override void OnInitialized()
     {
-        _board = ParsonsBoard.Shuffled(Step);
+        _board = (Initial is null ? null : ParsonsBoard.Restore(Step, Initial)) ?? ParsonsBoard.Shuffled(Step);
         _shortcuts = Shortcuts.Subscribe(OnShortcut);
         Screen.Changed += OnScreenChanged;
     }
@@ -181,14 +190,21 @@
     {
         if (Locked) return;
         var piece = _board.Rows[index].Piece;
-        if (_board.Move(index, index + delta)) _refocus = piece;
+        if (_board.Move(index, index + delta)) Moved(piece);
     }
 
     private void IndentBy(int index, int delta)
     {
         if (Locked) return;
         var piece = _board.Rows[index].Piece;
-        if (_board.Indent(index, delta)) _refocus = piece;
+        if (_board.Indent(index, delta)) Moved(piece);
+    }
+
+    // A line has moved or changed indentation: keep keyboard focus on it, and report the arrangement.
+    private void Moved(int? piece)
+    {
+        _refocus = piece;
+        _ = OnChanged.InvokeAsync(_board.Rows.ToList());
     }
 
     private void KeyDown(int index, KeyboardEventArgs e)
@@ -209,7 +225,7 @@
         EndDrag();
         if (Locked || from is null) return;
         var piece = _board.Rows[from.Value].Piece;
-        if (_board.Move(from.Value, target)) _refocus = piece;
+        if (_board.Move(from.Value, target)) Moved(piece);
     }
 
     /// <summary>Called by parsons-touch.js when a finger lets go of a line dragged from row <paramref name="from"/> over row <paramref name="to"/>.</summary>
@@ -217,7 +233,7 @@
     public Task MoveTo(int from, int to) => InvokeAsync(() =>
     {
         if (Locked || from < 0 || to < 0 || from >= _board.Rows.Count || to >= _board.Rows.Count) return;
-        _board.Move(from, to);
+        if (_board.Move(from, to)) Moved(null);
         StateHasChanged();
     });
 

@@ -103,6 +103,19 @@ public class ParsonsTests
     }
 
     [Fact]
+    public void A_board_is_restored_as_left_or_not_at_all_when_it_no_longer_fits()
+    {
+        ParsonsPlacement[] left = [new(4, 2), new(0, 0), new(2, 1), new(1, 0), new(3, 1)];
+
+        Assert.Equal(left, ParsonsBoard.Restore(Step, left)!.Rows);
+        Assert.Null(ParsonsBoard.Restore(Step, left[..4]));                                       // a line missing
+        Assert.Null(ParsonsBoard.Restore(Step, [.. left[..4], new(0, 0)]));                       // a line twice
+        Assert.Null(ParsonsBoard.Restore(Step, [.. left[..4], new(7, 0)]));                       // a line the step doesn't have
+        Assert.Null(ParsonsBoard.Restore(Step, [.. left[..4], new(3, 3)]));                       // deeper than any line goes
+        Assert.Null(ParsonsBoard.Restore(Step, [.. left[..4], new(3, -1)]));
+    }
+
+    [Fact]
     public void A_shuffled_board_starts_flat_and_out_of_order()
     {
         for (var seed = 0; seed < 25; seed++)

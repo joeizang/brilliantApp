@@ -1,6 +1,6 @@
 # Practice mode and timed interview simulation
 
-Issue [#36](https://github.com/joeizang/brilliantApp/issues/36) (PRD milestone M4). **Status: design agreed (PR #93). Slices 1 (content model), 2 (practice core) and 3 (practice UI) are built; slice 4 (interview mode) follows ([Proposed slices](#proposed-slices)).**
+Issue [#36](https://github.com/joeizang/brilliantApp/issues/36) (PRD milestone M4). **Status: design agreed (PR #93). All four slices are built: content model, practice core, practice UI and interview mode ([Proposed slices](#proposed-slices)).**
 
 The skill the app exists to train is the one the learner fails interviews on: looking at a problem with no label on it and knowing which pattern it is. Lessons name the pattern in their titles. Practice takes the names away.
 
@@ -101,7 +101,9 @@ A session has no fixed length; the learner stops when they like. The Practice ca
 
 **Interruption.** The run is stored as events, so it survives a closed app and syncs like everything else:
 
-- `InterviewStarted` `{ run, preset, steps[], limitSeconds }` — the problem set and the start time are fixed here.
+- `InterviewStarted` `{ run, preset, steps[], limitSeconds }` — the problem set and the start time are fixed here. Each `steps[]` entry
+  is `{ step, lesson, choices[] }`: the pattern choices are fixed at the start too, so a resumed run (on any device) offers the same
+  options in the same order.
 - `InterviewFinished` `{ run }` — written when the run ends by any route.
 
 The time left is always `startedAt + limit − now`. If the app is reopened with time left, the run resumes; with none left, the summary is shown and any unanswered problems are recorded. A run is *open* until a `InterviewFinished` exists for it, and at most one run is open at a time. Because the clock is wall time, a device with a wrong clock would shorten or lengthen a run; that is accepted for a personal tool.
@@ -222,6 +224,49 @@ phone alternative (it shares its step's). `Step.PatternCue` is optional in the p
 **Pick items in Review.** A due `pick.` item shows the same `ProblemPrompt` and `PatternPick`, with choices drawn by
 `PracticeSelector.Choices` each time it is asked, and no hint ladder (a pattern-hint rung would give it away). The first pick is recorded
 as a `ReviewAnswered`, rated by `InferPick`.
+
+### As built (slice 4)
+
+Core in `Brilliant.Core/Practice/InterviewRun.cs`, the screen in `Brilliant.Lessons.UI/InterviewView.razor`. Tests:
+`tests/Brilliant.Core.Tests/InterviewTests.cs` and `tests/Brilliant.Lessons.UI.Tests/InterviewViewTests.cs`.
+
+**The run, from the log.** `InterviewRuns.From(events)` rebuilds every run: its preset, problems (with their stored choices), start
+time, limit, whether it is finished, and its interview-mode answers (the first per step and part, ordered by time then event ID as the
+projector orders them, so every device and the schedule agree on which answer counts). `Open` is the last
+unfinished run; a malformed `InterviewStarted` is ignored. `InterviewRun.Left(now)` is `startedAt + limit − now`, never negative, and
+`IsOver(now)` is finished or out of time.
+
+**Choosing the set.** `PracticeSelector.Set(state, random, count)` draws problems as Practice does (weakest patterns first), taking a
+pattern already in the set only once every learned pattern has one. Each problem's choices come from `PracticeSelector.Choices`.
+
+**Recording.** `ProgressRecorder.StartInterview(preset, problems)` writes `InterviewStarted` unless a run is already open.
+`FinishInterview(run, steps)` records each unanswered pick (with no `picked`) and each unanswered solve as wrong, with zero elapsed time
+so the summary's times are only what was spent, then writes `InterviewFinished`. It does nothing for a finished or unknown run. Two
+devices that both finish the same run before syncing may each record the gaps; the projector keeps the first answer per part.
+
+**The card.** Tracks shows a *Timed interview* card under Practice: "2 or 3 problems against one clock", Practice's reason while
+Practice is closed, "In progress: 18 min left." during a run, and "Time's up. See how you did." once an open run has run out. A run in
+progress opens whatever Practice's state. In `CourseShell` the interview is a second Practice screen (`_interview` alongside
+`_practising`): no bottom tabs, and Back returns to Tracks without touching the run.
+
+**The screen.**
+- *Setup*: the two presets, then the confirmation ("The clock starts now and can't be paused") with *Start the clock* or *Cancel*.
+- *Running*: the clock (`m:ss`, `role="timer"`, urgent under 5 minutes), a tab per problem (marked once submitted), and *Finish early*,
+  which asks first. A problem is `ProblemPrompt` and then `PatternPick` in its new `Blind` mode: the button says *Lock in*, and locking
+  shows only "Locked in: …", with no verdict, cue or marks. Then the step view titled "Problem" with no hint ladder: fill-blank and Parsons
+  say *Submit* (a new `CheckText` parameter), and the answer is taken without showing the verdict. Write-code keeps *Run tests* (the
+  runner's output is allowed) and adds *Submit solution*, which runs the code as it stands and records whether every test passed
+  (`WriteCodeStepView.RunAsync`; no Continue, via `OfferContinue`). Its draft is kept per run and step (`interview.<run>.<step>`). Fill-blank
+  answers and Parsons arrangements not yet submitted are kept the same way (`interview.<run>.<step>.blanks` / `.lines`, as JSON, through
+  the synced draft store), so switching problems, leaving or resuming on another device loses no work. A
+  submit moves to the next unsubmitted problem; the last one ends the run.
+- *Time per problem* is counted while the problem is on screen: the pick's elapsed is the time up to locking it, the solve's the rest.
+  Resuming starts each problem from what its answers recorded.
+- *The clock* is checked every second; at zero the run finishes and the summary shows. Opening the screen with an open run resumes it
+  on its first unsubmitted problem, or, if its time is up, finishes it and shows the summary.
+- *Summary*: per problem, "It was Pattern X." with the pick ("You picked it.", "You picked Y.", "You gave no answer."), whether the
+  solution passed, and the time ("none" when nothing was answered). Then the weakest of the run's patterns (`PracticeText.Standing`)
+  and "Your answers are now in Review."
 
 ## Not in this slice
 

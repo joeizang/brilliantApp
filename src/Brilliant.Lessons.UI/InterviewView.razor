@@ -1,0 +1,357 @@
+@* A timed interview: a fixed set of unlabelled problems against one wall clock, with no hints and nothing marked until the summary. The
+   run lives in the log (InterviewStarted, PracticeAnswered, InterviewFinished), so leaving, closing the app or another device changes
+   nothing: the clock keeps running and the run resumes as the log has it. *@
+@using Brilliant.Core.Practice
+@using Brilliant.Core.Progress
+@using System.Text.Json
+@using Brilliant.Core.Drafts
+@using Brilliant.Core.Python
+@implements IDisposable
+@inject ProgressRecorder Recorder
+@inject ScreenInfo Screen
+@inject ICodeDraftStore Drafts
+
+<div class="practice-bar content-column mt-2 flex items-center gap-4 text-[.9rem]">
+    <button class="link btn-link" @onclick="() => OnExit.InvokeAsync()"><Icon Name="back" Class="size-5" /> Back</button>
+</div>
+<h1 class="interview-title content-column mt-2 mb-0">Timed interview</h1>
+
+@if (_run is null)
+{
+    @if (!_availability.IsAvailable)
+    {
+        <p class="practice-unavailable content-column mt-8 text-[1.05rem]">@PracticeText.Unavailable(_availability)</p>
+        <div class="practice-actions content-column pt-4 pb-6"><button class="primary btn-primary" @onclick="() => OnExit.InvokeAsync()">Back to tracks</button></div>
+    }
+    else if (_confirming is { } preset)
+    {
+        <section class="interview-confirm content-column mt-8" role="alertdialog" aria-labelledby="interview-confirm-text">
+            <p id="interview-confirm-text" class="text-[1.05rem]">
+                <strong>@InterviewPresets.Title(preset)</strong>: @Plan(preset). The clock starts now and can't be paused.
+            </p>
+            <div class="flex flex-wrap gap-3 pt-4 pb-6">
+                <button class="interview-start primary btn-primary" @onclick="() => Start(preset)">Start the clock</button>
+                <button class="secondary btn-secondary" @onclick="() => _confirming = null">Cancel</button>
+            </div>
+        </section>
+    }
+    else
+    {
+        <p class="content-column mt-4 text-[1.05rem]">Name the pattern, then solve it, against one clock. No hints, and nothing is marked until the end.</p>
+        <div class="content-column grid gap-3 pt-4 pb-6">
+            @foreach (var p in Enum.GetValues<InterviewPreset>())
+            {
+                var choice = p;
+                <button class="interview-preset @Styling.PracticeCard" @onclick="() => _confirming = choice">
+                    <span class="card-title text-[1.2rem] font-semibold tracking-[-.01em]">@InterviewPresets.Title(choice)</span>
+                    <span class="card-meta text-[.9rem] text-fg-secondary">@Plan(choice)</span>
+                </button>
+            }
+        </div>
+    }
+}
+else if (_run.IsFinished)
+{
+    <section class="interview-summary content-column mt-6" role="status">
+        <h2 class="mb-4">@InterviewPresets.Title(_run.Preset): how it went</h2>
+        <ol class="grid list-none gap-4 p-0">
+            @for (var i = 0; i < _run.Problems.Count; i++)
+            {
+                var problem = _run.Problems[i];
+                var pick = _run.Answer(problem.StepId, PracticePart.Pick);
+                var solve = _run.Answer(problem.StepId, PracticePart.Solve);
+                <li class="interview-result rounded-lg border border-hairline bg-surface-raised px-4 py-3">
+                    <h3 class="mt-0 mb-2 text-[1.05rem] font-semibold">Problem @(i + 1)@(StepOf(problem) is { } step ? $": {step.Title}" : "")</h3>
+                    <p class="result-pick my-1 flex items-center gap-3">@PracticeView.Mark(pick?.Correct == true) <span>It was <strong>@PatternTitle(PatternOf(problem))</strong>. @PickedText(pick)</span></p>
+                    <p class="result-solve my-1 flex items-center gap-3">@PracticeView.Mark(solve?.Correct == true) <span>@(solve?.Correct == true ? "The solution passed." : "The solution didn't pass.")</span></p>
+                    <p class="result-time mt-1 mb-0 text-[.95rem] text-fg-secondary">Time: @(Spent(pick, solve) is { } t ? PracticeView.Duration(t) : "none")</p>
+                </li>
+            }
+        </ol>
+        @if (Weakest(_run) is { } weakest)
+        {
+            <p class="interview-weakest mt-4">Weakest pattern this run: @weakest</p>
+        }
+        <p class="interview-review mt-1 text-[.95rem] text-fg-secondary">Your answers are now in Review.</p>
+    </section>
+    <div class="practice-actions content-column pt-6 pb-6"><button class="primary btn-primary" @onclick="() => OnExit.InvokeAsync()">Back to tracks</button></div>
+}
+else
+{
+    var left = _run.Left(Recorder.Now);
+    var problem = _run.Problems[_active];
+    var pick = _run.Answer(problem.StepId, PracticePart.Pick);
+    var solve = _run.Answer(problem.StepId, PracticePart.Solve);
+
+    <div class="interview-bar content-column sticky top-0 z-10 mt-3 flex flex-wrap items-center gap-3 border-b border-hairline bg-surface py-2">
+        <span class="@ClockClass(left)" role="timer" aria-live="off" aria-label="Time left">@Clock(left)</span>
+        <nav class="flex flex-wrap gap-2" aria-label="Problems">
+            @for (var i = 0; i < _run.Problems.Count; i++)
+            {
+                var index = i;
+                var done = _run.Answer(_run.Problems[i].StepId, PracticePart.Solve) is not null;
+                <button class="@TabClass(index, done)" aria-current="@(index == _active ? "step" : null)" @onclick="() => Show(index)">
+                    Problem @(index + 1)@if (done) {<span class="sr-only"> (submitted)</span>}
+                </button>
+            }
+        </nav>
+        <button class="interview-finish link btn-link ml-auto" @onclick="() => _confirmingFinish = true">Finish early</button>
+    </div>
+    @if (_confirmingFinish)
+    {
+        <section class="interview-finish-confirm content-column mt-3 rounded-lg border border-hairline bg-surface-raised px-4 py-3" role="alertdialog" aria-label="Finish early">
+            <p class="mt-0">Finish now? Anything you haven't submitted counts as unanswered.</p>
+            <div class="flex flex-wrap gap-3">
+                <button class="primary btn-primary" @onclick="Finish">Finish</button>
+                <button class="secondary btn-secondary" @onclick="() => _confirmingFinish = false">Keep going</button>
+            </div>
+        </section>
+    }
+
+    <div @key="(problem.StepId, _active)">
+        @if (StepOf(problem) is not { } step)
+        {
+            <p class="content-column mt-6">This problem is no longer in the course. It counts as unanswered.</p>
+        }
+        else if (pick is null)
+        {
+            <ProblemPrompt Step="step.For(Screen.Class)" />
+            <PatternPick Choices="ChoicesOf(problem)" Right="PatternOf(problem)" Name="@($"interview.{_run.Id}.{_active}")" Blind="true" OnPicked="p => Picked(problem, p.Picked)" />
+        }
+        else if (solve is not null)
+        {
+            <ProblemPrompt Step="step.For(Screen.Class)" />
+            <p class="pick-locked content-column mt-4">Your pick: <strong>@PatternTitle(pick.Picked)</strong></p>
+            <p class="solve-submitted content-column mt-1 font-semibold">Solution submitted.</p>
+        }
+        else
+        {
+            var presented = step.For(Screen.Class);
+            @if (presented.LargeScreenPreferred && Screen.IsPhone)
+            {
+                <div class="content-column"><p class="large-screen-note mt-4 rounded-lg border border-hairline bg-surface-raised px-4 py-3 text-[.95rem]" role="note">This problem is best on a larger screen, where you can type the code. You can still solve it here.</p></div>
+            }
+            @switch (presented)
+            {
+                case FillBlankStep fill:
+                    <FillBlankStepView Step="fill" Title="@ProblemPrompt.Title" CheckText="Submit" Initial="Saved<Dictionary<string, string>>(problem, Blanks)"
+                                       OnChanged="r => Save(problem, Blanks, r)" OnAnswered="a => Solved(problem, presented, a.Result.IsCorrect)" />
+                    break;
+                case ParsonsStep parsons:
+                    <ParsonsStepView Step="parsons" Title="@ProblemPrompt.Title" CheckText="Submit" Initial="Saved<List<ParsonsPlacement>>(problem, Lines)"
+                                     OnChanged="r => Save(problem, Lines, r)" OnAnswered="a => Solved(problem, presented, a.Result.IsCorrect)" />
+                    break;
+                case WriteCodeStep write:
+                    <WriteCodeStepView @ref="_write" Step="write" Title="@ProblemPrompt.Title" DraftKey="@($"interview.{_run.Id}.{problem.StepId}")" OfferContinue="false" />
+                    <div class="content-column pb-2">
+                        <button class="interview-submit secondary btn-secondary" disabled="@_submitting" @onclick="() => SubmitCode(problem, write)">Submit solution</button>
+                        <p class="mt-2 text-[.9rem] text-fg-secondary">Submitting runs the tests on your code as it is now. You can run them as often as you like before that.</p>
+                    </div>
+                    break;
+            }
+            <p class="pick-locked content-column mt-2 text-[.95rem] text-fg-secondary">Your pick: @PatternTitle(pick.Picked)</p>
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public ContentGraph Content { get; set; } = default!;
+
+    /// <summary>Leaves the interview screen. A run in progress keeps running.</summary>
+    [Parameter] public EventCallback OnExit { get; set; }
+
+    /// <summary>Raised after an answer or the end of a run is recorded, so whatever shows review counts elsewhere can refresh.</summary>
+    [Parameter] public EventCallback OnProgress { get; set; }
+
+    /// <summary>Where the choice of problems and the order of the patterns come from. Tests pass a seeded one.</summary>
+    [Parameter] public Random? Random { get; set; }
+
+    /// <summary>How often the clock is redrawn and checked for running out. Tests pass a short one.</summary>
+    [Parameter] public TimeSpan Tick { get; set; } = TimeSpan.FromSeconds(1);
+
+    /// <summary>The last five minutes are shown as urgent.</summary>
+    private static readonly TimeSpan Urgent = TimeSpan.FromMinutes(5);
+
+    private PracticeAvailability _availability = new(0, 0);
+    private InterviewRun? _run;
+    private InterviewPreset? _confirming;
+    private bool _confirmingFinish, _submitting;
+    private int _active;
+    private WriteCodeStepView? _write;
+    private Timer? _timer;
+
+    // Time spent on each problem while it was on screen: what an answer's elapsed time is, and what the summary shows.
+    private readonly Dictionary<string, TimeSpan> _spent = [];
+    private DateTimeOffset _since;
+
+    protected override void OnInitialized()
+    {
+        _availability = PracticeSelector.Availability(Recorder.Project(Content, Screen.Class));
+        if (InterviewRuns.Open(Recorder.Log.ReadAll()) is { } open) Resume(open);
+    }
+
+    public void Dispose() => _timer?.Dispose();
+
+    private void Start(InterviewPreset preset)
+    {
+        var state = Recorder.Project(Content, Screen.Class);
+        var set = PracticeSelector.Set(state, Random ?? new Random(), InterviewPresets.Problems(preset));
+        _confirming = null;
+        if (Recorder.StartInterview(preset, set) is { } run) Resume(run);
+        else if (InterviewRuns.Open(Recorder.Log.ReadAll()) is { } open) Resume(open);   // another device started one first
+    }
+
+    // Picks up a run as the log has it: each problem's time so far from its answers, on the first problem not yet submitted.
+    private void Resume(InterviewRun run)
+    {
+        _run = run;
+        if (run.IsOver(Recorder.Now))
+        {
+            Finish();
+            return;
+        }
+        foreach (var p in run.Problems)
+            _spent[p.StepId] = Spent(run.Answer(p.StepId, PracticePart.Pick), run.Answer(p.StepId, PracticePart.Solve)) ?? TimeSpan.Zero;
+        _active = Math.Max(0, run.Problems.ToList().FindIndex(p => run.Answer(p.StepId, PracticePart.Solve) is null));
+        _since = Recorder.Now;
+        _timer ??= new Timer(_ => InvokeAsync(Ticked), null, Tick, Tick);
+    }
+
+    private void Ticked()
+    {
+        if (_run is { IsFinished: false } run)
+        {
+            if (run.IsOver(Recorder.Now)) Finish();
+            else _run = InterviewRuns.Get(Recorder.Log.ReadAll(), run.Id) ?? run;   // another device may have answered or finished
+            if (_run is { IsFinished: true }) _timer?.Dispose();
+        }
+        StateHasChanged();
+    }
+
+    private void Show(int index)
+    {
+        Bank();
+        (_active, _confirmingFinish) = (index, false);
+    }
+
+    // Adds the time since the active problem was last shown (or last banked) to its total.
+    private void Bank()
+    {
+        var now = Recorder.Now;
+        var step = _run!.Problems[_active].StepId;
+        _spent[step] = _spent.GetValueOrDefault(step) + (now - _since);
+        _since = now;
+    }
+
+    private async Task Picked(InterviewProblem problem, Pattern picked)
+    {
+        if (_run!.IsOver(Recorder.Now)) { Finish(); return; }
+        Bank();
+        Recorder.PracticePicked(problem.LessonId, problem.StepId, picked.Id, picked.Id == PatternOf(problem).Id, _spent[problem.StepId],
+            PracticeMode.Interview, _run.Id);
+        Reload();
+        await OnProgress.InvokeAsync();
+    }
+
+    private async Task SubmitCode(InterviewProblem problem, WriteCodeStep presented)
+    {
+        if (_write is null) return;
+        _submitting = true;
+        try
+        {
+            // Python itself failing to run says nothing about the code, so it records nothing: the learner can submit again.
+            if (await _write.RunAsync() is { } submission)
+                await Solved(problem, presented, submission.Result.Status == TestRunStatus.Passed);
+        }
+        finally { _submitting = false; }
+    }
+
+    // The solution is taken as it is, without a verdict; the run moves on to the next problem not yet submitted, or ends.
+    private async Task Solved(InterviewProblem problem, Step presented, bool correct)
+    {
+        if (_run!.IsOver(Recorder.Now)) { Finish(); return; }
+        Bank();
+        var pickTime = _run.Answer(problem.StepId, PracticePart.Pick)?.Elapsed ?? TimeSpan.Zero;
+        Recorder.PracticeSolved(problem.LessonId, presented, problem.StepId, correct, 0, _spent[problem.StepId] - pickTime, PracticeMode.Interview, _run.Id);
+        Reload();
+        if (_run.IsComplete) Finish();
+        else
+        {
+            var count = _run.Problems.Count;
+            _active = Enumerable.Range(1, count).Select(k => (_active + k) % count).First(i => _run.Answer(_run.Problems[i].StepId, PracticePart.Solve) is null);
+        }
+        await OnProgress.InvokeAsync();
+    }
+
+    // Ends the run by any route: records what is unanswered, then shows the summary.
+    private void Finish()
+    {
+        _confirmingFinish = false;
+        Recorder.FinishInterview(_run!.Id, id => Content.TryGet<Step>(id, out var step) ? step : null);
+        Reload();
+        _timer?.Dispose();
+        _ = OnProgress.InvokeAsync();
+    }
+
+    // Of the patterns this run asked for, the one with the lowest mastery now that its answers are in.
+    private string? Weakest(InterviewRun run)
+    {
+        var state = Recorder.Project(Content, Screen.Class);
+        return run.Problems.Select(p => StepOf(p)?.Pattern).OfType<string>().Distinct()
+            .Select(state.Pattern).OfType<PatternMastery>().OrderBy(p => p.Mastery).Select(PracticeText.Standing).FirstOrDefault();
+    }
+
+    // Work not yet submitted is kept as a draft per run, problem and form, so switching problems, leaving or another device picks it
+    // up where it was: what is in the blanks, or the arrangement of the lines. Write-code keeps its own draft under the bare key.
+    private const string Blanks = "blanks", Lines = "lines";
+
+    private string DraftOf(InterviewProblem problem, string form) => $"interview.{_run!.Id}.{problem.StepId}.{form}";
+
+    private void Save<T>(InterviewProblem problem, string form, T work) => Drafts.Save(DraftOf(problem, form), JsonSerializer.Serialize(work));
+
+    private T? Saved<T>(InterviewProblem problem, string form) where T : class
+    {
+        if (Drafts.Get(DraftOf(problem, form)) is not { } json) return null;
+        try { return JsonSerializer.Deserialize<T>(json); }
+        catch (JsonException) { return null; }
+    }
+
+    private void Reload() => _run = InterviewRuns.Get(Recorder.Log.ReadAll(), _run!.Id) ?? _run;
+
+    private Step? StepOf(InterviewProblem problem) => Content.TryGet<Step>(problem.StepId, out var step) ? step : null;
+
+    private Pattern PatternOf(InterviewProblem problem) =>
+        StepOf(problem)?.Pattern is { } id && Content.TryGet<Pattern>(id, out var pattern) ? pattern : new Pattern("", "an unknown pattern");
+
+    // The patterns offered when the run started, in that order, so a resumed run looks the same on any device.
+    private IReadOnlyList<Pattern> ChoicesOf(InterviewProblem problem) =>
+        problem.Choices.Select(id => Content.TryGet<Pattern>(id, out var p) ? p : null).OfType<Pattern>().ToList();
+
+    private string PatternTitle(string? id) => id is not null && Content.TryGet<Pattern>(id, out var p) ? p.Title : "no answer";
+
+    private string PatternTitle(Pattern pattern) => pattern.Title;
+
+    private string PickedText(PracticeAnswer? pick) =>
+        pick?.Picked is not { } picked ? "You gave no answer."
+        : pick.Correct ? "You picked it."
+        : $"You picked {PatternTitle(picked)}.";
+
+    private static TimeSpan? Spent(PracticeAnswer? pick, PracticeAnswer? solve)
+    {
+        var total = (pick?.Elapsed ?? TimeSpan.Zero) + (solve?.Elapsed ?? TimeSpan.Zero);
+        return total > TimeSpan.Zero ? total : null;
+    }
+
+    private static string Plan(InterviewPreset preset) =>
+        $"{InterviewPresets.Problems(preset)} problems, {(int)InterviewPresets.Limit(preset).TotalMinutes} minutes";
+
+    private static string Clock(TimeSpan left) => $"{(int)left.TotalMinutes}:{left.Seconds:00}";
+
+    private static string ClockClass(TimeSpan left) =>
+        "interview-clock font-mono text-[1.25rem] font-semibold tabular-nums" + (left < Urgent ? " urgent text-danger" : "");
+
+    private string TabClass(int index, bool done) =>
+        "interview-tab rounded-full border px-3 py-1 text-[.9rem] "
+        + (index == _active ? "active border-accent bg-accent text-on-accent" : "border-hairline bg-surface-raised")
+        + (done ? " done" : "");
+}
