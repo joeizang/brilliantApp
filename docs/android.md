@@ -73,6 +73,7 @@ Verified on an arm64 Android 16 emulator (Pixel 9 Pro XL image) with the signed 
 
 - Phone and tablet layouts, touch dragging for Parsons and phone-friendly reviews are [#34](https://github.com/joeizang/brilliantApp/issues/34); see [responsive-layouts.md](responsive-layouts.md). The touch drag has only been tried on the emulator so far.
 - Code drafts sync with the other devices like progress does ([sync.md](sync.md#code-drafts)).
+- New lessons arrive without a new APK: a paired phone downloads newer Content Packs over the home Wi-Fi and uses them the next time the app starts ([content-distribution.md](content-distribution.md)).
 - Only `arm64-v8a` and `x86_64` are built, which covers every current phone and the Apple Silicon and Intel emulators.
 
 ## Where the code is

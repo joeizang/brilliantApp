@@ -35,6 +35,9 @@ dotnet run --project tools/Brilliant.Cli -- validate content
 # (building src/Brilliant.App does this automatically whenever a file under content/ is newer than the pack)
 scripts/pack-content.sh
 
+# send a new version to the household server (pair the CLI once; see docs/content-distribution.md)
+dotnet run --project tools/Brilliant.Cli -- publish content
+
 # run the app
 dotnet build src/Brilliant.App -t:Run -f net10.0-maccatalyst
 ```

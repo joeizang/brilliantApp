@@ -30,6 +30,7 @@ public static class Endpoints
         authed.MapGet("/events", PullEvents);
         authed.MapPost("/drafts", PushDrafts);
         authed.MapGet("/drafts", PullDrafts);
+        authed.MapPackEndpoints();
     }
 
     // Serialises pushes so sequence numbers become visible in the order they are handed out. Without it a reader could pull past

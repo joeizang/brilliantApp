@@ -18,18 +18,22 @@ public static class MauiProgram
         builder.UseMauiApp<App>();
         builder.Services.AddMauiBlazorWebView();
 
-        // The bundled Content Pack is loaded once and shared as an immutable graph.
-        builder.Services.AddSingleton<ContentGraph>(_ =>
+        var dataDir = FileSystem.AppDataDirectory;
+
+        // Content Packs: the bundled one, or a newer version of it that the app downloaded from the household server (docs/content-distribution.md).
+        // The choice is made once, at start, and shared as an immutable graph; a download is used at the next start, never swapped under the learner.
+        var packCache = new PackCache(Path.Combine(dataDir, "packs"));
+        builder.Services.AddSingleton(packCache);
+        builder.Services.AddSingleton<ContentGraph>(_ => PackStartup.Choose(() =>
         {
             using var stream = FileSystem.OpenAppPackageFileAsync(BundledPackName).GetAwaiter().GetResult();
-            using var buffer = new MemoryStream();
+            var buffer = new MemoryStream();
             stream.CopyTo(buffer);
             buffer.Position = 0;
-            return ContentPackFormat.Load(buffer);
-        });
+            return buffer;
+        }, packCache));
 
         // Progress lives in an append-only event log in on-device SQLite.
-        var dataDir = FileSystem.AppDataDirectory;
         builder.Services.AddSingleton<IProgressEventLog>(sp =>
         {
 #if DEBUG
@@ -68,7 +72,14 @@ public static class MauiProgram
             sp.GetRequiredService<IProgressEventLog>(), DeviceId.GetOrCreate(dataDir),
             sp.GetRequiredService<IDeviceCredentialStore>(), sp.GetRequiredService<SyncClient>(), sp.GetRequiredService<ISyncStateStore>(),
             drafts: sp.GetRequiredService<IDraftSyncSource>()));
-        builder.Services.AddSingleton(sp => new SyncScheduler(sp.GetRequiredService<SyncService>(), TimeSpan.FromMinutes(2)));
+        builder.Services.AddSingleton(_ => new PackClient(new HttpClient { Timeout = TimeSpan.FromSeconds(60) }));
+        builder.Services.AddSingleton(sp => new ContentUpdateService(
+            sp.GetRequiredService<ContentGraph>(), sp.GetRequiredService<PackCache>(), sp.GetRequiredService<PackClient>(), sp.GetRequiredService<IDeviceCredentialStore>()));
+        builder.Services.AddSingleton(sp =>
+        {
+            var updates = sp.GetRequiredService<ContentUpdateService>();
+            return new SyncScheduler(sp.GetRequiredService<SyncService>(), TimeSpan.FromMinutes(2), alsoEachTime: ct => updates.CheckAsync(ct));   // look for newer content after each sync
+        });
 
         // The Python runtime talks to the webview it lives in, so it is scoped to the BlazorWebView.
         builder.Services.AddScoped<IPythonRuntime, PyodideRuntime>();

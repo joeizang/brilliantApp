@@ -137,6 +137,47 @@ namespace Brilliant.Server.Data.Migrations
                     b.ToTable("Events");
                 });
 
+            modelBuilder.Entity("Brilliant.Server.Data.PackRecord", b =>
+                {
+                    b.Property<string>("PackId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("Major")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Minor")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Patch")
+                        .HasColumnType("integer");
+
+                    b.Property<byte[]>("Content")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<int>("FormatVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("PublishedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("PublishedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("PackId", "Major", "Minor", "Patch");
+
+                    b.ToTable("Packs");
+                });
+
             modelBuilder.Entity("Brilliant.Server.Data.PairingCode", b =>
                 {
                     b.Property<string>("Hash")

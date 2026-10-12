@@ -41,6 +41,24 @@ public sealed record PushDraftsResponse(int Accepted, int Ignored, IReadOnlyList
 /// <summary>Drafts changed after the cursor, oldest change first. Tombstones (null code) are included: they are how a reset reaches other devices.</summary>
 public sealed record PullDraftsResponse(IReadOnlyList<Drafts.CodeDraft> Drafts, long Cursor, bool HasMore);
 
+/// <summary>One published Content Pack. <paramref name="Sha256"/> (lower-case hex) lets a device check what it downloaded.</summary>
+public sealed record PackInfo(string PackId, string Version, int FormatVersion, string Sha256, long Size, DateTimeOffset PublishedAt);
+
+/// <summary>The newest published version of each pack.</summary>
+public sealed record PackListResponse(IReadOnlyList<PackInfo> Packs);
+
+/// <summary>
+/// <paramref name="Created"/> is false when this exact pack was already published (publishing is safe to repeat).
+/// <paramref name="RemovedIds"/> are IDs the previous version had and this one lacks: progress recorded on them is kept but no longer shown.
+/// </summary>
+public sealed record PublishPackResponse(PackInfo Pack, bool Created, IReadOnlyList<string> RemovedIds);
+
+public static class PackLimits
+{
+    /// <summary>The biggest pack the server takes, in bytes. The bundled pack is well under 1 MB.</summary>
+    public const int MaxBytes = 20 * 1024 * 1024;
+}
+
 /// <summary>Limits on drafts, shared like <see cref="EventLimits"/>.</summary>
 public static class DraftLimits
 {

@@ -1,6 +1,6 @@
 # The household server
 
-A small ASP.NET Core API and PostgreSQL, run with Docker Compose on one machine at home (the Ubuntu laptop). Devices pair with it once using a short code, and from then on carry a long-lived device token. It began as the tracer from [#28](https://github.com/joeizang/brilliantApp/issues/28) (pairing and device management) and now also holds the household's progress event log ([#29](https://github.com/joeizang/brilliantApp/issues/29)) and the current code draft for each step ([#30](https://github.com/joeizang/brilliantApp/issues/30)); how that sync works is in [sync.md](sync.md). Content distribution ([#31](https://github.com/joeizang/brilliantApp/issues/31)) builds on it next.
+A small ASP.NET Core API and PostgreSQL, run with Docker Compose on one machine at home (the Ubuntu laptop). Devices pair with it once using a short code, and from then on carry a long-lived device token. It began as the tracer from [#28](https://github.com/joeizang/brilliantApp/issues/28) (pairing and device management) and now also holds the household's progress event log ([#29](https://github.com/joeizang/brilliantApp/issues/29)) and the current code draft for each step ([#30](https://github.com/joeizang/brilliantApp/issues/30)); how that sync works is in [sync.md](sync.md). It also stores the Content Packs the authoring tool publishes and serves them to the devices ([#31](https://github.com/joeizang/brilliantApp/issues/31); [content-distribution.md](content-distribution.md)).
 
 ## Prerequisites
 
@@ -79,6 +79,9 @@ A revoked device gets `401` on everything except `/health` and `/pair`. Revoking
 | `POST /drafts` | device | `{drafts:[{stepId, code, updatedAt}]}` (at most 200) → `{accepted, ignored, rejected:[{id, reason}]}`. A draft replaces the server's copy only if it is newer (a tie goes to the larger code; `code: null` is a reset and is kept). Over-limit drafts are named in `rejected`; only a malformed batch is a `400` |
 | `GET /drafts?after=N&limit=M` | device | drafts changed after cursor `N`, oldest change first, at most `M` (default and maximum 500) → `{drafts, cursor, hasMore}`. A draft that is replaced moves to the end of this order. See [sync.md](sync.md#code-drafts) |
 | `GET /events?after=N&limit=M` | device | events after cursor `N` (default 0), oldest first, at most `M` (default and maximum 1000) → `{events, cursor, hasMore}`. Pass `cursor` back as `after` |
+| `POST /packs` | device | a Content Pack (the zip as the body, at most 20 MB) → `{pack, created, removedIds}`. Validated by loading it; idempotent for identical bytes; `409` for the same version with other contents or a lower version than the newest; `400` with a reason for an invalid pack. See [content-distribution.md](content-distribution.md) |
+| `GET /packs` | device | `{packs:[{packId, version, formatVersion, sha256, size, publishedAt}]}`, the newest version of each pack |
+| `GET /packs/{packId}/{version}` | device | the pack's zip (`ETag` is its SHA-256); `404` if unknown |
 
 ## Plain HTTP on the home network
 
@@ -114,7 +117,7 @@ dotnet test tests/Brilliant.Server.Tests
 
 | Path | Purpose |
 |---|---|
-| `src/Brilliant.Server` | The API: endpoints, device-token authentication, pairing codes, the event log, EF Core migrations |
+| `src/Brilliant.Server` | The API: endpoints, device-token authentication, pairing codes, the event log, Content Packs, EF Core migrations |
 | `src/Brilliant.Core/Sync` | Contracts shared with the apps, the pairing and sync clients, `SyncService`, credential stores |
 | `docker-compose.yml`, `src/Brilliant.Server/Dockerfile` | Postgres, the server and the nightly backup ([backup.md](backup.md)) |
 | `tests/Brilliant.Server.Tests` | Integration tests against real Postgres |

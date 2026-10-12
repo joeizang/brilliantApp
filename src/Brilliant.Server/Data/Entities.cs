@@ -66,3 +66,27 @@ public sealed class DraftRecord
     public Guid PushedBy { get; set; }
     public DateTimeOffset ReceivedAt { get; set; }
 }
+
+/// <summary>
+/// One published version of a Content Pack, kept whole. Versions are never changed or removed: a mistake is fixed by publishing a
+/// higher version. The numbers are the parsed version, so "newest" is a plain sort.
+/// </summary>
+public sealed class PackRecord
+{
+    public string PackId { get; set; } = "";
+    public int Major { get; set; }
+    public int Minor { get; set; }
+    public int Patch { get; set; }
+    public int FormatVersion { get; set; }
+
+    /// <summary>Lower-case hex SHA-256 of <see cref="Content"/>.</summary>
+    public string Sha256 { get; set; } = "";
+
+    public byte[] Content { get; set; } = [];
+
+    /// <summary>Length of <see cref="Content"/> in bytes, kept so a listing needn't read the pack.</summary>
+    public long Size { get; set; }
+
+    public Guid PublishedBy { get; set; }
+    public DateTimeOffset PublishedAt { get; set; }
+}

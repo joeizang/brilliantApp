@@ -9,6 +9,7 @@ public sealed class ServerDb(DbContextOptions<ServerDb> options) : DbContext(opt
     public DbSet<PairingCode> PairingCodes => Set<PairingCode>();
     public DbSet<EventRecord> Events => Set<EventRecord>();
     public DbSet<DraftRecord> Drafts => Set<DraftRecord>();
+    public DbSet<PackRecord> Packs => Set<PackRecord>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -40,6 +41,12 @@ public sealed class ServerDb(DbContextOptions<ServerDb> options) : DbContext(opt
             d.HasKey(x => x.StepId);
             d.Property(x => x.StepId).HasMaxLength(EventLimits.MaxIdLength);
             d.HasIndex(x => x.Seq).IsUnique();
+        });
+        model.Entity<PackRecord>(p =>
+        {
+            p.HasKey(x => new { x.PackId, x.Major, x.Minor, x.Patch });
+            p.Property(x => x.PackId).HasMaxLength(Brilliant.Core.Content.PackIds.MaxLength);
+            p.Property(x => x.Sha256).HasMaxLength(64).IsRequired();
         });
     }
 }

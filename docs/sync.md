@@ -90,7 +90,7 @@ Screens showing progress (Today, Review, and so on) redraw when events arrive fr
 - **One learner per household.** Events are not tagged with a learner, so everyone sharing a server shares progress.
 - **Plain HTTP** on the LAN, as described in [server.md](server.md#plain-http-on-the-home-network).
 - **Draft clock skew.** The same applies, more sharply, to drafts: a device whose clock runs ahead keeps winning until the others catch up past its time (their own next edit does, by the one-tick rule above). A far-future clock can therefore hold a step's draft until it is edited again on another device.
-- **Not synced here:** content packs ([#31](https://github.com/joeizang/brilliantApp/issues/31)).
+- **Not synced here:** content packs. They travel the other way, from the author to the devices, after each sync tick ([content-distribution.md](content-distribution.md)).
 
 ## Where the code is
 

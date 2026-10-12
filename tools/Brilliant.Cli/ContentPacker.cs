@@ -17,4 +17,15 @@ public static class ContentPacker
         ContentPackFormat.Write(stream, content.Manifest, content.Tracks, content.Lessons);
         return report;
     }
+
+    /// <summary>Validates <paramref name="contentRoot"/> and, if valid, returns the pack's bytes (the same bytes <see cref="Pack"/> would write); null otherwise.</summary>
+    public static byte[]? PackToBytes(string contentRoot, out ValidationReport report, IReferenceSolutionRunner? runner = null)
+    {
+        report = ContentValidator.Load(contentRoot, out var content, runner);
+        if (!report.IsValid || content is null) return null;
+
+        using var stream = new MemoryStream();
+        ContentPackFormat.Write(stream, content.Manifest, content.Tracks, content.Lessons);
+        return stream.ToArray();
+    }
 }
