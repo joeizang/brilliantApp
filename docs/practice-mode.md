@@ -1,6 +1,6 @@
 # Practice mode and timed interview simulation
 
-Issue [#36](https://github.com/joeizang/brilliantApp/issues/36) (PRD milestone M4). **Status: design agreed (PR #93). Slices 1 (content model) and 2 (practice core) are built; slices 3–4 follow ([Proposed slices](#proposed-slices)).**
+Issue [#36](https://github.com/joeizang/brilliantApp/issues/36) (PRD milestone M4). **Status: design agreed (PR #93). Slices 1 (content model), 2 (practice core) and 3 (practice UI) are built; slice 4 (interview mode) follows ([Proposed slices](#proposed-slices)).**
 
 The skill the app exists to train is the one the learner fails interviews on: looking at a problem with no label on it and knowing which pattern it is. Lessons name the pattern in their titles. Practice takes the names away.
 
@@ -182,6 +182,34 @@ Within a tier it orders by lowest pattern mastery, then least recently practised
 three of the weakest non-empty tier, skipping the previous problem unless it is the only one. Drawing only from that tier means a
 problem answered wrong always comes back first. `Choices` gives the right pattern plus three other learned ones, shuffled. All
 randomness comes from the `Random` passed in, so a seed reproduces a visit.
+
+### As built (slice 3)
+
+The screens, in `Brilliant.Lessons.UI`. Tests: `tests/Brilliant.Lessons.UI.Tests/PracticeViewTests.cs`.
+
+**The card.** Tracks shows a *Practice* card under the Review line. While Practice is closed it is disabled and says why
+(`PracticeText.Unavailable`): "Finish lessons that teach 3 patterns to unlock Practice (2 so far)", or, with the patterns learned but no
+problem on offer, that no finished lesson has one. Once open it names the weakest learned pattern ("Weakest: Prefix sums: learning, 34%").
+
+**The screen** (`PracticeView`, `_practising` in `CourseShell`). It hides the phone's bottom tabs like Review; Back (the link or the
+shortcut) returns to Tracks. Each visit is one run, a fresh GUID. For each problem:
+
+1. `ProblemPrompt`: "Problem" and the prompt of the form being asked (the phone alternative on a phone), nothing else.
+2. `PatternPick`: the choices from the selector. Checking locks the pick and records it (`PracticePicked`). The verdict names the right
+   pattern and marks it; a wrong pick still continues to the solve. Number keys choose, Enter checks and continues.
+3. The normal step view with its title replaced by "Problem" (a new `Title` parameter on the write-code, fill-blank and Parsons views),
+   the "best on a larger screen" note where it applies, the hint ladder (shown only now), and the flag link. The first answer is recorded
+   (`PracticeSolved`) with the hints revealed before it; later tries are not. A write-code draft is kept per run and step
+   (`practice.<run>.<step>`). After a wrong first answer the learner can retry or choose *See the result*.
+4. The result: a tick or cross for the pattern and the solution, the time from showing the problem to leaving the solve, and when each
+   item comes back in Review. *Next problem* asks the selector again, never repeating the problem just done; *Finish* returns to Tracks.
+
+**Feedback cue.** The design asks the pick's feedback to name the cue in the prompt. No cue is authored yet, so the feedback names the
+right pattern only. Authoring a cue per tagged step is a content change for later.
+
+**Pick items in Review.** A due `pick.` item shows the same `ProblemPrompt` and `PatternPick`, with choices drawn by
+`PracticeSelector.Choices` each time it is asked, and no hint ladder (a pattern-hint rung would give it away). The first pick is recorded
+as a `ReviewAnswered`, rated by `InferPick`.
 
 ## Not in this slice
 

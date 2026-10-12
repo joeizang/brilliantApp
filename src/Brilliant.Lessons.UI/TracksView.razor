@@ -1,9 +1,11 @@
+@using Brilliant.Core.Practice
 @using Brilliant.Core.Progress
 @inject ProgressRecorder Recorder
 
 @{
     var learner = Recorder.Project(Content);
     var due = learner.Queue.Items.Count;
+    var practice = PracticeSelector.Availability(learner);
 }
 @if (OnBack.HasDelegate)
 {
@@ -20,6 +22,23 @@
 else
 {
     <p class="review-none content-column mt-4 text-[.95rem] text-fg-secondary">No reviews due.</p>
+}
+@if (OnOpenPractice.HasDelegate)
+{
+    @if (practice.IsAvailable)
+    {
+        <button class="@Styling.PracticeCard mt-4" @onclick="() => OnOpenPractice.InvokeAsync()">
+            <span class="card-title text-[1.2rem] font-semibold tracking-[-.01em]">Practice</span>
+            <span class="card-meta text-[.9rem] text-fg-secondary">Name the pattern, then solve it.@if (PracticeText.Weakest(learner) is { } weakest){<br /><span class="practice-weakest">Weakest: @weakest</span>}</span>
+        </button>
+    }
+    else
+    {
+        <button class="@Styling.PracticeCard mt-4" disabled>
+            <span class="card-title text-[1.2rem] font-semibold tracking-[-.01em]">Practice</span>
+            <span class="practice-reason card-meta text-[.9rem] text-fg-secondary">@PracticeText.Unavailable(practice)</span>
+        </button>
+    }
 }
 <ul class="cards content-column mt-4 mb-6 grid list-none gap-4">
     @foreach (var state in learner.Tracks)
@@ -54,6 +73,9 @@ else
     [Parameter, EditorRequired] public ContentGraph Content { get; set; } = default!;
     [Parameter] public EventCallback<Track> OnOpenTrack { get; set; }
     [Parameter] public EventCallback OnOpenReview { get; set; }
+
+    /// <summary>Opens Practice. Without it there is no Practice card.</summary>
+    [Parameter] public EventCallback OnOpenPractice { get; set; }
     [Parameter] public EventCallback OnOpenFlagged { get; set; }
     [Parameter] public EventCallback OnOpenSync { get; set; }
 

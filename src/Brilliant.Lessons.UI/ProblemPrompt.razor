@@ -1,0 +1,23 @@
+@* A problem with nothing on it that names its pattern or lesson: "Problem" and the prompt. Practice and pattern picks in Review show this before the pick. *@
+<article class="problem-prompt lesson-step">
+    <h2>@Title</h2>
+    <p class="prompt">@PromptOf(Step)</p>
+</article>
+
+@code {
+    /// <summary>What Practice calls every problem, in place of its step title.</summary>
+    public const string Title = "Problem";
+
+    /// <summary>The form of the problem being asked (on a phone, its phone alternative).</summary>
+    [Parameter, EditorRequired] public Step Step { get; set; } = default!;
+
+    public static string PromptOf(Step step) => step switch
+    {
+        WriteCodeStep s => s.Prompt,
+        FillBlankStep s => s.Prompt,
+        ParsonsStep s => s.Prompt,
+        ChoiceStep s => s.Prompt,
+        PredictOutputStep s => s.Prompt,
+        _ => "",
+    };
+}

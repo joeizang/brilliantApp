@@ -1,0 +1,167 @@
+@* Practice: an unlabelled problem from a finished lesson, pick its pattern, then solve it. Each part's first answer is a PracticeAnswered event. *@
+@using Brilliant.Core.Practice
+@using Brilliant.Core.Progress
+@using Brilliant.Core.Python
+@inject ProgressRecorder Recorder
+@inject ScreenInfo Screen
+
+<div class="practice-bar content-column mt-2 flex items-center gap-4 text-[.9rem]">
+    <button class="link btn-link" @onclick="() => OnExit.InvokeAsync()"><Icon Name="back" Class="size-5" /> Back</button>
+</div>
+<h1 class="practice-title content-column mt-2 mb-0">Practice</h1>
+
+@if (_problem is not { } problem)
+{
+    <p class="practice-unavailable content-column mt-8 text-[1.05rem]">@PracticeText.Unavailable(_availability)</p>
+    <div class="practice-actions content-column pt-4 pb-6"><button class="primary btn-primary" @onclick="() => OnExit.InvokeAsync()">Back to tracks</button></div>
+}
+else
+{
+    <div @key="(problem.Step.Id, _count)">
+        @if (_phase == Phase.Pick)
+        {
+            <ProblemPrompt Step="_presented" />
+            <PatternPick Choices="problem.Choices" Right="problem.Pattern" Name="@($"pick.{_run}.{_count}")" OnPicked="Picked" OnContinue="StartSolving" ContinueText="Solve it" />
+        }
+        else if (_phase == Phase.Solve)
+        {
+            @if (_presented.LargeScreenPreferred && Screen.IsPhone)
+            {
+                <div class="content-column"><p class="large-screen-note mt-4 rounded-lg border border-hairline bg-surface-raised px-4 py-3 text-[.95rem]" role="note">This problem is best on a larger screen, where you can type the code. You can still solve it here.</p></div>
+            }
+            @switch (_presented)
+            {
+                case FillBlankStep fill:
+                    <FillBlankStepView Step="fill" Title="@ProblemPrompt.Title" OnAnswered="a => Solved(a.Result.IsCorrect)" OnContinue="ShowResult" />
+                    break;
+                case ParsonsStep parsons:
+                    <ParsonsStepView Step="parsons" Title="@ProblemPrompt.Title" OnAnswered="a => Solved(a.Result.IsCorrect)" OnContinue="ShowResult" />
+                    break;
+                case WriteCodeStep write:
+                    <WriteCodeStepView Step="write" Title="@ProblemPrompt.Title" DraftKey="@($"practice.{_run}.{problem.Step.Id}")" OnSubmitted="s => Solved(s.Result.Status == TestRunStatus.Passed)" OnContinue="ShowResult" />
+                    break;
+            }
+            @if (_solved == false)
+            {
+                @* A wrong answer can be retried, but nothing after the first counts, so the learner may also stop here. *@
+                <div class="practice-actions content-column pb-2"><button class="practice-move-on link btn-link" @onclick="ShowResult">See the result</button></div>
+            }
+            <HintLadder Hints="_presented.Hints" Walkthrough="_presented.Walkthrough" Caption="A hint makes this come back sooner." OnRevealed="Hinted" />
+            <FlagStep LessonId="@problem.Lesson.Id" StepId="@problem.Step.Id" />
+        }
+        else
+        {
+            <section class="practice-result content-column mt-6" role="status">
+                <ul class="grid list-none gap-3 p-0">
+                    <li class="practice-result-pick flex items-center gap-3">@Mark(_picked == true) <span>Pattern: <strong>@problem.Pattern.Title</strong></span></li>
+                    <li class="practice-result-solve flex items-center gap-3">@Mark(_solved == true) <span>Solution</span></li>
+                </ul>
+                <p class="practice-time mt-4 text-[.95rem] text-fg-secondary">Time: @Duration(_finishedAt - _shownAt)</p>
+                @foreach (var (label, due) in _comesBack)
+                {
+                    <p class="practice-next mt-1 text-[.95rem] text-fg-secondary">@label comes back in Review @Describe(due - Recorder.Now).</p>
+                }
+            </section>
+            <div class="practice-actions content-column flex flex-wrap gap-3 pt-6 pb-6">
+                <button class="primary btn-primary" @onclick="NextProblem">Next problem</button>
+                <button class="practice-finish secondary btn-secondary" @onclick="() => OnExit.InvokeAsync()">Finish</button>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public ContentGraph Content { get; set; } = default!;
+
+    /// <summary>Leaves Practice (Back, Finish).</summary>
+    [Parameter] public EventCallback OnExit { get; set; }
+
+    /// <summary>Raised after an answer is recorded, so whatever shows review counts elsewhere can refresh.</summary>
+    [Parameter] public EventCallback OnProgress { get; set; }
+
+    /// <summary>Where the choice of problem and the order of the patterns come from. Tests pass a seeded one.</summary>
+    [Parameter] public Random? Random { get; set; }
+
+    private enum Phase { Pick, Solve, Result }
+
+    // One visit is one run: the first answer to each part of a problem in it is the one that counts.
+    private readonly string _run = Guid.NewGuid().ToString("N");
+    private Random _random = default!;
+    private PracticeAvailability _availability = new(0, 0);
+    private PracticeProblem? _problem;
+    private Step _presented = default!;
+    private Phase _phase;
+    private int _count;
+    private DateTimeOffset _shownAt, _solveStartedAt, _finishedAt;
+    private bool? _picked, _solved;
+    private int _hintsUsed;
+    private IReadOnlyList<(string Label, DateTimeOffset Due)> _comesBack = [];
+
+    protected override void OnInitialized()
+    {
+        _random = Random ?? new Random();
+        Show(null);
+    }
+
+    private void Show(string? previousStepId)
+    {
+        var state = Recorder.Project(Content, Screen.Class);
+        _availability = PracticeSelector.Availability(state);
+        _problem = PracticeSelector.Next(state, _random, previousStepId);
+        if (_problem is null) return;
+        _presented = _problem.Step.For(Screen.Class);
+        (_phase, _picked, _solved, _hintsUsed, _comesBack, _shownAt) = (Phase.Pick, null, null, 0, [], Recorder.Now);
+        _count++;
+    }
+
+    private async Task Picked((Pattern Picked, bool Correct) pick)
+    {
+        var problem = _problem!;
+        _picked = pick.Correct;
+        Recorder.PracticePicked(problem.Lesson.Id, problem.Step.Id, pick.Picked.Id, pick.Correct, Recorder.Now - _shownAt, PracticeMode.Practice, _run);
+        await OnProgress.InvokeAsync();
+    }
+
+    private void StartSolving() => (_phase, _solveStartedAt) = (Phase.Solve, Recorder.Now);
+
+    // Only the first answer counts, as in Review: retrying after a wrong answer is practice for its own sake.
+    private async Task Solved(bool correct)
+    {
+        if (_solved is not null) return;
+        _solved = correct;
+        var problem = _problem!;
+        Recorder.PracticeSolved(problem.Lesson.Id, _presented, problem.Step.Id, correct, _hintsUsed, Recorder.Now - _solveStartedAt, PracticeMode.Practice, _run);
+        await OnProgress.InvokeAsync();
+    }
+
+    // Help asked for before the first answer lowers the re-solve's rating; it is recorded against that item, never as lesson help.
+    private void Hinted(int level)
+    {
+        if (_solved is not null) return;
+        _hintsUsed = Math.Max(_hintsUsed, level);
+        var step = _problem!.Step.Id;
+        Recorder.HintUsed(_problem.Lesson.Id, step, level, PracticeAnswer.ItemIdOf(step, PracticePart.Solve));
+    }
+
+    private void ShowResult()
+    {
+        _finishedAt = Recorder.Now;
+        _phase = Phase.Result;
+        var step = _problem!.Step.Id;
+        var reviews = Recorder.Project(Content, Screen.Class).Reviews;
+        DateTimeOffset? Due(PracticePart part) => reviews.FirstOrDefault(r => r.Item.Id == PracticeAnswer.ItemIdOf(step, part))?.Card?.Due;
+        _comesBack = new[] { ("The pattern", Due(PracticePart.Pick)), ("The solution", Due(PracticePart.Solve)) }
+            .Where(c => c.Item2 is not null).Select(c => (c.Item1, c.Item2!.Value)).ToList();
+    }
+
+    private void NextProblem() => Show(_problem?.Step.Id);
+
+    private static RenderFragment Mark(bool right) => right
+        ? @<span class="practice-mark right grid size-7 flex-none place-items-center rounded-full bg-success-tint text-success"><Icon Name="check" Class="size-4" /><span class="sr-only">right</span></span>
+        : @<span class="practice-mark wrong grid size-7 flex-none place-items-center rounded-full bg-danger-soft text-danger"><Icon Name="cross" Class="size-4" /><span class="sr-only">wrong</span></span>;
+
+    private static string Duration(TimeSpan t) =>
+        t < TimeSpan.FromMinutes(1) ? $"{Math.Max(1, (int)t.TotalSeconds)}s" : $"{(int)t.TotalMinutes}m {t.Seconds:00}s";
+
+    private static string Describe(TimeSpan wait) => PracticeText.Describe(wait);
+}

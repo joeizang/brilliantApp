@@ -6,7 +6,7 @@
 @implements IDisposable
 
 <article class="write-step lesson-step">
-    <h2>@Step.Title</h2>
+    <h2>@(Title ?? Step.Title)</h2>
     <p class="prompt">@Step.Prompt</p>
 
     <CodeEditor @ref="_editor" InitialCode="@_initialCode" OnChanged="SaveDraft" />
@@ -87,6 +87,9 @@
     public sealed record Submission(string Code, TestRunResult Result);
 
     [Parameter, EditorRequired] public WriteCodeStep Step { get; set; } = default!;
+
+    /// <summary>Shown instead of the step's title: Practice shows a problem as "Problem", so the title can't name its pattern.</summary>
+    [Parameter] public string? Title { get; set; }
 
     /// <summary>
     /// Where the learner's code is autosaved. Defaults to the step's ID, so a lesson keeps one draft per step. Review passes its own,
