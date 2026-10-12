@@ -37,7 +37,7 @@ public sealed class ContentGraph
     {
         var problems = new List<string>();
         foreach (var track in Tracks)
-            foreach (var lessonId in track.LessonIds ?? [])
+            foreach (var lessonId in track.LessonIds)
                 if (!TryGet<Lesson>(lessonId, out _)) problems.Add($"Track '{track.Id}' lists lesson '{lessonId}', which is not in the pack.");
         foreach (var lesson in Lessons)
         {

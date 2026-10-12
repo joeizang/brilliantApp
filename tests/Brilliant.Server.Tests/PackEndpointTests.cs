@@ -55,6 +55,28 @@ public sealed class PackEndpointTests(PostgresFixture postgres)
     }
 
     [Fact]
+    public async Task A_pack_whose_track_has_no_lessons_list_is_refused_and_nothing_is_stored()
+    {
+        await using var server = await ServerHarness.StartAsync(postgres);
+        var (client, _) = await server.PairDeviceAsync();
+        var step = """{"type":"explain","id":"step.a","title":"a","body":"b","snippets":[],"comparison":null}""";
+        using var ms = new MemoryStream();
+        using (var zip = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+            foreach (var (name, text) in new[]
+            {
+                ("manifest.json", """{"packId":"pack.t","version":"3.0.0","formatVersion":1}"""),
+                ("content.json", $$"""{"tracks":[{"id":"track.a","title":"A","lessonIds":null}],"lessons":[{"id":"lesson.1","title":"One","trackId":"track.a","steps":[{{step}}]}]}"""),
+            })
+                using (var w = new StreamWriter(zip.CreateEntry(name).Open())) w.Write(text);
+
+        var response = await Publish(client, ms.ToArray());
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("LessonIds", await Error(response));
+        Assert.Empty(await List(client));
+    }
+
+    [Fact]
     public async Task A_valid_pack_is_published_and_listed()
     {
         await using var server = await ServerHarness.StartAsync(postgres);

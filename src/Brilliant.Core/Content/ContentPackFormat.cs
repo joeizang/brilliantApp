@@ -36,7 +36,10 @@ public static class ContentPackFormat
                 throw new ContentPackException(
                     $"Unsupported content pack format {manifest.FormatVersion} (expected {CurrentFormatVersion}).");
             var content = ReadEntry<ContentDocument>(zip, ContentEntry);
-            var graph = new ContentGraph(manifest, content.Tracks ?? [], content.Lessons ?? []);
+            var missing = RequiredFields.Missing(content);
+            if (missing.Count > 0)
+                throw new ContentPackException($"Content pack leaves out required fields: {string.Join(", ", missing.Take(3))}" + (missing.Count > 3 ? $" (and {missing.Count - 3} more)" : "") + ".");
+            var graph = new ContentGraph(manifest, content.Tracks, content.Lessons);
             var problems = graph.ReferenceProblems();
             if (problems.Count > 0)
                 throw new ContentPackException($"Content pack references things that are not in it: {string.Join(" ", problems.Take(3))}" + (problems.Count > 3 ? $" (and {problems.Count - 3} more)" : ""));

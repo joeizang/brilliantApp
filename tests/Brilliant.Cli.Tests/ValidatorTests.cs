@@ -872,6 +872,17 @@ public sealed class ValidatorTests : IDisposable
         Assert.True(withAlternative * 3 >= writeCode.Count, $"only {withAlternative} of {writeCode.Count} write-code steps have a phone alternative.");
     }
 
+    [Fact]
+    public void The_shipped_content_packs_and_loads_as_a_pack_the_server_and_apps_accept()
+    {
+        var bytes = ContentPacker.PackToBytes(FindRepoContent(), out var report);
+        Assert.True(report.IsValid, string.Join("\n", report.Errors));
+
+        var graph = ContentPackFormat.Load(new MemoryStream(bytes!));   // required fields present, every reference resolves
+
+        Assert.NotEmpty(graph.Lessons);
+    }
+
     private static string FindRepoContent()
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)

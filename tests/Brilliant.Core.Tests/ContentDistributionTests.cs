@@ -41,6 +41,40 @@ internal static class Packs
             BuildFrom(version, [new Track("track.a", "A", [lesson.Id])], [lesson with { Concepts = [new Concept("concept.1", "C")], ReviewItems = [new ReviewItem("review.1", "concept.1", "step.missing")] }]));
     }
 
+    /// <summary>A pack from hand-written JSON, for content that the model can't be made to say (a required list that is null or missing).</summary>
+    public static byte[] Raw(string contentJson, string version = "3.0.0", string packId = "pack.t")
+    {
+        using var ms = new MemoryStream();
+        using (var zip = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var (name, text) in new[] { (ContentPackFormat.ManifestEntry, $$"""{"packId":"{{packId}}","version":"{{version}}","formatVersion":1}"""), (ContentPackFormat.ContentEntry, contentJson) })
+                using (var w = new StreamWriter(zip.CreateEntry(name).Open())) w.Write(text);
+        }
+        return ms.ToArray();
+    }
+
+    private const string StepJson = """{"type":"explain","id":"step.a","title":"a","body":"b","snippets":[],"comparison":null}""";
+
+    /// <summary>Packs that are well-formed JSON but leave out something every pack has, by what is missing.</summary>
+    public static IEnumerable<(string What, byte[] Pack)> Incomplete(string version)
+    {
+        string Lesson(string steps = $"[{StepJson}]", string extra = "") => $$"""{"id":"lesson.1","title":"One","trackId":"track.a","steps":{{steps}}{{extra}}}""";
+        string Track(string lessonIds = "[\"lesson.1\"]") => $$"""{"id":"track.a","title":"A","lessonIds":{{lessonIds}}}""";
+        byte[] Pack(string tracks, string lessons) => Raw($$"""{"tracks":{{tracks}},"lessons":{{lessons}}}""", version);
+
+        yield return ("a track's lessonIds is null", Pack($"[{Track("null")}]", $"[{Lesson()}]"));
+        yield return ("a track has no lessonIds", Pack("""[{"id":"track.a","title":"A"}]""", $"[{Lesson()}]"));
+        yield return ("a lesson's steps is null", Pack($"[{Track()}]", $"[{Lesson("null")}]"));
+        yield return ("a lesson has no steps", Pack($"[{Track()}]", """[{"id":"lesson.1","title":"One","trackId":"track.a"}]"""));
+        yield return ("a lesson's concepts is null", Pack($"[{Track()}]", $$"""[{{Lesson(extra: ",\"concepts\":null")}}]"""));
+        yield return ("a lesson's reviewItems is null", Pack($"[{Track()}]", $$"""[{{Lesson(extra: ",\"reviewItems\":null")}}]"""));
+        yield return ("a step is null", Pack($"[{Track()}]", $"[{Lesson("[null]")}]"));
+        yield return ("a track is null", Pack($"[{Track()},null]", $"[{Lesson()}]"));
+        yield return ("a step's hints is null", Pack($"[{Track()}]", $"""[{Lesson($"[{StepJson.Replace("\"snippets\"", "\"hints\":null,\"snippets\"")}]")}]"""));
+        yield return ("the tracks are null", Raw($$"""{"tracks":null,"lessons":[{{Lesson()}}]}""", version));
+        yield return ("a track has no id", Pack("""[{"title":"A","lessonIds":["lesson.1"]}]""", $"[{Lesson()}]"));
+    }
+
     public static ContentGraph Graph(byte[] pack) => ContentPackFormat.Load(new MemoryStream(pack));
 
     /// <summary>The manifest alone, readable even from a pack whose references are broken.</summary>
@@ -66,6 +100,31 @@ public class PackReferenceTests
         var pack = Packs.Dangling("1.0.0").Single(c => c.What == what).Pack;
 
         Assert.Throws<ContentPackException>(() => Packs.Graph(pack));
+    }
+
+    public static TheoryData<string> IncompleteCases() => new(Packs.Incomplete("3.0.0").Select(c => c.What));
+
+    [Theory]
+    [MemberData(nameof(IncompleteCases))]
+    public void A_pack_that_leaves_out_something_every_pack_has_does_not_load(string what)
+    {
+        var pack = Packs.Incomplete("3.0.0").Single(c => c.What == what).Pack;
+
+        Assert.Throws<ContentPackException>(() => Packs.Graph(pack));
+    }
+
+    [Fact]
+    public void An_incomplete_pack_is_not_cached_and_the_running_content_stays()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "brilliant-incomplete-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var cache = new PackCache(dir);
+            foreach (var (_, pack) in Packs.Incomplete("3.0.0"))
+                Assert.Throws<ContentPackException>(() => cache.Store("pack.t", PackVersion.Parse("3.0.0"), pack));
+            Assert.Null(cache.Newest("pack.t"));
+        }
+        finally { if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true); }
     }
 
     [Fact]
@@ -492,6 +551,22 @@ public sealed class ContentUpdateServiceTests : IDisposable
     {
         var (service, server, cache) = Start();
         server.Held.Add(Packs.Dangling("1.1.0").First().Pack);
+
+        var first = await service.CheckAsync();
+        var second = await service.CheckAsync();
+
+        Assert.Equal(ContentUpdateOutcome.Failed, first.Outcome);
+        Assert.Null(cache.Newest("pack.t"));
+        Assert.Null(service.PendingVersion);
+        Assert.Equal(ContentUpdateOutcome.UpToDate, second.Outcome);
+        Assert.Equal(1, server.Downloads);
+    }
+
+    [Fact]
+    public async Task A_pack_with_a_track_that_has_no_lessons_list_is_refused_and_not_fetched_again()
+    {
+        var (service, server, cache) = Start();
+        server.Held.Add(Packs.Incomplete("1.1.0").First().Pack);
 
         var first = await service.CheckAsync();
         var second = await service.CheckAsync();
