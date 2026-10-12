@@ -227,6 +227,7 @@ steps:
   - id: step.grouping.fill-by-first
     type: fill-blank
     pattern: pattern.grouping-by-key
+    patternCue: "\"A dict from each first letter to the list of words\": every word goes into the list for its key. Compute a key per item and append it to that key's list."
     title: Complete the function
     prompt: |
       Fill in the blanks to finish `group_by_first`. It should return a dict from each first letter to the list of words
@@ -278,6 +279,7 @@ steps:
   - id: step.grouping.order-group-anagrams
     type: parsons
     pattern: pattern.grouping-by-key
+    patternCue: "\"Groups ... of words that are anagrams of each other\": anagrams share their sorted letters, so the sorted letters are a key, and words with the same key go in the same list."
     title: Group the anagrams
     prompt: |
       Arrange these lines into `group_anagrams`, which returns a list of groups. Each group is a list of words that are
@@ -316,6 +318,7 @@ steps:
   - id: step.grouping.write-group-anagrams
     type: write-code
     pattern: pattern.grouping-by-key
+    patternCue: "\"Anagrams ... go in the same list\": put words into buckets by a key that anagrams share (their sorted letters). Building lists by key is grouping."
     largeScreenPreferred: true
     title: Group the anagrams yourself
     prompt: |
@@ -391,6 +394,7 @@ steps:
   - id: step.grouping.write-group-by-length
     type: write-code
     pattern: pattern.grouping-by-key
+    patternCue: "\"A dict from each length to the list of words of that length\": the key is right there (the length), and each word is appended to its key's list."
     largeScreenPreferred: true
     title: Group by length
     prompt: |

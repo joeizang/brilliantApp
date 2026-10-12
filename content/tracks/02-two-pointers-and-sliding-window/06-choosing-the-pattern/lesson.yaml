@@ -204,6 +204,7 @@ steps:
   - id: step.choose.fill-three
     type: fill-blank
     pattern: pattern.converging-pointers
+    patternCue: "\"Triples summing to zero\": sort, fix the first number, and the remaining two must add up to its negative. In a sorted list that pair is found with two pointers converging from the ends."
     title: Complete the triple finder
     prompt: |
       Fill in the blanks in the loop that finds triples summing to zero.
@@ -247,6 +248,7 @@ steps:
   - id: step.choose.order-two-sum
     type: parsons
     pattern: pattern.hash-map-lookup
+    patternCue: "\"Two positions ... add up to `target`\" in an **unsorted** list: sorting would lose the positions, so look up each number's complement in a dict of the numbers seen so far."
     title: The hash map answer
     prompt: |
       Arrange these lines into `two_sum(nums, target)` for an **unsorted** list. It returns the two positions (`earlier`, `later`) of
@@ -266,6 +268,7 @@ steps:
   - id: step.choose.write-three
     type: write-code
     pattern: pattern.converging-pointers
+    patternCue: "\"Every distinct triple ... that adds up to `0`\", in ascending order: sort first, then for each first number find the pairs with two pointers from the ends, skipping repeats to keep triples distinct."
     largeScreenPreferred: true
     title: Three numbers that add up to zero
     prompt: |

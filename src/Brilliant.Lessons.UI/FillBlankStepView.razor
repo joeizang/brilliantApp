@@ -2,7 +2,7 @@
 @inject StepShortcuts Shortcuts
 
 <article class="fill-step lesson-step">
-    <h2>@Step.Title</h2>
+    <h2>@(Title ?? Step.Title)</h2>
     <p class="prompt">@Step.Prompt</p>
 
     @* Read-only code with an input where each blank goes. Each line is a flex row so the markup's whitespace never shows up as extra spaces. *@
@@ -61,6 +61,9 @@
     public sealed record Attempt(FillBlankResult Result, IReadOnlyDictionary<string, string> Responses);
 
     [Parameter, EditorRequired] public FillBlankStep Step { get; set; } = default!;
+
+    /// <summary>Shown instead of the step's title: Practice shows a problem as "Problem", so the title can't name its pattern.</summary>
+    [Parameter] public string? Title { get; set; }
 
     /// <summary>Raised each time the learner checks their answers (correct or not).</summary>
     [Parameter] public EventCallback<Attempt> OnAnswered { get; set; }

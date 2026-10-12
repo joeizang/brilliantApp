@@ -181,6 +181,7 @@ steps:
   - id: step.prefix.fill-build
     type: fill-blank
     pattern: pattern.prefix-sums
+    patternCue: "`[3, 1, 4]` becoming `[0, 3, 4, 8]`: each entry is the running total of everything before it. That table of running totals is the prefix sum."
     title: Complete the function
     prompt: |
       Fill in the blanks to finish `build_prefix`. For `[3, 1, 4]` it should return `[0, 3, 4, 8]`.
@@ -217,6 +218,7 @@ steps:
   - id: step.prefix.order-range-sums
     type: parsons
     pattern: pattern.prefix-sums
+    patternCue: "Many queries for \"the sum of `nums[left:right]`\": adding each range up again is slow, but with running totals any range is one subtraction, `prefix[right] - prefix[left]`."
     title: Answer all the questions
     prompt: |
       Arrange these lines into `range_sums`. It takes a list and a list of `(left, right)` queries and returns the sum
@@ -326,6 +328,7 @@ steps:
   - id: step.prefix.write-pivot
     type: write-code
     pattern: pattern.prefix-sums
+    patternCue: "\"The sum of the numbers to its left equals the sum ... to its right\": a sum of everything before an index is a running total, and the right side is the total minus that and the item. One pass of running totals answers it."
     largeScreenPreferred: true
     title: The balance point
     prompt: |
@@ -400,6 +403,7 @@ steps:
   - id: step.prefix.write-count-subarrays
     type: write-code
     pattern: pattern.prefix-sums
+    patternCue: "\"Contiguous stretches\" that \"add up to `k`\", with negative numbers allowed: a stretch's sum is the difference of two running totals, so count the earlier totals equal to `running - k`. Negatives rule out a sliding window."
     largeScreenPreferred: true
     title: Count the stretches
     prompt: |

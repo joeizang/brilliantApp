@@ -26,6 +26,9 @@ internal static class Styling
     /// <summary>The "Review, N due" button, which draws the eye a little more than a track card.</summary>
     public const string ReviewCard = "review-card flex items-center justify-between gap-4 border-accent/45 bg-accent-wash px-6 py-4 " + Lift;
 
+    /// <summary>The Practice card beside Review on Tracks: quieter than Review, and flat (no lift) while Practice is closed.</summary>
+    public const string PracticeCard = "practice-card grid gap-1 border-hairline bg-surface-raised px-6 py-4 shadow-(--shadow-card) disabled:cursor-default disabled:opacity-70 disabled:hover:translate-y-0 disabled:hover:shadow-(--shadow-card) " + Lift;
+
     /// <summary>The colours of the "Known / Learning / Seen" pill beside a concept's name.</summary>
     public static string LevelPill(ConceptLevel level) => level switch
     {

@@ -5,7 +5,7 @@
 @inject ScreenInfo Screen
 
 <article class="parsons-step lesson-step">
-    <h2>@Step.Title</h2>
+    <h2>@(Title ?? Step.Title)</h2>
     <p class="prompt">@Step.Prompt</p>
     <p class="hint-text text-[.95rem] text-fg-secondary" id="@HelpId">
         @if (Screen.IsPhone)
@@ -70,6 +70,9 @@
     public sealed record Attempt(ParsonsResult Result, IReadOnlyList<ParsonsPlacement> Arrangement);
 
     [Parameter, EditorRequired] public ParsonsStep Step { get; set; } = default!;
+
+    /// <summary>Shown instead of the step's title: Practice shows a problem as "Problem", so the title can't name its pattern.</summary>
+    [Parameter] public string? Title { get; set; }
 
     /// <summary>Raised each time the learner checks their arrangement (correct or not).</summary>
     [Parameter] public EventCallback<Attempt> OnAnswered { get; set; }

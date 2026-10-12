@@ -276,9 +276,10 @@ public static partial class ContentValidator
         }
 
         var pattern = LoadPatternTag(dto, label, file, report, isAlternative);
+        var cue = LoadPatternCue(dto, label, file, report, isAlternative);
 
-        if (step is null || (!preferred && alternative is null && pattern is null)) return step;
-        return step with { LargeScreenPreferred = preferred, PhoneAlternative = alternative, Pattern = pattern };
+        if (step is null || (!preferred && alternative is null && pattern is null && cue is null)) return step;
+        return step with { LargeScreenPreferred = preferred, PhoneAlternative = alternative, Pattern = pattern, PatternCue = cue };
     }
 
     /// <summary>
@@ -298,6 +299,30 @@ public static partial class ContentValidator
         else if (dto.Type is not ("write-code" or "fill-blank" or "parsons"))
             report.Add(file, $"{label}: 'pattern' only applies to problems the learner solves (write-code, fill-blank or parsons).");
         return dto.Pattern;
+    }
+
+    /// <summary>
+    /// A tagged step's <c>patternCue</c>: what in the prompt points to its pattern, shown after the learner picks one. Required with
+    /// <c>pattern</c>, so a wrong pick is always told why, and meaningless without it.
+    /// </summary>
+    private static string? LoadPatternCue(StepDto dto, string label, string file, ValidationReport report, bool isAlternative)
+    {
+        if (dto.PatternCue is null)
+        {
+            if (!string.IsNullOrWhiteSpace(dto.Pattern) && !isAlternative)
+                report.Add(file, $"{label}: a step with 'pattern' needs a 'patternCue': what in the prompt points to that pattern.");
+            return null;
+        }
+        if (string.IsNullOrWhiteSpace(dto.PatternCue))
+        {
+            report.Add(file, $"{label}: 'patternCue' is empty; say what in the prompt points to the pattern, or remove it.");
+            return null;
+        }
+        if (isAlternative)
+            report.Add(file, $"{label}: a phone alternative shares its step's pattern; put 'patternCue' on the step itself.");
+        else if (dto.Pattern is null)
+            report.Add(file, $"{label}: 'patternCue' explains a 'pattern'; add the 'pattern' it explains or remove it.");
+        return dto.PatternCue.Trim();
     }
 
     private static Step? LoadStepBody(StepDto dto, string label, string file, ValidationReport report,
@@ -753,6 +778,7 @@ public static partial class ContentValidator
         public bool? LargeScreenPreferred { get; set; }
         public StepDto? PhoneAlternative { get; set; }
         public string? Pattern { get; set; }
+        public string? PatternCue { get; set; }
     }
     private sealed class WalkthroughDto { public string? Call { get; set; } public List<VisualDto>? Visualise { get; set; } public string? Explanation { get; set; } }
     private sealed class VisualDto { public string? Variable { get; set; } public string? As { get; set; } public List<string>? Pointers { get; set; } }

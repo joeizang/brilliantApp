@@ -1,0 +1,111 @@
+@* "Which pattern solves this?" One answer, locked when checked: a wrong pick is told the right pattern and what in the prompt points to it, and moves on; it is not retried. *@
+@implements IDisposable
+@inject StepShortcuts Shortcuts
+
+<section class="pattern-pick content-column mt-4">
+    <h3 class="mb-2 text-[1.05rem] font-semibold">Which pattern solves this?</h3>
+    <ul class="options my-4 grid list-none gap-2 p-0">
+        @for (var i = 0; i < Choices.Count; i++)
+        {
+            var index = i;
+            var picked = _selected == index;
+            <li class="@OptionClass(index, picked)">
+                <label class="flex min-h-6 cursor-pointer items-center gap-3">
+                    <input type="radio" name="@Name" checked="@picked" disabled="@_locked" @onchange="() => Select(index)" />
+                    @Choices[index].Title
+                </label>
+            </li>
+        }
+    </ul>
+
+    @if (!_locked)
+    {
+        <button class="primary btn-primary" disabled="@(_selected is null)" @onclick="Check">Check</button>
+    }
+    else
+    {
+        @if (IsRight)
+        {
+            <p class="verdict correct font-semibold text-success" role="status">Right: it's @Right.Title.</p>
+        }
+        else
+        {
+            <p class="verdict incorrect font-semibold text-danger" role="status">Not this time: it's @Right.Title.</p>
+        }
+        @if (!string.IsNullOrWhiteSpace(Cue))
+        {
+            @* Only after the check: before it, the cue would give the answer away. *@
+            <div class="pattern-cue mt-2 mb-4 text-[.95rem] [&_p]:m-0">@((MarkupString)MarkdownHtml.ToHtml(Cue))</div>
+        }
+        <button class="primary btn-primary" @onclick="() => OnContinue.InvokeAsync()">@ContinueText</button>
+    }
+</section>
+
+@code {
+    /// <summary>The patterns to choose from, in the order shown.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<Pattern> Choices { get; set; } = default!;
+
+    /// <summary>The pattern that solves the problem; one of <see cref="Choices"/>.</summary>
+    [Parameter, EditorRequired] public Pattern Right { get; set; } = default!;
+
+    /// <summary>The radio group's name, unique per problem.</summary>
+    [Parameter, EditorRequired] public string Name { get; set; } = default!;
+
+    /// <summary>Raised once, when the learner checks their pick: the pattern chosen and whether it was right.</summary>
+    [Parameter] public EventCallback<(Pattern Picked, bool Correct)> OnPicked { get; set; }
+
+    /// <summary>Raised when the learner continues after the verdict.</summary>
+    [Parameter] public EventCallback OnContinue { get; set; }
+
+    /// <summary>What in the prompt points to <see cref="Right"/> (the step's <c>PatternCue</c>), shown once the pick is checked.</summary>
+    [Parameter] public string? Cue { get; set; }
+
+    [Parameter] public string ContinueText { get; set; } = "Continue";
+
+    private IDisposable? _shortcuts;
+    private int? _selected;
+    private bool _locked;
+
+    private bool IsRight => _selected is { } i && Choices[i].Id == Right.Id;
+
+    protected override void OnInitialized() => _shortcuts = Shortcuts.Subscribe(OnShortcut);
+
+    public void Dispose() => _shortcuts?.Dispose();
+
+    private void Select(int index)
+    {
+        if (!_locked) _selected = index;
+    }
+
+    private async Task Check()
+    {
+        if (_locked || _selected is not { } i) return;
+        _locked = true;
+        await OnPicked.InvokeAsync((Choices[i], IsRight));
+    }
+
+    private Task OnShortcut(StepShortcut s) => InvokeAsync(async () =>
+    {
+        switch (s.Command)
+        {
+            case StepCommand.Choose when !_locked && s.Number <= Choices.Count:
+                Select(s.Number - 1);
+                break;
+            case StepCommand.Run or StepCommand.Advance when !_locked:
+                await Check();
+                break;
+            case StepCommand.Advance:
+                await OnContinue.InvokeAsync();
+                return;
+        }
+        StateHasChanged();
+    });
+
+    // After the check, the pick is marked right or wrong and the right pattern, if it wasn't the pick, is marked right too.
+    private string OptionClass(int index, bool picked)
+    {
+        if (!_locked) return Styling.Option(picked ? OptionState.Selected : OptionState.Idle);
+        if (Choices[index].Id == Right.Id) return Styling.Option(OptionState.Right);
+        return Styling.Option(picked ? OptionState.Wrong : OptionState.Idle);
+    }
+}

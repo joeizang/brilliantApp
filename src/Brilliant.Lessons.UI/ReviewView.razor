@@ -1,4 +1,5 @@
 @* Review: the questions FSRS says are due, one at a time. Each first answer is recorded as a ReviewAnswered event. *@
+@using Brilliant.Core.Practice
 @using Brilliant.Core.Progress
 @using Brilliant.Core.Python
 @using Brilliant.Core.Review
@@ -23,10 +24,18 @@
         {
             <div class="content-column"><span class="review-kind mt-4 inline-block rounded-full bg-surface px-[.6rem] py-[.1rem] text-[.8rem] font-medium text-fg-secondary">@(item.Item.Kind == ReviewKind.Pattern ? "Pattern" : "Re-solve")</span></div>
         }
-        @if (item.NeedsLargeScreen && Screen.IsPhone)
+        @if (item.NeedsLargeScreen && Screen.IsPhone && _pick is null)
         {
             <div class="content-column"><p class="large-screen-note mt-4 rounded-lg border border-hairline bg-surface-raised px-4 py-3 text-[.95rem]" role="note">This question is best on a larger screen, where you can type the code. You can still answer it here.</p></div>
         }
+        @if (_pick is { } pick)
+        {
+            @* A pattern pick from Practice: the same unlabelled problem and the choice of patterns, with no hints (the pattern rung is the answer). *@
+            <ProblemPrompt Step="item.Presented" />
+            <PatternPick Choices="pick.Choices" Right="pick.Right" Name="@item.Item.Id" Cue="@item.Question.PatternCue" OnPicked="p => Answered(item, p.Correct)" OnContinue="Next" />
+        }
+        else
+        {
         @switch (item.Presented)
         {
             case ChoiceStep choice:
@@ -50,6 +59,7 @@
                 break;
         }
         <HintLadder Hints="item.Presented.Hints" Walkthrough="item.Presented.Walkthrough" Initial="item.AttemptHints" Caption="A hint makes this come back sooner." OnRevealed="level => Hinted(item, level)" />
+        }
         <FlagStep LessonId="@item.Lesson.Id" StepId="@item.Item.StepId" />
         @if (_scheduled is { } due)
         {
@@ -97,6 +107,8 @@ else
     private int _waiting;
     private int _seenRevision;
     private bool _stale;
+    private (Pattern Right, IReadOnlyList<Pattern> Choices)? _pick;
+    private readonly Random _random = new();
 
     private ReviewItemState? _current => _index < _queue.Count ? _queue[_index] : null;
 
@@ -143,6 +155,16 @@ else
     {
         (_recorded, _hintsUsed, _scheduled, _shownAt) = (false, _current?.AttemptHints ?? 0, null, Recorder.Now);
         (_nextDue, _waiting) = _current is null ? Finished() : (null, 0);
+        _pick = PickFor(_current);
+    }
+
+    // A pick item offers its problem's pattern among others the learner has learned, shuffled afresh each time it is asked.
+    private (Pattern Right, IReadOnlyList<Pattern> Choices)? PickFor(ReviewItemState? item)
+    {
+        if (item is not { IsPracticePick: true } || item.Question.Pattern is not { } id) return null;
+        var state = Recorder.Project(Content, Screen.Class);
+        if (state.Pattern(id)?.Pattern is not { } right) return null;
+        return (right, PracticeSelector.Choices(state, right, _random));
     }
 
     // Only the first answer to an item counts: retrying is practice, not a better memory.
@@ -191,8 +213,5 @@ else
         return (next, state.Queue.Waiting);
     }
 
-    private static string Describe(TimeSpan wait) =>
-        wait < TimeSpan.FromHours(1) ? "within the hour"
-        : wait < TimeSpan.FromDays(1) ? $"in {(int)wait.TotalHours} hours"
-        : $"in {(int)Math.Round(wait.TotalDays)} {((int)Math.Round(wait.TotalDays) == 1 ? "day" : "days")}";
+    private static string Describe(TimeSpan wait) => PracticeText.Describe(wait);
 }

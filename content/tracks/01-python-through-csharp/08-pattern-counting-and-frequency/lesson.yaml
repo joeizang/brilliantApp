@@ -193,6 +193,7 @@ steps:
   - id: step.frequency.fill-anagram
     type: fill-blank
     pattern: pattern.counting
+    patternCue: "\"The same letters, the same number of times each\": that is a question about counts, not order. Count each word's letters and compare the counts."
     title: Complete the function
     prompt: |
       Fill in the blanks to finish `is_anagram`. It should be true when both words contain exactly the same letters, the same number of times each.
@@ -274,6 +275,7 @@ steps:
   - id: step.frequency.order-first-unique
     type: parsons
     pattern: pattern.counting
+    patternCue: "\"Appears only once\": whether a character is unique depends on how many times it occurs in the whole text, so count everything first, then walk the text looking for a count of 1."
     title: The first unique character
     prompt: |
       Arrange these lines into `first_unique`, which returns the position of the first character that appears only once
@@ -309,6 +311,7 @@ steps:
   - id: step.frequency.write-can-build
     type: write-code
     pattern: pattern.counting
+    patternCue: "\"Each magazine letter used at most once\": you need to know how many of each letter the magazine has and whether the note needs more. That is a comparison of letter counts."
     largeScreenPreferred: true
     title: Can you build the note?
     prompt: |
@@ -386,6 +389,7 @@ steps:
   - id: step.frequency.write-most-common
     type: write-code
     pattern: pattern.counting
+    patternCue: "\"The word that appears most often\": \"how often\" means counting. Count every word, then pick the highest count (walking in list order to break ties)."
     largeScreenPreferred: true
     title: The most common word
     prompt: |

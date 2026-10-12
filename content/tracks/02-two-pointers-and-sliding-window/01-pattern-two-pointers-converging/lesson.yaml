@@ -247,6 +247,7 @@ steps:
   - id: step.converging.fill-pair-sum
     type: fill-blank
     pattern: pattern.converging-pointers
+    patternCue: "A pair that adds up to a target in a **sorted** list: start at both ends. Too small moves the left end in, too big moves the right end in, and each step rules out a whole row of pairs."
     title: Complete the function
     prompt: |
       Fill in the blanks to finish `pair_sum_sorted`. For `[1, 3, 4, 6, 9, 11]` and a target of `13` it should return `[2, 4]`.
@@ -295,6 +296,7 @@ steps:
   - id: step.converging.order-reverse
     type: parsons
     pattern: pattern.converging-pointers
+    patternCue: "\"Swaps the two ends and walks inwards\": one pointer at each end, moving towards each other until they meet."
     title: Reverse a list in place
     prompt: |
       Arrange these lines into `reverse_in_place`, which reverses a list **without making a copy**: it swaps the two ends and
@@ -335,6 +337,7 @@ steps:
   - id: step.converging.write-two-sum
     type: write-code
     pattern: pattern.converging-pointers
+    patternCue: "\"Sorted in ascending order\" plus \"two numbers that add up to `target`\": the order lets two pointers at the ends decide which way to move, with no dict needed."
     largeScreenPreferred: true
     title: Two Sum on a sorted list
     prompt: |
@@ -380,6 +383,7 @@ steps:
   - id: step.converging.write-sorted-squares
     type: write-code
     pattern: pattern.converging-pointers
+    patternCue: "Sorted, with negatives, in `O(n)`: the largest squares are at the two ends. Compare the ends, take the bigger square, and move that end inwards, filling the result from the back."
     largeScreenPreferred: true
     title: Squares in order
     prompt: |
@@ -436,6 +440,7 @@ steps:
   - id: step.converging.write-max-area
     type: write-code
     pattern: pattern.converging-pointers
+    patternCue: "Two walls, \"distance between them\" times \"the shorter\": start with the widest pair at the ends and move the shorter wall inwards, since only a taller wall could make a narrower pair hold more."
     largeScreenPreferred: true
     title: Container with the most water
     prompt: |
