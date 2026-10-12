@@ -1,6 +1,6 @@
 # Practice mode and timed interview simulation
 
-Issue [#36](https://github.com/joeizang/brilliantApp/issues/36) (PRD milestone M4). **Status: design, agreed in outline with Joseph; this document is for review before anything is built.**
+Issue [#36](https://github.com/joeizang/brilliantApp/issues/36) (PRD milestone M4). **Status: design agreed (PR #93). Slice 1, the content model, is built; slices 2–4 follow ([Proposed slices](#proposed-slices)).**
 
 The skill the app exists to train is the one the learner fails interviews on: looking at a problem with no label on it and knowing which pattern it is. Lessons name the pattern in their titles. Practice takes the names away.
 
@@ -35,6 +35,33 @@ steps:
 - Only `write-code`, `fill-blank` and `parsons` steps can carry `pattern`; those are the steps a learner can *solve*.
 - The validator **warns** when a tagged step's prompt contains its pattern's title, since that would give the answer away in Practice.
 - The eight patterns in Tracks 1 and 2 (hash-map lookup, counting and frequency, grouping by key, prefix sums, converging pointers, reader and writer, fixed window, variable window) get declared, and each existing problem step that is clearly one of them gets tagged. Steps that are not about a pattern (Python syntax drills) are left untagged and never appear in Practice.
+
+### As built (slice 1)
+
+`Pattern(Id, Title)` is a content item like a concept (`pattern.` IDs, in the Content Graph and the pack), `Lesson.Patterns` holds a
+lesson's declarations and `Step.Pattern` a problem's tag. The pack format is unchanged (version 1): both fields are optional, so an
+older pack loads with no patterns and an older app ignores them. A pack whose step names a pattern it doesn't contain is refused on load.
+
+The validator checks the tags once every lesson is loaded, so a step can name a pattern from an earlier lesson or from another track.
+It rejects, with the file and step: a pattern no lesson declares, one taught by a *later* lesson of the step's own track, a `pattern.`
+ID declared twice, a pattern without a title, `pattern` on anything but write-code, fill-blank or parsons, `pattern` on a phone
+alternative (it takes its step's), and an empty `pattern`. A prompt containing its pattern's title (case and line breaks ignored), in
+the step or its phone alternative, is a **warning**: `brilliant validate`, `pack` and `publish` print `warning: …` and still succeed.
+
+| Pattern | Declared by | Tagged steps |
+|---|---|---|
+| `pattern.hash-map-lookup` (Hash-map lookup) | Track 1 lesson 7 | its 4 problems; capstone pair-difference and count-pairs; Track 2 lesson 6 unsorted two-sum |
+| `pattern.counting` (Counting and frequency) | Track 1 lesson 8 | its 4 problems; capstone first-unique and top-k |
+| `pattern.grouping-by-key` (Grouping by key) | Track 1 lesson 9 | its 4 problems; capstone anagram groups |
+| `pattern.prefix-sums` (Prefix sums) | Track 1 lesson 10 | its 4 problems; capstone count-splits |
+| `pattern.converging-pointers` (Two pointers from both ends) | Track 2 lesson 1 | its 5 problems; the 5 palindrome problems of lesson 2; lesson 6 three-sum (fill and write) |
+| `pattern.reader-writer` (A reader and a writer) | Track 2 lesson 3 | its 6 problems |
+| `pattern.fixed-window` (Fixed-size sliding window) | Track 2 lesson 4 | its 6 problems |
+| `pattern.variable-window` (Variable-size sliding window) | Track 2 lesson 5 | its 5 problems |
+
+Left untagged: every problem in Track 1 lessons 1–6 (Python and Big-O drills), Track 2 lesson 6's `count_subarrays` (its prompt says
+"prefix sums and a dict" on purpose, to teach when a window fails) and `count_palindromes` (expand-around-centre, not one of the eight).
+The remove-duplicates prompt said "using a reader and a writer"; it now says "without building a second list".
 
 ## Practice
 

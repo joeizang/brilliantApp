@@ -10,6 +10,12 @@ public sealed record Track(string Id, string Title, IReadOnlyList<string> Lesson
 /// <summary>An idea a lesson teaches. Mastery and review will be tracked per concept.</summary>
 public sealed record Concept(string Id, string Title) : ContentItem(Id);
 
+/// <summary>
+/// A problem-solving pattern (prefix sums, a fixed-size window, ...), declared by the one lesson that teaches it. Problem steps name
+/// the pattern that solves them (<see cref="Step.Pattern"/>), which is what Practice asks the learner to recognise.
+/// </summary>
+public sealed record Pattern(string Id, string Title) : ContentItem(Id);
+
 /// <summary>What a review item trains. Pattern items are weighted up in the daily queue.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<ReviewKind>))]
 public enum ReviewKind
@@ -34,6 +40,9 @@ public sealed record Lesson(string Id, string Title, string TrackId, IReadOnlyLi
 {
     public IReadOnlyList<Concept> Concepts { get; init; } = [];
     public IReadOnlyList<ReviewItem> ReviewItems { get; init; } = [];
+
+    /// <summary>The patterns this lesson teaches. Each pattern is declared by exactly one lesson.</summary>
+    public IReadOnlyList<Pattern> Patterns { get; init; } = [];
 }
 
 public sealed record CodeSnippet(string Language, string Code);
@@ -75,6 +84,12 @@ public abstract record Step(string Id, string Title) : ContentItem(Id)
     /// step's ID, so a phone and a laptop agree about what was done whichever form was used.
     /// </summary>
     public Step? PhoneAlternative { get; init; }
+
+    /// <summary>
+    /// The ID of the <see cref="Content.Pattern"/> that solves this problem, or null when the step isn't about a pattern. Only
+    /// write-code, fill-blank and Parsons steps carry one; only tagged steps are offered in Practice.
+    /// </summary>
+    public string? Pattern { get; init; }
 
     /// <summary>The form of this question to put in front of the learner on a screen of this class: the phone alternative on a phone, else the step itself.</summary>
     public Step For(ScreenClass screen) => screen == ScreenClass.Phone && PhoneAlternative is { } alt ? alt : this;

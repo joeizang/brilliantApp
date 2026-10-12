@@ -22,6 +22,9 @@ reviewItems:
   - id: review.grouping.read-creates
     concept: concept.defaultdict-list
     step: step.grouping.predict-read-creates
+patterns:
+  - id: pattern.grouping-by-key
+    title: Grouping by key
 steps:
   - id: step.grouping.pattern
     type: explain
@@ -223,6 +226,7 @@ steps:
       - "A dict key must be hashable. Lists are not, but strings and tuples are."
   - id: step.grouping.fill-by-first
     type: fill-blank
+    pattern: pattern.grouping-by-key
     title: Complete the function
     prompt: |
       Fill in the blanks to finish `group_by_first`. It should return a dict from each first letter to the list of words
@@ -273,6 +277,7 @@ steps:
       - You add one item to the end of a list with a method named after what it does.
   - id: step.grouping.order-group-anagrams
     type: parsons
+    pattern: pattern.grouping-by-key
     title: Group the anagrams
     prompt: |
       Arrange these lines into `group_anagrams`, which returns a list of groups. Each group is a list of words that are
@@ -310,6 +315,7 @@ steps:
       every pair of words to find the anagrams would be `O(n²)`.
   - id: step.grouping.write-group-anagrams
     type: write-code
+    pattern: pattern.grouping-by-key
     largeScreenPreferred: true
     title: Group the anagrams yourself
     prompt: |
@@ -384,6 +390,7 @@ steps:
         - Make a dict from key to a list of words, add each word to its key's list, then return the lists with `list(groups.values())`.
   - id: step.grouping.write-group-by-length
     type: write-code
+    pattern: pattern.grouping-by-key
     largeScreenPreferred: true
     title: Group by length
     prompt: |

@@ -25,6 +25,9 @@ reviewItems:
   - id: review.prefix.seen-start
     concept: concept.prefix-plus-hash
     step: step.prefix.check-seen-start
+patterns:
+  - id: pattern.prefix-sums
+    title: Prefix sums
 steps:
   - id: step.prefix.pattern
     type: explain
@@ -177,6 +180,7 @@ steps:
       - Which problem keeps asking about *stretches* of the same list?
   - id: step.prefix.fill-build
     type: fill-blank
+    pattern: pattern.prefix-sums
     title: Complete the function
     prompt: |
       Fill in the blanks to finish `build_prefix`. For `[3, 1, 4]` it should return `[0, 3, 4, 8]`.
@@ -212,6 +216,7 @@ steps:
       - Each new cell builds on the cell that was added last. Python has a short way to say "the last item".
   - id: step.prefix.order-range-sums
     type: parsons
+    pattern: pattern.prefix-sums
     title: Answer all the questions
     prompt: |
       Arrange these lines into `range_sums`. It takes a list and a list of `(left, right)` queries and returns the sum
@@ -320,6 +325,7 @@ steps:
       - "The empty prefix has a total of `0`, and it has happened once."
   - id: step.prefix.write-pivot
     type: write-code
+    pattern: pattern.prefix-sums
     largeScreenPreferred: true
     title: The balance point
     prompt: |
@@ -393,6 +399,7 @@ steps:
         - Check for a balance before you add `nums[i]` into `left`, because the item itself belongs to neither side.
   - id: step.prefix.write-count-subarrays
     type: write-code
+    pattern: pattern.prefix-sums
     largeScreenPreferred: true
     title: Count the stretches
     prompt: |

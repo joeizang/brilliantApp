@@ -14,9 +14,14 @@ public sealed record ValidationError(string File, string Message)
 public sealed class ValidationReport
 {
     private readonly List<ValidationError> _errors = [];
+    private readonly List<ValidationError> _warnings = [];
     public IReadOnlyList<ValidationError> Errors => _errors;
+
+    /// <summary>Things worth a look that don't stop the content shipping, such as a prompt that names its own pattern.</summary>
+    public IReadOnlyList<ValidationError> Warnings => _warnings;
     public bool IsValid => _errors.Count == 0;
     internal void Add(string file, string message) => _errors.Add(new ValidationError(file, message));
+    internal void Warn(string file, string message) => _warnings.Add(new ValidationError(file, message));
     internal List<ReferenceCheck> ReferenceChecks { get; } = [];
     internal List<TraceCheck> TraceChecks { get; } = [];
 }
@@ -38,7 +43,7 @@ public static partial class ContentValidator
         .WithNamingConvention(CamelCaseNamingConvention.Instance)
         .Build();
 
-    [GeneratedRegex(@"^(track|lesson|step|concept|review)\.[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)*$")]
+    [GeneratedRegex(@"^(track|lesson|step|concept|review|pattern)\.[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)*$")]
     private static partial Regex IdPattern();
 
     [GeneratedRegex(@"^\d+\.\d+\.\d+$")]
@@ -62,13 +67,15 @@ public static partial class ContentValidator
         var tracks = new List<Track>();
         var lessons = new List<Lesson>();
         var seenIds = new Dictionary<string, string>(StringComparer.Ordinal);
+        var patterns = new PatternTags();
 
         var tracksDir = Path.Combine(contentRoot, "tracks");
         if (!Directory.Exists(tracksDir))
             report.Add(Rel(contentRoot, tracksDir), "missing 'tracks' directory.");
         else
             foreach (var trackDir in Directory.GetDirectories(tracksDir).Order(StringComparer.Ordinal))
-                LoadTrack(contentRoot, trackDir, report, seenIds, tracks, lessons);
+                LoadTrack(contentRoot, trackDir, report, seenIds, tracks, lessons, patterns);
+        patterns.Check(report);
 
         // Only once the content is structurally sound: prove every exercise's reference solution passes its own tests.
         if (report.IsValid && (report.ReferenceChecks.Count > 0 || report.TraceChecks.Count > 0))
@@ -92,7 +99,7 @@ public static partial class ContentValidator
     }
 
     private static void LoadTrack(string root, string trackDir, ValidationReport report,
-        Dictionary<string, string> seenIds, List<Track> tracks, List<Lesson> lessons)
+        Dictionary<string, string> seenIds, List<Track> tracks, List<Lesson> lessons, PatternTags patternTags)
     {
         var trackFile = Path.Combine(trackDir, "track.yaml");
         var trackRel = Rel(root, trackFile);
@@ -104,8 +111,9 @@ public static partial class ContentValidator
 
         var lessonIds = new List<string>();
         var lessonDirs = Directory.GetDirectories(trackDir).Order(StringComparer.Ordinal).ToList();
-        foreach (var lessonDir in lessonDirs)
+        for (var position = 0; position < lessonDirs.Count; position++)
         {
+            var lessonDir = lessonDirs[position];
             var lessonFile = Path.Combine(lessonDir, "lesson.yaml");
             var lessonRel = Rel(root, lessonFile);
             var lessonDto = Read<LessonDto>(root, lessonFile, report);
@@ -122,11 +130,18 @@ public static partial class ContentValidator
                 {
                     if (IsEmptyEntry(lessonDto.Steps[i], $"steps[{i}]", lessonRel, report)) continue;
                     if (LoadStep(lessonDto.Steps[i], $"steps[{i}]", lessonRel, report, seenIds) is { } step)
+                    {
                         steps.Add(step);
+                        if (step.Pattern is not null)
+                            patternTags.Tag(new PatternTag(lessonRel, $"steps[{i}] ('{step.Id}')", step, trackDir, position));
+                    }
                 }
 
             var concepts = LoadConcepts(lessonDto, lessonRel, report, seenIds);
             var reviewItems = LoadReviewItems(lessonDto, lessonRel, report, seenIds, concepts, steps);
+            var patterns = LoadPatterns(lessonDto, lessonRel, report, seenIds);
+            foreach (var pattern in patterns)
+                patternTags.Declare(pattern, lessonDto.Id ?? lessonRel, trackDir, position);
 
             if (lessonDto.Id is not null)
             {
@@ -135,6 +150,7 @@ public static partial class ContentValidator
                 {
                     Concepts = concepts,
                     ReviewItems = reviewItems,
+                    Patterns = patterns,
                 });
             }
         }
@@ -157,6 +173,22 @@ public static partial class ContentValidator
             if (c.Id is not null) concepts.Add(new Concept(c.Id, c.Title ?? ""));
         }
         return concepts;
+    }
+
+    private static List<Pattern> LoadPatterns(LessonDto lesson, string file, ValidationReport report,
+        Dictionary<string, string> seenIds)
+    {
+        var patterns = new List<Pattern>();
+        for (var i = 0; i < (lesson.Patterns?.Count ?? 0); i++)
+        {
+            var p = lesson.Patterns![i];
+            if (IsEmptyEntry(p, $"patterns[{i}]", file, report)) continue;
+            var label = p.Id is null ? $"patterns[{i}]" : $"patterns[{i}] ('{p.Id}')";
+            CheckId(p.Id, "pattern", file, report, seenIds, label);
+            Require(p.Title, "title", file, report, label);
+            if (p.Id is not null) patterns.Add(new Pattern(p.Id, p.Title ?? ""));
+        }
+        return patterns;
     }
 
     private static List<ReviewItem> LoadReviewItems(LessonDto lesson, string file, ValidationReport report,
@@ -243,8 +275,29 @@ public static partial class ContentValidator
             alternative = LoadStep(altDto, altWhere, file, report, seenIds, isAlternative: true);
         }
 
-        if (step is null || (!preferred && alternative is null)) return step;
-        return step with { LargeScreenPreferred = preferred, PhoneAlternative = alternative };
+        var pattern = LoadPatternTag(dto, label, file, report, isAlternative);
+
+        if (step is null || (!preferred && alternative is null && pattern is null)) return step;
+        return step with { LargeScreenPreferred = preferred, PhoneAlternative = alternative, Pattern = pattern };
+    }
+
+    /// <summary>
+    /// A step's <c>pattern</c>: which pattern solves it. Whether the pattern exists, and is taught no later than the step, is checked once
+    /// every lesson is loaded (<see cref="PatternTags"/>).
+    /// </summary>
+    private static string? LoadPatternTag(StepDto dto, string label, string file, ValidationReport report, bool isAlternative)
+    {
+        if (dto.Pattern is null) return null;
+        if (string.IsNullOrWhiteSpace(dto.Pattern))
+        {
+            report.Add(file, $"{label}: 'pattern' is empty; name a pattern ID or remove it.");
+            return null;
+        }
+        if (isAlternative)
+            report.Add(file, $"{label}: a phone alternative is solved by the same pattern as its step; put 'pattern' on the step itself.");
+        else if (dto.Type is not ("write-code" or "fill-blank" or "parsons"))
+            report.Add(file, $"{label}: 'pattern' only applies to problems the learner solves (write-code, fill-blank or parsons).");
+        return dto.Pattern;
     }
 
     private static Step? LoadStepBody(StepDto dto, string label, string file, ValidationReport report,
@@ -666,7 +719,9 @@ public static partial class ContentValidator
         public List<StepDto>? Steps { get; set; }
         public List<ConceptDto>? Concepts { get; set; }
         public List<ReviewItemDto>? ReviewItems { get; set; }
+        public List<PatternDto>? Patterns { get; set; }
     }
+    private sealed class PatternDto { public string? Id { get; set; } public string? Title { get; set; } }
     private sealed class ConceptDto { public string? Id { get; set; } public string? Title { get; set; } }
     private sealed class ReviewItemDto { public string? Id { get; set; } public string? Concept { get; set; } public string? Step { get; set; } public string? Kind { get; set; } }
     private sealed class SnippetDto { public string? Language { get; set; } public string? Code { get; set; } }
@@ -697,6 +752,7 @@ public static partial class ContentValidator
         public WalkthroughDto? Walkthrough { get; set; }
         public bool? LargeScreenPreferred { get; set; }
         public StepDto? PhoneAlternative { get; set; }
+        public string? Pattern { get; set; }
     }
     private sealed class WalkthroughDto { public string? Call { get; set; } public List<VisualDto>? Visualise { get; set; } public string? Explanation { get; set; } }
     private sealed class VisualDto { public string? Variable { get; set; } public string? As { get; set; } public List<string>? Pointers { get; set; } }
