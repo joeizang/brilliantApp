@@ -10,7 +10,10 @@ trace_code(code, watch_json, max_frames=MAX_FRAMES) -> JSON string:
                  "tracked": {variable: {"type": str, "cells": [str], "more": int}},
                  "tables": {variable: {"kind": "dict" | "set", "type": str, "more": int,
                                        "rows": [{"id": int, "key": str, "value": str}],
-                                       "hits": {local variable: id}}}}],
+                                       "hits": {local variable: id}}},
+                 "lists": {variable: {"head": id | null, "more": int,
+                                      "nodes": [{"id": int, "value": str | null, "next": id | null}],
+                                      "pointers": {pointer: id | null}}}}],
      "stdout": str, "message": str | null, "traceback": str | null, "errorLine": int | null}
 
 A "line" frame is the state just before that line runs. The last frame is the module's "return": the final
@@ -20,6 +23,17 @@ e.g. ["nums", "counts"]; a name is looked up in the current frame's locals, then
 collections.deque is recorded in "tracked" (cells, front to back; its "type" says which); a dict (or subclass) or a set/frozenset in "tables" (rows: a set's rows have no
 "value"). A name that is none of those is left out until it is. A set's rows are sorted, so its order doesn't jump
 around as members are added; a dict's are in insertion order.
+
+A watch entry can also be an object, for a linked list: {"variable": "head", "as": "linked_list", "next": "next",
+"value": "val", "pointers": ["prev", "curr"]}. A node is any object with the "next" attribute; the variable holds the
+first node (or None, an empty list). The list is recorded in "lists" while the variable holds a node or None. Its nodes
+are the ones reached from the head by following "next", then those reached from each pointer that holds a node the
+head doesn't reach (a detached node), in that order, at most MAX_NODES of them ("more" counts the rest, up to
+MAX_WALK). A node's "id" is its identity, the same at every step for as long as the run lasts, so a node rewired keeps
+its id. Its "next" is the id of the node it links to, or null at the end; a "next" that links back to a node already
+recorded is a cycle, which is not followed again. Its "value" is the repr of the value attribute, null when the node
+has none. "pointers" maps each pointer that holds a node to its id, or to null when it is None; a pointer holding
+anything else (or not defined) is left out.
 
 A row's "key" is only its label: the repr, clipped, so two different keys can read the same. Its "id" is what tells
 rows apart, and the same key has the same id at every step of the run. "hits" says which of the frame's variables hold
@@ -34,6 +48,7 @@ import json
 import linecache
 import traceback
 import sys
+import types
 
 LEARNER_FILE = "<your code>"
 MAX_FRAMES = 300       # steps recorded; more than a learner can usefully click through
@@ -42,6 +57,8 @@ MAX_CELLS = 40         # array cells recorded per frame (the rest are counted in
 MAX_REPR = 60          # characters of a variable's repr
 MAX_ROWS = 20          # dict entries / set members recorded per frame (the rest are counted in "more")
 MAX_SORT = 500         # sets bigger than this are shown in iteration order rather than paying to sort them at every step
+MAX_NODES = 30         # linked-list nodes recorded per frame (the rest are counted in "more")
+MAX_WALK = 1000        # linked-list nodes followed per frame at most, so a huge list doesn't slow every step
 MAX_CELL_REPR = 24     # characters of an array cell's, or a table key's or value's, repr
 MAX_OUTPUT = 4000      # characters of stdout kept
 
@@ -103,9 +120,92 @@ class _Identities:
             return self._by_object.setdefault(id(key), self._take())
 
 
+class _Nodes:
+    """Gives each linked-list node of the run a number, by identity. It keeps the node, so its id() can't be reused by another."""
+
+    def __init__(self):
+        self._ids = {}
+
+    def of(self, node):
+        entry = self._ids.get(id(node))
+        if entry is None:
+            entry = self._ids[id(node)] = (node, len(self._ids))
+        return entry[1]
+
+
+_MISSING = object()
+
+
+def _lookup(frame, name):
+    if name in frame.f_locals:
+        return frame.f_locals[name]
+    return frame.f_globals.get(name, _MISSING)
+
+
 def _watched(frame, watch):
     for name in watch:
-        yield name, frame.f_locals[name] if name in frame.f_locals else frame.f_globals.get(name)
+        if isinstance(name, str):
+            value = _lookup(frame, name)
+            yield name, None if value is _MISSING else value
+
+
+def _is_node(value, link):
+    if value is None or isinstance(value, _HIDDEN_TYPES):
+        return False
+    try:
+        return hasattr(value, link)
+    except Exception:           # a __getattr__ that raises something other than AttributeError
+        return False
+
+
+def _attr(value, name, default):
+    try:
+        return getattr(value, name, default)
+    except Exception:
+        return default
+
+
+def _linked(entry, frame, nodes):
+    """One linked list as recorded at this frame, or None while its variable holds neither a node nor None."""
+    link, attr = entry.get("next", "next"), entry.get("value", "val")
+    head = _lookup(frame, entry["variable"])
+    if head is not None and not _is_node(head, link):
+        return None
+    starts = [head] if head is not None else []
+    pointers = {}
+    for name in entry.get("pointers", []):
+        value = _lookup(frame, name)
+        if value is None:
+            pointers[name] = None
+        elif _is_node(value, link):
+            pointers[name] = nodes.of(value)
+            starts.append(value)
+
+    recorded, seen, more = [], set(), 0
+    for node in starts:
+        while node is not None and id(node) not in seen and len(seen) < MAX_WALK:
+            seen.add(id(node))
+            after = _attr(node, link, None)
+            if not _is_node(after, link):
+                after = None    # the end, or a link to something that isn't a node
+            if len(recorded) < MAX_NODES:
+                value = _attr(node, attr, _MISSING)
+                recorded.append({"id": nodes.of(node), "value": None if value is _MISSING else _repr(value, MAX_CELL_REPR),
+                                 "next": None if after is None else nodes.of(after)})
+            else:
+                more += 1
+            node = after
+    return {"head": None if head is None else nodes.of(head), "nodes": recorded, "more": more, "pointers": pointers}
+
+
+def _lists(frame, watch, nodes):
+    found = {}
+    for entry in watch:
+        if isinstance(entry, dict) and entry.get("as") == "linked_list":
+            recorded = _linked(entry, frame, nodes)
+            if recorded is not None:
+                found[entry["variable"]] = recorded
+    return found
 
 
 def _tracked(frame, watch):
@@ -181,9 +281,12 @@ def _result(status, frames, stdout="", message=None, tb=None, line=None):
 def trace_code(code, watch_json, max_frames=MAX_FRAMES):
     watch = json.loads(watch_json)
     linecache.cache[LEARNER_FILE] = (len(code), None, code.splitlines(True), LEARNER_FILE)
-    namespace = {"__name__": "learner"}
+    # The code runs as a module that is in sys.modules while it runs, as @dataclass needs to look up its class's module.
+    module = types.ModuleType("learner")
+    namespace = module.__dict__
     frames = []
     identities = _Identities()
+    nodes = _Nodes()
     out = io.StringIO()
 
     try:
@@ -199,6 +302,7 @@ def trace_code(code, watch_json, max_frames=MAX_FRAMES):
         frames.append({
             "event": event, "line": line, "function": frame.f_code.co_name,
             "locals": _locals(shown), "tracked": _tracked(frame, watch), "tables": _tables(frame, watch, shown, identities),
+            "lists": _lists(frame, watch, nodes),
         })
 
     def on_line(frame, event, arg):
@@ -213,6 +317,8 @@ def trace_code(code, watch_json, max_frames=MAX_FRAMES):
 
     status, message, tb, error_line = "ok", None, None, None
     previous = sys.gettrace()
+    replaced = sys.modules.get(module.__name__)
+    sys.modules[module.__name__] = module
     try:
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
             sys.settrace(on_call)
@@ -220,6 +326,10 @@ def trace_code(code, watch_json, max_frames=MAX_FRAMES):
                 exec(compiled, namespace)
             finally:
                 sys.settrace(previous)
+                if replaced is None:
+                    del sys.modules[module.__name__]
+                else:
+                    sys.modules[module.__name__] = replaced
     except _TraceLimit:
         status, message = "truncated", "This code runs for more than %d steps, so only the first %d are shown." % (max_frames, max_frames)
     except (Exception, SystemExit) as exc:

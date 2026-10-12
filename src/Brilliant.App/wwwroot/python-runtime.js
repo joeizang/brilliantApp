@@ -83,7 +83,7 @@ export function runTests(code, entrypoint, testsJson, runTimeoutMs = 5000) {
 
 /**
  * Resolves with the tracer's JSON result string (see wwwroot/python/tracer.py) for `code`, recording the lists named in
- * `watchJson` (a JSON array of variable names). A run that exceeds `runTimeoutMs` comes back as an error trace with no frames.
+ * `watchJson` (a JSON array: a variable name, or for a linked list an object with its options). A run that exceeds `runTimeoutMs` comes back as an error trace with no frames.
  */
 export function trace(code, watchJson, runTimeoutMs = 5000) {
     return request({ kind: 'trace', code, watchJson }, runTimeoutMs, traceTimedOut);
