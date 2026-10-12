@@ -1,0 +1,767 @@
+id: lesson.pattern-fast-and-slow-pointers
+title: "Pattern: fast and slow pointers"
+concepts:
+  - id: concept.fast-slow-middle
+    title: Finding the middle with fast and slow
+  - id: concept.fast-slow-cycle
+    title: Detecting a cycle with fast and slow
+  - id: concept.gap-pointers
+    title: Two pointers a fixed gap apart
+reviewItems:
+  - id: review.fast-slow.even-middle
+    concept: concept.fast-slow-middle
+    step: step.fast-slow.predict-even
+  - id: review.fast-slow.loop-guard
+    concept: concept.fast-slow-middle
+    step: step.fast-slow.check-guard
+  - id: review.fast-slow.same-node
+    concept: concept.fast-slow-cycle
+    step: step.fast-slow.predict-same-value
+  - id: review.fast-slow.gap
+    concept: concept.gap-pointers
+    step: step.fast-slow.check-gap
+  - id: review.fast-slow.which-problem
+    concept: concept.fast-slow-cycle
+    step: step.fast-slow.check-which-problem
+    kind: pattern
+  - id: review.fast-slow.why-not-set
+    concept: concept.fast-slow-cycle
+    step: step.fast-slow.check-why-not-set
+    kind: pattern
+patterns:
+  - id: pattern.fast-slow-pointers
+    title: Fast and slow pointers
+steps:
+  - id: step.fast-slow.idea
+    type: explain
+    title: One step and two steps
+    body: |
+      A Python list knows its length, so its middle is `nums[len(nums) // 2]`. A linked list doesn't: to find the middle you
+      could walk it once to count and again to stop halfway. Or walk it **once** with two pointers:
+
+      - `slow` moves one node each pass
+      - `fast` moves two
+
+      When `fast` runs out of list, `slow` has gone half as far: it's on the middle. One pass, `O(n)` time, `O(1)` extra memory.
+
+      The loop runs `while fast and fast.next`. Both checks are needed, because `fast` jumps two nodes: with an odd number of
+      nodes it stops on the last one, where `fast.next` is `None`; with an even number it jumps off the end to `None` itself.
+    comparison:
+      csharp: |
+        Node? slow = head, fast = head;
+        while (fast != null && fast.Next != null)
+        {
+            slow = slow!.Next;
+            fast = fast.Next.Next;
+        }
+        return slow;          // the middle
+      python: |
+        slow = head
+        fast = head
+        while fast and fast.next:
+            slow = slow.next
+            fast = fast.next.next
+        return slow           # the middle
+  - id: step.fast-slow.trace-middle
+    type: trace
+    title: The middle of 1 → 2 → 3 → 4 → 5
+    body: |
+      `fast` lands on `3`, then `5`. On `5`, `fast.next` is `None`, so the loop stops with `slow` on `3`, the middle.
+    code: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      head = Node(1, Node(2, Node(3, Node(4, Node(5)))))
+      slow = head
+      fast = head
+      while fast and fast.next:
+          slow = slow.next
+          fast = fast.next.next
+      middle = slow.val
+    visualise:
+      - variable: head
+        as: linked_list
+        pointers: [slow, fast]
+  - id: step.fast-slow.predict-even
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      With an even number of nodes there are two middles. Which one does this loop stop on?
+    code: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      head = Node(1, Node(2, Node(3, Node(4))))
+      slow = head
+      fast = head
+      while fast and fast.next:
+          slow = slow.next
+          fast = fast.next.next
+      print(slow.val)
+    accepted:
+      - "3"
+    mistakes:
+      - answers:
+          - "2"
+        feedback: "After the first pass `slow` is on `2` and `fast` on `3`. `3.next` is `4`, so the loop runs again: `slow` moves to `3` and `fast` to `None`. It stops on the *second* middle."
+      - answers:
+          - "4"
+        feedback: "`4` is where `fast` would be after one more step, but `fast` jumps from `3` straight past `4` to `None`. `slow` has only moved twice."
+      - answers:
+          - "2.5"
+        feedback: "`slow` is always on a node, and `slow.val` is that node's value. There's no averaging."
+    hints:
+      - "Write down where `slow` and `fast` are after each pass."
+      - "After the second pass, `fast` is `None`. Where is `slow`?"
+  - id: step.fast-slow.check-guard
+    type: choice
+    title: Why both checks?
+    prompt: |
+      The loop is `while fast and fast.next:`. What goes wrong with `while fast.next:` instead?
+    options:
+      - text: "With an even number of nodes `fast` becomes `None`, and `None.next` raises an `AttributeError`."
+        correct: true
+        feedback: "Right. Jumping two nodes from the second-to-last node lands `fast` on `None`. `fast` is checked first so `fast.next` is never asked of `None`."
+      - text: "Nothing: `fast.next` is `None` whenever `fast` is."
+        correct: false
+        feedback: "When `fast` *is* `None` it has no `.next` at all. Asking for it raises an `AttributeError`."
+      - text: "It stops one pass too early, on the first middle."
+        correct: false
+        feedback: "On odd lengths it stops in the same place. On even lengths it doesn't stop at all: it crashes when `fast` is `None`."
+      - text: "It loops forever on a list of one node."
+        correct: false
+        feedback: "One node: `fast.next` is `None`, so the loop doesn't run and `slow` is on that node. The trouble is even lengths."
+    hints:
+      - "Try `1 → 2`. Where is `fast` after one pass?"
+  - id: step.fast-slow.cycle
+    type: explain
+    title: Catching a cycle
+    body: |
+      If some node's `next` points back to an earlier node, the list has a **cycle**: walking it never reaches `None`, so a plain
+      `while cur:` loop never ends.
+
+      Run `slow` and `fast` again. With no cycle, `fast` reaches the end first: no cycle. With a cycle, both end up going round
+      it, and each pass `fast` gains one node on `slow`. The gap closes by one every pass, so `fast` can't jump over `slow`:
+      they land on **the same node**. Compare nodes with `is`, not values: two different nodes can hold the same value.
+
+      This is Floyd's *tortoise and hare*. Keeping a `set` of nodes already seen would also work, but takes `O(n)` memory; two
+      pointers take `O(1)`.
+    comparison:
+      csharp: |
+        Node? slow = head, fast = head;
+        while (fast != null && fast.Next != null)
+        {
+            slow = slow!.Next;
+            fast = fast.Next.Next;
+            if (ReferenceEquals(slow, fast)) return true;
+        }
+        return false;
+      python: |
+        slow = head
+        fast = head
+        while fast and fast.next:
+            slow = slow.next
+            fast = fast.next.next
+            if slow is fast:
+                return True
+        return False
+  - id: step.fast-slow.trace-cycle
+    type: trace
+    title: A cycle back to 2
+    body: |
+      `5` links back to `2`, drawn as an arrow under the row. `fast` goes round the loop and catches `slow` up one node a pass
+      until they stand on the same node.
+    code: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      head = Node(1, Node(2, Node(3, Node(4, Node(5)))))
+      head.next.next.next.next.next = head.next
+      slow = head
+      fast = head
+      found = False
+      while fast and fast.next:
+          slow = slow.next
+          fast = fast.next.next
+          if slow is fast:
+              found = True
+              break
+    visualise:
+      - variable: head
+        as: linked_list
+        pointers: [slow, fast]
+  - id: step.fast-slow.predict-same-value
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      This version compares values instead of nodes. The list has no cycle. What does it print?
+    code: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def has_cycle(head):
+          slow = head
+          fast = head
+          while fast and fast.next:
+              slow = slow.next
+              fast = fast.next.next
+              if slow.val == fast.val:
+                  return True
+          return False
+
+
+      print(has_cycle(Node(7, Node(7, Node(7)))))
+    accepted:
+      - "True"
+    mistakes:
+      - answers:
+          - "False"
+        feedback: "That's the right answer for this list, but not what this code prints. After one pass `slow` is on the second `7` and `fast` on the third: different nodes, equal values, so `==` says `True`. Use `slow is fast`."
+      - answers:
+          - "AttributeError"
+          - "error"
+        feedback: "`fast` lands on the third node, which exists. The comparison runs before the loop condition is checked again."
+    hints:
+      - "After one pass, which node is `slow` on, and which is `fast` on?"
+      - "Are their *values* equal? Are they the same *node*?"
+  - id: step.fast-slow.check-why-not-set
+    type: choice
+    title: Why not a set?
+    prompt: |
+      You could detect a cycle by adding each node to a `set` and stopping when you meet one already in it. When is fast and
+      slow the better choice?
+    options:
+      - text: "When the problem asks for `O(1)` extra memory: the set grows with the list, the two pointers don't."
+        correct: true
+        feedback: "Right. Both are `O(n)` time. *Constant extra space* in a cycle problem is the cue for fast and slow."
+      - text: "When the values are not hashable."
+        correct: false
+        feedback: "The set holds the *nodes*, which are hashable by identity whatever their values. The difference is memory."
+      - text: "When the list is sorted."
+        correct: false
+        feedback: "Neither method cares about order. The difference is that a set uses `O(n)` memory."
+      - text: "Never: the set is always faster."
+        correct: false
+        feedback: "Both are `O(n)` time. Fast and slow wins on memory, `O(1)` against `O(n)`."
+    hints:
+      - "Both methods walk the list once. What else do they cost?"
+  - id: step.fast-slow.gap
+    type: explain
+    title: A fixed gap
+    body: |
+      A cousin of the pattern: move `fast` **`k` nodes ahead** first, then move both one node at a time. When `fast` falls off the
+      end, `slow` is `k` nodes behind it: the `k`th node from the end, found in one pass.
+
+      Watch for:
+
+      - *the middle* of a linked list, in one pass
+      - *does the list loop*, *find the cycle*, in `O(1)` memory
+      - *the `k`th node from the end*, *remove the `n`th from the end*
+      - a check that needs the second half: *is the list a palindrome* (find the middle, then reverse from there, as in the last lesson)
+    comparison:
+      csharp: |
+        Node? slow = head, fast = head;
+        for (int i = 0; i < k; i++) fast = fast!.Next;
+        while (fast != null)
+        {
+            slow = slow!.Next;
+            fast = fast.Next;
+        }
+        return slow;          // k from the end
+      python: |
+        slow = head
+        fast = head
+        for _ in range(k):
+            fast = fast.next
+        while fast:
+            slow = slow.next
+            fast = fast.next
+        return slow           # k from the end
+  - id: step.fast-slow.check-gap
+    type: choice
+    title: How far ahead?
+    prompt: |
+      In the gap version, `fast` starts `k` nodes ahead and both move one at a time until `fast` is `None`. For
+      `1 → 2 → 3 → 4 → 5` and `k = 2`, where does `slow` stop?
+    options:
+      - text: "On `4`, the 2nd from the end."
+        correct: true
+        feedback: "Right. `fast` starts on `3`. Three more passes take `fast` to `None` and `slow` from `1` to `4`."
+      - text: "On `3`."
+        correct: false
+        feedback: "That's where `fast` *starts*. `slow` keeps moving until `fast` falls off the end, three more passes."
+      - text: "On `5`."
+        correct: false
+        feedback: "`5` is 1st from the end. With a gap of 2, `slow` is one node further back."
+      - text: "On `2`."
+        correct: false
+        feedback: "`slow` moves once for each move `fast` makes after the head start: three times, from `1` to `4`."
+    hints:
+      - "Where is `fast` after the head start? How many moves until it is `None`?"
+  - id: step.fast-slow.check-which-problem
+    type: choice
+    title: Which problem is fast and slow?
+    prompt: |
+      Each of these works on a linked list. Which one calls for fast and slow pointers?
+    options:
+      - text: "Return the middle node, walking the list only once."
+        correct: true
+        feedback: "Right. `fast` moves two, `slow` one; when `fast` runs out, `slow` is halfway."
+      - text: "Reverse the list in place."
+        correct: false
+        feedback: "That's the `prev`, `cur`, `nxt` walk from the last lesson."
+      - text: "Remove every node equal to a target, including the head."
+        correct: false
+        feedback: "The head may go, so that's a dummy head in front."
+      - text: "Check that brackets in a string are balanced."
+        correct: false
+        feedback: "That's matching with a stack, and there's no linked list in it."
+    hints:
+      - "Which one needs to know how far along the list *half* is?"
+  - id: step.fast-slow.fill
+    type: fill-blank
+    title: Complete middle
+    pattern: pattern.fast-slow-pointers
+    patternCue: "\"The middle node, in one pass\": `fast` moves two for each one `slow` moves, so `slow` is halfway when `fast` runs out."
+    prompt: |
+      Fill in the blanks so that `middle(head)` returns the middle node (the second middle, for an even length).
+    template: |
+      def middle(head):
+          slow = head
+          fast = head
+          while fast and {{guard}}:
+              slow = {{slow-step}}
+              fast = {{fast-step}}
+          return {{result}}
+    blanks:
+      - id: guard
+        accepted:
+          - "fast.next"
+        mistakes:
+          - answers:
+              - "slow"
+            feedback: "`slow` is behind `fast`, so it never runs out first. The danger is `fast.next` being `None` before the two-node jump."
+      - id: slow-step
+        accepted:
+          - "slow.next"
+      - id: fast-step
+        accepted:
+          - "fast.next.next"
+        mistakes:
+          - answers:
+              - "fast.next"
+            feedback: "Then both move one node and stay together. `fast` must move two."
+      - id: result
+        accepted:
+          - "slow"
+        mistakes:
+          - answers:
+              - "fast"
+            feedback: "`fast` is at the end (or `None`). `slow` has gone half as far: the middle."
+    hints:
+      - "`fast` jumps two, so check that both `fast` and `fast.next` exist."
+      - "`slow` moves one node, `fast` two."
+  - id: step.fast-slow.order-cycle
+    type: parsons
+    title: Detect a cycle
+    pattern: pattern.fast-slow-pointers
+    patternCue: "\"Does the list have a cycle, in `O(1)` memory\": in a loop `fast` catches `slow` up one node a pass, so they meet."
+    prompt: |
+      Arrange the lines into `has_cycle(head)`, which returns `True` if the list loops back on itself and `False` if it ends.
+    solution: |
+      def has_cycle(head):
+          slow = head
+          fast = head
+          while fast and fast.next:
+              slow = slow.next
+              fast = fast.next.next
+              if slow is fast:
+                  return True
+          return False
+    hints:
+      - "Move both pointers before comparing them: they both start on `head`."
+      - "Compare nodes with `is`. If `fast` runs out, there's no cycle."
+  - id: step.fast-slow.write-middle
+    type: write-code
+    largeScreenPreferred: true
+    title: The middle node
+    pattern: pattern.fast-slow-pointers
+    patternCue: "\"Return the middle node\": no length, one pass, so `slow` moves one and `fast` two."
+    compare: linked_list
+    prompt: |
+      Write `middle(head)` that returns the middle node of a non-empty list. With an even number of nodes, return the second
+      middle: for `1 → 2 → 3 → 4` that's `3`. Walk the list once. The tests compare the list from the node you return onwards.
+
+      `Node` and `build` are in the starter; keep them.
+    language: python
+    entrypoint: middle
+    starter: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def middle(head):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def middle(head):
+          slow = head
+          fast = head
+          while fast and fast.next:
+              slow = slow.next
+              fast = fast.next.next
+          return slow
+    tests:
+      - input: "build([1, 2, 3, 4, 5])"
+        expected: "[3, 4, 5]"
+      - input: "build([1, 2, 3, 4])"
+        expected: "[3, 4]"
+      - input: "build([9])"
+        expected: "[9]"
+      - input: "build([1, 2])"
+        expected: "[2]"
+    hints:
+      - "Start `slow` and `fast` on `head`."
+      - "Loop `while fast and fast.next`: `slow` moves one, `fast` two."
+      - "Return `slow`."
+    walkthrough:
+      call: result = middle(build([1, 2, 3, 4, 5, 6]))
+      visualise:
+        - variable: head
+          as: linked_list
+          pointers: [slow, fast]
+      explanation: |
+        `fast` lands on `3`, `5` and then `None`, since it jumps two from `5` past `6`. In those three passes `slow` moves to
+        `2`, `3` and `4`: the second middle of six nodes.
+    phoneAlternative:
+      id: step.fast-slow.write-middle.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `middle(head)`, which returns the middle node of a non-empty list (the second middle for an even length), walking
+        the list once. Arrange the lines instead of typing them.
+      solution: |
+        def middle(head):
+            slow = head
+            fast = head
+            while fast and fast.next:
+                slow = slow.next
+                fast = fast.next.next
+            return slow
+      hints:
+        - "Both start on `head`."
+        - "`slow` moves one, `fast` two, while `fast` and `fast.next` exist."
+  - id: step.fast-slow.write-cycle
+    type: write-code
+    largeScreenPreferred: true
+    title: Does it loop?
+    pattern: pattern.fast-slow-pointers
+    patternCue: "\"Does the list have a cycle, using `O(1)` extra memory\": no set of seen nodes, so a fast pointer chases a slow one."
+    prompt: |
+      Write `has_cycle(head)` that returns `True` if following `next` from `head` loops back to a node already visited, and
+      `False` if it reaches `None`. Use `O(1)` extra memory: no set or list of nodes. `head` may be `None`.
+
+      `Node` and `build_cycle` are in the starter; keep them. `build_cycle(values, pos)` links the last node back to the node at
+      index `pos`, or makes a plain list when `pos` is `-1`.
+    language: python
+    entrypoint: has_cycle
+    starter: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build_cycle(values, pos):
+          nodes = [Node(v) for v in values]
+          for a, b in zip(nodes, nodes[1:]):
+              a.next = b
+          if nodes and pos >= 0:
+              nodes[-1].next = nodes[pos]
+          return nodes[0] if nodes else None
+
+
+      def has_cycle(head):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build_cycle(values, pos):
+          nodes = [Node(v) for v in values]
+          for a, b in zip(nodes, nodes[1:]):
+              a.next = b
+          if nodes and pos >= 0:
+              nodes[-1].next = nodes[pos]
+          return nodes[0] if nodes else None
+
+
+      def has_cycle(head):
+          slow = head
+          fast = head
+          while fast and fast.next:
+              slow = slow.next
+              fast = fast.next.next
+              if slow is fast:
+                  return True
+          return False
+    tests:
+      - input: "build_cycle([1, 2, 3, 4, 5], 1)"
+        expected: "True"
+      - input: "build_cycle([1, 2, 3, 4, 5], -1)"
+        expected: "False"
+      - input: "build_cycle([4], 0)"
+        expected: "True"
+      - input: "build_cycle([4], -1)"
+        expected: "False"
+      - input: "build_cycle([7, 7, 7, 7], -1)"
+        expected: "False"
+      - input: "None"
+        expected: "False"
+    hints:
+      - "Start both pointers on `head`; `slow` moves one, `fast` two."
+      - "After moving, `if slow is fast:` there's a cycle. Compare nodes, not values."
+      - "If the loop ends because `fast` ran out, there's no cycle."
+    walkthrough:
+      call: result = has_cycle(build_cycle([1, 2, 3, 4, 5], 1))
+      visualise:
+        - variable: head
+          as: linked_list
+          pointers: [slow, fast]
+      explanation: |
+        `5` links back to `2`. Once both pointers are in the loop `2 → 3 → 4 → 5`, `fast` gains one node each pass, so it can't
+        skip over `slow`: they meet on the same node and the function returns `True`.
+    phoneAlternative:
+      id: step.fast-slow.write-cycle.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `has_cycle(head)`, which returns `True` if the list loops back on itself and `False` if it reaches `None`, using
+        `O(1)` extra memory. Arrange the lines instead of typing them.
+      solution: |
+        def has_cycle(head):
+            slow = head
+            fast = head
+            while fast and fast.next:
+                slow = slow.next
+                fast = fast.next.next
+                if slow is fast:
+                    return True
+            return False
+      hints:
+        - "Move both pointers, then compare them with `is`."
+        - "If `fast` runs out, there's no cycle."
+  - id: step.fast-slow.write-kth-from-end
+    type: write-code
+    largeScreenPreferred: true
+    title: The kth from the end
+    pattern: pattern.fast-slow-pointers
+    patternCue: "\"The `k`th node from the end, in one pass\": start `fast` `k` nodes ahead and move both until `fast` runs out."
+    compare: linked_list
+    prompt: |
+      Write `kth_from_end(head, k)` that returns the `k`th node from the end, walking the list once: `k = 1` is the last node.
+      The list has at least `k` nodes. For `1 → 2 → 3 → 4 → 5` and `k = 2` it returns the node `4`. The tests compare the list
+      from the node you return onwards.
+
+      `Node` and `build` are in the starter; keep them.
+    language: python
+    entrypoint: kth_from_end
+    starter: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def kth_from_end(head, k):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def kth_from_end(head, k):
+          slow = head
+          fast = head
+          for _ in range(k):
+              fast = fast.next
+          while fast:
+              slow = slow.next
+              fast = fast.next
+          return slow
+    tests:
+      - input: "build([1, 2, 3, 4, 5]), 2"
+        expected: "[4, 5]"
+      - input: "build([1, 2, 3, 4, 5]), 1"
+        expected: "[5]"
+      - input: "build([1, 2, 3, 4, 5]), 5"
+        expected: "[1, 2, 3, 4, 5]"
+      - input: "build([8]), 1"
+        expected: "[8]"
+    hints:
+      - "Start both on `head`, then move `fast` `k` nodes ahead."
+      - "Move both one node at a time `while fast:`."
+      - "When `fast` is `None`, `slow` is `k` nodes from the end."
+    phoneAlternative:
+      id: step.fast-slow.write-kth-from-end.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `kth_from_end(head, k)`, which returns the `k`th node from the end (`k = 1` is the last) in one pass. The list has
+        at least `k` nodes. Arrange the lines instead of typing them.
+      solution: |
+        def kth_from_end(head, k):
+            slow = head
+            fast = head
+            for _ in range(k):
+                fast = fast.next
+            while fast:
+                slow = slow.next
+                fast = fast.next
+            return slow
+      hints:
+        - "Give `fast` a head start of `k` nodes."
+        - "Then move both one at a time until `fast` is `None`."
+  - id: step.fast-slow.write-palindrome
+    type: write-code
+    largeScreenPreferred: true
+    title: A palindrome list
+    pattern: pattern.fast-slow-pointers
+    patternCue: "\"Is the linked list a palindrome, in `O(1)` extra memory\": fast and slow find the middle, then the second half is reversed and walked against the first."
+    prompt: |
+      Write `is_palindrome(head)` that returns `True` if the list's values read the same forwards and backwards, like
+      `1 → 2 → 2 → 1`. Use `O(1)` extra memory: no Python list of values. You may change the list. `None` is a palindrome.
+
+      `Node` and `build` are in the starter; keep them.
+    language: python
+    entrypoint: is_palindrome
+    starter: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def is_palindrome(head):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def is_palindrome(head):
+          slow = head
+          fast = head
+          while fast and fast.next:
+              slow = slow.next
+              fast = fast.next.next
+          prev = None
+          cur = slow
+          while cur:
+              nxt = cur.next
+              cur.next = prev
+              prev = cur
+              cur = nxt
+          left = head
+          right = prev
+          while right:
+              if left.val != right.val:
+                  return False
+              left = left.next
+              right = right.next
+          return True
+    tests:
+      - input: "build([1, 2, 2, 1])"
+        expected: "True"
+      - input: "build([1, 2, 3, 2, 1])"
+        expected: "True"
+      - input: "build([1, 2])"
+        expected: "False"
+      - input: "build([1, 2, 3, 1])"
+        expected: "False"
+      - input: "build([5])"
+        expected: "True"
+      - input: "None"
+        expected: "True"
+    hints:
+      - "Find the middle with `slow` and `fast`."
+      - "Reverse the list from `slow` onwards with `prev`, `cur` and `nxt`. `prev` ends on the old last node."
+      - "Walk one pointer from `head` and one from `prev`, comparing values, until the reversed half runs out."
+    walkthrough:
+      call: result = is_palindrome(build([1, 2, 3, 2, 1]))
+      visualise:
+        - variable: head
+          as: linked_list
+          pointers: [slow, fast, prev, cur, left, right]
+      explanation: |
+        `slow` stops on `3`, the middle. Reversing from there turns `3 → 2 → 1` into `1 → 2 → 3`, with `prev` on the old last
+        `1`. `2` still links to `3`, so `left` walks `1, 2, 3` from `head` while `right` walks `1, 2, 3` from `prev`. Every
+        pair matches, so it's a palindrome.
