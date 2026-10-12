@@ -22,6 +22,9 @@ reviewItems:
   - id: review.hashlookup.order-bug
     concept: concept.check-before-store
     step: step.hashlookup.predict-order-bug
+patterns:
+  - id: pattern.hash-map-lookup
+    title: Hash-map lookup
 steps:
   - id: step.hashlookup.pattern
     type: explain
@@ -222,6 +225,7 @@ steps:
       - By the time it checks, `3` is already in `seen`.
   - id: step.hashlookup.fill-two-sum
     type: fill-blank
+    pattern: pattern.hash-map-lookup
     title: Complete the function
     prompt: |
       Fill in the blanks to finish `two_sum`. It should return the positions of two numbers that add up to `target`,
@@ -270,6 +274,7 @@ steps:
       - "`in`, then `n`, then `i`: store each number with its position."
   - id: step.hashlookup.order-two-sum
     type: parsons
+    pattern: pattern.hash-map-lookup
     title: Put the loop in order
     prompt: |
       Arrange these lines into `two_sum`. The order of the check and the store matters.
@@ -310,6 +315,7 @@ steps:
       - Replace the search with a lookup in something built from the items you've seen.
   - id: step.hashlookup.write-two-sum
     type: write-code
+    pattern: pattern.hash-map-lookup
     largeScreenPreferred: true
     title: Write Two Sum
     prompt: |
@@ -394,6 +400,7 @@ steps:
       do with the answer changes. That is the pattern: *record as you go, look up what you need.*
   - id: step.hashlookup.write-pair-count
     type: write-code
+    pattern: pattern.hash-map-lookup
     largeScreenPreferred: true
     title: Count the pairs
     prompt: |

@@ -28,6 +28,9 @@ reviewItems:
     concept: concept.window-linear
     step: step.varwindow.check-why-linear
     kind: pattern
+patterns:
+  - id: pattern.variable-window
+    title: Variable-size sliding window
 steps:
   - id: step.varwindow.pattern
     type: explain
@@ -244,6 +247,7 @@ steps:
       - "Is a size handed to you in the problem?"
   - id: step.varwindow.fill-unique
     type: fill-blank
+    pattern: pattern.variable-window
     title: Complete the function
     prompt: |
       Fill in the blanks so that `longest_unique` returns the length of the longest stretch of `s` with no repeated letter.
@@ -279,6 +283,7 @@ steps:
       - "To shrink a window, you remove the item at its *left* edge, then move `left` on."
   - id: step.varwindow.order-shortest
     type: parsons
+    pattern: pattern.variable-window
     title: The shortest stretch that is big enough
     prompt: |
       Arrange these lines into `min_len(target, nums)`, which returns the length of the shortest stretch of positive numbers with a
@@ -301,6 +306,7 @@ steps:
       - "Inside the `while`: record the length, then drop the left item. The last line reports `0` if no window was ever big enough."
   - id: step.varwindow.write-ones
     type: write-code
+    pattern: pattern.variable-window
     largeScreenPreferred: true
     title: Flip at most k zeros
     prompt: |
@@ -347,6 +353,7 @@ steps:
       - "After the window is valid again, its length is `right - left + 1`. Keep the largest."
   - id: step.varwindow.write-distinct
     type: write-code
+    pattern: pattern.variable-window
     largeScreenPreferred: true
     title: At most k different letters
     prompt: |
@@ -406,6 +413,7 @@ steps:
         because `len(counts)` is how the rule is checked. Both pointers only ever move forward, so the work is `O(n)`.
   - id: step.varwindow.write-count
     type: write-code
+    pattern: pattern.variable-window
     largeScreenPreferred: true
     title: Counting every window
     prompt: |

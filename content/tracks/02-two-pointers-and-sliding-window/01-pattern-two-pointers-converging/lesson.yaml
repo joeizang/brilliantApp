@@ -28,6 +28,9 @@ reviewItems:
   - id: review.converging.step-count
     concept: concept.pointers-meet
     step: step.converging.predict-steps
+patterns:
+  - id: pattern.converging-pointers
+    title: Two pointers from both ends
 steps:
   - id: step.converging.pattern
     type: explain
@@ -243,6 +246,7 @@ steps:
       - Try the loop by hand on `[9, 1, 6, 3]` with a target of `4`.
   - id: step.converging.fill-pair-sum
     type: fill-blank
+    pattern: pattern.converging-pointers
     title: Complete the function
     prompt: |
       Fill in the blanks to finish `pair_sum_sorted`. For `[1, 3, 4, 6, 9, 11]` and a target of `13` it should return `[2, 4]`.
@@ -290,6 +294,7 @@ steps:
       - A total that is too small needs a bigger number. Which way does a sorted list get bigger?
   - id: step.converging.order-reverse
     type: parsons
+    pattern: pattern.converging-pointers
     title: Reverse a list in place
     prompt: |
       Arrange these lines into `reverse_in_place`, which reverses a list **without making a copy**: it swaps the two ends and
@@ -329,6 +334,7 @@ steps:
       - If you keep the shorter wall and move the taller one in, what happens to the width and the limiting height?
   - id: step.converging.write-two-sum
     type: write-code
+    pattern: pattern.converging-pointers
     largeScreenPreferred: true
     title: Two Sum on a sorted list
     prompt: |
@@ -373,6 +379,7 @@ steps:
       - "Return `[]` after the loop. If the pointers meet, nothing matched."
   - id: step.converging.write-sorted-squares
     type: write-code
+    pattern: pattern.converging-pointers
     largeScreenPreferred: true
     title: Squares in order
     prompt: |
@@ -428,6 +435,7 @@ steps:
         `16` in the next cell and moves `left`. Each cell of `result` is decided once, so the whole function is one pass, `O(n)`.
   - id: step.converging.write-max-area
     type: write-code
+    pattern: pattern.converging-pointers
     largeScreenPreferred: true
     title: Container with the most water
     prompt: |

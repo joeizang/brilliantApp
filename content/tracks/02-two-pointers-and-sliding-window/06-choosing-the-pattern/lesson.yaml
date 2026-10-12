@@ -203,6 +203,7 @@ steps:
       - "What does the shrinking loop assume about dropping an item?"
   - id: step.choose.fill-three
     type: fill-blank
+    pattern: pattern.converging-pointers
     title: Complete the triple finder
     prompt: |
       Fill in the blanks in the loop that finds triples summing to zero.
@@ -245,6 +246,7 @@ steps:
       - "If the total is smaller than the target of `0`, the smallest of the three needs to be raised, so `left` moves up."
   - id: step.choose.order-two-sum
     type: parsons
+    pattern: pattern.hash-map-lookup
     title: The hash map answer
     prompt: |
       Arrange these lines into `two_sum(nums, target)` for an **unsorted** list. It returns the two positions (`earlier`, `later`) of
@@ -263,6 +265,7 @@ steps:
       - "The `return` of the pair goes inside the `if`."
   - id: step.choose.write-three
     type: write-code
+    pattern: pattern.converging-pointers
     largeScreenPreferred: true
     title: Three numbers that add up to zero
     prompt: |

@@ -193,6 +193,7 @@ steps:
         pointers: [ch]
   - id: step.capstone.fill-first-unique
     type: fill-blank
+    pattern: pattern.counting
     title: Complete the function
     prompt: |
       Fill in the blanks to finish `first_unique`. It returns the index of the first character that appears exactly once, or
@@ -257,6 +258,7 @@ steps:
       - "With `[3, 3, 3]` and a target of `6`, how many pairs are there? What must the dict remember to get that number?"
   - id: step.capstone.order-pair-difference
     type: parsons
+    pattern: pattern.hash-map-lookup
     title: A pair with a given gap
     prompt: |
       Arrange these lines into `has_pair_with_difference`. It returns `True` if two different positions hold numbers whose
@@ -293,6 +295,7 @@ steps:
       If you cannot say what you are remembering, you haven't found the pattern yet.
   - id: step.capstone.write-count-pairs
     type: write-code
+    pattern: pattern.hash-map-lookup
     largeScreenPreferred: true
     title: How many pairs?
     prompt: |
@@ -368,6 +371,7 @@ steps:
         - "Add to the answer *before* recording the current number, so a number never pairs with itself."
   - id: step.capstone.write-anagram-groups
     type: write-code
+    pattern: pattern.grouping-by-key
     largeScreenPreferred: true
     title: How many families?
     prompt: |
@@ -425,6 +429,7 @@ steps:
         - The number of groups is the number of distinct keys. A `dict` or a `set` of keys works, and you don't need the lists themselves.
   - id: step.capstone.write-top-k
     type: write-code
+    pattern: pattern.counting
     largeScreenPreferred: true
     title: The k favourites
     prompt: |
@@ -461,6 +466,7 @@ steps:
       - "Slice the sorted list with `[:k]`. Slicing past the end is fine."
   - id: step.capstone.write-count-splits
     type: write-code
+    pattern: pattern.prefix-sums
     largeScreenPreferred: true
     title: Where can it split?
     prompt: |

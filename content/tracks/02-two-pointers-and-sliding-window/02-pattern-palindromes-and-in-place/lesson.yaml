@@ -230,6 +230,7 @@ steps:
       - The outer `while` is only checked once per pass of the whole body.
   - id: step.palindrome.fill-skip
     type: fill-blank
+    pattern: pattern.converging-pointers
     title: Complete the function
     prompt: |
       Fill in the blanks to finish `is_palindrome`. It ignores anything that isn't a letter or digit, and it ignores case.
@@ -272,6 +273,7 @@ steps:
       - Both characters must be changed to the same case before they are compared. The right-hand side shows which.
   - id: step.palindrome.order-palindrome
     type: parsons
+    pattern: pattern.converging-pointers
     title: The plain palindrome check
     prompt: |
       Arrange these lines into `is_palindrome(word)`, which returns `True` when `word` reads the same in both directions.
@@ -290,6 +292,7 @@ steps:
       - "`return True` comes last and lines up with `while`. Only after every pair matched can you say yes."
   - id: step.palindrome.write-palindrome
     type: write-code
+    pattern: pattern.converging-pointers
     largeScreenPreferred: true
     title: Valid palindrome
     prompt: |
@@ -335,6 +338,7 @@ steps:
       - "Compare the two characters with `.lower()`. If they differ, return `False`. If the loop finishes, return `True`."
   - id: step.palindrome.write-almost
     type: write-code
+    pattern: pattern.converging-pointers
     largeScreenPreferred: true
     title: One deletion allowed
     prompt: |
@@ -399,6 +403,7 @@ steps:
         whole function is still `O(n)`.
   - id: step.palindrome.write-reverse-vowels
     type: write-code
+    pattern: pattern.converging-pointers
     largeScreenPreferred: true
     title: Reverse only the vowels
     prompt: |

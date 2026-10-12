@@ -27,6 +27,9 @@ reviewItems:
   - id: review.readwrite.predict-merge
     concept: concept.merge-two-sorted
     step: step.readwrite.predict-merge
+patterns:
+  - id: pattern.reader-writer
+    title: A reader and a writer
 steps:
   - id: step.readwrite.pattern
     type: explain
@@ -260,6 +263,7 @@ steps:
       - "A slice such as `nums[:write]` gives exactly the kept part."
   - id: step.readwrite.fill-remove
     type: fill-blank
+    pattern: pattern.reader-writer
     title: Complete the function
     prompt: |
       Fill in the blanks so that `remove_value` keeps every number that isn't `val`, in the same order, and returns how many were
@@ -293,6 +297,7 @@ steps:
       - "A value is copied forward when it is *not* the one to remove."
   - id: step.readwrite.order-move-zeros
     type: parsons
+    pattern: pattern.reader-writer
     title: Move the zeros to the end
     prompt: |
       Arrange these lines into `move_zeros(nums)`, which moves every `0` to the end of the list while keeping the other numbers
@@ -311,11 +316,12 @@ steps:
       - "Instead of copying, this version *swaps*, so the zeros pile up behind the writer."
   - id: step.readwrite.write-dedupe
     type: write-code
+    pattern: pattern.reader-writer
     largeScreenPreferred: true
     title: Remove duplicates
     prompt: |
-      Write `remove_duplicates(nums)`, which takes a **sorted** list and removes the duplicate values **in place**, using a reader
-      and a writer. Return `nums[:write]`, the kept part of the list. For example `remove_duplicates([1, 1, 2])` is `[1, 2]`.
+      Write `remove_duplicates(nums)`, which takes a **sorted** list and removes the duplicate values **in place**, without
+      building a second list. Return `nums[:k]`, where `k` is how many values were kept. For example `remove_duplicates([1, 1, 2])` is `[1, 2]`.
     language: python
     entrypoint: remove_duplicates
     starter: |
@@ -353,8 +359,8 @@ steps:
       type: parsons
       title: Arrange the lines
       prompt: |
-        Write `remove_duplicates(nums)`, which takes a **sorted** list and removes the duplicate values **in place**, using a reader
-        and a writer. Return `nums[:write]`, the kept part of the list. For example `remove_duplicates([1, 1, 2])` is `[1, 2]`.
+        Write `remove_duplicates(nums)`, which takes a **sorted** list and removes the duplicate values **in place**, without
+        building a second list. Return `nums[:k]`, where `k` is how many values were kept. For example `remove_duplicates([1, 1, 2])` is `[1, 2]`.
         Arrange the lines instead of typing them.
       solution: |
         def remove_duplicates(nums):
@@ -372,6 +378,7 @@ steps:
         - "Return `nums[:write]`."
   - id: step.readwrite.write-twice
     type: write-code
+    pattern: pattern.reader-writer
     largeScreenPreferred: true
     title: At most twice
     prompt: |
@@ -409,6 +416,7 @@ steps:
       - "Keep the item when `write < 2` or when it differs from `nums[write - 2]`."
   - id: step.readwrite.write-subsequence
     type: write-code
+    pattern: pattern.reader-writer
     largeScreenPreferred: true
     title: Is it a subsequence?
     prompt: |
@@ -468,6 +476,7 @@ steps:
         - "At the end, `s` was found completely if `i` reached `len(s)`."
   - id: step.readwrite.write-merge
     type: write-code
+    pattern: pattern.reader-writer
     largeScreenPreferred: true
     title: Merge two sorted lists
     prompt: |

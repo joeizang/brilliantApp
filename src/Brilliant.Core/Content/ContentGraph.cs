@@ -15,7 +15,8 @@ public sealed class ContentGraph
                      .Concat(Lessons)
                      .Concat(Lessons.SelectMany(l => l.Steps))
                      .Concat(Lessons.SelectMany(l => l.Concepts))
-                     .Concat(Lessons.SelectMany(l => l.ReviewItems)))
+                     .Concat(Lessons.SelectMany(l => l.ReviewItems))
+                     .Concat(Lessons.SelectMany(l => l.Patterns)))
         {
             if (!_byId.TryAdd(item.Id, item))
                 throw new ContentPackException($"Duplicate content ID '{item.Id}'.");
@@ -24,13 +25,13 @@ public sealed class ContentGraph
 
     public PackManifest Manifest { get; }
 
-    /// <summary>Every ID in the pack (tracks, lessons, steps, concepts, review items). IDs are what progress is recorded against.</summary>
+    /// <summary>Every ID in the pack (tracks, lessons, steps, concepts, review items, patterns). IDs are what progress is recorded against.</summary>
     public IReadOnlyCollection<string> Ids => _byId.Keys;
     public IReadOnlyList<Track> Tracks { get; }
     public IReadOnlyList<Lesson> Lessons { get; }
 
     /// <summary>
-    /// What in the pack refers to something that isn't there: a track's lessons, a lesson's track, a review item's concept and step.
+    /// What in the pack refers to something that isn't there: a track's lessons, a lesson's track, a review item's concept and step, a step's pattern.
     /// A pack with any of these loads as JSON but breaks the screens that follow the reference, so it must not be adopted.
     /// </summary>
     public IReadOnlyList<string> ReferenceProblems()
@@ -47,6 +48,9 @@ public sealed class ContentGraph
                 if (!lesson.Concepts.Any(c => c.Id == item.ConceptId)) problems.Add($"Review item '{item.Id}' is about concept '{item.ConceptId}', which lesson '{lesson.Id}' does not have.");
                 if (!lesson.Steps.Any(s => s.Id == item.StepId)) problems.Add($"Review item '{item.Id}' uses step '{item.StepId}', which lesson '{lesson.Id}' does not have.");
             }
+            foreach (var step in lesson.Steps)
+                if (step.Pattern is { } pattern && !TryGet<Pattern>(pattern, out _))
+                    problems.Add($"Step '{step.Id}' is solved by pattern '{pattern}', which is not in the pack.");
         }
         return problems;
     }

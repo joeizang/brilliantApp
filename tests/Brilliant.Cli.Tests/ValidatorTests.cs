@@ -673,8 +673,14 @@ public sealed class ValidatorTests : IDisposable
         var report = ContentValidator.Load(root, out var content);
 
         Assert.True(report.IsValid, string.Join("\n", report.Errors));
+        Assert.Empty(report.Warnings);
         Assert.NotNull(content);
         Assert.True(content!.Lessons.Count >= 2);
+        // Practice needs patterns to choose between: the eight of Tracks 1 and 2 are declared, and each solves at least two problems.
+        var patterns = content.Lessons.SelectMany(l => l.Patterns).ToList();
+        Assert.True(patterns.Count >= 8, $"only {patterns.Count} patterns are declared.");
+        var steps = content.Lessons.SelectMany(l => l.Steps).ToList();
+        Assert.All(patterns, p => Assert.True(steps.Count(s => s.Pattern == p.Id) >= 2, $"{p.Id} tags fewer than two problems."));
         foreach (var lesson in content.Lessons)
         {
             Assert.True(lesson.Steps.Count >= 10, $"{lesson.Id} has too few steps for a 15-20 minute lesson.");

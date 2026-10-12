@@ -25,6 +25,9 @@ reviewItems:
   - id: review.frequency.same-letters
     concept: concept.compare-tables
     step: step.frequency.predict-anagram
+patterns:
+  - id: pattern.counting
+    title: Counting and frequency
 steps:
   - id: step.frequency.pattern
     type: explain
@@ -189,6 +192,7 @@ steps:
       - Which problem only cares about *how many* of each thing, not where they are?
   - id: step.frequency.fill-anagram
     type: fill-blank
+    pattern: pattern.counting
     title: Complete the function
     prompt: |
       Fill in the blanks to finish `is_anagram`. It should be true when both words contain exactly the same letters, the same number of times each.
@@ -269,6 +273,7 @@ steps:
       - You want one pass over the log, not one pass per code.
   - id: step.frequency.order-first-unique
     type: parsons
+    pattern: pattern.counting
     title: The first unique character
     prompt: |
       Arrange these lines into `first_unique`, which returns the position of the first character that appears only once
@@ -303,6 +308,7 @@ steps:
       pass is enough.
   - id: step.frequency.write-can-build
     type: write-code
+    pattern: pattern.counting
     largeScreenPreferred: true
     title: Can you build the note?
     prompt: |
@@ -379,6 +385,7 @@ steps:
         - If a letter's count is `0` (or it isn't there), you can return `False` straight away.
   - id: step.frequency.write-most-common
     type: write-code
+    pattern: pattern.counting
     largeScreenPreferred: true
     title: The most common word
     prompt: |

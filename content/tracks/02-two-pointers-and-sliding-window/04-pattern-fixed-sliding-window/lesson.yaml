@@ -28,6 +28,9 @@ reviewItems:
   - id: review.window.write-nearby
     concept: concept.window-state
     step: step.window.write-nearby
+patterns:
+  - id: pattern.fixed-window
+    title: Fixed-size sliding window
 steps:
   - id: step.window.pattern
     type: explain
@@ -240,6 +243,7 @@ steps:
       - "The size is given in the problem, not discovered."
   - id: step.window.fill-max-sum
     type: fill-blank
+    pattern: pattern.fixed-window
     title: Complete the function
     prompt: |
       Fill in the blanks to finish `max_window_sum`, which returns the largest sum of any `k` items in a row.
@@ -281,6 +285,7 @@ steps:
       - "When `right` moves to index `r`, the window covers `r - k + 1` to `r`. Which index just fell off?"
   - id: step.window.order-window-sums
     type: parsons
+    pattern: pattern.fixed-window
     title: Every window's total
     prompt: |
       Arrange these lines into `window_sums(nums, k)`, which returns a list with the total of every window of `k` items.
@@ -298,6 +303,7 @@ steps:
       - "`return sums` comes last."
   - id: step.window.write-max-sum
     type: write-code
+    pattern: pattern.fixed-window
     largeScreenPreferred: true
     title: Largest sum of k in a row
     prompt: |
@@ -337,6 +343,7 @@ steps:
       - "Update `best` after each slide and return it at the end."
   - id: step.window.write-average
     type: write-code
+    pattern: pattern.fixed-window
     largeScreenPreferred: true
     title: Windows that average enough
     prompt: |
@@ -375,6 +382,7 @@ steps:
       - "Slide as before, and add one to `count` whenever the current total is big enough."
   - id: step.window.write-nearby
     type: write-code
+    pattern: pattern.fixed-window
     largeScreenPreferred: true
     title: Duplicates close together
     prompt: |
@@ -454,6 +462,7 @@ steps:
         - "After adding the new value, if the set holds more than `k` values, remove the one that just left the window: `nums[right - k]`."
   - id: step.window.write-permutation
     type: write-code
+    pattern: pattern.fixed-window
     largeScreenPreferred: true
     title: A permutation inside a string
     prompt: |

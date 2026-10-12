@@ -12,6 +12,7 @@ public sealed class PackPublisher(PackClient client, IDeviceCredentialStore cred
     public async Task<int> PublishAsync(string contentRoot, TextWriter output, TextWriter error, CancellationToken ct = default)
     {
         var bytes = ContentPacker.PackToBytes(contentRoot, out var report, runner);
+        CliApp.WriteWarnings(report, error);
         if (bytes is null)
         {
             foreach (var e in report.Errors) error.WriteLine($"error: {e}");

@@ -35,6 +35,7 @@ public static class CliApp
 
     private static int Report(ValidationReport report, string root, TextWriter output, TextWriter error, string success)
     {
+        WriteWarnings(report, error);
         if (report.IsValid)
         {
             output.WriteLine($"OK: {root} {success}");
@@ -43,6 +44,12 @@ public static class CliApp
         foreach (var e in report.Errors) error.WriteLine($"error: {e}");
         error.WriteLine($"{report.Errors.Count} error(s); nothing was published.");
         return 1;
+    }
+
+    /// <summary>Warnings never fail a command; they are printed whether or not the content is valid.</summary>
+    internal static void WriteWarnings(ValidationReport report, TextWriter error)
+    {
+        foreach (var w in report.Warnings) error.WriteLine($"warning: {w}");
     }
 
     private static int Usage(TextWriter error)

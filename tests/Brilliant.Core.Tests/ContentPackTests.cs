@@ -52,6 +52,29 @@ public class ContentPackTests
     }
 
     [Fact]
+    public void A_lessons_patterns_and_a_steps_pattern_survive_a_pack()
+    {
+        var write = new WriteCodeStep("step.one.write", "Write", "P", "python", "", "f", [new CodeTest("", "1")]) { Pattern = "pattern.prefix-sums" };
+        var lesson = new Lesson("lesson.one", "One", "track.a", [write]) { Patterns = [new Pattern("pattern.prefix-sums", "Prefix sums")] };
+
+        var graph = ContentPackFormat.Load(BuildPack(lessons: [lesson]));
+
+        Assert.Equal("Prefix sums", graph.Get<Pattern>("pattern.prefix-sums").Title);
+        Assert.Equal(["pattern.prefix-sums"], graph.Get<Lesson>("lesson.one").Patterns.Select(p => p.Id));
+        Assert.Equal("pattern.prefix-sums", graph.Get<Step>("step.one.write").Pattern);
+    }
+
+    [Fact]
+    public void A_step_whose_pattern_is_not_in_the_pack_is_refused()
+    {
+        var write = new WriteCodeStep("step.one.write", "Write", "P", "python", "", "f", [new CodeTest("", "1")]) { Pattern = "pattern.missing" };
+
+        var ex = Assert.Throws<ContentPackException>(() => ContentPackFormat.Load(BuildPack(lessons: [new Lesson("lesson.one", "One", "track.a", [write])])));
+
+        Assert.Contains("pattern.missing", ex.Message);
+    }
+
+    [Fact]
     public void Lookup_of_unknown_or_wrongly_typed_id_fails()
     {
         var graph = ContentPackFormat.Load(BuildPack());
