@@ -23,6 +23,14 @@ public static class ProgressEventTypes
     /// </summary>
     public const string ReviewAnswered = "ReviewAnswered";
 
+    /// <summary>
+    /// One part of a practice or interview problem was answered: the pattern pick (<c>part: "pick"</c>, with the <c>picked</c> pattern ID,
+    /// null when the learner never chose) or the solution (<c>part: "solve"</c>). Data also holds correctness, hints, time, the inferred
+    /// rating, the <c>mode</c> ("practice" or "interview") and the <c>run</c>: the practice visit or interview run it belongs to. It
+    /// schedules the step's derived <c>pick.</c> or <c>resolve.</c> review item like a ReviewAnswered, and never touches lesson progress.
+    /// </summary>
+    public const string PracticeAnswered = "PracticeAnswered";
+
     /// <summary>The learner chose their daily goal. Data holds <c>steps</c>; the latest setting wins. Lesson-level, empty IDs.</summary>
     public const string DailyGoalSet = "DailyGoalSet";
 

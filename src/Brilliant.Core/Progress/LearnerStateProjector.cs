@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Brilliant.Core.Content;
+using Brilliant.Core.Practice;
 using Brilliant.Core.Review;
 
 namespace Brilliant.Core.Progress;
@@ -30,9 +31,11 @@ public static class LearnerStateProjector
     {
         var log = Distinct(events);
         var tracks = content.Tracks.Select(track => ProjectTrack(track, content, log)).ToList();
-        var (reviews, answeredToday) = ProjectReviews(tracks, log, now);
+        var practice = PracticeAnswers(log);
+        var (reviews, answeredToday) = ProjectReviews(tracks, log, practice, now);
         var queue = ReviewQueueBuilder.Build(reviews, now, answeredToday, queueOptions, screen);
-        return new LearnerState(now, tracks, reviews, queue, ProjectConcepts(tracks, reviews, log, now), ProjectToday(tracks, queue, log, now));
+        return new LearnerState(now, tracks, reviews, queue, ProjectConcepts(tracks, reviews, log, now), ProjectToday(tracks, queue, log, now),
+            ProjectPatterns(tracks, reviews, practice, now));
     }
 
     /// <summary>
@@ -160,22 +163,42 @@ public static class LearnerStateProjector
     }
 
     /// <summary>
-    /// Review items of the current content: the ones lessons declare, plus a re-solve for each problem (write-code,
-    /// fill-blank, Parsons) the learner has answered incorrectly. An item is unlocked once its lesson is completed; its
-    /// schedule is every recorded answer folded through FSRS in time order (ties broken by event ID, so every device
-    /// agrees). An item whose question step has been deleted is retired along with its history.
-    /// Also returns how many reviews were answered on the same (local) day as <paramref name="now"/>.
+    /// The practice and interview answers that count, oldest first (ties broken by event ID): within one run only the first answer to
+    /// each part of each problem, so a retry is practice and changes no schedule. Malformed events are ignored.
+    /// </summary>
+    private static IReadOnlyList<(ProgressEvent Event, PracticeAnswer Answer)> PracticeAnswers(IReadOnlyList<ProgressEvent> log)
+    {
+        var seen = new HashSet<(string, string, PracticePart)>();
+        return log.Select(e => (Event: e, Answer: PracticeAnswer.From(e)))
+            .Where(x => x.Answer is not null)
+            .OrderBy(x => x.Event.OccurredAt).ThenBy(x => x.Event.Id, StringComparer.Ordinal)
+            .Where(x => x.Answer!.Run is not { } run || seen.Add((run, x.Answer.Step, x.Answer.Part)))
+            .Select(x => (x.Event, x.Answer!))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Review items of the current content: the ones lessons declare, plus items derived from the log for problem steps (write-code,
+    /// fill-blank, Parsons): a re-solve for each problem the learner answered incorrectly, needed a hint on or solved in practice, and a
+    /// pattern pick for each tagged problem picked in practice. An item is unlocked once its lesson is completed; its schedule is every
+    /// recorded answer, from Review and from practice, folded through FSRS in time order (ties broken by event ID, so every device agrees).
+    /// An item whose question step has been deleted (or, for a pick, untagged) is retired along with its history.
+    /// Also returns how many reviews were answered on the same (local) day as <paramref name="now"/>; practice doesn't count toward it.
     /// </summary>
     private static (IReadOnlyList<ReviewItemState> Reviews, int AnsweredToday) ProjectReviews(
-        IReadOnlyList<TrackState> tracks, IReadOnlyList<ProgressEvent> log, DateTimeOffset now)
+        IReadOnlyList<TrackState> tracks, IReadOnlyList<ProgressEvent> log, IReadOnlyList<(ProgressEvent Event, PracticeAnswer Answer)> practice,
+        DateTimeOffset now)
     {
         var parsed = log.Where(e => e.Type == ProgressEventTypes.ReviewAnswered)
             .Select(e => (Event: e, Answer: ParseReviewAnswer(e)))
             .Where(x => x.Answer is not null)
-            .OrderBy(x => x.Event.OccurredAt).ThenBy(x => x.Event.Id, StringComparer.Ordinal)
             .ToList();
-        var answers = parsed.ToLookup(x => x.Answer!.Value.Item, x => (x.Event.OccurredAt, x.Answer!.Value.Rating), StringComparer.Ordinal);
+        var answers = parsed.Select(x => (x.Event, x.Answer!.Value.Item, x.Answer!.Value.Rating))
+            .Concat(practice.Select(x => (x.Event, Item: x.Answer.ItemId, x.Answer.Rating)))
+            .OrderBy(x => x.Event.OccurredAt).ThenBy(x => x.Event.Id, StringComparer.Ordinal)
+            .ToLookup(x => x.Item, x => (x.Event.OccurredAt, x.Rating), StringComparer.Ordinal);
         var answeredToday = parsed.Count(x => x.Event.OccurredAt.ToOffset(now.Offset).Date == now.Date);
+        var practised = practice.Select(x => (x.Event.LessonId, x.Answer.Step, x.Answer.Part)).ToHashSet();
 
         var hints = log.Where(e => e.Type == ProgressEventTypes.HintUsed)
             .Select(e => (Event: e, Hint: ParseHint(e))).Where(x => x.Hint is not null).ToList();
@@ -191,27 +214,66 @@ public static class LearnerStateProjector
         var reviews = new List<ReviewItemState>();
         foreach (var lesson in tracks.SelectMany(t => t.Lessons))
         {
-            var resolves = lesson.Lesson.Steps
-                .Where(s => s is WriteCodeStep or FillBlankStep or ParsonsStep && troubled.Contains((lesson.Lesson.Id, s.Id)))
-                .Select(s => new ReviewItem($"resolve.{s.Id}", "", s.Id, ReviewKind.Resolve));
-            foreach (var item in lesson.Lesson.ReviewItems.Concat(resolves))
+            var id = lesson.Lesson.Id;
+            var problems = lesson.Lesson.Steps.Where(s => s is WriteCodeStep or FillBlankStep or ParsonsStep).ToList();
+            var resolves = problems
+                .Where(s => troubled.Contains((id, s.Id)) || practised.Contains((id, s.Id, PracticePart.Solve)))
+                .Select(s => new ReviewItem(PracticeAnswer.ItemIdOf(s.Id, PracticePart.Solve), "", s.Id, ReviewKind.Resolve));
+            var picks = problems
+                .Where(s => s.Pattern is not null && practised.Contains((id, s.Id, PracticePart.Pick)))
+                .Select(s => new ReviewItem(PracticeAnswer.ItemIdOf(s.Id, PracticePart.Pick), "", s.Id, ReviewKind.Pattern));
+            foreach (var item in lesson.Lesson.ReviewItems.Concat(resolves).Concat(picks))
             {
                 if (lesson.Lesson.Steps.FirstOrDefault(s => s.Id == item.StepId) is not { } question) continue;
                 CardState? card = null;
                 DateTimeOffset? lastAnswered = null;
+                Rating? lastRating = null;
                 var count = 0;
                 foreach (var (at, rating) in answers[item.Id])
                 {
                     card = FsrsScheduler.Schedule(card, rating, at);
-                    (lastAnswered, count) = (at, count + 1);
+                    (lastAnswered, lastRating, count) = (at, rating, count + 1);
                 }
                 // Help asked for since the last answer belongs to the attempt in progress; earlier help was already judged.
                 var attemptHints = reviewHints[item.Id].Where(h => lastAnswered is null || h.OccurredAt > lastAnswered).Select(h => h.Level).DefaultIfEmpty(0).Max();
                 lessonHints.TryGetValue((lesson.Lesson.Id, question.Id), out var fromLesson);
-                reviews.Add(new ReviewItemState(lesson.Lesson, item, question, lesson.Status == LessonStatus.Completed, card, count, attemptHints, fromLesson));
+                reviews.Add(new ReviewItemState(lesson.Lesson, item, question, lesson.Status == LessonStatus.Completed, card, count, attemptHints, fromLesson)
+                    { LastRating = lastRating });
             }
         }
         return (reviews, answeredToday);
+    }
+
+    /// <summary>
+    /// Mastery per declared pattern, in content order. A pattern's problems are the steps tagged with it in completed lessons of any
+    /// track; each scores the mean of its pick and re-solve items (<see cref="MasteryModel.OfPracticeStep"/>).
+    /// </summary>
+    private static IReadOnlyList<PatternMastery> ProjectPatterns(IReadOnlyList<TrackState> tracks, IReadOnlyList<ReviewItemState> reviews,
+        IReadOnlyList<(ProgressEvent Event, PracticeAnswer Answer)> practice, DateTimeOffset now)
+    {
+        var lessons = tracks.SelectMany(t => t.Lessons).ToList();
+        var items = reviews.Where(r => r.Item.Kind != ReviewKind.Concept && r.Item.ConceptId.Length == 0)
+            .ToDictionary(r => (r.Lesson.Id, r.Item.Id));
+        var lastPractised = practice.GroupBy(x => (x.Event.LessonId, x.Answer.Step))
+            .ToDictionary(g => g.Key, g => g.Max(x => x.Event.OccurredAt));
+
+        var tagged = lessons.Where(l => l.Status == LessonStatus.Completed)
+            .SelectMany(l => l.Lesson.Steps.Where(s => s.Pattern is not null && s is WriteCodeStep or FillBlankStep or ParsonsStep).Select(s =>
+            {
+                var pick = items.GetValueOrDefault((l.Lesson.Id, PracticeAnswer.ItemIdOf(s.Id, PracticePart.Pick)));
+                var resolve = items.GetValueOrDefault((l.Lesson.Id, PracticeAnswer.ItemIdOf(s.Id, PracticePart.Solve)));
+                return new PatternStep(l, s, pick, resolve, lastPractised.TryGetValue((l.Lesson.Id, s.Id), out var at) ? at : null,
+                    MasteryModel.OfPracticeStep(pick, resolve, now));
+            }))
+            .ToLookup(s => s.Step.Pattern!, StringComparer.Ordinal);
+
+        return lessons.SelectMany(l => l.Lesson.Patterns.Select(p =>
+        {
+            var steps = tagged[p.Id].ToList();
+            var learned = l.Status == LessonStatus.Completed;
+            var mastery = learned && steps.Count > 0 ? steps.Average(s => s.Mastery) : 0;
+            return new PatternMastery(p, l, mastery, MasteryModel.LevelOf(learned, steps, mastery), steps);
+        })).ToList();
     }
 
     /// <summary>A wrong answer or a submission that failed a test. Malformed events are not failures.</summary>

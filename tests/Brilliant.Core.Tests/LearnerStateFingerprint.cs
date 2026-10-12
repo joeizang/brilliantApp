@@ -24,12 +24,15 @@ public static class LearnerStateFingerprint
         lines.Add($"today goal={t.GoalSteps} done={t.DoneToday} streak={t.Streak} due={t.ReviewsDue} next={t.NextLesson?.Lesson.Id} session={t.Session?.LessonId}@{t.Session?.StartedAt.UtcTicks}");
 
         foreach (var r in state.Reviews)
-            lines.Add($"review {r.Item.Id} unlocked={r.IsUnlocked} answers={r.Answers} hints={r.AttemptHints}/{r.LessonHints} card={Card(r.Card)}");
+            lines.Add($"review {r.Item.Id} unlocked={r.IsUnlocked} answers={r.Answers} last={r.LastRating} hints={r.AttemptHints}/{r.LessonHints} card={Card(r.Card)}");
 
         lines.Add($"queue [{string.Join(",", state.Queue.Items.Select(i => i.Item.Id))}] waiting={state.Queue.Waiting} done={state.Queue.DoneToday}");
 
         foreach (var c in state.Concepts)
             lines.Add($"concept {c.Concept.Id} {c.Mastery.ToString("R", CultureInfo.InvariantCulture)} {c.Level} attempts={c.History.Count} correct={c.History.Count(h => h.Correct)}");
+
+        foreach (var p in state.Patterns)
+            lines.Add($"pattern {p.Pattern.Id} {p.Mastery.ToString("R", CultureInfo.InvariantCulture)} {p.Level} practised={p.StepsPractised}/{p.StepsTagged}");
 
         foreach (var f in FlaggedSteps.From(all, content))
             lines.Add($"flag {f.LessonId}/{f.StepId} {f.Note} {f.FlaggedAt.UtcTicks}");

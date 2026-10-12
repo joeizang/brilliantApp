@@ -20,6 +20,21 @@ public static class RatingInference
         return elapsed <= fast ? Rating.Easy : elapsed >= slow ? Rating.Hard : Rating.Good;
     }
 
+    /// <summary>
+    /// Rates a practice pattern pick: wrong → Again, otherwise by time against <see cref="PickThresholds"/>. A pick has no hint ladder.
+    /// </summary>
+    public static Rating InferPick(bool correct, TimeSpan elapsed) =>
+        !correct ? Rating.Again
+        : elapsed <= PickThresholds.Fast ? Rating.Easy
+        : elapsed >= PickThresholds.Slow ? Rating.Hard
+        : Rating.Good;
+
+    /// <summary>
+    /// A pattern pick takes reading an unlabelled problem first, so it is given longer than a plain choice question: under 15 seconds is
+    /// Easy, a minute or more is Hard.
+    /// </summary>
+    public static (TimeSpan Fast, TimeSpan Slow) PickThresholds { get; } = (TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(60));
+
     /// <summary>How long a typical recall takes for this kind of step: quicker than <c>Fast</c> is Easy, slower than <c>Slow</c> is Hard.</summary>
     public static (TimeSpan Fast, TimeSpan Slow) Thresholds(Step step) => step switch
     {
