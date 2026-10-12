@@ -178,4 +178,17 @@ public sealed class DraftSyncTests(PostgresFixture postgres)
         Assert.Equal(20, (await Pull(a)).Drafts.Count);
         Assert.Equal(20, await server.WithDbAsync(db => db.Drafts.Select(d => d.Seq).Distinct().CountAsync()));
     }
+
+    [Fact]
+    public async Task A_draft_with_a_nul_character_is_refused_by_name_and_does_not_fail_the_push()
+    {
+        await using var server = await ServerHarness.StartAsync(postgres);
+        var (client, _) = await server.PairDeviceAsync();
+
+        var pushed = await Push(client, D("step.nul", "a\0b", 1), D("step.valid", "print(1)", 1), D("step\0id", "x", 1));
+
+        Assert.Equal(1, pushed.Accepted);
+        Assert.Equal(["step.nul", "step\0id"], pushed.Rejected!.Select(r => r.Id).Order());
+        Assert.Equal(["step.valid"], (await Pull(client)).Drafts.Select(d => d.StepId));
+    }
 }

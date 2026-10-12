@@ -53,6 +53,8 @@ public static class DraftLimits
     public static string? Problem(Drafts.CodeDraft d)
     {
         if (string.IsNullOrWhiteSpace(d.StepId) || d.StepId.Length > EventLimits.MaxIdLength) return $"The step ID must be 1 to {EventLimits.MaxIdLength} characters.";
+        // PostgreSQL text cannot hold U+0000; one such draft would otherwise fail the whole push and be retried for ever.
+        if (d.StepId.Contains('\0') || (d.Code?.Contains('\0') ?? false)) return "The draft contains a NUL character, which the server cannot store.";
         if ((d.Code?.Length ?? 0) > EventLimits.MaxDataLength) return $"The draft is {d.Code!.Length:N0} characters; the limit is {EventLimits.MaxDataLength:N0}.";
         if (d.UpdatedAt <= DateTimeOffset.MinValue.AddYears(1) || d.UpdatedAt >= DateTimeOffset.MaxValue.AddYears(-1)) return "The draft's time is out of range.";
         return null;

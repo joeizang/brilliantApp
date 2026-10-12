@@ -65,7 +65,13 @@ public sealed class SyncService(
         try
         {
             var creds = await credentials.LoadAsync(ct) ?? throw new SyncException(SyncFailure.NotPaired);
-            var state = stateStore.Load().For(creds.DeviceId);
+            var loaded = stateStore.Load();
+            var state = loaded.For(creds.DeviceId);
+
+            // "Sent" for drafts means sent to one server. A different pairing (another server, or this one after pairing again) hasn't been
+            // told of any of them, and the cursors start over for the same reason. This happens before the new state is saved, so an
+            // interrupted first sync marks them again rather than skipping it.
+            if (drafts is not null && loaded.PairingId != creds.DeviceId) drafts.MarkAllUnsynced();
 
             // Push: this device's own events after the cursor. Events pulled from elsewhere are not ours to send back.
             // An event the server could never accept is not sent, and one it refuses by name is set aside; either way it stays in the

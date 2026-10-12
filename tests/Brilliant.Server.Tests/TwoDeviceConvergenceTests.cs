@@ -36,22 +36,33 @@ public sealed class TwoDeviceConvergenceTests(PostgresFixture postgres) : IAsync
         public SyncService Sync { get; }
         public bool Online { get; set; } = true;
 
+        private readonly MemoryCredentials _credentials;
+        private HttpMessageInvoker _route;
+
         public Device(string name, HttpMessageHandler server, string token, SyncFixtures.Clock clock)
         {
+            _route = new HttpMessageInvoker(server);
             Recorder = new ProgressRecorder(Log, name, clock);
             Drafts = new SqliteCodeDraftStore("Data Source=:memory:", () => clock.GetUtcNow());
-            var link = new HttpClient(new Link(this, server));
-            Sync = new SyncService(Log, name, new MemoryCredentials(new DeviceCredentials(new Uri("http://localhost/"), name, token)),
-                new SyncClient(link), new MemoryState(), clock, Drafts);
+            var link = new HttpClient(new Link(this));
+            _credentials = new MemoryCredentials(new DeviceCredentials(new Uri("http://localhost/"), name, token));
+            Sync = new SyncService(Log, name, _credentials, new SyncClient(link), new MemoryState(), clock, Drafts);
         }
 
         public void Dispose() { Log.Dispose(); Drafts.Dispose(); }
 
         /// <summary>The network between the device and the server: passes requests through while the device is online, and fails as a missing route does when it is not.</summary>
-        private sealed class Link(Device device, HttpMessageHandler server) : DelegatingHandler(server)
+        private sealed class Link(Device device) : HttpMessageHandler
         {
             protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>
-                device.Online ? base.SendAsync(request, ct) : throw new HttpRequestException("No route to host");
+                device.Online ? device._route.SendAsync(request, ct) : throw new HttpRequestException("No route to host");
+        }
+
+        /// <summary>Forgets the server and pairs with another (a new pairing ID), as the learner does when the household server is replaced.</summary>
+        public void PairWith(HttpMessageHandler server, string pairingId, string token)
+        {
+            _route = new HttpMessageInvoker(server);
+            _credentials.Held = new DeviceCredentials(new Uri("http://localhost/"), pairingId, token);
         }
     }
 
@@ -318,5 +329,37 @@ public sealed class TwoDeviceConvergenceTests(PostgresFixture postgres) : IAsync
         Assert.Equal("fine", _b.Drafts.Get("step.ok"));
         Assert.Null(_b.Drafts.Get("step.huge"));
         Assert.StartsWith("x", _a.Drafts.Get("step.huge"));   // the learner's work is still there
+    }
+
+    [Fact]
+    public async Task Drafts_already_synced_to_one_server_go_up_again_when_the_device_pairs_with_another()
+    {
+        _a.Drafts.Save("step.sum", "synced to the old server");
+        Assert.True((await _a.Sync.SyncAsync()).Succeeded);
+        Assert.Empty(_a.Drafts.ReadUnsynced());
+
+        await using var replacement = await ServerHarness.StartAsync(postgres);
+        var (_, paired) = await replacement.PairDeviceAsync("Mac, again");
+        _a.PairWith(replacement.Server.CreateHandler(), "device-a-new-pairing", paired.Token);
+        Assert.True((await _a.Sync.SyncAsync()).Succeeded);
+
+        // The new server has it, so a phone paired there gets it too.
+        var (_, phone) = await replacement.PairDeviceAsync("Phone");
+        _b.PairWith(replacement.Server.CreateHandler(), "device-b-new-pairing", phone.Token);
+        Assert.True((await _b.Sync.SyncAsync()).Succeeded);
+        Assert.Equal("synced to the old server", _b.Drafts.Get("step.sum"));
+    }
+
+    [Fact]
+    public async Task A_draft_with_a_nul_character_stays_on_the_device_and_does_not_stop_the_others()
+    {
+        _a.Drafts.Save("step.nul", "a\0b");
+        _a.Drafts.Save("step.valid", "print(1)");
+
+        await SettleAsync();
+
+        Assert.Equal("print(1)", _b.Drafts.Get("step.valid"));
+        Assert.Equal("a\0b", _a.Drafts.Get("step.nul"));
+        Assert.Null(_b.Drafts.Get("step.nul"));
     }
 }

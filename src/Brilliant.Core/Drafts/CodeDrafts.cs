@@ -42,6 +42,9 @@ public interface IDraftSyncSource
     /// <summary>Drafts (and tombstones) changed on this device since the server last took them.</summary>
     IReadOnlyList<CodeDraft> ReadUnsynced();
 
+    /// <summary>Counts every draft and tombstone as not yet taken by the server: the device is now talking to a different server (or the same one, paired again), which has not been told of any of them.</summary>
+    void MarkAllUnsynced();
+
     /// <summary>The server has <paramref name="sent"/>. A draft edited again since it was read stays unsynced.</summary>
     void MarkSynced(IEnumerable<CodeDraft> sent);
 

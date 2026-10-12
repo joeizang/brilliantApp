@@ -83,6 +83,11 @@ public sealed class SqliteCodeDraftStore : ICodeDraftStore, IDraftSyncSource, ID
         lock (_gate) return _db.Drafts.AsNoTracking().Where(d => d.Unsynced).OrderBy(d => d.UpdatedAt).ToList().Select(r => new CodeDraft(r.StepId, r.Code, r.UpdatedAt)).ToList();
     }
 
+    public void MarkAllUnsynced()
+    {
+        lock (_gate) _db.Database.ExecuteSqlRaw("UPDATE Drafts SET Unsynced = 1;");
+    }
+
     public void MarkSynced(IEnumerable<CodeDraft> sent)
     {
         lock (_gate)
