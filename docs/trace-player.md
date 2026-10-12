@@ -1,9 +1,9 @@
-# Trace Player: arrays, dicts and sets, stepping and playback
+# Trace Player: arrays, stacks, queues, dicts, sets and linked lists, stepping and playback
 
 PRD stories 24, 25 and 27 ([#23](https://github.com/joeizang/brilliantApp/issues/23)) and 26, 28, 29 and 65 ([#24](https://github.com/joeizang/brilliantApp/issues/24)).
 A *trace* step runs a small example once, records every line it executes, and lets the learner walk through it: the code with the current
 line highlighted, the watched lists drawn as cells with named pointers that slide as they move, the watched dicts and sets drawn as
-tables whose rows appear, flash and fade, and the local variables with what just changed marked. It steps by button or arrow key and
+tables whose rows appear, flash and fade, linked lists drawn as nodes joined by arrows that redraw as they are rewired, and the local variables with what just changed marked. It steps by button or arrow key and
 plays by itself at 0.5×, 1× or 2×.
 
 ```
@@ -43,7 +43,7 @@ offline and takes a few milliseconds once Pyodide has started). `content validat
       as: set
 ```
 
-`as` is `array`, `stack`, `queue`, `dict` or `set`. A pointer on a dict or set is any variable, of any type, whose value is a key: the row with that key
+`as` is `array`, `stack`, `queue`, `dict`, `set` or `linked_list`. A pointer on a dict or set is any variable, of any type, whose value is a key: the row with that key
 is marked with the pointer's name, and when no row has that key the player says *Looking up `word` finds no such key.*
 
 `body` and `code` are required, and there must be at least one visual. A trace step takes no `hints` and can't be a review item.
@@ -55,6 +55,9 @@ The validator rejects, with the file and step in the message:
 - a `variable` that is never the kind of value its `as` draws in the trace (an array: a list, tuple or deque; a stack or queue: a list or
   deque; a dict; a set), a pointer on an array, stack or queue that is never an `int`, and a pointer on a dict or set that is never a
   variable at all. Each would draw nothing.
+- on a linked list: `next` or `value` on any other kind, or not a Python attribute name; the list's own variable listed as a pointer (it is
+  already drawn on the first node); a `variable` that never holds a node; nodes that have no `value` attribute to show (the message says to
+  set `value`); and a pointer that never holds a node of the list.
 
 ### Stacks and queues
 
@@ -92,12 +95,66 @@ The validator rejects, with the file and step in the message:
 - Both take a `list` or a `collections.deque`; an `array` takes a deque too. A stack's or queue's `pointers` are int variables, exactly as
   an array's. They are the only option: like every key of a step, an unknown one (say `top: right`) is rejected.
 
-## The recorder (`wwwroot/python/tracer.py`)
+### Linked lists
+
+```yaml
+- id: step.links.reverse
+  type: trace
+  title: Reversing a linked list
+  body: |
+    Watch each node's arrow turn round. `prev` is the list reversed so far; `cur` is what is left to do.
+  code: |
+    class Node:
+        def __init__(self, val, next=None):
+            self.val = val
+            self.next = next
+
+    head = Node(1, Node(2, Node(3)))
+    prev = None
+    cur = head
+    while cur:
+        nxt = cur.next
+        cur.next = prev
+        prev = cur
+        cur = nxt
+    head = prev
+  visualise:
+    - variable: head        # holds the first node, or None
+      as: linked_list
+      next: next            # the attribute that links a node to the next (the default)
+      value: val            # the attribute shown in the node (the default)
+      pointers: [prev, cur, nxt]
+```
+
+- A **node** is any object with the `next` attribute (`next` and `value` default to `next` and `val`; a `@dataclass` with `link` and
+  `data` takes `next: link` and `value: data`). The list ends where a link is `None`, or anything that isn't a node.
+- Each node is a value box and a link box with an arrow to the next node, the last arrow pointing at **None**. The list's variable is drawn
+  over the node it holds, like a pointer; `pointers` are variables that hold a node of the list, each named over its node. A pointer that
+  holds `None` stands over a *None* (the end of the list, or a *None* of its own when the list doesn't end in one).
+- Nodes only a pointer reaches (in the example, the reversed part, between `cur.next = prev` and `head = prev`) are **detached**: they are
+  drawn on a row of their own below, dashed, with a note. A detached run that links back into the list ends in an arrow up to that node.
+- A **cycle** is an arrow that runs under the row back to the node it loops to; nothing is drawn twice.
+- A node is the same element for as long as it is the same object, so when the links are rewired it slides to its new place; an arrow
+  that was rewired draws itself in, in the accent colour, and a value that changed flashes. A new node grows in.
+- At most 30 nodes are drawn; the rest of the list is *+N more*. A pointer on a node past them is named under the list.
+
+
 
 `trace_code(code, watch_json)` runs the code with `sys.settrace` and returns JSON. It is plain stdlib Python so the CLI runs the same file
 under CPython. Each frame is the state *just before* a line runs (`event: "line"`), or the state the module finished in (`event: "return"`,
 no line). A frame holds the function name, the locals (name, type, clipped repr) and, per watched variable, either `tracked` (a list, tuple
-or `collections.deque`: `type` and the first cells' reprs, front to back; a deque can't be sliced, so they are taken with `islice`) or `tables` (a dict or set: `kind`, the Python `type` name, the first rows as `{id, key, value}` and `hits`).
+or `collections.deque`: `type` and the first cells' reprs, front to back; a deque can't be sliced, so they are taken with `islice`), `tables` (a dict or set: `kind`, the Python `type` name, the first rows as `{id, key, value}` and `hits`) or `lists` (a linked list, below).
+The watch list names the variables: a plain name for an array, stack, queue, dict or set, and for a linked list an object,
+`{"variable", "as": "linked_list", "next", "value", "pointers"}`.
+
+A linked list is recorded as `{head, nodes, more, pointers}`. Every node gets an id the first time it is met and keeps it for the whole run
+(the recorder holds on to the object, so its id can't be reused by a new one); `head` and each pointer are a node id or null for None. `nodes` are
+`{id, value, next}`: the value's repr (null when the node has no such attribute) and the id of the node its link holds (null for None or
+anything that isn't a node). They are the nodes reached from the head first, in link order, then those reached from each pointer that
+weren't, stopping at any node already listed, so a cycle is walked once. At most 30 nodes are kept; `more` counts the rest, walking no further
+than 1000 nodes. A pointer whose variable doesn't exist yet, or holds something that isn't a node, is left out.
+
+The learner's code runs as a module named `learner` (registered in `sys.modules` while it runs and removed after), which `@dataclass` needs.
 A dict keeps its insertion order. A set has none, so its members are sorted (by value, falling back to sorted by repr for mixed types) to
 keep them from jumping about between steps.
 
@@ -143,6 +200,12 @@ being "new" isn't a change the learner caused.
   exist but hit nothing at all (a hit on a row cut off by the 20-row limit is neither a lookup nor a miss, since the key may well be there).
   The model never compares reprs; a trace without `hits` marks no lookups and reports no misses.
 - A table is drawn only when the recorded value really is the kind the visual asks for (a list named as `dict` draws nothing).
+- **Linked lists** (`LinkedListView`): the nodes as `Chains`, rows of `NodeView`s. The first row follows the links from the head; each
+  other starts at the first node no row has taken (a detached run). A row's `End` is `None`, `Back` (a cycle: `Target` is the node in that
+  row it links to), `Join` (it links into an earlier row's `Target`) or `More` (a node that wasn't recorded). Nodes are compared by id, so
+  `Changed` is a node whose value differs, `Relinked` one whose link now holds a different node, and `Added` a node the step before didn't
+  have. `Pointers` are the variable itself (on the head) and then the recorded pointers, each `Moved` when it holds a different node (or
+  None) than before.
 - `PointerView.Index`: the cell the pointer's variable indexes (on an array, stack or queue alike). Null when the variable is missing, isn't an `int`, or is outside the
   recorded cells (negative, or past the end). `Moved` is true when the index differs from the previous state's.
 
@@ -150,7 +213,7 @@ being "new" isn't a change the learner caused.
 
 - `TracePlayer.razor`: a read-only `CodeEditor` (new `ReadOnly` parameter) with the current line highlighted through the existing
   `HighlightLineAsync`; Previous, Play/Pause and Next; *Step n of m*; the speed buttons; one `TraceSequence` per watched stack or queue; one SVG per watched array; one `TraceTable` per
-  watched dict or set (after the lists, whatever order the lesson names them in); a *Variables* table; and, on the last step only,
+  watched dict or set (after the lists, whatever order the lesson names them in); one `TraceLinkedList` per watched linked list; a *Variables* table; and, on the last step only,
   what the run printed, the error that ended it, or a note that it was cut short (`TraceEnding.razor`).
 - **Animation is CSS.** A pointer is a `<g>` positioned with `style="transform: translate(…)"` and keyed by variable and name, so Blazor
   patches the same element and the browser transitions it from the old cell to the new one. A changed cell is keyed by step too, so it is
@@ -169,6 +232,10 @@ being "new" isn't a change the learner caused.
   values in them grow together with the app's text size (a seven-character value is set a little smaller to fit its cell). A stack's
   pointer names on one cell stand in columns as wide as the longest name in them; a queue's names take the first row below the cells
   where they clear their neighbours'. Either way the drawing (and its scroll box) reaches the last name.
+- A linked list (`TraceLinkedList.razor`) is drawn the same way: user units sized in rem, each node a `<g>` keyed by its id and placed with
+  a CSS transform, the arrow to the next node part of it. A rewired arrow is keyed by step and has `pathLength="1"`, so `animate-link-in`
+  draws it from its node to the next; its head pops. Pointer names on one node take rows above it where they clear their neighbours', and a
+  name wider than the first node moves the drawing's left edge rather than being cut off. A long list scrolls sideways.
 - A trace step is finished with *Continue* (or Return), like an explanation: it records `StepCompleted`, nothing else.
 
 ### Playback
@@ -208,9 +275,10 @@ by the last rung of the hint ladder, see [hints.md](hints.md).
 
 ## Not in this slice
 
-Per-variable speed or scrubbing, drawing nested structures (a list of lists, a dict of lists), and reading a trace aloud.
-`Visual.As` is a string and the model builds one `ArrayView` per `array`, `stack` or `queue` visual and one `TableView` per `dict` or `set`
-visual, so another kind slots in beside them.
+Per-variable speed or scrubbing, drawing nested structures (a list of lists, a dict of lists, a node whose value is a node), doubly linked
+lists (a `prev` arrow), and reading a trace aloud.
+`Visual.As` is a string and the model builds one `ArrayView` per `array`, `stack` or `queue` visual, one `TableView` per `dict` or `set`
+visual and one `LinkedListView` per `linked_list` visual, so another kind slots in beside them.
 
 ## Tests
 
@@ -219,7 +287,7 @@ visual, so another kind slots in beside them.
 `tests/Brilliant.Lessons.UI.Tests/TracePlayerTests.cs`, `TraceStepViewTests.cs` and `WalkthroughRungTests.cs` (rendering, stepping, playback on a manual clock, shortcuts,
 line highlight, lesson wiring), `tests/js/shortcuts.test.mjs` (key classification) and `ShortcutTests.cs` (the page listener's mapping).
 bUnit can't observe a CSS transition or element reuse, so the sliding, flashing, the ghost row's fade and the stack and queue cells
-growing in and rising away are checked by looking at the running app.
+growing in and rising away, and a linked list's nodes sliding and arrows drawing in, are checked by looking at the running app.
 
 Known limit: the recorder keeps only the first 20 rows, so a pointer on a later row is shown as nothing (neither marked nor a miss) beside
 *+N more*.

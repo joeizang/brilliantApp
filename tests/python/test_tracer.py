@@ -280,6 +280,94 @@ class TableLookups(unittest.TestCase):
         self.assertEqual(hits(inside, "table"), {"key": rows(inside, "table")[0]["id"]})
 
 
+class LinkedLists(unittest.TestCase):
+    NODE = "class Node:\n    def __init__(self, val, next=None):\n        self.val = val\n        self.next = next\n"
+
+    def lists(self, code, pointers=(), **options):
+        entry = dict({"variable": "head", "as": "linked_list", "pointers": list(pointers)}, **options)
+        return trace(self.NODE + code, [entry])
+
+    def final(self, code, pointers=(), **options):
+        return self.lists(code, pointers, **options)["frames"][-1]["lists"]["head"]
+
+    def chain(self, recorded):
+        return [(n["value"], n["next"]) for n in recorded["nodes"]]
+
+    def test_follows_next_from_the_head_and_ends_at_none(self):
+        head = self.final("head = Node(1, Node(2, Node(3)))\n")
+        ids = [n["id"] for n in head["nodes"]]
+        self.assertEqual(head["head"], ids[0])
+        self.assertEqual(self.chain(head), [("1", ids[1]), ("2", ids[2]), ("3", None)])
+        self.assertEqual(head["more"], 0)
+
+    def test_works_with_dataclass_nodes_and_other_attribute_names(self):
+        code = ("from dataclasses import dataclass\n@dataclass\nclass Item:\n    data: int\n    link: 'Item' = None\n"
+                "head = Item('a', Item('b'))\n")
+        head = self.final(code, next="link", value="data")
+        self.assertEqual([n["value"] for n in head["nodes"]], ["'a'", "'b'"])
+
+    def test_an_empty_list_has_no_head_and_no_nodes(self):
+        self.assertEqual(self.final("head = None\n"), {"head": None, "nodes": [], "more": 0, "pointers": {}})
+
+    def test_a_variable_that_is_not_a_node_is_left_out(self):
+        frames = self.lists("head = 5\n")["frames"]
+        self.assertTrue(all("head" not in f["lists"] for f in frames))
+
+    def test_a_node_keeps_its_id_while_it_is_rewired(self):
+        frames = self.lists("a = Node(1)\nb = Node(2)\nhead = a\na.next = b\nb.next = None\nhead = b\n")["frames"]
+        recorded = [f["lists"]["head"] for f in frames if "head" in f["lists"]]
+        first, linked, last = recorded[0], recorded[1], recorded[-1]
+        a, b = linked["nodes"][0]["id"], linked["nodes"][1]["id"]
+        self.assertEqual(self.chain(first), [("1", None)])
+        self.assertEqual(first["nodes"][0]["id"], a)
+        self.assertEqual(self.chain(linked), [("1", b), ("2", None)])
+        self.assertEqual((last["head"], self.chain(last)), (b, [("2", None)]))
+
+    def test_a_cycle_links_back_and_is_not_followed_again(self):
+        head = self.final("head = Node(1, Node(2, Node(3)))\nhead.next.next.next = head.next\n")
+        ids = [n["id"] for n in head["nodes"]]
+        self.assertEqual(len(ids), 3)
+        self.assertEqual(head["nodes"][2]["next"], ids[1])
+
+    def test_the_nodes_are_capped_and_the_rest_counted(self):
+        head = self.final("head = None\nfor i in range(50):\n    head = Node(i, head)\n")
+        self.assertEqual((len(head["nodes"]), head["more"]), (tracer.MAX_NODES, 50 - tracer.MAX_NODES))
+
+    def test_a_huge_cycle_free_list_is_walked_only_so_far(self):
+        # Built by code exec() runs, which isn't traced, so the test records three steps rather than thousands.
+        head = self.final("from types import SimpleNamespace as N\nhead = None\nexec('for i in range(3000): head = N(val=i, next=head)')\n")
+        self.assertEqual(len(head["nodes"]) + head["more"], tracer.MAX_WALK)
+
+    def test_pointers_name_the_node_they_hold_or_none(self):
+        head = self.final("head = Node(1, Node(2))\ncurr = head.next\nprev = None\nn = 3\n", pointers=["curr", "prev", "n", "gone"])
+        self.assertEqual(head["pointers"], {"curr": head["nodes"][1]["id"], "prev": None})
+
+    def test_a_node_only_a_pointer_reaches_is_recorded_after_the_heads(self):
+        head = self.final("head = Node(1)\nloose = Node(9, Node(8, head))\n", pointers=["loose"])
+        ids = [n["id"] for n in head["nodes"]]
+        self.assertEqual(self.chain(head), [("1", None), ("9", ids[2]), ("8", ids[0])])
+        self.assertEqual(head["pointers"], {"loose": ids[1]})
+
+    def test_a_node_without_the_value_attribute_has_no_value(self):
+        head = self.final("class Bare:\n    next = None\nhead = Bare()\n")
+        self.assertIsNone(head["nodes"][0]["value"])
+
+    def test_a_link_to_something_that_is_not_a_node_ends_the_list(self):
+        head = self.final("head = Node(1, 'oops')\n")
+        self.assertEqual(self.chain(head), [("1", None)])
+
+    def test_a_linked_list_inside_a_function_is_recorded(self):
+        r = self.lists("def length(head):\n    n = 0\n    return n\nlength(Node(1))\n")
+        inside = [f for f in r["frames"] if f["function"] == "length"]
+        self.assertEqual(len(inside[0]["lists"]["head"]["nodes"]), 1)
+
+    def test_plain_names_and_linked_lists_can_be_watched_together(self):
+        r = trace(self.NODE + "nums = [1]\nhead = Node(1)\n", ["nums", {"variable": "head", "as": "linked_list"}])
+        last = r["frames"][-1]
+        self.assertEqual(last["tracked"]["nums"]["cells"], ["1"])
+        self.assertEqual(len(last["lists"]["head"]["nodes"]), 1)
+
+
 class Problems(unittest.TestCase):
     def test_a_syntax_error_has_no_frames_and_a_line(self):
         r = trace("a = (\n")
@@ -306,6 +394,12 @@ class Problems(unittest.TestCase):
     def test_print_output_is_captured_and_does_not_leak(self):
         r = trace("print('hi')\n")
         self.assertEqual(r["stdout"], "hi\n")
+
+    def test_a_dataclass_can_be_defined_and_the_module_is_not_left_behind(self):
+        r = trace("from dataclasses import dataclass\n@dataclass\nclass P:\n    x: 'int' = 0\np = P(3)\n")
+        self.assertEqual(r["status"], "ok")
+        self.assertEqual(local(r["frames"][-1], "p")["repr"], "P(x=3)")
+        self.assertNotIn("learner", __import__("sys").modules)
 
     def test_tracing_is_switched_off_afterwards(self):
         import sys

@@ -154,7 +154,8 @@ public sealed class TraceStepValidatorTests : IDisposable
 
     private sealed class VisualComparer : IEqualityComparer<Visual>
     {
-        public bool Equals(Visual? a, Visual? b) => a!.Variable == b!.Variable && a.As == b.As && a.Pointers.SequenceEqual(b.Pointers);
+        public bool Equals(Visual? a, Visual? b) =>
+            a!.Variable == b!.Variable && a.As == b.As && a.Pointers.SequenceEqual(b.Pointers) && (a.Next, a.Value) == (b.Next, b.Value);
         public int GetHashCode(Visual v) => v.Variable.GetHashCode();
     }
 
@@ -473,5 +474,121 @@ public sealed class TraceStepValidatorTests : IDisposable
         var m = Errors(Head + Body + "    code: |\n      nums = [1]\n" + Visualise, new CPythonRunner());
 
         Assert.DoesNotContain(m, x => x.Contains("no steps"));
+    }
+
+    // ---- Linked lists ----
+
+    private const string ListVisual = "    visualise:\n      - variable: head\n        as: linked_list\n";
+
+    /// <summary>A trace in which head holds node 1 -> 2, with each named pointer holding a node (or None, for a null id).</summary>
+    private static TraceResult ListTrace(int? head = 1, string? value = "1", params (string Name, int? Node)[] pointers)
+    {
+        var list = new TrackedList(head, head is null ? [] : [new ListNode(1, value, 2), new ListNode(2, value, null)], 0,
+            pointers.ToDictionary(p => p.Name, p => p.Node));
+        TraceFrame F(int? line) => new(line is null ? "return" : "line", line, "<module>", [], new Dictionary<string, TrackedArray>(), null,
+            new Dictionary<string, TrackedList> { ["head"] = list });
+        return new(TraceStatus.Ok, [F(1), F(null)], "", null, null, null);
+    }
+
+    [Fact]
+    public void A_linked_list_loads_with_its_options_and_defaults()
+    {
+        WriteLesson(Header + Head + Body + Code + ListVisual + "        next: link\n        pointers: [curr]\n");
+        var outPath = Path.Combine(_root, "out", "p.zip");
+
+        var report = ContentPacker.Pack(_root, outPath, new FakeRunner((_, _) => ListTrace(1, "1", ("curr", 2))));
+
+        Assert.True(report.IsValid, string.Join("\n", report.Errors));
+        var step = Assert.IsType<TraceStep>(ContentPackFormat.Load(outPath).Get<Lesson>("lesson.one").Steps[0]);
+        Assert.Equal(new Visual("head", Visual.LinkedList, ["curr"], Next: "link", Value: "val"), step.Visuals[0], new VisualComparer());
+    }
+
+    [Theory]
+    [InlineData("next: link")]
+    [InlineData("value: data")]
+    public void Next_and_value_are_options_of_a_linked_list_only(string option)
+    {
+        var m = Errors(Head + Body + Code + $"    visualise:\n      - variable: nums\n        as: stack\n        {option}\n");
+
+        Assert.Contains(m, x => x.Contains("visualise[0]") && x.Contains($"'{option[..option.IndexOf(':')]}'") && x.Contains("linked_list only"));
+    }
+
+    [Fact]
+    public void Next_and_value_must_be_attribute_names()
+    {
+        var m = Errors(Head + Body + Code + ListVisual + "        next: 'the next'\n        value: 2v\n");
+
+        Assert.Contains(m, x => x.Contains("next 'the next'") && x.Contains("not a valid Python attribute"));
+        Assert.Contains(m, x => x.Contains("value '2v'") && x.Contains("not a valid Python attribute"));
+    }
+
+    [Fact]
+    public void A_linked_list_does_not_list_its_own_variable_as_a_pointer()
+    {
+        var m = Errors(Head + Body + Code + ListVisual + "        pointers: [head]\n", new FakeRunner((_, _) => ListTrace()));
+
+        Assert.Contains(m, x => x.Contains("pointer 'head'") && x.Contains("own variable"));
+    }
+
+    [Fact]
+    public void A_linked_list_whose_variable_never_holds_a_node_is_reported()
+    {
+        var m = Errors(Head + Body + Code + ListVisual + "        next: link\n", new FakeRunner((_, _) => ListTrace(head: null)));
+
+        Assert.Contains(m, x => x.Contains("'head'") && x.Contains("never holds a node") && x.Contains("'link' attribute"));
+    }
+
+    [Fact]
+    public void Nodes_without_the_value_attribute_are_reported()
+    {
+        var m = Errors(Head + Body + Code + ListVisual + "        value: data\n", new FakeRunner((_, _) => ListTrace(value: null)));
+
+        Assert.Contains(m, x => x.Contains("no attribute 'data'") && x.Contains("set 'value'"));
+    }
+
+    [Fact]
+    public void A_list_pointer_that_never_holds_a_node_is_reported_but_one_that_is_sometimes_none_is_fine()
+    {
+        var m = Errors(Head + Body + Code + ListVisual + "        pointers: [prev, curr, ghost]\n",
+            new FakeRunner((_, _) => ListTrace(1, "1", ("prev", null), ("curr", 2))));
+
+        Assert.Contains(m, x => x.Contains("pointer 'prev'") && x.Contains("never holds a node"));
+        Assert.Contains(m, x => x.Contains("pointer 'ghost'") && x.Contains("never holds a node"));
+        Assert.DoesNotContain(m, x => x.Contains("pointer 'curr'"));
+    }
+
+    private const string Reverse = "    code: |\n      class Node:\n          def __init__(self, val, next=None):\n              self.val = val\n              self.next = next\n"
+        + "      head = Node(1, Node(2, Node(3)))\n      prev, curr = None, head\n      while curr:\n          nxt = curr.next\n"
+        + "          curr.next = prev\n          prev, curr = curr, nxt\n      head = prev\n";
+
+    [Fact]
+    public void Real_cpython_traces_reversing_a_linked_list()
+    {
+        Assert.Empty(Errors(Head + Body + Reverse + ListVisual + "        pointers: [prev, curr, nxt]\n", new CPythonRunner()));
+    }
+
+    [Fact]
+    public void Real_cpython_traces_dataclass_nodes_with_other_attribute_names()
+    {
+        const string code = "    code: |\n      from dataclasses import dataclass\n      @dataclass\n      class Item:\n          data: int\n          link: 'Item | None' = None\n"
+            + "      head = Item(1, Item(2))\n      walk = head.link\n";
+
+        Assert.Empty(Errors(Head + Body + code + ListVisual + "        next: link\n        value: data\n        pointers: [walk]\n", new CPythonRunner()));
+    }
+
+    [Fact]
+    public void Real_cpython_reports_a_value_attribute_the_nodes_do_not_have()
+    {
+        var m = Errors(Head + Body + Reverse + ListVisual + "        value: data\n", new CPythonRunner());
+
+        Assert.Contains(m, x => x.Contains("no attribute 'data'"));
+    }
+
+    [Fact]
+    public void Real_cpython_reports_a_list_variable_that_is_never_a_node()
+    {
+        var m = Errors(Head + Body + Reverse + ListVisual + "        next: link\n", new CPythonRunner());
+
+        Assert.Contains(m, x => x.Contains("'head'") && x.Contains("never holds a node"));
     }
 }

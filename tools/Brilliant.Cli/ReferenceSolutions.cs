@@ -44,7 +44,7 @@ public sealed class CPythonRunner : IReferenceSolutionRunner
         sys.path.insert(0, sys.argv[1])
         import tracer
         request = json.load(sys.stdin)
-        print(tracer.trace_code(request["code"], json.dumps(request["watch"])))
+        print(tracer.trace_code(request["code"], request["watch"]))
         """;
 
     private readonly string _python;
@@ -76,7 +76,7 @@ public sealed class CPythonRunner : IReferenceSolutionRunner
     {
         var request = System.Text.Json.JsonSerializer.Serialize(new
         {
-            code, watch = visuals.Where(v => Visual.Kinds.Contains(v.As)).Select(v => v.Variable).Distinct(),
+            code, watch = TraceResultJson.SerializeWatch(visuals),
         });
         var run = Execute(TraceBootstrap, request);
         if (run.TimedOut)
@@ -198,8 +198,15 @@ internal static class ReferenceSolutionChecker
                     Visual.Set => $"variable '{visual.Variable}' is never a set in the trace, so there is nothing to draw.",
                     Visual.Stack or Visual.Queue =>
                         $"variable '{visual.Variable}' is never a list or deque in the trace, so there is no {visual.As} to draw.",
+                    Visual.LinkedList =>
+                        $"variable '{visual.Variable}' never holds a node (an object with a '{visual.Next}' attribute) in the trace, so there is no list to draw.",
                     _ => $"variable '{visual.Variable}' is never a list, tuple or deque in the trace, so there is nothing to draw.",
                 };
+                continue;
+            }
+            if (visual.As == Visual.LinkedList)
+            {
+                foreach (var problem in DescribeList(result, visual)) yield return problem;
                 continue;
             }
             foreach (var pointer in visual.Pointers)
@@ -214,9 +221,24 @@ internal static class ReferenceSolutionChecker
         }
     }
 
-    private static bool Draws(TraceFrame frame, Visual visual) => Visual.Sequences.Contains(visual.As)
-        ? frame.Tracked.TryGetValue(visual.Variable, out var tracked) && visual.Draws(tracked.Type)
-        : frame.Tables is not null && frame.Tables.TryGetValue(visual.Variable, out var table) && table.Kind == visual.As;
+    /// <summary>A linked list's nodes must have the value attribute, and each pointer must hold one of its nodes at some step.</summary>
+    private static IEnumerable<string> DescribeList(TraceResult result, Visual visual)
+    {
+        var lists = result.Frames.Select(f => f.Lists?.GetValueOrDefault(visual.Variable)).OfType<TrackedList>().ToList();
+        if (lists.Any(l => l.Nodes.Any(n => n.Value is null)))
+            yield return $"the nodes of '{visual.Variable}' have no attribute '{visual.Value}' to show; " +
+                "set 'value' to the attribute that holds a node's value.";
+        foreach (var pointer in visual.Pointers)
+            if (!lists.Any(l => l.Pointers.TryGetValue(pointer, out var node) && node is not null))
+                yield return $"pointer '{pointer}' (of '{visual.Variable}') never holds a node of the list in the trace.";
+    }
+
+    private static bool Draws(TraceFrame frame, Visual visual) => visual.As switch
+    {
+        Visual.LinkedList => frame.Lists is not null && frame.Lists.TryGetValue(visual.Variable, out var list) && list.Head is not null,
+        _ when Visual.Sequences.Contains(visual.As) => frame.Tracked.TryGetValue(visual.Variable, out var tracked) && visual.Draws(tracked.Type),
+        _ => frame.Tables is not null && frame.Tables.TryGetValue(visual.Variable, out var table) && table.Kind == visual.As,
+    };
 
     /// <summary>Runs every reference solution against its step's tests and reports each failure with lesson, step, test, expected and actual. False when Python was not available.</summary>
     private static bool Check(IReadOnlyList<ReferenceCheck> checks, IReferenceSolutionRunner runner, ValidationReport report)

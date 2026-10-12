@@ -845,6 +845,174 @@ public class TraceTests
         Assert.Equal(7, Build(Run(frame), Counts)[0].Tables[0].More);
     }
 
+    // ---- Linked lists ----
+
+    private static readonly Visual Head = new("head", Visual.LinkedList, ["curr", "prev"]);
+
+    /// <summary>A linked list as recorded: (id, value, next) per node, the head's id, and the pointers' nodes.</summary>
+    private static TrackedList Linked(int? head, (int Id, string Value, int? Next)[] nodes, int more = 0, params (string Name, int? Node)[] pointers) =>
+        new(head, nodes.Select(n => new ListNode(n.Id, n.Value, n.Next)).ToList(), more, pointers.ToDictionary(p => p.Name, p => p.Node));
+
+    private static TraceFrame ListFrame(int? line, TrackedList list, string function = "<module>") =>
+        new(line is null ? "return" : "line", line, function, [], new Dictionary<string, TrackedArray>(), null,
+            new Dictionary<string, TrackedList> { ["head"] = list });
+
+    private static LinkedListView ListAt(IReadOnlyList<TraceState> states, int step) => Assert.Single(states[step].Lists);
+
+    [Fact]
+    public void The_watch_list_sends_a_linked_list_with_its_options_and_pointers()
+    {
+        var watch = TraceResultJson.SerializeWatch([Nums, new Visual("head", Visual.LinkedList, ["curr"], Next: "link", Value: "data")]);
+
+        Assert.Equal("""["nums",{"variable":"head","as":"linked_list","next":"link","value":"data","pointers":["curr"]}]""", watch);
+    }
+
+    [Fact]
+    public void Linked_lists_in_the_tracer_json_parse_with_their_nodes_and_pointers()
+    {
+        var json = """
+            {"status": "ok", "frames": [{"event": "line", "line": 1, "function": "<module>", "locals": [], "tracked": {}, "tables": {},
+              "lists": {"head": {"head": 0, "more": 2, "nodes": [{"id": 0, "value": "1", "next": 1}, {"id": 1, "value": null, "next": null}],
+                                 "pointers": {"curr": 1, "prev": null}}}}],
+             "stdout": "", "message": null, "traceback": null, "errorLine": null}
+            """;
+
+        var list = Assert.Single(TraceResultJson.Parse(json).Frames).Lists!["head"];
+
+        Assert.Equal((0, 2), (list.Head, list.More));
+        Assert.Equal([new ListNode(0, "1", 1), new ListNode(1, null, null)], list.Nodes);
+        Assert.Equal(1, list.Pointers["curr"]);
+        Assert.Null(list.Pointers["prev"]);
+    }
+
+    [Fact]
+    public void A_linked_list_is_one_row_from_the_head_ending_at_none()
+    {
+        var view = ListAt(Build(Run(ListFrame(1, Linked(5, [(5, "1", 7), (7, "2", null)]))), Head), 0);
+
+        var chain = Assert.Single(view.Chains);
+        Assert.Equal([5, 7], chain.Nodes.Select(n => n.Id));
+        Assert.Equal(["1", "2"], chain.Nodes.Select(n => n.Value));
+        Assert.Equal(ChainEnd.None, chain.End);
+        Assert.Equal(new NodePointer("head", 5, false), Assert.Single(view.Pointers));
+    }
+
+    [Fact]
+    public void An_empty_list_is_an_empty_row_with_its_variable_at_none()
+    {
+        var view = ListAt(Build(Run(ListFrame(1, Linked(null, []))), Head), 0);
+
+        var chain = Assert.Single(view.Chains);
+        Assert.Empty(chain.Nodes);
+        Assert.Equal(ChainEnd.None, chain.End);
+        Assert.Null(Assert.Single(view.Pointers).Node);
+    }
+
+    [Fact]
+    public void A_cycle_ends_the_row_with_a_link_back_to_the_node_it_loops_to()
+    {
+        var view = ListAt(Build(Run(ListFrame(1, Linked(1, [(1, "a", 2), (2, "b", 3), (3, "c", 2)]))), Head), 0);
+
+        var chain = Assert.Single(view.Chains);
+        Assert.Equal(3, chain.Nodes.Count);
+        Assert.Equal((ChainEnd.Back, (int?)2), (chain.End, chain.Target));
+    }
+
+    [Fact]
+    public void A_list_cut_off_by_the_node_limit_ends_in_more()
+    {
+        var view = ListAt(Build(Run(ListFrame(1, Linked(1, [(1, "a", 2)], more: 9))), Head), 0);
+
+        Assert.Equal(ChainEnd.More, Assert.Single(view.Chains).End);
+        Assert.Equal(9, view.More);
+    }
+
+    [Fact]
+    public void Nodes_only_a_pointer_reaches_are_a_row_of_their_own_which_can_join_the_list()
+    {
+        var list = Linked(1, [(1, "a", null), (8, "x", 9), (9, "y", 1)], 0, ("curr", 8), ("prev", null));
+
+        var view = ListAt(Build(Run(ListFrame(1, list)), Head), 0);
+
+        Assert.Equal(2, view.Chains.Count);
+        Assert.Equal([1], view.Chains[0].Nodes.Select(n => n.Id));
+        Assert.Equal([8, 9], view.Chains[1].Nodes.Select(n => n.Id));
+        Assert.Equal((ChainEnd.Join, (int?)1), (view.Chains[1].End, view.Chains[1].Target));
+        Assert.Equal([new NodePointer("head", 1, false), new NodePointer("curr", 8, false), new NodePointer("prev", null, false)], view.Pointers);
+    }
+
+    [Fact]
+    public void A_pointer_the_recorder_left_out_is_not_drawn()
+    {
+        var view = ListAt(Build(Run(ListFrame(1, Linked(1, [(1, "a", null)], 0, ("curr", 1)))), Head), 0);
+
+        Assert.Equal(["head", "curr"], view.Pointers.Select(p => p.Name));
+    }
+
+    [Fact]
+    public void A_rewired_link_and_a_changed_value_are_marked_and_a_node_keeps_its_id()
+    {
+        var states = Build(Run(
+            ListFrame(1, Linked(1, [(1, "a", 2), (2, "b", null)])),
+            ListFrame(2, Linked(2, [(2, "b", 1), (1, "A", null)]))), Head);
+
+        var nodes = ListAt(states, 1).Chains[0].Nodes;
+        Assert.Equal([2, 1], nodes.Select(n => n.Id));
+        Assert.Equal((true, false), (nodes[0].Relinked, nodes[0].Changed));
+        Assert.Equal((true, true), (nodes[1].Relinked, nodes[1].Changed));
+        Assert.DoesNotContain(nodes, n => n.Added);
+    }
+
+    [Fact]
+    public void A_node_new_since_the_step_before_is_marked_added_and_moved_pointers_moved()
+    {
+        var states = Build(Run(
+            ListFrame(1, Linked(1, [(1, "a", null)], 0, ("curr", 1))),
+            ListFrame(2, Linked(1, [(1, "a", 4), (4, "b", null)], 0, ("curr", 4), ("prev", 1)))), Head);
+
+        var view = ListAt(states, 1);
+        Assert.Equal([false, true], view.Nodes.Select(n => n.Added));
+        Assert.True(view.Nodes.First().Relinked);
+        Assert.Equal([false, true, true], view.Pointers.Select(p => p.Moved));
+    }
+
+    [Fact]
+    public void Nothing_in_a_linked_list_is_marked_the_first_time_or_across_functions()
+    {
+        var states = Build(Run(
+            ListFrame(1, Linked(1, [(1, "a", null)])),
+            ListFrame(5, Linked(2, [(2, "z", null)]), function: "reverse")), Head);
+
+        foreach (var view in states.Select(s => Assert.Single(s.Lists)))
+        {
+            Assert.DoesNotContain(view.Nodes, n => n.Added || n.Changed || n.Relinked);
+            Assert.DoesNotContain(view.Pointers, p => p.Moved);
+        }
+    }
+
+    [Fact]
+    public void A_linked_list_is_left_out_while_its_variable_holds_no_node()
+    {
+        var frame = new TraceFrame("line", 1, "<module>", [], new Dictionary<string, TrackedArray>());
+
+        Assert.Empty(Build(Run(frame), Head)[0].Lists);
+    }
+
+    [Fact]
+    public void A_linked_list_visual_survives_a_pack_round_trip_with_its_options()
+    {
+        var step = new TraceStep("step.t", "Reverse", "Watch.", "head = None\n", [new Visual("head", Visual.LinkedList, ["curr"], "link", "data")]);
+        using var ms = new MemoryStream();
+        ContentPackFormat.Write(ms, new PackManifest("pack.t", "1.0.0", ContentPackFormat.CurrentFormatVersion),
+            [new Track("track.a", "A", ["lesson.one"])], [new Lesson("lesson.one", "One", "track.a", [step])]);
+        ms.Position = 0;
+
+        var loaded = Assert.IsType<TraceStep>(ContentPackFormat.Load(ms).Get<Lesson>("lesson.one").Steps[0]);
+
+        Assert.Equal(step.Visuals[0], loaded.Visuals[0] with { Pointers = step.Visuals[0].Pointers });
+        Assert.Equal(["curr"], loaded.Visuals[0].Pointers);
+    }
+
     // ---- Content ----
 
     [Fact]

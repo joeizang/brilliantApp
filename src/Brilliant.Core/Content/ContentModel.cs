@@ -205,20 +205,28 @@ public sealed record PackManifest(string PackId, string Version, int FormatVersi
 /// <summary>
 /// Which variable of a <see cref="TraceStep"/>'s code to draw and how. <see cref="As"/> is the drawing:
 /// <see cref="Array"/> (a list, tuple or deque shown as cells), <see cref="Stack"/> (a list or deque, bottom to top),
-/// <see cref="Queue"/> (a list or deque, front to back), <see cref="Dict"/> (key/value rows) or <see cref="Set"/> (members).
+/// <see cref="Queue"/> (a list or deque, front to back), <see cref="Dict"/> (key/value rows), <see cref="Set"/> (members) or
+/// <see cref="LinkedList"/> (nodes joined by arrows, from the node the variable holds).
 /// <see cref="Pointers"/> name variables drawn as labelled markers: for an array, stack or queue, int variables, on the cell they
-/// index; for a dict or set, variables holding a key, on the row with that key (a lookup).
+/// index; for a dict or set, variables holding a key, on the row with that key (a lookup); for a linked list, variables holding a
+/// node, on that node (or at None). <see cref="Next"/> and <see cref="Value"/> are a linked list's node attributes: the link to the
+/// next node and the value shown.
 /// </summary>
-public sealed record Visual(string Variable, string As, IReadOnlyList<string> Pointers)
+public sealed record Visual(string Variable, string As, IReadOnlyList<string> Pointers,
+    string Next = Visual.DefaultNext, string Value = Visual.DefaultValue)
 {
     public const string Array = "array";
     public const string Stack = "stack";
     public const string Queue = "queue";
     public const string Dict = "dict";
     public const string Set = "set";
+    public const string LinkedList = "linked_list";
+
+    public const string DefaultNext = "next";
+    public const string DefaultValue = "val";
 
     /// <summary>Every drawing the player knows, in the order the docs list them.</summary>
-    public static readonly IReadOnlyList<string> Kinds = [Array, Stack, Queue, Dict, Set];
+    public static readonly IReadOnlyList<string> Kinds = [Array, Stack, Queue, Dict, Set, LinkedList];
 
     /// <summary>The drawings of a sequence as cells, whose pointers are indexes.</summary>
     public static readonly IReadOnlyList<string> Sequences = [Array, Stack, Queue];
