@@ -31,7 +31,12 @@
 
    <div class="trace-visuals min-w-0">
 
-    @foreach (var array in Current.Arrays)
+    @foreach (var array in Current.Arrays.Where(a => a.Kind != Visual.Array))
+    {
+        <TraceSequence View="array" Step="Current.Index" @key="array.Variable" />
+    }
+
+    @foreach (var array in Current.Arrays.Where(a => a.Kind == Visual.Array))
     {
         var onCells = array.Pointers.Where(p => p.Index is not null).ToList();
         var offCells = array.Pointers.Where(p => p.Index is null).ToList();

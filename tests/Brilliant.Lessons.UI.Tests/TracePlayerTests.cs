@@ -1,3 +1,4 @@
+using System.Globalization;
 using Brilliant.Core.Content;
 using Brilliant.Core.Python;
 using Bunit;
@@ -497,6 +498,272 @@ public class TracePlayerTests : ShortcutContext
 
         Assert.Single(cut.FindAll("figure.array"));
         Assert.Single(cut.FindAll("figure.trace-table"));
+    }
+
+    // ---- Stacks and queues ----
+
+    private static TraceFrame Seq(int? line, string name, string type, string[] cells, int more = 0, params TraceLocal[] locals) =>
+        new(line is null ? "return" : "line", line, "<module>", locals, new Dictionary<string, TrackedArray> { [name] = new(type, cells, more) });
+
+    private IRenderedComponent<TracePlayer> Sequence(string kind, string type, params string[][] steps) =>
+        Start(RunOf(steps.Select((cells, i) => Seq(i + 1, "x", type, cells)).ToArray()), [new Visual("x", kind, [])], out _);
+
+    /// <summary>The (x, y) a cell, marker or pointer is placed at by its CSS transform.</summary>
+    private static (int X, int Y) At(AngleSharp.Dom.IElement element)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(element.GetAttribute("style")!, @"translate\((-?\d+)px, (-?\d+)px\)");
+        return (int.Parse(match.Groups[1].Value), int.Parse(match.Groups[2].Value));
+    }
+
+    private static List<string> Texts(IRenderedComponent<TracePlayer> cut, string selector) =>
+        cut.FindAll(selector).Select(t => t.TextContent).ToList();
+
+    [Fact]
+    public void A_stack_stands_bottom_to_top_with_its_top_marked()
+    {
+        var cut = Sequence(Visual.Stack, "list", ["1", "2", "3"]);
+
+        var cells = cut.FindAll("figure.stack g.cell:not(.gone)");
+        Assert.Equal(["1", "2", "3"], cells.Select(c => c.QuerySelector(".cell-text")!.TextContent));
+        Assert.True(At(cells[0]).Y > At(cells[1]).Y && At(cells[1]).Y > At(cells[2]).Y);   // index 0 at the bottom
+        Assert.Equal(At(cells[0]).X, At(cells[2]).X);
+        var top = cut.Find("g.end-marker.top");
+        Assert.Equal("2", top.GetAttribute("data-index"));
+        Assert.Contains("top", top.TextContent);
+        Assert.Contains("bottom to top", cut.Find("figure.stack svg").GetAttribute("aria-label"));
+        Assert.Contains("stack", cut.Find(".sequence-kind").TextContent);
+        Assert.Empty(cut.FindAll("figure.array"));
+    }
+
+    [Fact]
+    public void A_push_grows_in_at_the_top_and_the_cells_below_stay_put()
+    {
+        var cut = Sequence(Visual.Stack, "list", ["1", "2"], ["1", "2", "3"]);
+        var before = cut.FindAll("figure.stack g.cell").Select(c => (c.GetAttribute("data-id"), At(c).Y)).ToList();
+
+        cut.Find("button.next").Click();
+
+        var cells = cut.FindAll("figure.stack g.cell:not(.gone)");
+        Assert.Equal(["3"], cells.Where(c => c.ClassList.Contains("added")).Select(c => c.QuerySelector(".cell-text")!.TextContent));
+        Assert.Contains("animate-cell-in", cells[2].QuerySelector(".cell-body")!.ClassName);
+        Assert.Equal(before.Select(b => b.Item1), cells.Take(2).Select(c => c.GetAttribute("data-id")));
+        Assert.Equal("2", cut.Find("g.end-marker.top").GetAttribute("data-index"));
+        Assert.Empty(cut.FindAll("g.cell.gone"));
+    }
+
+    [Fact]
+    public void A_pop_leaves_the_top_as_a_ghost_for_one_step_and_says_so()
+    {
+        var cut = Sequence(Visual.Stack, "list", ["1", "2", "3"], ["1", "2"], ["1", "2"]);
+        var topY = At(cut.FindAll("figure.stack g.cell")[2]).Y;
+
+        cut.Find("button.next").Click();
+
+        var ghost = cut.Find("g.cell.gone");
+        Assert.Contains("at-back", ghost.ClassName);
+        Assert.Equal("3", ghost.QuerySelector(".cell-text")!.TextContent);
+        Assert.Equal("true", ghost.GetAttribute("aria-hidden"));
+        Assert.Contains("animate-cell-out", ghost.QuerySelector(".cell-body")!.ClassName);
+        Assert.Equal(topY, At(ghost).Y);   // it leaves from where the top was
+        Assert.Equal("3 popped off the top.", cut.Find(".gone-note").TextContent);
+        Assert.Equal(["1", "2"], Texts(cut, "figure.stack g.cell:not(.gone) .cell-text"));
+        Assert.Equal("1", cut.Find("g.end-marker.top").GetAttribute("data-index"));
+
+        cut.Find("button.next").Click();
+
+        Assert.Empty(cut.FindAll("g.cell.gone"));
+        Assert.Empty(cut.FindAll(".gone-note"));
+    }
+
+    [Fact]
+    public void An_empty_stack_says_so_and_has_no_top()
+    {
+        var cut = Sequence(Visual.Stack, "list", ["7"], []);
+
+        cut.Find("button.next").Click();
+
+        Assert.Contains("empty", cut.Find(".sequence-empty").TextContent);
+        Assert.Empty(cut.FindAll("g.end-marker"));
+        Assert.Contains("empty", cut.Find("figure.stack svg").GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public void A_tall_stack_scrolls_inside_its_own_box()
+    {
+        var cut = Sequence(Visual.Stack, "list", Enumerable.Range(0, 30).Select(n => n.ToString()).ToArray());
+
+        var box = cut.Find("figure.stack .sequence-scroll").ClassName;
+        Assert.Contains("overflow-y-auto", box);
+        Assert.Contains("max-h-", box);
+    }
+
+    [Fact]
+    public void A_queue_runs_front_to_back_with_both_ends_marked()
+    {
+        var cut = Sequence(Visual.Queue, "deque", ["1", "2", "3"]);
+
+        var cells = cut.FindAll("figure.queue g.cell");
+        Assert.True(At(cells[0]).X < At(cells[1]).X && At(cells[1]).X < At(cells[2]).X);
+        Assert.Equal("0", cut.Find("g.end-marker.front").GetAttribute("data-index"));
+        Assert.Equal("2", cut.Find("g.end-marker.back").GetAttribute("data-index"));
+        Assert.Contains("front to back", cut.Find("figure.queue svg").GetAttribute("aria-label"));
+        Assert.Contains("overflow-x-auto", cut.Find("figure.queue .sequence-scroll").ClassName);
+    }
+
+    [Fact]
+    public void A_queue_of_one_marks_it_as_both_front_and_back()
+    {
+        var cut = Sequence(Visual.Queue, "list", ["1"]);
+
+        Assert.Equal("front · back", cut.Find("g.end-marker.front").TextContent.Trim());
+        Assert.Empty(cut.FindAll("g.end-marker.back"));
+    }
+
+    [Fact]
+    public void A_dequeue_leaves_from_the_front_and_the_rest_slide_up_keeping_their_elements()
+    {
+        var cut = Sequence(Visual.Queue, "deque", ["1", "2", "3"], ["2", "3"]);
+        var two = cut.FindAll("figure.queue g.cell")[1];
+        var (id, x) = (two.GetAttribute("data-id"), At(two).X);
+        var front = At(cut.FindAll("figure.queue g.cell")[0]).X;
+
+        cut.Find("button.next").Click();
+
+        var ghost = cut.Find("g.cell.gone");
+        Assert.Contains("at-front", ghost.ClassName);
+        Assert.Equal(("1", front), (ghost.QuerySelector(".cell-text")!.TextContent, At(ghost).X));
+        var now = cut.Find($"figure.queue g.cell:not(.gone)[data-id='{id}']");
+        Assert.Equal("0", now.GetAttribute("data-index"));
+        Assert.True(At(now).X < x);   // it moved to the front by its transform, which is a transition
+        Assert.Contains("transition-transform", now.ClassName);
+        Assert.Equal("1 dequeued from the front.", cut.Find(".gone-note").TextContent);
+    }
+
+    [Fact]
+    public void An_enqueue_grows_in_at_the_back_and_appendleft_at_the_front()
+    {
+        var cut = Sequence(Visual.Queue, "deque", ["1"], ["1", "2"], ["0", "1", "2"]);
+
+        cut.Find("button.next").Click();
+        Assert.Equal(["2"], Texts(cut, "figure.queue g.cell.added .cell-text"));
+        Assert.Equal("1", cut.Find("g.end-marker.back").GetAttribute("data-index"));
+
+        cut.Find("button.next").Click();
+        var added = cut.Find("figure.queue g.cell.added");
+        Assert.Equal(("0", "0"), (added.QuerySelector(".cell-text")!.TextContent, added.GetAttribute("data-index")));
+    }
+
+    [Fact]
+    public void A_pop_off_the_back_of_a_deque_leaves_from_the_back()
+    {
+        var cut = Sequence(Visual.Queue, "deque", ["1", "2"], ["1"]);
+
+        cut.Find("button.next").Click();
+
+        Assert.Contains("at-back", cut.Find("g.cell.gone").ClassName);
+        Assert.Equal("2 taken from the back.", cut.Find(".gone-note").TextContent);
+    }
+
+    [Fact]
+    public void Pointers_sit_on_stack_and_queue_cells_by_index()
+    {
+        var run = RunOf(new TraceFrame("line", 1, "<module>", [new("i", "int", "1"), new("j", "int", "9")],
+            new Dictionary<string, TrackedArray> { ["s"] = new("list", ["a", "b"], 0), ["q"] = new("deque", ["c", "d"], 0) }));
+        var cut = Start(run, [new Visual("s", Visual.Stack, ["i", "j"]), new Visual("q", Visual.Queue, ["i"])], out _);
+
+        var stackPointer = cut.Find("figure.stack g.pointer[data-name='i']");
+        Assert.Equal("1", stackPointer.GetAttribute("data-index"));
+        Assert.Equal(At(cut.FindAll("figure.stack g.cell")[1]).Y + 18, At(stackPointer).Y);   // level with its cell
+        Assert.Equal("1", cut.Find("figure.queue g.pointer[data-name='i']").GetAttribute("data-index"));
+        Assert.Contains("j is not on a cell right now.", cut.Find("figure.stack .off-array").TextContent);
+    }
+
+    [Fact]
+    public void Long_named_pointers_on_one_stack_cell_stand_apart_inside_the_drawing()
+    {
+        var run = RunOf(new TraceFrame("line", 1, "<module>", [new("read_position", "int", "1"), new("write_position", "int", "1"), new("i", "int", "0")],
+            new Dictionary<string, TrackedArray> { ["s"] = new("list", ["a", "b"], 0) }));
+        var cut = Start(run, [new Visual("s", Visual.Stack, ["read_position", "write_position", "i"])], out _);
+
+        // A name is drawn 12 units right of its arrow, about .6 of its 15.2-unit size per character.
+        static double Right(AngleSharp.Dom.IElement pointer, string name) => At(pointer).X + 12 + name.Length * 15.2 * .6;
+        var read = cut.Find("g.pointer[data-name='read_position']");
+        var write = cut.Find("g.pointer[data-name='write_position']");
+        Assert.True(At(write).X >= Right(read, "read_position"), $"{At(write).X} overlaps the label ending at {Right(read, "read_position")}");
+        Assert.Equal(At(read).X, At(cut.Find("g.pointer[data-name='i']")).X);   // the first column, on another cell
+        var viewBox = cut.Find("figure.stack svg").GetAttribute("viewBox")!.Split(' ');
+        Assert.True(double.Parse(viewBox[2], CultureInfo.InvariantCulture) >= Right(write, "write_position"));   // the scroll box reaches the last name
+    }
+
+    [Fact]
+    public void Long_named_pointers_on_neighbouring_queue_cells_take_separate_rows_inside_the_drawing()
+    {
+        var run = RunOf(new TraceFrame("line", 1, "<module>", [new("i", "int", "0"), new("read_position", "int", "1"), new("j", "int", "2")],
+            new Dictionary<string, TrackedArray> { ["q"] = new("deque", ["a", "b", "c", "d"], 0) }));
+        var cut = Start(run, [new Visual("q", Visual.Queue, ["i", "read_position", "j"])], out _);
+
+        static string Row(IRenderedComponent<TracePlayer> cut, string name) => cut.Find($"g.pointer[data-name='{name}']").GetAttribute("data-row")!;
+        Assert.Equal("0", Row(cut, "i"));
+        Assert.Equal("1", Row(cut, "read_position"));   // its name is wider than its cell, so it would run into i's and j's
+        Assert.Equal("0", Row(cut, "j"));
+        var read = At(cut.Find("g.pointer[data-name='read_position']"));
+        Assert.True(At(cut.Find("g.pointer[data-name='j']")).Y < read.Y);
+
+        // The name, centred on its arrow, stays inside the drawing on both sides.
+        var viewBox = cut.Find("figure.queue svg").GetAttribute("viewBox")!.Split(' ').Select(v => double.Parse(v, CultureInfo.InvariantCulture)).ToArray();
+        var half = "read_position".Length * 15.2 * .6 / 2;
+        Assert.True(viewBox[0] <= read.X - half && read.X + half <= viewBox[0] + viewBox[2]);
+    }
+
+    [Fact]
+    public void A_sequence_is_sized_in_rem_with_its_text_on_the_same_scale()
+    {
+        foreach (var kind in new[] { Visual.Stack, Visual.Queue })
+        {
+            var cut = Sequence(kind, "list", ["1234567", "1"]);
+            var svg = cut.Find("figure.sequence svg");
+            var viewBox = svg.GetAttribute("viewBox")!.Split(' ').Select(v => double.Parse(v, CultureInfo.InvariantCulture)).ToArray();
+
+            // 16 user units to 1rem, both ways, so the boxes grow with the text.
+            Assert.Equal($"width: {(viewBox[2] / 16).ToString(CultureInfo.InvariantCulture)}rem; height: {(viewBox[3] / 16).ToString(CultureInfo.InvariantCulture)}rem", svg.GetAttribute("style"));
+            Assert.Null(svg.GetAttribute("width"));
+            Assert.All(svg.QuerySelectorAll("text"), text =>
+            {
+                Assert.DoesNotContain("rem", text.ClassName ?? "");
+                Assert.NotNull(text.GetAttribute("font-size"));
+            });
+
+            // The longest value a cell shows fits inside its 60-unit box.
+            var longest = svg.QuerySelectorAll(".cell-text").Single(t => t.TextContent == "1234567");
+            Assert.True(7 * .6 * double.Parse(longest.GetAttribute("font-size")!, CultureInfo.InvariantCulture) <= 56);
+        }
+    }
+
+    [Fact]
+    public void Sizes_are_written_the_same_whatever_the_culture()
+    {
+        var culture = CultureInfo.CurrentCulture;
+        CultureInfo.CurrentCulture = new CultureInfo("de-DE");
+        try
+        {
+            var cut = Sequence(Visual.Stack, "list", ["1234567"]);
+            Assert.DoesNotContain(",", cut.Find("figure.stack svg").GetAttribute("style"));
+            Assert.All(cut.FindAll("figure.stack svg text"), t => Assert.DoesNotContain(",", t.GetAttribute("font-size")));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = culture;
+        }
+    }
+
+    [Fact]
+    public void A_cut_off_queue_marks_its_back_at_the_count_of_the_rest()
+    {
+        var run = RunOf(Seq(1, "x", "deque", ["1", "2"], more: 5));
+        var cut = Start(run, [new Visual("x", Visual.Queue, [])], out _);
+
+        Assert.Contains("+5 more", cut.Find("figure.queue g.more").TextContent);
+        Assert.Equal(At(cut.Find("g.end-marker.back")).X, At(cut.FindAll("figure.queue g.cell")[0]).X + 2 * 64 + 30);   // the middle of the third place
     }
 
     // ---- Playback ----

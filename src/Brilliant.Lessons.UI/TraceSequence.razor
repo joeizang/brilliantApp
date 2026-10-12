@@ -1,0 +1,242 @@
+@* A stack or queue in the Trace Player. A stack stands bottom to top with a "top" marker; a queue runs left to right with "front"
+   and "back" markers. A cell keeps its place in the drawing for as long as it stays in, so when one leaves from the front the rest
+   slide up; one pushed or enqueued grows in at its end, and one popped or dequeued rises away from the end it left (for one step). *@
+@using Brilliant.Core.Python
+
+<figure class="sequence @View.Kind mx-0 my-4 rounded-md border border-hairline bg-surface-raised px-4 pt-2 pb-4" data-variable="@View.Variable" data-kind="@View.Kind">
+    <figcaption class="sequence-name mb-1 text-[.9rem] text-fg-secondary"><code>@View.Variable</code> <span class="sequence-kind ml-[.4rem] text-[.8rem]">@View.Kind</span></figcaption>
+    <div class="sequence-scroll @(IsStack ? "max-h-[28rem] overflow-y-auto" : "") overflow-x-auto">
+        @* The drawing is laid out in user units and sized in rem (16 units to 1rem), and its text is sized in the same units, so the boxes and
+           the words in them grow together with the app's text size and a recorded value always fits its cell. *@
+        <svg class="sequence-svg block max-w-none overflow-visible" role="img" aria-label="@Describe()" style="@Size" viewBox="@OriginX 0 @Width @Height">
+            @if (IsStack)
+            {
+                <line class="stack-floor stroke-border stroke-2" x1="@(CellX - 6)" x2="@(CellX + CellW + 2)" y1="@(SlotY(0) + StackH + 3)" y2="@(SlotY(0) + StackH + 3)" />
+            }
+            @if (Live == 0)
+            {
+                var (ex, ey) = Place(0);
+                <g class="sequence-empty" transform="translate(@ex @ey)">
+                    <rect class="fill-none stroke-border stroke-2 [stroke-dasharray:4_4]" width="@(CellW - 4)" height="@BoxH" rx="6" />
+                    <text class="fill-fg-secondary italic" font-size="@U(SmallText)" x="@(CellW / 2 - 2)" y="@(BoxH / 2)" text-anchor="middle" dominant-baseline="central">empty</text>
+                </g>
+            }
+            @for (var i = 0; i < Live; i++)
+            {
+                var cell = View.Cells[i];
+                var index = i;
+                var (x, y) = Place(index);
+                <g class="@CellClass(cell) transition-transform duration-450 ease-app" data-index="@index" data-id="@cell.Id" style="@At(x, y)" @key="CellKey(cell)">
+                    <title>@cell.Text</title>
+                    @* A stack's index sits to the right of its cell, a queue's above. *@
+                    <text class="cell-index fill-fg-secondary font-mono" font-size="@U(SmallText)" x="@(IsStack ? CellW + 4 : CellW / 2)" y="@(IsStack ? BoxH / 2 : -6)"
+                          text-anchor="@(IsStack ? "start" : "middle")" dominant-baseline="@(IsStack ? "central" : "auto")">@index</text>
+                    <g class="cell-body origin-center [transform-box:fill-box] @(cell.Added ? "animate-cell-in" : "")">
+                        <rect class="cell-box fill-surface stroke-border stroke-2 @(cell.Changed ? "animate-cell-flash" : "")" width="@(CellW - 4)" height="@BoxH" rx="6" />
+                        <text class="cell-text fill-fg font-mono" font-size="@U(CellText(cell.Text))" x="@(CellW / 2 - 2)" y="@(BoxH / 2)" text-anchor="middle" dominant-baseline="central">@Clip(cell.Text)</text>
+                    </g>
+                </g>
+            }
+            @foreach (var gone in View.Gone)
+            {
+                var (x, y) = Place(gone.AtFront ? 0 : Live + View.Gone.Where(g => !g.AtFront).TakeWhile(g => g != gone).Count());
+                <g class="cell gone @(gone.AtFront ? "at-front" : "at-back")" aria-hidden="true" style="@At(x, y)" @key="@($"gone-{gone.Id}")">
+                    <g class="cell-body animate-cell-out">
+                        <rect class="cell-box fill-surface stroke-border stroke-2 [stroke-dasharray:4_3]" width="@(CellW - 4)" height="@BoxH" rx="6" />
+                        <text class="cell-text fill-fg-secondary font-mono" font-size="@U(CellText(gone.Text))" x="@(CellW / 2 - 2)" y="@(BoxH / 2)" text-anchor="middle" dominant-baseline="central">@Clip(gone.Text)</text>
+                    </g>
+                </g>
+            }
+            @if (View.More > 0)
+            {
+                var (mx, my) = Place(Slots - 1);
+                <g class="cell more" transform="translate(@mx @my)" @key="@("more")">
+                    <text class="more-text fill-fg-secondary font-mono" font-size="@U(SmallText)" x="@(CellW / 2 - 2)" y="@(BoxH / 2)" text-anchor="middle" dominant-baseline="central">+@View.More more</text>
+                </g>
+            }
+
+            @* The end markers: they slide with the end they mark. *@
+            @if (Live > 0)
+            {
+                if (IsStack)
+                {
+                    <g class="end-marker top transition-transform duration-450 ease-app" data-index="@(Live - 1)" style="@At(Pad, SlotY(BackSlot) + BoxH / 2)" @key="@("top")">
+                        <text class="fill-accent font-mono font-semibold" font-size="@U(MarkText)" x="@(MarkW - 18)" text-anchor="end" dominant-baseline="central">top</text>
+                        <path class="fill-accent" d="@($"M{MarkW - 14} -5 L{MarkW - 6} 0 L{MarkW - 14} 5 Z")" />
+                    </g>
+                }
+                else
+                {
+                    var both = BackSlot == 0;
+                    <g class="end-marker front transition-transform duration-450 ease-app" data-index="0" style="@At(SlotX(0) + CellW / 2 - 2, CellTop + BoxH + MarkGap)" @key="@("front")">
+                        <text class="fill-accent font-semibold" font-size="@U(SmallText)" text-anchor="middle" dominant-baseline="hanging">@(both ? "front · back" : "front")</text>
+                    </g>
+                    @if (!both)
+                    {
+                        <g class="end-marker back transition-transform duration-450 ease-app" data-index="@(Live - 1)" style="@At(SlotX(BackSlot) + CellW / 2 - 2, CellTop + BoxH + MarkGap)" @key="@("back")">
+                            <text class="fill-accent font-semibold" font-size="@U(SmallText)" text-anchor="middle" dominant-baseline="hanging">back</text>
+                        </g>
+                    }
+                }
+            }
+
+            @foreach (var pointer in OnCells)
+            {
+                var row = Row(pointer);
+                <g class="@(pointer.Moved ? "pointer moved" : "pointer") transition-transform duration-450 ease-app" data-name="@pointer.Name" data-index="@pointer.Index" data-row="@row"
+                   style="@PointerAt(pointer.Index!.Value, row)" @key="@((View.Variable, pointer.Name))">
+                    @* A stack's pointers point left at their cell from the side, a queue's up from below. *@
+                    <path class="pointer-arrow fill-accent" d="@(IsStack ? "M0 0 L8 -6 L8 6 Z" : "M0 0 L-6 8 L6 8 Z")" />
+                    <text class="pointer-label fill-accent font-mono font-semibold" font-size="@U(PointerText)" x="@(IsStack ? PointerArrowW : 0)" y="@(IsStack ? 0 : 22)"
+                          text-anchor="@(IsStack ? "start" : "middle")" dominant-baseline="@(IsStack ? "central" : "auto")">@pointer.Name</text>
+                </g>
+            }
+        </svg>
+    </div>
+    @if (View.Gone.Count > 0)
+    {
+        <p class="gone-note mt-2 mb-0 text-[.9rem] text-fg-secondary">@GoneNote()</p>
+    }
+    @if (OffCells.Count > 0)
+    {
+        <p class="off-array mt-2 mb-0 text-[.9rem] text-fg-secondary">
+            @string.Join(", ", OffCells.Select(p => p.Name)) @(OffCells.Count == 1 ? "is" : "are") not on a cell right now.
+        </p>
+    }
+</figure>
+
+@code {
+    [Parameter, EditorRequired] public ArrayView View { get; set; } = default!;
+
+    /// <summary>The player's step number. A changed cell is keyed by it, so it is a fresh element and replays its flash.</summary>
+    [Parameter, EditorRequired] public int Step { get; set; }
+
+    // A stack's cells are a little shorter than an array's, so a tall one still fits on a phone.
+    private const int CellW = 64, CellH = 48, StackH = 40, Pad = 16, CellTop = 22, MarkW = 56, MarkGap = 6, MarkH = 18, PointerGap = 4, RowH = 28;
+    private const int IndexW = 28, StackTop = 30;
+
+    // Text sizes in user units (16 is 1rem). A monospace character is about .6 of its size wide.
+    private const double SmallText = 12.8, MarkText = 13.6, PointerText = 15.2, CellTextMax = 16, MonoW = .6;
+
+    // A stack's pointer is an arrow, a gap, then its name; the names of pointers on one cell stand side by side, so each column is as
+    // wide as the longest name in it.
+    private const int PointerArrowW = 12, PointerColGap = 10;
+
+    private bool IsStack => View.Kind == Visual.Stack;
+    private int Live => View.Cells.Count;
+    private int BackGhosts => View.Gone.Count(g => !g.AtFront);
+    private int BoxH => IsStack ? StackH - 4 : CellH;
+
+    /// <summary>The places drawn: the cells, the ghosts that left from the back, and "+N more" (an empty one shows a dashed slot).</summary>
+    private int Slots => Math.Max(1, Live + BackGhosts + (View.More > 0 ? 1 : 0));
+
+    /// <summary>Where the top (or back) marker goes: the last cell, or "+N more" when the real end is past the recorded cells.</summary>
+    private int BackSlot => View.More > 0 ? Slots - 1 : Live - 1;
+
+    private List<PointerView> OnCells => View.Pointers.Where(p => p.Index is not null).ToList();
+    private List<PointerView> OffCells => View.Pointers.Where(p => p.Index is null).ToList();
+    private int PointerRows => OnCells.Count == 0 ? 0 : OnCells.Max(Row) + 1;
+
+    /// <summary>
+    /// The pointer's place: a stack's column beside its cell (among the pointers on that cell), a queue's row below the cells. A queue's
+    /// name is centred under its cell and can be wider than it, so each pointer takes the first row where its name clears the others'.
+    /// </summary>
+    private int Row(PointerView pointer) => IsStack
+        ? OnCells.TakeWhile(p => p != pointer).Count(p => p.Index == pointer.Index)
+        : QueueRows[pointer];
+
+    private Dictionary<PointerView, int>? _queueRows;
+    private Dictionary<PointerView, int> QueueRows => _queueRows ??= PlaceQueuePointers();
+
+    protected override void OnParametersSet() => _queueRows = null;
+
+    private Dictionary<PointerView, int> PlaceQueuePointers()
+    {
+        var rows = new Dictionary<PointerView, int>();
+        var taken = new List<List<(double Left, double Right)>>();
+        foreach (var pointer in OnCells)
+        {
+            var span = QueueLabel(pointer);
+            var row = taken.FindIndex(r => r.All(t => span.Right + PointerColGap <= t.Left || t.Right + PointerColGap <= span.Left));
+            if (row < 0) { row = taken.Count; taken.Add([]); }
+            taken[row].Add(span);
+            rows[pointer] = row;
+        }
+        return rows;
+    }
+
+    /// <summary>Where a queue pointer's name reaches, left and right, centred under its cell.</summary>
+    private (double Left, double Right) QueueLabel(PointerView pointer)
+    {
+        var centre = SlotX(pointer.Index!.Value) + CellW / 2 - 2;
+        var half = Math.Max(PointerArrowW, LabelW(pointer.Name)) / 2.0;
+        return (centre - half, centre + half);
+    }
+
+    private static int LabelW(string name) => (int)Math.Ceiling(name.Length * PointerText * MonoW);
+
+    /// <summary>How wide each of a stack's pointer columns is.</summary>
+    private int[] PointerCols => Enumerable.Range(0, PointerRows)
+        .Select(r => PointerArrowW + OnCells.Where(p => Row(p) == r).Max(p => LabelW(p.Name)) + PointerColGap)
+        .ToArray();
+
+    private int CellX => IsStack ? Pad + MarkW : Pad;
+    private int SlotX(int slot) => Pad + slot * CellW;
+    private int SlotY(int slot) => StackTop + (Slots - 1 - slot) * StackH;
+
+    // Where a slot's cell goes: a stack's slot 0 is at the bottom, a queue's on the left.
+    private (int X, int Y) Place(int slot) => IsStack ? (CellX, SlotY(slot)) : (SlotX(slot), CellTop);
+
+    private int Width => IsStack
+        ? CellX + CellW + IndexW + PointerCols.Sum() + Pad
+        : Math.Max(2 * Pad + Slots * CellW, OnCells.Count == 0 ? 0 : (int)Math.Ceiling(OnCells.Max(p => QueueLabel(p).Right)) + Pad) - OriginX;
+
+    /// <summary>Where the drawing starts: left of 0 when a queue's first pointer has a name wider than its cell.</summary>
+    private int OriginX => IsStack || OnCells.Count == 0 ? 0 : Math.Min(0, (int)Math.Floor(OnCells.Min(p => QueueLabel(p).Left)) - Pad / 2);
+
+    private int Height => IsStack
+        ? StackTop + Slots * StackH + Pad
+        : CellTop + CellH + MarkGap + MarkH + (PointerRows == 0 ? Pad / 2 : PointerGap + PointerRows * RowH + Pad / 2);
+
+    private string Size => $"width: {U(Width / 16.0)}rem; height: {U(Height / 16.0)}rem";
+
+    // Numbers written into the drawing in invariant form: "12.8", never a culture's "12,8".
+    private static string U(double value) => value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    // A cell is placed with CSS (not the transform attribute) so that sliding it to a new place can be a transition.
+    private static string At(int x, int y) => $"transform: translate({x}px, {y}px)";
+
+    private string PointerAt(int index, int row) => IsStack
+        ? At(CellX + CellW + IndexW + PointerCols.Take(row).Sum(), SlotY(index) + BoxH / 2)
+        : At(SlotX(index) + CellW / 2 - 2, CellTop + CellH + MarkGap + MarkH + PointerGap + row * RowH);
+
+    private static string CellClass(CellView cell) => "cell" + (cell.Changed ? " changed" : "") + (cell.Added ? " added" : "");
+
+    // A changed cell is a new element so its flash plays again; any other keeps its element (by id), so moving it slides.
+    private string CellKey(CellView cell) => cell.Changed ? $"{cell.Id}@{Step}" : cell.Id.ToString();
+
+    private static string Clip(string text) => text.Length <= 7 ? text : text[..6] + "…";
+
+    // A long value is set a little smaller so that all of its (at most 7) characters fit inside the box.
+    private static double CellText(string text) => Math.Min(CellTextMax, Math.Round((CellW - 12) / (Clip(text).Length * MonoW), 1));
+
+    private string GoneNote()
+    {
+        string Join(bool atFront) => string.Join(", ", View.Gone.Where(g => g.AtFront == atFront).Select(g => g.Text));
+        var notes = new List<string>();
+        if (View.Gone.Any(g => g.AtFront))
+            notes.Add(IsStack ? $"{Join(true)} taken from the bottom." : $"{Join(true)} dequeued from the front.");
+        if (View.Gone.Any(g => !g.AtFront))
+            notes.Add(IsStack ? $"{Join(false)} popped off the top." : $"{Join(false)} taken from the back.");
+        return string.Join(" ", notes);
+    }
+
+    private string Describe()
+    {
+        var cells = Live == 0 && View.More == 0 ? "empty"
+            : string.Join(", ", View.Cells.Select(c => c.Text)) + (View.More > 0 ? $" and {View.More} more" : "")
+              + (IsStack ? " (bottom to top)" : " (front to back)");
+        var pointers = View.Pointers.Select(p => p.Index is { } i ? $"{p.Name} at index {i}" : $"{p.Name} not on a cell");
+        return $"{View.Variable}, a {View.Kind}: {cells}" + (View.Pointers.Count > 0 ? "; " + string.Join(", ", pointers) : "");
+    }
+}

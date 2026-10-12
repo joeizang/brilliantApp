@@ -33,7 +33,7 @@ offline and takes a few milliseconds once Pyodide has started). `content validat
         total += nums[i]
         i += 1
   visualise:
-    - variable: nums        # a list or tuple, drawn as cells
+    - variable: nums        # a list, tuple or deque, drawn as cells
       as: array
       pointers: [i]         # int variables drawn as labelled markers on the cell they index
     - variable: counts      # a dict (or dict subclass), drawn as key/value rows
@@ -43,7 +43,7 @@ offline and takes a few milliseconds once Pyodide has started). `content validat
       as: set
 ```
 
-`as` is `array`, `dict` or `set`. A pointer on a dict or set is any variable, of any type, whose value is a key: the row with that key
+`as` is `array`, `stack`, `queue`, `dict` or `set`. A pointer on a dict or set is any variable, of any type, whose value is a key: the row with that key
 is marked with the pointer's name, and when no row has that key the player says *Looking up `word` finds no such key.*
 
 `body` and `code` are required, and there must be at least one visual. A trace step takes no `hints` and can't be a review item.
@@ -52,15 +52,52 @@ The validator rejects, with the file and step in the message:
 - an unknown `as`, a missing `variable`, a name that isn't a Python identifier, the same variable drawn twice, or a pointer listed twice;
 - code that raises (the message has the line and the traceback) or runs past the recorder's limit;
 - code with no executable line (empty or comment-only code), which would give the learner nothing to step through;
-- a `variable` that is never the kind of value its `as` draws (a list or tuple, a dict, a set) in the trace, a pointer on an array that is
-  never an `int`, and a pointer on a dict or set that is never a variable at all. Each would draw nothing.
+- a `variable` that is never the kind of value its `as` draws in the trace (an array: a list, tuple or deque; a stack or queue: a list or
+  deque; a dict; a set), a pointer on an array, stack or queue that is never an `int`, and a pointer on a dict or set that is never a
+  variable at all. Each would draw nothing.
+
+### Stacks and queues
+
+```yaml
+- id: step.stacks.brackets
+  type: trace
+  title: Matching brackets
+  body: |
+    Each opener is pushed; each closer pops the opener it must match.
+  code: |
+    from collections import deque
+    stack = []
+    todo = deque()
+    for ch in "([])":
+        if ch in "([":
+            stack.append(ch)
+            todo.append(ch)
+        else:
+            stack.pop()
+            todo.popleft()
+    top = len(stack) - 1
+  visualise:
+    - variable: stack       # a list or a deque, drawn bottom (index 0) to top
+      as: stack
+      pointers: [top]       # int variables, on the cell they index, as on an array
+    - variable: todo        # a list or a deque, drawn front (index 0) to back
+      as: queue
+```
+
+- `as: stack` stands the cells **bottom to top** (index 0 at the bottom) with a *top* marker on the last one. A push grows in at the top;
+  a pop rises away from it, and the player says *'(' popped off the top.* under it for that step.
+- `as: queue` runs the cells **left to right**, front (index 0) to back, with *front* and *back* markers (*front · back* for one cell).
+  `append` grows in at the back and `appendleft` at the front; `popleft` (or `pop(0)` on a list) leaves from the front, and the cells
+  behind it slide up; `pop` on a deque leaves from the back. The note under it says which (*1 dequeued from the front.*).
+- Both take a `list` or a `collections.deque`; an `array` takes a deque too. A stack's or queue's `pointers` are int variables, exactly as
+  an array's. They are the only option: like every key of a step, an unknown one (say `top: right`) is rejected.
 
 ## The recorder (`wwwroot/python/tracer.py`)
 
 `trace_code(code, watch_json)` runs the code with `sys.settrace` and returns JSON. It is plain stdlib Python so the CLI runs the same file
 under CPython. Each frame is the state *just before* a line runs (`event: "line"`), or the state the module finished in (`event: "return"`,
-no line). A frame holds the function name, the locals (name, type, clipped repr) and, per watched variable, either `tracked` (a list or
-tuple: the first cells' reprs) or `tables` (a dict or set: `kind`, the Python `type` name, the first rows as `{id, key, value}` and `hits`).
+no line). A frame holds the function name, the locals (name, type, clipped repr) and, per watched variable, either `tracked` (a list, tuple
+or `collections.deque`: `type` and the first cells' reprs, front to back; a deque can't be sliced, so they are taken with `islice`) or `tables` (a dict or set: `kind`, the Python `type` name, the first rows as `{id, key, value}` and `hits`).
 A dict keeps its insertion order. A set has none, so its members are sorted (by value, falling back to sorted by repr for mixed types) to
 keep them from jumping about between steps.
 
@@ -84,7 +121,19 @@ one before it, and only when both ran in the same function**; entering or leavin
 being "new" isn't a change the learner caused.
 
 - `LocalView.Changed`: the name is new or its repr differs.
-- `CellView.Changed`: the cell is new or its text differs.
+- `CellView.Changed`: the cell is new or its text differs. (On a stack or queue, see below.)
+- **Stacks and queues** (`ArrayView.Kind` is `stack` or `queue`): comparing by index would say every cell of a queue changed after a
+  `popleft`, so the model lines the two steps' cells up instead. It finds the longest run of cells the two share; what is before that run
+  left or came in at the front, what is after it at the back. When runs tie (repeated values: `[1, 1] → [1]`), it takes the one where the
+  change happens where that kind of sequence changes: a stack at the top, a queue in at the back and out at the front. A cell that left and
+  one that came in at the same place pair up as a change in place (`s[-1] = x` flashes, it is not a pop and a push).
+  - `CellView.Id` stays the same for as long as the cell stays in, so the player keys the cell by it and slides it to its new place.
+    A cell that came in gets an id no cell of the step before had. (An array cell's id is its index.)
+  - `CellView.Added`: the cell came in at one end since the step before (a push, `append`, `appendleft`).
+  - `ArrayView.Gone`: the cells that left since the step before, each with its id, text and `AtFront`. They are ghosts for that one step.
+  - When the sequence is cut off (*+N more*), the cells past the cut slide into view as the front leaves: that is not an enqueue, so
+    nothing at the back is marked added or gone.
+  - A stack or queue is drawn only while the variable is a `list` or `deque` (a tuple named as `stack` draws nothing).
 - `RowView.Id`: what a row is keyed by (and what the Razor `@key` uses), taken from the recorder's `id`, never from the clipped label. In a
   trace recorded before ids existed it falls back to the label.
 - `RowView.Change` (dicts and sets): `Added` when the id is new, `Updated` when its value differs (dicts only), `Removed` for a key the
@@ -94,23 +143,32 @@ being "new" isn't a change the learner caused.
   exist but hit nothing at all (a hit on a row cut off by the 20-row limit is neither a lookup nor a miss, since the key may well be there).
   The model never compares reprs; a trace without `hits` marks no lookups and reports no misses.
 - A table is drawn only when the recorded value really is the kind the visual asks for (a list named as `dict` draws nothing).
-- `PointerView.Index`: the cell the pointer's variable indexes. Null when the variable is missing, isn't an `int`, or is outside the
+- `PointerView.Index`: the cell the pointer's variable indexes (on an array, stack or queue alike). Null when the variable is missing, isn't an `int`, or is outside the
   recorded cells (negative, or past the end). `Moved` is true when the index differs from the previous state's.
 
 ## The player
 
 - `TracePlayer.razor`: a read-only `CodeEditor` (new `ReadOnly` parameter) with the current line highlighted through the existing
-  `HighlightLineAsync`; Previous, Play/Pause and Next; *Step n of m*; the speed buttons; one SVG per watched list; one `TraceTable` per
+  `HighlightLineAsync`; Previous, Play/Pause and Next; *Step n of m*; the speed buttons; one `TraceSequence` per watched stack or queue; one SVG per watched array; one `TraceTable` per
   watched dict or set (after the lists, whatever order the lesson names them in); a *Variables* table; and, on the last step only,
   what the run printed, the error that ended it, or a note that it was cut short (`TraceEnding.razor`).
 - **Animation is CSS.** A pointer is a `<g>` positioned with `style="transform: translate(…)"` and keyed by variable and name, so Blazor
   patches the same element and the browser transitions it from the old cell to the new one. A changed cell is keyed by step too, so it is
   a fresh element that replays its flash on every step it changes in. Changed rows of the variables table do the same, and so do the
   added, updated and removed rows of a `TraceTable` (added rows grow in, updated rows flash, removed rows are struck through).
+  A stack's or queue's cell is a `<g>` keyed by its `Id` and placed with a CSS transform, so when the front leaves the rest slide up; an
+  added cell grows in (`animate-cell-in`, scaling its body from its own centre), and a gone cell is a dashed ghost that rises and fades
+  away from the end it left (`animate-cell-out`). The *top*, *front* and *back* markers are positioned the same way, so they slide too.
   `prefers-reduced-motion` turns all of it off (theme.css).
 - Pointers sharing a cell are stacked on rows below it so every label stays readable. A pointer that isn't on a cell isn't drawn; the
   player says *i is not on a cell right now* under the list instead.
-- Colours are the theme tokens, so it follows light/dark. Everything is in `rem`, and a long list scrolls sideways inside its own box.
+- Colours are the theme tokens, so it follows light/dark. Everything is in `rem`, and a long list or queue scrolls sideways inside its
+  own box; a tall stack scrolls up and down inside its own (at most 28rem high), with its top in view first. A stack's pointers sit to
+  the right of its cells, pointing at them.
+- A stack or queue is laid out in SVG user units and sized in rem (16 units to 1rem), with its text in the same units, so cells and the
+  values in them grow together with the app's text size (a seven-character value is set a little smaller to fit its cell). A stack's
+  pointer names on one cell stand in columns as wide as the longest name in them; a queue's names take the first row below the cells
+  where they clear their neighbours'. Either way the drawing (and its scroll box) reaches the last name.
 - A trace step is finished with *Continue* (or Return), like an explanation: it records `StepCompleted`, nothing else.
 
 ### Playback
@@ -151,8 +209,8 @@ by the last rung of the hint ladder, see [hints.md](hints.md).
 ## Not in this slice
 
 Per-variable speed or scrubbing, drawing nested structures (a list of lists, a dict of lists), and reading a trace aloud.
-`Visual.As` is a string and the model builds one `ArrayView` per `array` visual and one `TableView` per `dict` or `set` visual, so another kind
-slots in beside them.
+`Visual.As` is a string and the model builds one `ArrayView` per `array`, `stack` or `queue` visual and one `TableView` per `dict` or `set`
+visual, so another kind slots in beside them.
 
 ## Tests
 
@@ -160,7 +218,8 @@ slots in beside them.
 `tests/js/python-runtime.test.mjs` (bridge), `tests/Brilliant.Cli.Tests/TraceStepValidatorTests.cs` (YAML rules and the CPython check),
 `tests/Brilliant.Lessons.UI.Tests/TracePlayerTests.cs`, `TraceStepViewTests.cs` and `WalkthroughRungTests.cs` (rendering, stepping, playback on a manual clock, shortcuts,
 line highlight, lesson wiring), `tests/js/shortcuts.test.mjs` (key classification) and `ShortcutTests.cs` (the page listener's mapping).
-bUnit can't observe a CSS transition or element reuse, so the sliding, flashing and the ghost row's fade are checked by looking at the running app.
+bUnit can't observe a CSS transition or element reuse, so the sliding, flashing, the ghost row's fade and the stack and queue cells
+growing in and rising away are checked by looking at the running app.
 
 Known limit: the recorder keeps only the first 20 rows, so a pointer on a later row is shown as nothing (neither marked nor a miss) beside
 *+N more*.

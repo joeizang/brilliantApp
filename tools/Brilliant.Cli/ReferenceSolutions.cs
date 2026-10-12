@@ -196,14 +196,16 @@ internal static class ReferenceSolutionChecker
                 {
                     Visual.Dict => $"variable '{visual.Variable}' is never a dict in the trace, so there is nothing to draw.",
                     Visual.Set => $"variable '{visual.Variable}' is never a set in the trace, so there is nothing to draw.",
-                    _ => $"variable '{visual.Variable}' is never a list or tuple in the trace, so there is nothing to draw.",
+                    Visual.Stack or Visual.Queue =>
+                        $"variable '{visual.Variable}' is never a list or deque in the trace, so there is no {visual.As} to draw.",
+                    _ => $"variable '{visual.Variable}' is never a list, tuple or deque in the trace, so there is nothing to draw.",
                 };
                 continue;
             }
             foreach (var pointer in visual.Pointers)
             {
-                // An array's pointers index cells, so they must be ints; a dict's or set's hold a key, which can be anything.
-                var isArray = visual.As == Visual.Array;
+                // A sequence's pointers index cells, so they must be ints; a dict's or set's hold a key, which can be anything.
+                var isArray = Visual.Sequences.Contains(visual.As);
                 if (!result.Frames.Any(f => f.Locals.Any(l => l.Name == pointer && (!isArray || l.Type == "int"))))
                     yield return isArray
                         ? $"pointer '{pointer}' (of '{visual.Variable}') is never an int variable in the trace."
@@ -212,8 +214,8 @@ internal static class ReferenceSolutionChecker
         }
     }
 
-    private static bool Draws(TraceFrame frame, Visual visual) => visual.As == Visual.Array
-        ? frame.Tracked.ContainsKey(visual.Variable)
+    private static bool Draws(TraceFrame frame, Visual visual) => Visual.Sequences.Contains(visual.As)
+        ? frame.Tracked.TryGetValue(visual.Variable, out var tracked) && visual.Draws(tracked.Type)
         : frame.Tables is not null && frame.Tables.TryGetValue(visual.Variable, out var table) && table.Kind == visual.As;
 
     /// <summary>Runs every reference solution against its step's tests and reports each failure with lesson, step, test, expected and actual. False when Python was not available.</summary>

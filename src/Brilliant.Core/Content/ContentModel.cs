@@ -204,18 +204,38 @@ public sealed record PackManifest(string PackId, string Version, int FormatVersi
 
 /// <summary>
 /// Which variable of a <see cref="TraceStep"/>'s code to draw and how. <see cref="As"/> is the drawing:
-/// <see cref="Array"/> (a list or tuple shown as cells), <see cref="Dict"/> (key/value rows) or <see cref="Set"/> (members).
-/// <see cref="Pointers"/> name variables drawn as labelled markers: for an array, int variables, on the cell they index;
-/// for a dict or set, variables holding a key, on the row with that key (a lookup).
+/// <see cref="Array"/> (a list, tuple or deque shown as cells), <see cref="Stack"/> (a list or deque, bottom to top),
+/// <see cref="Queue"/> (a list or deque, front to back), <see cref="Dict"/> (key/value rows) or <see cref="Set"/> (members).
+/// <see cref="Pointers"/> name variables drawn as labelled markers: for an array, stack or queue, int variables, on the cell they
+/// index; for a dict or set, variables holding a key, on the row with that key (a lookup).
 /// </summary>
 public sealed record Visual(string Variable, string As, IReadOnlyList<string> Pointers)
 {
     public const string Array = "array";
+    public const string Stack = "stack";
+    public const string Queue = "queue";
     public const string Dict = "dict";
     public const string Set = "set";
 
     /// <summary>Every drawing the player knows, in the order the docs list them.</summary>
-    public static readonly IReadOnlyList<string> Kinds = [Array, Dict, Set];
+    public static readonly IReadOnlyList<string> Kinds = [Array, Stack, Queue, Dict, Set];
+
+    /// <summary>The drawings of a sequence as cells, whose pointers are indexes.</summary>
+    public static readonly IReadOnlyList<string> Sequences = [Array, Stack, Queue];
+
+    /// <summary>
+    /// The Python types a sequence drawing shows, as the recorder names them: an array anything it records as cells, a stack or a
+    /// queue a list or a <c>collections.deque</c>. Empty for a dict or set.
+    /// </summary>
+    public static IReadOnlyList<string> SequenceTypes(string kind) => kind switch
+    {
+        Array => ["list", "tuple", "deque"],
+        Stack or Queue => ["list", "deque"],
+        _ => [],
+    };
+
+    /// <summary>Whether this drawing shows a value the recorder tracked as cells of <paramref name="type"/>.</summary>
+    public bool Draws(string type) => As == Array || SequenceTypes(As).Contains(type);
 }
 
 /// <summary>

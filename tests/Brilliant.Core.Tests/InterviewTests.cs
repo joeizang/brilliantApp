@@ -165,7 +165,9 @@ public class InterviewTests
         var run = Start(InterviewPreset.PhoneScreen);
         var (one, two) = (run.Problems[0], run.Problems[1]);
 
+        _clock.Now = T0.AddMinutes(1);
         Recorder.PracticePicked(one.LessonId, one.StepId, one.Choices[0], false, TimeSpan.FromSeconds(30), PracticeMode.Interview, run.Id);
+        _clock.Now = T0.AddMinutes(2);   // later: at the same moment, which came first is down to the events' random ids
         Recorder.PracticePicked(one.LessonId, one.StepId, one.Choices[1], true, TimeSpan.FromSeconds(40), PracticeMode.Interview, run.Id);
         Recorder.PracticePicked(two.LessonId, two.StepId, two.Choices[0], false, TimeSpan.FromSeconds(30), PracticeMode.Practice, run.Id);
         run = InterviewRuns.Get(_log.Items, run.Id)!;

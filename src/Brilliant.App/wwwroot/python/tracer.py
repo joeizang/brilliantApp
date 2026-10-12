@@ -16,8 +16,8 @@ trace_code(code, watch_json, max_frames=MAX_FRAMES) -> JSON string:
 A "line" frame is the state just before that line runs. The last frame is the module's "return": the final
 state, with no line. "error" means the code raised (frames up to the error are kept) or never compiled;
 "truncated" means it ran past max_frames and was stopped. `watch_json` is the list of variable names to record,
-e.g. ["nums", "counts"]; a name is looked up in the current frame's locals, then in the globals. A list or tuple is
-recorded in "tracked" (cells); a dict (or subclass) or a set/frozenset in "tables" (rows: a set's rows have no
+e.g. ["nums", "counts"]; a name is looked up in the current frame's locals, then in the globals. A list, tuple or
+collections.deque is recorded in "tracked" (cells, front to back; its "type" says which); a dict (or subclass) or a set/frozenset in "tables" (rows: a set's rows have no
 "value"). A name that is none of those is left out until it is. A set's rows are sorted, so its order doesn't jump
 around as members are added; a dict's are in insertion order.
 
@@ -26,6 +26,7 @@ rows apart, and the same key has the same id at every step of the run. "hits" sa
 a key (or member) of the table, by Python's own equality: `1.0` finds the key `1`, `True` too, whatever their reprs say.
 A hit's id is the id of the row it found, which is not among the rows when that row was cut off by MAX_ROWS.
 """
+import collections
 import contextlib
 import io
 import itertools
@@ -110,10 +111,11 @@ def _watched(frame, watch):
 def _tracked(frame, watch):
     found = {}
     for name, value in _watched(frame, watch):
-        if isinstance(value, (list, tuple)):
+        if isinstance(value, (list, tuple, collections.deque)):
             found[name] = {
                 "type": type(value).__name__,
-                "cells": [_repr(cell, MAX_CELL_REPR) for cell in value[:MAX_CELLS]],
+                # A deque can't be sliced, so the cells are taken by iterating, which works for all three.
+                "cells": [_repr(cell, MAX_CELL_REPR) for cell in itertools.islice(value, MAX_CELLS)],
                 "more": max(0, len(value) - MAX_CELLS),
             }
     return found
