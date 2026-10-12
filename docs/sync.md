@@ -86,7 +86,7 @@ Screens showing progress (Today, Review, and so on) redraw when events arrive fr
 ## Known limitations
 
 - **Clock skew.** Order is by the device's own clock. Where the *latest* event wins (the daily goal, for instance), a device whose clock is wrong can win or lose unfairly. Counting and de-duplication are unaffected.
-- **A server restored from an older backup.** Device cursors would then sit ahead of the server's log and they'd skip new events. Pairing again resets a device's cursors (`SyncState.For`); a gentler recovery belongs with backups ([#32](https://github.com/joeizang/brilliantApp/issues/32)).
+- **A server restored from an older backup.** Device cursors would then sit ahead of the server's log and they'd skip new events. Pairing again resets a device's cursors and makes it send its whole log and every draft again (`SyncState.For`), which is how the progress made since the backup comes back; [backup.md](backup.md#then-re-pair-the-devices) has the steps.
 - **One learner per household.** Events are not tagged with a learner, so everyone sharing a server shares progress.
 - **Plain HTTP** on the LAN, as described in [server.md](server.md#plain-http-on-the-home-network).
 - **Draft clock skew.** The same applies, more sharply, to drafts: a device whose clock runs ahead keeps winning until the others catch up past its time (their own next edit does, by the one-tick rule above). A far-future clock can therefore hold a step's draft until it is edited again on another device.
