@@ -8,6 +8,9 @@ run_tests(code, entrypoint, tests_json) -> JSON string:
      "stdout": str, "message": str | null, "traceback": str | null, "errorLine": int | null,
      "tests": [{"call", "expected", "actual", "passed", "stdout", "traceback", "errorLine"}]}
 
+Each test is {"input", "expected", "compare"}. With "compare": "linked_list" the function returns the head of a linked list:
+the chain is read into a list of each node's .val (None is []) and that list is compared with, and shown next to, "expected".
+
 "error" means the code never reached the tests (syntax error, exception while loading, missing function).
 """
 import contextlib
@@ -21,6 +24,7 @@ import types
 LEARNER_FILE = "<your code>"
 MAX_OUTPUT = 4000      # characters of stdout / repr kept, so a print loop can't flood the UI
 MAX_FRAMES = 10        # learner frames kept in a traceback (deep recursion would otherwise print hundreds)
+MAX_NODES = 10000      # nodes read from a returned linked list before it is taken to loop back on itself
 
 
 def _clip(text, limit=MAX_OUTPUT):
@@ -42,6 +46,24 @@ def _trace(exc):
         lines.extend(traceback.format_list(frames[skipped:]))
     lines.extend(traceback.format_exception_only(type(exc), exc))
     return _clip("".join(lines).rstrip("\n")), line
+
+
+class _NotAList(Exception):
+    """The returned value can't be read as a linked list; the message says why, in place of the actual value."""
+
+
+def _linked_values(head):
+    """The values of the chain starting at head, following .next, as a list. None is the empty list."""
+    values, node, seen = [], head, set()
+    while node is not None:
+        if not (hasattr(node, "val") and hasattr(node, "next")):
+            raise _NotAList("%s, which is not a node with .val and .next" % _clip(repr(node), 200))
+        if id(node) in seen or len(values) >= MAX_NODES:
+            raise _NotAList("a linked list that loops back on itself: %s, ..." % _clip(repr(values[:10]), 200))
+        seen.add(id(node))
+        values.append(node.val)
+        node = node.next
+    return values
 
 
 def _result(status, stdout="", message=None, tb=None, line=None, tests=None):
@@ -101,8 +123,12 @@ def _run(code, entrypoint, tests, namespace):
         try:
             with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
                 actual = eval(call, namespace)
+            if test.get("compare") == "linked_list":
+                actual = _linked_values(actual)
             actual_repr = _clip(repr(actual))
             passed = bool(actual == expected)
+        except _NotAList as exc:
+            actual_repr = str(exc)
         except (Exception, SystemExit) as exc:
             tb, line = _trace(exc)
         outcomes.append({

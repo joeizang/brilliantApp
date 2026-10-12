@@ -61,7 +61,7 @@ public sealed class CPythonRunner : IReferenceSolutionRunner
     {
         var request = System.Text.Json.JsonSerializer.Serialize(new
         {
-            code, entrypoint, tests = tests.Select(t => new { input = t.Input, expected = t.Expected }),
+            code, entrypoint, tests = tests.Select(t => new { input = t.Input, expected = t.Expected, compare = t.Compare }),
         });
         var run = Execute(TestsBootstrap, request);
         if (run.TimedOut)

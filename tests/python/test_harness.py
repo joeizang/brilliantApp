@@ -134,3 +134,46 @@ class Errors(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+NODE = "class Node:\n    def __init__(self, val, next=None):\n        self.val = val\n        self.next = next\n\n"
+
+
+def run_linked(code, tests):
+    return json.loads(harness.run_tests(NODE + code, "f", json.dumps(
+        [{"input": i, "expected": e, "compare": "linked_list"} for i, e in tests])))
+
+
+class LinkedListCompare(unittest.TestCase):
+    def test_a_returned_chain_is_compared_and_shown_as_its_values(self):
+        r = run_linked("def f(head):\n    return head\n", [("Node(1, Node(2))", "[1, 2]"), ("Node(1)", "[9]")])
+        self.assertEqual([t["passed"] for t in r["tests"]], [True, False])
+        self.assertEqual((r["tests"][1]["expected"], r["tests"][1]["actual"]), ("[9]", "[1]"))
+
+    def test_none_is_the_empty_list(self):
+        r = run_linked("def f(head):\n    return None\n", [("Node(1)", "[]")])
+        self.assertEqual(r["status"], "passed")
+
+    def test_a_value_that_is_not_a_node_fails_and_says_so(self):
+        r = run_linked("def f(head):\n    return [1, 2]\n", [("Node(1, Node(2))", "[1, 2]")])
+        t = r["tests"][0]
+        self.assertFalse(t["passed"])
+        self.assertIn("not a node", t["actual"])
+        self.assertIsNone(t["traceback"])
+
+    def test_a_cycle_fails_instead_of_hanging(self):
+        code = "def f(head):\n    head.next.next = head\n    return head\n"
+        t = run_linked(code, [("Node(1, Node(2))", "[1, 2]")])["tests"][0]
+        self.assertFalse(t["passed"])
+        self.assertIn("loops back on itself", t["actual"])
+
+    def test_a_dataclass_node_works(self):
+        code = ("from dataclasses import dataclass\n\n@dataclass\nclass Item:\n    val: int\n    next: 'Item' = None\n\n"
+                "def f(n):\n    return Item(n, Item(n + 1))\n")
+        r = run_linked(code, [("1", "[1, 2]")])
+        self.assertEqual(r["status"], "passed")
+
+    def test_without_compare_the_node_itself_is_compared(self):
+        r = run(NODE + "def f(x):\n    return Node(x)\n", tests=[("1", "[1]")])
+        self.assertEqual(r["status"], "failed")
+        self.assertIn("Node object", r["tests"][0]["actual"])
