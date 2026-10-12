@@ -24,7 +24,7 @@ internal static class Styling
     public const string TrackCard = "card grid gap-2 border-hairline bg-surface-raised px-6 py-5 shadow-(--shadow-card) " + Lift;
 
     /// <summary>The "Review, N due" button, which draws the eye a little more than a track card.</summary>
-    public const string ReviewCard = "review-card flex items-baseline justify-between gap-4 border-accent/45 bg-accent-wash px-6 py-4 " + Lift;
+    public const string ReviewCard = "review-card flex items-center justify-between gap-4 border-accent/45 bg-accent-wash px-6 py-4 " + Lift;
 
     /// <summary>The colours of the "Known / Learning / Seen" pill beside a concept's name.</summary>
     public static string LevelPill(ConceptLevel level) => level switch

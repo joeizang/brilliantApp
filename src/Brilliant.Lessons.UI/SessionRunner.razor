@@ -3,7 +3,7 @@
 @using Brilliant.Core.Progress
 @inject ProgressRecorder Recorder
 
-<ol class="session-steps mx-auto mt-2 mb-0 box-border flex max-w-(--content-width) list-none gap-2 px-6 text-[.8rem] font-semibold tracking-[.04em] text-fg-secondary uppercase" aria-label="Session">
+<ol class="session-steps mx-auto mt-2 mb-0 box-border flex max-w-(--content-width) list-none gap-2 px-6 text-[.9rem] font-semibold text-fg-secondary" aria-label="Session">
     <li class="@Pill(Phase.Review)" aria-current="@Current(Phase.Review)">Review</li>
     <li class="@Pill(Phase.Lesson)" aria-current="@Current(Phase.Lesson)">Lesson</li>
     <li class="@Pill(Phase.Summary)" aria-current="@Current(Phase.Summary)">Summary</li>

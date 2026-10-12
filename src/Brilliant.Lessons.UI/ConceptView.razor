@@ -6,7 +6,7 @@
     var learner = Recorder.Project(Content);
     var concept = learner.Concept(ConceptId);
 }
-<div class="crumbs content-column mt-2 text-[.95rem]"><button class="link btn-link" @onclick="() => OnBack.InvokeAsync()">← @(concept is null ? "Back" : TrackTitle(learner, concept))</button></div>
+<div class="crumbs content-column mt-2 text-[.95rem]"><button class="link btn-link" @onclick="() => OnBack.InvokeAsync()"><Icon Name="back" Class="size-5" /> @(concept is null ? "Back" : TrackTitle(learner, concept))</button></div>
 @if (concept is null)
 {
     <h1 class="screen-title content-column mt-0 mb-1">Concept not found</h1>
@@ -64,7 +64,7 @@ else
             @foreach (var h in concept.History)
             {
                 <li class="attempt @(h.Correct ? "correct" : "incorrect") panel flex items-center gap-4 px-5 py-3">
-                    <span class="attempt-mark w-6 text-center text-[1.1rem] @(h.Correct ? "text-success" : "text-danger")" aria-hidden="true">@(h.Correct ? "✓" : "✗")</span>
+                    <span class="attempt-mark flex-none @(h.Correct ? "text-success" : "text-danger")" aria-hidden="true"><Icon Name="@(h.Correct ? "check" : "cross")" Class="size-6" /></span>
                     <span class="attempt-what grid flex-1 font-semibold">@StepTitle(lesson.Lesson, h.StepId)<small class="font-normal text-fg-secondary">@h.Source · @ConceptText.Day(h.At, offset)</small></span>
                     <span class="attempt-result text-[.85rem] text-fg-secondary">@(h.Correct ? "Correct" : "Incorrect")</span>
                 </li>

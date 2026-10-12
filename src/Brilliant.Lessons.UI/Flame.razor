@@ -1,0 +1,29 @@
+@* The streak's flame. Three layers (outer, middle, core) sway out of step with each other, a glow breathes behind them and a few
+   embers drift up, so it looks like it is burning rather than playing a loop. With no streak it is a cold ember: an outline, dim, and
+   still. Colours are flat fills from the ember tokens (no gradient ids, which break when an inline SVG is `display:none`); the motion is
+   in tailwind.css (`.flame-*`) and stops entirely for people who ask for less motion. *@
+<span class="flame @(Lit ? "flame-lit" : "flame-cold") @(Roaring ? "flame-roaring" : "") @Class" style="--flame:@Size" role="img" aria-label="@(Lit ? "Streak flame, burning" : "Streak flame, not lit")">
+    <svg viewBox="0 0 48 60" aria-hidden="true" focusable="false">
+        <g class="flame-sway">
+            <path class="flame-outer" d="M24 2C27 12 40 20 40 38c0 11-7 19-16 19S8 49 8 38c0-8 4-13 7-17 1 5 3 7 5 7-1-10 1-19 4-26z" />
+            <path class="flame-mid" d="M24 20c2 7 10 11 10 21 0 7-4 12-10 12s-10-5-10-12c0-5 3-8 5-11 1 3 2 4 3 4 0-5 0-10 2-14z" />
+            <path class="flame-core" d="M24 36c2 4 5 6 5 10 0 4-2 6-5 6s-5-2-5-6c0-4 3-6 5-10z" />
+        </g>
+        <circle class="flame-ember flame-ember-a" cx="19" cy="14" r="1.4" />
+        <circle class="flame-ember flame-ember-b" cx="29" cy="12" r="1.1" />
+        <circle class="flame-ember flame-ember-c" cx="24" cy="8" r="1.2" />
+    </svg>
+</span>
+
+@code {
+    /// <summary>Burning, or a cold ember (no streak).</summary>
+    [Parameter] public bool Lit { get; set; } = true;
+
+    /// <summary>Burns brighter and throws more embers: the day's goal is met.</summary>
+    [Parameter] public bool Roaring { get; set; }
+
+    /// <summary>The flame's width as a CSS length; its height follows.</summary>
+    [Parameter] public string Size { get; set; } = "2.25rem";
+
+    [Parameter] public string? Class { get; set; }
+}

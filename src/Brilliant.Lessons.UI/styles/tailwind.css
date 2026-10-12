@@ -51,6 +51,9 @@
     --color-code-bg: var(--code-bg);
     --color-code-fg: var(--code-fg);
     --color-code-muted: var(--code-muted);
+    --color-ember: var(--ember);
+    --color-ember-hot: var(--ember-hot);
+    --color-ember-wash: color-mix(in srgb, var(--ember) 16%, var(--surface-raised));
     /* Tints for answer states and pills: a mix with another colour, not with transparency, so they get their own names. */
     --color-success-soft: color-mix(in srgb, var(--success) 14%, var(--surface-raised));
     --color-danger-soft: color-mix(in srgb, var(--danger) 14%, var(--surface-raised));
@@ -67,8 +70,8 @@
     --radius-md: .75rem;
     --radius-lg: 1.1rem;
     --font-*: initial;
-    --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
-    --font-mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    --font-ui: "Bricolage", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
     --ease-*: initial;
     --ease-app: cubic-bezier(.25, .1, .25, 1);
     --animate-*: initial;
@@ -78,6 +81,10 @@
     --animate-row-in: row-in .6s var(--ease-app);
     --animate-row-flash: row-flash .9s var(--ease-app);
     --animate-row-out: row-out .9s var(--ease-app) forwards;
+    --animate-pop: pop .45s cubic-bezier(.3, 1.6, .5, 1) both;
+    --animate-turn: turn .7s var(--ease-app);
+    --animate-shake: shake .4s var(--ease-app);
+    --animate-spin-slow: turn 1.1s linear infinite;
 
     /* A step arrives with a short fade; nothing moves for people who ask for less motion (theme.css). */
     @keyframes fade-up {
@@ -104,6 +111,57 @@
         from { opacity: 1; }
         to { opacity: .55; }
     }
+
+    /* Answers and tabs respond to what the person did: a pop for what became true, a shake for what did not. */
+    @keyframes pop {
+        from { opacity: 0; scale: .5; }
+        to { opacity: 1; scale: 1; }
+    }
+    @keyframes pop-soft {
+        from { scale: .97; }
+        to { scale: 1; }
+    }
+    @keyframes turn {
+        to { rotate: 360deg; }
+    }
+    @keyframes shake {
+        20% { translate: -.3rem 0; }
+        45% { translate: .25rem 0; }
+        70% { translate: -.15rem 0; }
+    }
+    @keyframes draw {
+        from { stroke-dashoffset: 1; }
+        to { stroke-dashoffset: 0; }
+    }
+
+    /* The flame: each layer sways on its own period, so they drift in and out of step like a real one. */
+    @keyframes lick-outer {
+        0%, 100% { transform: scale(1, 1) skewX(0deg); }
+        22% { transform: scale(.95, 1.06) skewX(-3.5deg); }
+        51% { transform: scale(1.04, .95) skewX(2.5deg); }
+        78% { transform: scale(.98, 1.04) skewX(-1.5deg); }
+    }
+    @keyframes lick-mid {
+        0%, 100% { transform: scale(1, 1) skewX(0deg); }
+        30% { transform: scale(1.05, .94) skewX(3deg); }
+        62% { transform: scale(.94, 1.08) skewX(-4deg); }
+    }
+    @keyframes lick-core {
+        0%, 100% { transform: scale(1, 1); }
+        18% { transform: scale(.88, 1.14); }
+        40% { transform: scale(1.1, .9); }
+        71% { transform: scale(.92, 1.1); }
+    }
+    @keyframes flame-glow {
+        0%, 100% { opacity: .5; scale: 1; }
+        35% { opacity: .95; scale: 1.1; }
+        70% { opacity: .65; scale: .96; }
+    }
+    @keyframes ember-rise {
+        0% { opacity: 0; transform: translate(0, 12px) scale(1); }
+        15% { opacity: .95; }
+        100% { opacity: 0; transform: translate(var(--drift, 3px), -26px) scale(.3); }
+    }
 }
 
 /*
@@ -114,11 +172,11 @@
 @layer base {
     html { font-size: clamp(1rem, .875rem + .4vw, 1.875rem); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
     html, body { margin: 0; background: var(--bg); color: var(--fg); }
-    body { font-family: var(--font-ui); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+    body { font-family: var(--font-ui); line-height: 1.5; -webkit-font-smoothing: antialiased; background-image: radial-gradient(var(--dot) 1.2px, transparent 1.6px); background-size: 1.4rem 1.4rem; }
 
     h1, h2, h3 { line-height: 1.2; letter-spacing: -.02em; }
-    h1 { font-size: 2rem; font-weight: 700; margin: 0 0 .5rem; }
-    h2 { font-size: 1.5rem; font-weight: 650; margin: 0 0 1rem; }
+    h1 { font-size: 2.25rem; font-weight: 750; letter-spacing: -.03em; margin: 0 0 .5rem; }
+    h2 { font-size: 1.5rem; font-weight: 700; margin: 0 0 1rem; }
     h3 { font-size: 1.1rem; font-weight: 600; }
     p { margin: 0 0 1rem; }
 
@@ -126,6 +184,8 @@
     :focus-visible { outline: .15rem solid var(--accent); outline-offset: .15rem; }
 
     button { font-family: inherit; }
+    /* Android's WebView paints a blue flash over whatever is tapped; the cards and buttons have their own pressed states. */
+    * { -webkit-tap-highlight-color: transparent; }
 
     /* Code in rendered markdown (explanations, hints) and in lesson templates. (`pre` itself is styled with .code-block below.) */
     code { font-family: var(--font-mono); }
@@ -157,6 +217,66 @@
     /* A raised card: the surface of nearly every list item and stat. */
     .panel { @apply rounded-lg border border-hairline bg-surface-raised; }
 
+    /* Icons: outlined, drawn in the surrounding text colour. Bigger than the old emoji; a size utility on the element overrides this. */
+    .icon { @apply block size-6 flex-none; }
+    .icon-turn { transform-box: fill-box; transform-origin: center; }
+    .icon-stroke { stroke-dasharray: 1; stroke-dashoffset: 0; }
+    /* A check that is drawn as it appears (a lesson just completed, an answer marked right). */
+    .icon-draw .icon-stroke { animation: draw .5s var(--ease-app) .1s both; }
+
+    /* The bottom tabs. The current one sits on a soft pill and its icon pops in; Review's and Sync's arrows turn once as they are chosen. */
+    .phone-nav .tab { @apply relative; -webkit-tap-highlight-color: transparent; }
+    .phone-nav .tab .tab-icon { @apply relative grid h-8 w-14 place-items-center rounded-full transition-[background-color,scale] duration-200 ease-app; }
+    .phone-nav .tab.current .tab-icon { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+    .phone-nav .tab.current .icon { animation: pop .45s cubic-bezier(.3, 1.6, .5, 1) both; }
+    .phone-nav .tab.current .icon-turn { animation: turn .7s var(--ease-app); }
+    .phone-nav .tab:active .tab-icon { scale: .92; }
+
+    /* The flame. The glow is the element's own ::before, so there are no gradient ids to break when an SVG is hidden. */
+    .flame { @apply relative inline-block flex-none; width: var(--flame); aspect-ratio: 48 / 60; }
+    .flame svg { @apply block size-full overflow-visible; }
+    .flame::before { content: ""; position: absolute; inset: 0 -35% -12% -35%; border-radius: 50%; background: radial-gradient(closest-side, var(--ember-glow), transparent 72%); pointer-events: none; }
+    .flame-outer { fill: var(--ember-hot); }
+    .flame-mid { fill: var(--ember); }
+    .flame-core { fill: var(--ember-core); }
+    .flame-outer, .flame-mid, .flame-core { transform-box: fill-box; transform-origin: 50% 100%; }
+    .flame-ember { fill: var(--ember-core); opacity: 0; }
+    .flame-lit .flame-outer { animation: lick-outer 1.7s ease-in-out infinite; }
+    .flame-lit .flame-mid { animation: lick-mid 1.15s ease-in-out infinite; }
+    .flame-lit .flame-core { animation: lick-core .8s ease-in-out infinite; }
+    .flame-lit::before { animation: flame-glow 2.3s ease-in-out infinite; }
+    .flame-lit .flame-ember { animation: ember-rise 2.6s ease-out infinite; }
+    .flame-lit .flame-ember-b { --drift: -4px; animation-duration: 3.2s; animation-delay: .9s; }
+    .flame-lit .flame-ember-c { --drift: 2px; animation-duration: 2.9s; animation-delay: 1.7s; }
+    /* The goal is met: it burns bigger and throws sparks faster. */
+    .flame-roaring { scale: 1.1; }
+    .flame-roaring .flame-ember { animation-duration: 1.7s; }
+    .flame-roaring .flame-ember-b { animation-duration: 2.1s; }
+    .flame-roaring .flame-ember-c { animation-duration: 1.9s; }
+    /* No streak: a cold ember, outlined and still. */
+    .flame-cold::before { display: none; }
+    .flame-cold .flame-outer { fill: none; stroke: var(--fg-secondary); stroke-width: 2; opacity: .55; }
+    .flame-cold .flame-mid { display: none; }
+    .flame-cold .flame-core { fill: var(--track); }
+
+    /* The daily goal ring around the flame. */
+    .goal-ring { @apply relative grid size-[7.75rem] flex-none place-items-center; }
+    .goal-ring .goal-arc { @apply absolute inset-0 size-full -rotate-90; }
+    .goal-ring .arc-track { fill: none; stroke: var(--track); stroke-width: 7; }
+    .goal-ring .arc-fill { fill: none; stroke: var(--ember); stroke-width: 7; stroke-linecap: round; stroke-dasharray: 100; transition: stroke-dashoffset .9s var(--ease-app); }
+    .goal-ring.met .arc-fill { stroke: var(--ember-core); filter: drop-shadow(0 0 .35rem var(--ember-glow)); }
+
+    /* A verdict names itself with an icon, drawn from the same strokes as the icon set (masked, so it takes the verdict's colour), and
+       answers the person's action: a right one pops, a wrong one shakes. Every step view shares these two classes. */
+    .verdict { @apply flex items-center gap-2 text-[1.1rem]; }
+    .verdict.correct::before, .verdict.incorrect::before { content: ""; @apply size-6 flex-none bg-current; mask: var(--glyph) center / contain no-repeat; -webkit-mask: var(--glyph) center / contain no-repeat; }
+    .verdict.correct { --glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4.5 12.5 5 5 10-11'/%3E%3C/svg%3E"); }
+    .verdict.incorrect { --glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 6l12 12M18 6 6 18'/%3E%3C/svg%3E"); }
+    .verdict.correct::before { animation: pop .5s cubic-bezier(.3, 1.6, .5, 1) both; }
+    .verdict.incorrect { animation: shake .4s var(--ease-app); }
+    .option.right { animation: pop-soft .45s cubic-bezier(.3, 1.6, .5, 1); }
+    .option.wrong { animation: shake .4s var(--ease-app); }
+
     /* Progress bars (track cards, lesson header, mastery). */
     .progress-bar { @apply block h-[.375rem] overflow-hidden rounded-full bg-track; }
     .progress-fill { @apply block h-full rounded-full bg-accent transition-[width] duration-400 ease-app; }
@@ -175,7 +295,7 @@
     .btn-secondary { @apply border-2 border-accent bg-transparent text-accent; }
     .btn-secondary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 12%, transparent); }
     .btn-secondary:active:not(:disabled) { @apply scale-[.98]; }
-    .btn-link { @apply min-h-(--touch) border-0 bg-transparent px-0 py-2 text-accent; }
+    .btn-link { @apply inline-flex items-center gap-1 min-h-(--touch) border-0 bg-transparent px-0 py-2 text-accent; }
     .btn-link:hover:not(:disabled) { @apply underline; }
     .btn-link:disabled { @apply cursor-default opacity-50; }
 }

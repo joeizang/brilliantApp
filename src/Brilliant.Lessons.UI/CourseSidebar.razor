@@ -11,7 +11,7 @@
         <span>Today</span>
         @if (learner.Today.Streak > 0)
         {
-            <small class="streak-count text-[.8rem] font-semibold text-fg-secondary tabular-nums" aria-label="@learner.Today.Streak day streak">🔥 @learner.Today.Streak</small>
+            <small class="streak-count flex items-center gap-1 text-[.9rem] font-semibold text-fg-secondary tabular-nums" aria-label="@learner.Today.Streak day streak"><Flame Size="1.1rem" /> @learner.Today.Streak</small>
         }
     </button>
     <button class="side-review @(ReviewActive ? "current" : "") @NavItem(ReviewActive)" aria-current="@(ReviewActive ? "page" : null)" @onclick="() => OnOpenReview.InvokeAsync()">
@@ -46,7 +46,7 @@
                                 disabled="@(l.Status == LessonStatus.Locked)"
                                 aria-current="@(l.Lesson.Id == CurrentLesson?.Id ? "page" : null)"
                                 @onclick="() => OnOpenLesson.InvokeAsync((track.Track, l.Lesson, l.Status == LessonStatus.Completed && l.NewStepCount == 0))">
-                            <span class="status w-[1.2rem] flex-none text-center @(l.Status == LessonStatus.Completed ? "text-success" : "")" aria-hidden="true">@Icon(l.Status)</span>
+                            <span class="status flex-none @(l.Status == LessonStatus.Completed ? "text-success" : l.Status == LessonStatus.InProgress ? "text-ember" : "")" aria-hidden="true"><Icon Name="@IconName(l.Status)" Class="size-5" /></span>
                             <span>@l.Lesson.Title</span>
                         </button>
                     </li>
@@ -89,11 +89,11 @@
         + (current ? "bg-accent/20 font-semibold" : "bg-transparent hover:not-disabled:bg-surface")
         + (status == LessonStatus.Locked ? " cursor-default opacity-50" : "");
 
-    private static string Icon(LessonStatus s) => s switch
+    private static string IconName(LessonStatus s) => s switch
     {
-        LessonStatus.Completed => "✓",
-        LessonStatus.Locked => "🔒",
-        LessonStatus.InProgress => "◐",
-        _ => "○",
+        LessonStatus.Completed => "check",
+        LessonStatus.Locked => "lock",
+        LessonStatus.InProgress => "half",
+        _ => "circle",
     };
 }

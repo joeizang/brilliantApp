@@ -61,3 +61,19 @@ Tailwind utility**. `TraceTable` used `class="table"`, which would have become `
 Mirrors the CodeMirror bundle: sources in `src/Brilliant.Lessons.UI/styles/` (a `package.json`, its lockfile and `tailwind.css`), output committed as
 `wwwroot/tailwind.css`, `node_modules` ignored, the folder excluded from the Razor class library's content in the csproj. Node is only needed to
 rebuild; building or running the app needs no Node.
+
+## Look and feel: ember on graph paper
+
+A dark midnight-ink default (the light variant follows the OS), a faint dot grid behind everything, and one warm colour, ember, reserved for what is
+alive: the streak flame, the daily-goal ring, the due-review badge. The accent blue is for actions.
+
+- **Type.** Bricolage Grotesque for the UI, JetBrains Mono for code, both bundled in `wwwroot/fonts/` (SIL OFL; licences alongside) so the app is the same offline, on
+  Android and on the Mac. `--font-ui` and `--font-mono` in `theme.css` name them.
+- **Icons** are `Icon.razor`: one outline SVG set (home, tracks, review, sync, check, cross, lock, back, plus, minus, circle, half), drawn in `currentColor`, always
+  `aria-hidden`; the control around it carries the accessible name. Size them with `size-*` utilities (the tab bar uses `size-7`). An unknown name throws.
+- **Flame** is `Flame.razor`: three layered tongues that lick at different rates, a sway, a glow, and sparks that rise. Lit (a streak is alive), cold (grey, still) or
+  roaring (today's goal is met). Its parameters are `Lit`, `Roaring` and `Size`.
+- **Motion** answers something the learner did or marks something alive: the flame, the goal ring filling, the current tab's icon popping, the tick drawing and the
+  cross shaking after an answer. Everything is switched off by the `prefers-reduced-motion` rule in `theme.css`.
+- **Android.** `* { -webkit-tap-highlight-color: transparent }` is in the base layer: the WebView's own flash on tap fought the pressed states.
+- **Dimming a card** with `opacity` lets its shadow show through the panel as a ghost. Dim the contents (`[&>*]:opacity-60`) and drop the shadow, as locked lessons do.

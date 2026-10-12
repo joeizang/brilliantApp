@@ -30,12 +30,18 @@
         </ul>
     }
 
-    <p class="summary-goal mt-4">
-        @Today.DoneToday of @Today.GoalSteps steps today@(Today.GoalMet ? " · Goal met ✓" : "").
+    <p class="summary-goal mt-4 flex flex-wrap items-center gap-x-3 gap-y-1">
         @if (Today.Streak > 0)
         {
-            <strong>@(Today.Streak)-day streak</strong>
+            <Flame Size="2.4rem" Roaring="Today.GoalMet" />
         }
+        <span>
+            @Today.DoneToday of @Today.GoalSteps steps today@(Today.GoalMet ? " · Goal met" : "").
+            @if (Today.Streak > 0)
+            {
+                <strong>@(Today.Streak)-day streak</strong>
+            }
+        </span>
     </p>
 
     <div class="summary-actions mt-6">
