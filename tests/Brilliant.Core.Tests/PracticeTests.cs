@@ -119,6 +119,13 @@ public class PracticeTests
     }
 
     [Theory]
+    [InlineData(true, 1, Rating.Hard)]
+    [InlineData(true, 3, Rating.Again)]
+    [InlineData(false, 0, Rating.Again)]
+    public void Hints_on_a_pick_count_as_in_Review(bool correct, int hints, Rating expected) =>
+        Assert.Equal(expected, RatingInference.InferPick(correct, TimeSpan.FromSeconds(5), hints));
+
+    [Theory]
     [InlineData(10, Rating.Easy)]
     [InlineData(30, Rating.Good)]
     [InlineData(60, Rating.Hard)]
@@ -215,6 +222,49 @@ public class PracticeTests
         var after = Item(Project(), "pick.step.a.p1")!;
         Assert.Equal((2, Rating.Again), (after.Answers, after.LastRating));
         Assert.Equal(FsrsScheduler.Schedule(FsrsScheduler.Schedule(null, Rating.Good, T0), Rating.Again, T0.AddDays(3)), after.Card);
+    }
+
+    [Theory]
+    [InlineData(ScreenClass.Desktop)]
+    [InlineData(ScreenClass.Phone)]
+    public void A_pick_item_in_Review_is_rated_as_a_pick_whatever_form_the_problem_takes(ScreenClass screen)
+    {
+        var tap = new ParsonsStep("step.a.p1.tap", "Order", "?", "python", [new ParsonsLine("x = 1", 0)]);
+        var phoneFriendly = A with
+        {
+            Steps = A.Steps.Select(s => s.Id == "step.a.p1" ? Problem(s.Id, "pattern.a") with { PhoneAlternative = tap } : s).ToList(),
+        };
+        var graph = Graph(phoneFriendly, B, C, D);
+        Finish(phoneFriendly, B, C);
+        Pick(phoneFriendly, "step.a.p1", "pattern.a");
+
+        _clock.Now = T0.AddDays(5);
+        var pick = LearnerStateProjector.Project(_log.ReadAll(), graph, _clock.Now, screen: screen).Queue.Items.Single(i => i.Item.Id == "pick.step.a.p1");
+        Assert.True(pick.IsPracticePick);
+        Assert.Equal(screen == ScreenClass.Phone ? tap : phoneFriendly.Steps[1], pick.Presented);
+
+        // 75 s is fast for writing code or ordering lines, but slow for naming a pattern.
+        Assert.Equal(Rating.Hard, Recorder.ReviewAnswered(pick, correct: true, hintsUsed: 0, TimeSpan.FromSeconds(75)));
+        Assert.Equal(Rating.Hard, Item(Project(graph), "pick.step.a.p1")!.LastRating);
+        Assert.Equal(Rating.Easy, Recorder.ReviewAnswered(pick, correct: true, hintsUsed: 0, TimeSpan.FromSeconds(10)));
+        Assert.Equal(Rating.Again, Recorder.ReviewAnswered(pick, correct: false, hintsUsed: 0, TimeSpan.FromSeconds(10)));
+    }
+
+    [Fact]
+    public void Authored_pattern_questions_and_re_solves_keep_their_own_rating_rule()
+    {
+        var authored = A with { ReviewItems = [.. A.ReviewItems, new ReviewItem("review.a.which", "concept.a", "step.a.q", ReviewKind.Pattern)] };
+        var graph = Graph(authored, B, C, D);
+        Finish(authored, B, C);
+        Solve(authored, "step.a.p1", true);
+
+        var state = Project(graph);
+        var which = Item(state, "review.a.which")!;
+        var resolve = Item(state, "resolve.step.a.p1")!;
+        Assert.False(which.IsPracticePick);
+        Assert.False(resolve.IsPracticePick);
+        Assert.Equal(Rating.Hard, Recorder.ReviewAnswered(which, correct: true, hintsUsed: 0, TimeSpan.FromSeconds(40)));   // choice: slow from 30 s
+        Assert.Equal(Rating.Easy, Recorder.ReviewAnswered(resolve, correct: true, hintsUsed: 0, TimeSpan.FromSeconds(75))); // write-code: fast to 90 s
     }
 
     [Fact]

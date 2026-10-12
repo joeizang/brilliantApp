@@ -87,10 +87,15 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
         Append(ProgressEventTypes.ReviewAnswered, lessonId, item.StepId,
             JsonSerializer.Serialize(new { item = item.Id, correct, hintsUsed, elapsedMs = (int)elapsed.TotalMilliseconds, rating = (int)rating }));
 
-    /// <summary>Records a review answer, inferring the FSRS rating from correctness, hints and time. Returns the rating.</summary>
+    /// <summary>
+    /// Records a review answer, inferring the FSRS rating from correctness, hints and time. Returns the rating. A derived pattern pick
+    /// is rated as a pick (<see cref="RatingInference.InferPick"/>): its question is the problem, but the answer only names the pattern.
+    /// </summary>
     public Rating ReviewAnswered(ReviewItemState review, bool correct, int hintsUsed, TimeSpan elapsed)
     {
-        var rating = RatingInference.Infer(correct, hintsUsed, elapsed, review.Presented);
+        var rating = review.IsPracticePick
+            ? RatingInference.InferPick(correct, elapsed, hintsUsed)
+            : RatingInference.Infer(correct, hintsUsed, elapsed, review.Presented);
         ReviewAnswered(review.Lesson.Id, review.Item, correct, hintsUsed, elapsed, rating);
         return rating;
     }

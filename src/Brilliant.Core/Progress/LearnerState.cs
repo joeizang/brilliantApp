@@ -52,6 +52,13 @@ public sealed record ReviewItemState(Lesson Lesson, ReviewItem Item, Step Questi
 
     public bool IsNew => Card is null;
 
+    /// <summary>
+    /// A <c>pick.&lt;step&gt;</c> item derived from practice: "which pattern solves this problem?". <see cref="Question"/> is the problem,
+    /// but the answer is a pattern, so it is rated as a pick. Authored pattern questions always belong to a concept and are not picks.
+    /// </summary>
+    public bool IsPracticePick => Item.Kind == ReviewKind.Pattern && Item.ConceptId.Length == 0
+        && Item.Id.StartsWith(PracticeAnswer.PickPrefix, StringComparison.Ordinal);
+
     /// <summary>The rating of the latest answer, from Review or practice; null until answered.</summary>
     public Rating? LastRating { get; init; }
 

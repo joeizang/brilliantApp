@@ -153,7 +153,9 @@ the event as usual and `{ step, part, correct, picked, hintsUsed, elapsedMs, rat
 `run` names the practice visit or the interview run; slice 3 gives each visit a fresh ID. A pick with `picked: null` is
 always wrong. A solve is rated like Review, from the form actually solved (a phone alternative has its own time thresholds). A pick has
 no hints and is rated by time alone (`RatingInference.InferPick`): it involves reading an unlabelled problem first, so it gets
-longer than a choice question, Easy under 15 seconds and Hard from a minute. A malformed event, or one whose `step` disagrees
+longer than a choice question, Easy under 15 seconds and Hard from a minute. The same rule rates a `pick.` item answered in Review
+(`ReviewItemState.IsPracticePick`): its question is the problem, but the answer only names the pattern, so the problem's own format
+(write-code, Parsons, or its phone form) never sets the rating. Authored `kind: pattern` questions and re-solves keep their rules. A malformed event, or one whose `step` disagrees
 with its `StepId`, is ignored.
 
 **The projector.**
