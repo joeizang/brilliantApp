@@ -766,6 +766,214 @@ public class TracePlayerTests : ShortcutContext
         Assert.Equal(At(cut.Find("g.end-marker.back")).X, At(cut.FindAll("figure.queue g.cell")[0]).X + 2 * 64 + 30);   // the middle of the third place
     }
 
+    // ---- Linked lists ----
+
+    private static readonly IReadOnlyList<Visual> HeadVisual = [new Visual("head", Visual.LinkedList, ["p", "q"])];
+
+    private static TrackedList Linked(int? head, int more, (string Name, int? Node)[] pointers, params (int Id, string? Value, int? Next)[] nodes) =>
+        new(head, nodes.Select(n => new ListNode(n.Id, n.Value, n.Next)).ToList(), more, pointers.ToDictionary(p => p.Name, p => p.Node));
+
+    private static TrackedList Linked(int? head, params (int Id, string? Value, int? Next)[] nodes) => Linked(head, 0, [], nodes);
+
+    private static TraceFrame ListFrame(int line, TrackedList list) =>
+        new("line", line, "<module>", [], new Dictionary<string, TrackedArray>(), null, new Dictionary<string, TrackedList> { ["head"] = list });
+
+    private IRenderedComponent<TracePlayer> Lists(params TrackedList[] steps) =>
+        Start(RunOf(steps.Select((list, i) => ListFrame(i + 1, list)).ToArray()), HeadVisual, out _);
+
+    /// <summary>The (x, y) a node, None or pointer is placed at by its CSS transform.</summary>
+    private static (double X, double Y) Place(AngleSharp.Dom.IElement element)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(element.GetAttribute("style")!, @"translate\((-?[\d.]+)px, (-?[\d.]+)px\)");
+        return (double.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture), double.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture));
+    }
+
+    private static AngleSharp.Dom.IElement Node(IRenderedComponent<TracePlayer> cut, int id) => cut.Find($"figure.linked-list g.node[data-id='{id}']");
+
+    [Fact]
+    public void A_linked_list_is_a_row_of_nodes_joined_by_arrows_that_end_at_none()
+    {
+        var cut = Lists(Linked(1, (1, "1", 2), (2, "2", 3), (3, "3", null)));
+
+        var nodes = cut.FindAll("figure.linked-list g.node");
+        Assert.Equal(["1", "2", "3"], nodes.Select(n => n.QuerySelector(".node-value")!.TextContent));
+        Assert.True(Place(nodes[0]).X < Place(nodes[1]).X && Place(nodes[1]).X < Place(nodes[2]).X);
+        Assert.All(nodes, n => Assert.Equal(Place(nodes[0]).Y, Place(n).Y));
+        Assert.Equal(3, cut.FindAll("figure.linked-list g.node g.link").Count);   // the last one's arrow points at None
+        Assert.True(Place(cut.Find("g.list-none")).X > Place(nodes[2]).X);
+        Assert.Equal("None", cut.Find("g.list-none").TextContent.Trim());
+        Assert.Contains("linked list", cut.Find(".list-kind").TextContent);
+        Assert.Contains("1 → 2 → 3 → None", cut.Find("figure.linked-list svg").GetAttribute("aria-label"));
+        Assert.Empty(cut.FindAll(".detached-note"));
+        Assert.Equal("head", Pointer(cut, "head", "data-name"));
+        Assert.Equal("1", Pointer(cut, "head", "data-node"));
+    }
+
+    [Fact]
+    public void An_empty_list_is_its_variable_at_none()
+    {
+        var cut = Lists(Linked(null));
+
+        Assert.Empty(cut.FindAll("figure.linked-list g.node"));
+        var none = Place(cut.Find("g.list-none"));
+        var head = cut.Find("figure.linked-list g.pointer[data-name='head']");
+        Assert.Equal("", head.GetAttribute("data-node") ?? "");
+        Assert.True(Place(head).X > none.X && Place(head).X < none.X + 40);   // over the middle of the word None
+        Assert.Contains("head, a linked list: None", cut.Find("figure.linked-list svg").GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public void A_cycle_is_an_arrow_back_under_the_row_and_has_no_none()
+    {
+        var cut = Lists(Linked(1, (1, "a", 2), (2, "b", 3), (3, "c", 2)));
+
+        var back = cut.Find("figure.linked-list g.link.back");
+        Assert.Equal("3", back.GetAttribute("data-from"));
+        Assert.Equal("2", back.GetAttribute("data-to"));
+        Assert.Empty(cut.FindAll("g.list-none"));
+        Assert.Equal(2, cut.FindAll("figure.linked-list g.node g.link").Count);   // the last node's arrow is the one back
+        var nodeBottom = Place(Node(cut, 2)).Y + 40;
+        Assert.Matches(@"V(\d+(\.\d+)?)", back.QuerySelector(".link-line")!.GetAttribute("d"));
+        var lane = double.Parse(System.Text.RegularExpressions.Regex.Match(back.QuerySelector(".link-line")!.GetAttribute("d")!, @"V([\d.]+)").Groups[1].Value,
+            CultureInfo.InvariantCulture);
+        Assert.True(lane > nodeBottom);   // it runs under the nodes
+        Assert.Contains("a → b → c → back to b", cut.Find("figure.linked-list svg").GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public void A_pointer_holding_none_when_no_row_ends_at_none_stands_on_a_none_of_its_own()
+    {
+        var cut = Lists(Linked(1, 0, [("q", null)], (1, "a", 2), (2, "b", 1)));
+
+        var none = cut.Find("g.list-none.spare");
+        Assert.Equal("None", none.TextContent.Trim());
+        Assert.True(Place(none).X > Place(Node(cut, 2)).X + 74);   // past the last node and the turn of the arrow back
+        var q = cut.Find("figure.linked-list g.pointer[data-name='q']");
+        Assert.True(Place(q).X > Place(none).X && Place(q).X < Place(none).X + 45);
+    }
+
+    [Fact]
+    public void Nodes_only_a_pointer_reaches_are_drawn_apart_and_dashed()
+    {
+        var list = Linked(1, 0, [("p", 5)], (1, "1", null), (5, "5", 6), (6, "6", 2), (2, "2", null));
+        var cut = Lists(list with { Nodes = [new(1, "1", 2), new(2, "2", null), new(5, "5", 6), new(6, "6", 2)] });
+
+        Assert.DoesNotContain("detached", Node(cut, 1).ClassName);
+        Assert.Contains("detached", Node(cut, 5).ClassName);
+        Assert.Contains("[stroke-dasharray:4_3]", Node(cut, 5).QuerySelector(".value-box")!.GetAttribute("class"));
+        Assert.True(Place(Node(cut, 5)).Y > Place(Node(cut, 1)).Y);
+        Assert.Equal(Place(Node(cut, 1)).X, Place(Node(cut, 5)).X);
+        var join = cut.Find("figure.linked-list g.link.join");
+        Assert.Equal("6", join.GetAttribute("data-from"));
+        Assert.Equal("2", join.GetAttribute("data-to"));
+        Assert.Equal("5", Pointer(cut, "p", "data-node"));
+        Assert.Equal("1", Pointer(cut, "p", "data-row"));
+        Assert.Single(cut.FindAll(".detached-note"));
+        Assert.Contains("not reachable from it: 5 → 6 → on to 2", cut.Find("figure.linked-list svg").GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public void Pointers_stand_over_their_nodes_and_names_on_one_node_do_not_overlap()
+    {
+        var cut = Lists(Linked(1, 0, [("p", 1), ("q", null)], (1, "1", 2), (2, "2", null)));
+
+        var head = cut.Find("figure.linked-list g.pointer[data-name='head']");
+        var p = cut.Find("figure.linked-list g.pointer[data-name='p']");
+        var q = cut.Find("figure.linked-list g.pointer[data-name='q']");
+        Assert.Equal(Place(head).X, Place(p).X);
+        Assert.NotEqual(head.GetAttribute("data-label-row"), p.GetAttribute("data-label-row"));
+        Assert.True(Place(head).Y < Place(Node(cut, 1)).Y);
+        Assert.True(Place(q).X > Place(cut.Find("g.list-none")).X);   // q holds None, so it stands on None
+        Assert.Contains("p at the node holding 1, q at None", cut.Find("figure.linked-list svg").GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public void A_pointer_on_a_node_past_the_limit_is_named_under_the_list()
+    {
+        var cut = Lists(Linked(1, 4, [("p", 99)], (1, "1", 2), (2, "2", 3)));
+
+        Assert.Contains("+4 more", cut.Find("g.list-more").TextContent);
+        Assert.Empty(cut.FindAll("figure.linked-list g.pointer[data-name='p']"));
+        Assert.Contains("p is on a node past the ones shown", cut.Find(".off-list").TextContent);
+    }
+
+    [Fact]
+    public void A_rewired_arrow_draws_itself_in_and_a_changed_value_flashes()
+    {
+        var cut = Lists(Linked(1, (1, "1", 2), (2, "2", null)), Linked(1, (1, "1", null)), Linked(1, (1, "7", null)));
+
+        Assert.Empty(cut.FindAll("figure.linked-list .animate-link-in"));
+        cut.Find("button.next").Click();
+
+        var link = Node(cut, 1).QuerySelector("g.link")!;
+        Assert.Contains("relinked", link.ClassName);
+        Assert.Contains("animate-link-in", link.QuerySelector(".link-line")!.GetAttribute("class"));
+        Assert.Equal("1", link.QuerySelector(".link-line")!.GetAttribute("pathLength"));
+        Assert.DoesNotContain("animate-cell-flash", Node(cut, 1).QuerySelector(".value-box")!.GetAttribute("class"));
+
+        cut.Find("button.next").Click();
+
+        Assert.Contains("animate-cell-flash", Node(cut, 1).QuerySelector(".value-box")!.GetAttribute("class"));
+        Assert.Empty(cut.FindAll("figure.linked-list .animate-link-in"));
+    }
+
+    [Fact]
+    public void A_node_keeps_its_element_and_slides_to_its_new_place()
+    {
+        var cut = Lists(Linked(1, (1, "1", 2), (2, "2", null)), Linked(2, (2, "2", 1), (1, "1", null)));
+        var before = Place(Node(cut, 2)).X;
+
+        cut.Find("button.next").Click();
+
+        Assert.True(Place(Node(cut, 2)).X < before);
+        Assert.Contains("transition-transform", Node(cut, 2).ClassName);
+        Assert.Equal("2", Pointer(cut, "head", "data-node"));
+        Assert.Contains("moved", cut.Find("figure.linked-list g.pointer[data-name='head']").ClassName);
+    }
+
+    [Fact]
+    public void A_new_node_grows_in()
+    {
+        var cut = Lists(Linked(1, (1, "1", null)), Linked(1, (1, "1", 2), (2, "2", null)));
+        cut.Find("button.next").Click();
+
+        Assert.Contains("added", Node(cut, 2).ClassName);
+        Assert.Contains("animate-cell-in", Node(cut, 2).QuerySelector(".node-body")!.GetAttribute("class"));
+        Assert.DoesNotContain("animate-cell-in", Node(cut, 1).QuerySelector(".node-body")!.GetAttribute("class"));
+    }
+
+    [Fact]
+    public void A_list_is_sized_in_rem_and_written_the_same_whatever_the_culture()
+    {
+        var culture = CultureInfo.CurrentCulture;
+        CultureInfo.CurrentCulture = new CultureInfo("de-DE");
+        try
+        {
+            var cut = Lists(Linked(1, 0, [("q", null)], (1, "1234567", 2), (2, "x", null)));
+            var svg = cut.Find("figure.linked-list svg");
+            Assert.Matches(@"^width: [\d.]+rem; height: [\d.]+rem$", svg.GetAttribute("style"));
+            Assert.All(cut.FindAll("figure.linked-list svg text"), t => Assert.DoesNotContain(",", t.GetAttribute("font-size")));
+            Assert.All(cut.FindAll("figure.linked-list svg g[style]"), g => Assert.DoesNotContain(",", g.GetAttribute("style")!.Replace("px, ", "")));
+            Assert.Equal("12345…", Node(cut, 1).QuerySelector(".node-value")!.TextContent);
+            Assert.Contains("overflow-x-auto", cut.Find("figure.linked-list .list-scroll").ClassName);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = culture;
+        }
+    }
+
+    [Fact]
+    public void A_wide_name_on_the_first_node_moves_the_drawing_s_left_edge_rather_than_being_cut_off()
+    {
+        var run = RunOf(new TraceFrame("line", 1, "<module>", [], new Dictionary<string, TrackedArray>(), null,
+            new Dictionary<string, TrackedList> { ["a_very_long_list_name"] = Linked(1, (1, "1", null)) }));
+        var cut = Start(run, [new Visual("a_very_long_list_name", Visual.LinkedList, [])], out _);
+
+        var viewBox = cut.Find("figure.linked-list svg").GetAttribute("viewBox")!.Split(' ');
+        Assert.True(int.Parse(viewBox[0]) < 0);
+    }
+
     // ---- Playback ----
 
     private static string Position(IRenderedComponent<TracePlayer> cut) => cut.Find(".position").TextContent;

@@ -1,0 +1,281 @@
+@* A linked list in the Trace Player: each node a value box and a link box, joined by arrows that end at None. The nodes reached from
+   the head make the first row; nodes only a pointer reaches (detached) make rows of their own below, dashed. A node keeps its element
+   (by identity) wherever it goes, so when the links are rewired it slides to its new place, and a rewired arrow draws itself in.
+   A cycle is an arrow that runs under the row back to the node it loops to; a detached row that links into another ends in an arrow
+   up to that node. Pointers stand above the node they hold, or above None when they hold None. *@
+@using Brilliant.Core.Python
+
+<figure class="linked-list mx-0 my-4 rounded-md border border-hairline bg-surface-raised px-4 pt-2 pb-4" data-variable="@View.Variable" data-kind="linked_list">
+    <figcaption class="list-name mb-1 text-[.9rem] text-fg-secondary"><code>@View.Variable</code> <span class="list-kind ml-[.4rem] text-[.8rem]">linked list</span></figcaption>
+    <div class="list-scroll overflow-x-auto">
+        @* Laid out in user units and sized in rem (16 units to 1rem), with the text in the same units, as the other drawings are. *@
+        <svg class="list-svg block max-w-none overflow-visible" role="img" aria-label="@Describe()" style="@Size" viewBox="@OriginX 0 @Width @Height">
+            @if (View.Chains.Count > 1)
+            {
+                <line class="detached-rule stroke-hairline stroke-1 [stroke-dasharray:3_4]" x1="@OriginX" x2="@(OriginX + Width)" y1="@(_rowTop[1] - RowGap / 2)" y2="@(_rowTop[1] - RowGap / 2)" />
+            }
+            @for (var r = 0; r < View.Chains.Count; r++)
+            {
+                var chain = View.Chains[r];
+                var detached = r > 0;
+                for (var i = 0; i < chain.Nodes.Count; i++)
+                {
+                    var node = chain.Nodes[i];
+                    var straight = i < chain.Nodes.Count - 1 || chain.End is ChainEnd.None or ChainEnd.More;
+                    <g class="@NodeClass(node, detached) transition-transform duration-450 ease-app" data-id="@node.Id" data-row="@r" data-index="@i"
+                       style="@At(NodeX(i), NodeY(r))" @key="@($"node-{node.Id}")">
+                        <title>@(node.Value ?? "?")</title>
+                        <g class="node-body origin-center [transform-box:fill-box] @(node.Added ? "animate-cell-in" : "")">
+                            <rect class="value-box fill-surface stroke-border stroke-2 @(detached ? "[stroke-dasharray:4_3]" : "") @(node.Changed ? "animate-cell-flash" : "")"
+                                  width="@ValW" height="@NodeH" rx="6" @key="@(node.Changed ? $"value-{Step}" : "value")" />
+                            <rect class="link-box fill-surface stroke-border stroke-2 @(detached ? "[stroke-dasharray:4_3]" : "")" x="@ValW" width="@LinkW" height="@NodeH" rx="6" />
+                            <text class="node-value fill-fg font-mono" font-size="@U(ValueText(node.Value))" x="@(ValW / 2)" y="@(NodeH / 2)" text-anchor="middle" dominant-baseline="central">@Clip(node.Value ?? "?")</text>
+                            <circle class="link-dot @(node.Relinked ? "fill-accent" : "fill-fg-secondary")" cx="@DotX" cy="@(NodeH / 2)" r="3" />
+                        </g>
+                        @if (straight)
+                        {
+                            @* The arrow to the next node, None or "+N more" is part of the node, so it goes wherever the node goes. *@
+                            <g class="@(node.Relinked ? "link relinked" : "link")" @key="@(node.Relinked ? $"link-{Step}" : "link")">
+                                <path class="link-line fill-none stroke-2 @LinkColour(node) @(node.Relinked ? "animate-link-in" : "")" pathLength="1"
+                                      d="@($"M{DotX} {NodeH / 2} H{ValW + LinkW + Gap - 3}")" />
+                                <path class="link-head @HeadColour(node)" d="@Head(ValW + LinkW + Gap - 1, NodeH / 2, up: false)" />
+                            </g>
+                        }
+                    </g>
+                }
+
+                var n = chain.Nodes.Count;
+                switch (chain.End)
+                {
+                    case ChainEnd.None:
+                        <g class="list-none transition-transform duration-450 ease-app" data-row="@r" style="@At(NodeX(n), NodeY(r))" @key="@($"none-{ChainKey(chain)}")">
+                            <text class="fill-fg-secondary font-mono" font-size="@U(NoneText)" x="@NoneInset" y="@(NodeH / 2)" dominant-baseline="central">None</text>
+                        </g>
+                        break;
+                    case ChainEnd.More:
+                        <g class="list-more" data-row="@r" transform="translate(@NodeX(n) @NodeY(r))" @key="@($"more-{ChainKey(chain)}")">
+                            <text class="fill-fg-secondary font-mono" font-size="@U(SmallText)" y="@(NodeH / 2)" dominant-baseline="central">+@View.More more</text>
+                        </g>
+                        break;
+                    default:
+                        var last = chain.Nodes[^1];
+                        <g class="@(chain.End == ChainEnd.Back ? "link back" : "link join") @(last.Relinked ? "relinked" : "")" data-from="@last.Id" data-to="@chain.Target"
+                           @key="@($"loop-{last.Id}-{chain.Target}-{(last.Relinked ? Step : -1)}-{r}")">
+                            <path class="link-line fill-none stroke-2 @LinkColour(last) @(last.Relinked ? "animate-link-in" : "")" pathLength="1" d="@LoopPath(r, n - 1, chain.Target!.Value)" />
+                            <path class="link-head @HeadColour(last)" d="@Head(TargetX(chain.Target!.Value), TargetBottom(chain.Target!.Value) + 1, up: true)" />
+                        </g>
+                        break;
+                }
+            }
+
+            @if (_spareNone)
+            {
+                <g class="list-none spare" data-row="0" style="@At(SpareNoneX, NodeY(0))" @key="@("none-spare")">
+                    <text class="fill-fg-secondary font-mono" font-size="@U(NoneText)" x="@NoneInset" y="@(NodeH / 2)" dominant-baseline="central">None</text>
+                </g>
+            }
+
+            @foreach (var (pointer, spot) in _spots)
+            {
+                <g class="@(pointer.Moved ? "pointer moved" : "pointer") transition-transform duration-450 ease-app" data-name="@pointer.Name" data-node="@pointer.Node" data-row="@spot.Row" data-label-row="@spot.LabelRow"
+                   style="@At(spot.X, NodeY(spot.Row) - 1)" @key="@($"pointer-{pointer.Name}")">
+                    <path class="pointer-arrow fill-accent" d="M0 0 L-5 -7 L5 -7 Z" />
+                    <text class="pointer-label fill-accent font-mono font-semibold" font-size="@U(PointerText)" y="@(-TickH - spot.LabelRow * LabelH - LabelH / 2)"
+                          text-anchor="middle" dominant-baseline="central">@pointer.Name</text>
+                </g>
+            }
+        </svg>
+    </div>
+    @if (View.Chains.Count > 1)
+    {
+        <p class="detached-note mt-2 mb-0 text-[.9rem] text-fg-secondary">The dashed nodes can't be reached from <code>@View.Variable</code>; only a pointer holds them.</p>
+    }
+    @if (Unseen.Count > 0)
+    {
+        <p class="off-list mt-2 mb-0 text-[.9rem] text-fg-secondary">
+            @string.Join(", ", Unseen.Select(p => p.Name)) @(Unseen.Count == 1 ? "is" : "are") on a node past the ones shown.
+        </p>
+    }
+</figure>
+
+@code {
+    [Parameter, EditorRequired] public LinkedListView View { get; set; } = default!;
+
+    /// <summary>The player's step number. What changed is keyed by it, so it is a fresh element and replays its animation.</summary>
+    [Parameter, EditorRequired] public int Step { get; set; }
+
+    // A node is a value box and a link box; the arrow to the next node is Gap long. Above a row stand its pointers' names, LabelH a row,
+    // TickH above the nodes; below it, BelowH of room for an arrow back to a node of that row.
+    private const int ValW = 52, LinkW = 22, NodeH = 40, Gap = 34, StepX = ValW + LinkW + Gap, DotX = ValW + LinkW / 2;
+    private const int Pad = 16, TopPad = 4, LabelH = 20, TickH = 10, BelowH = 24, RowGap = 22, LabelGap = 10;
+
+    // Text sizes in user units (16 is 1rem). A monospace character is about .6 of its size wide.
+    private const double SmallText = 12.8, NoneText = 14.4, PointerText = 15.2, ValueTextMax = 16, MonoW = .6;
+
+    /// <summary>Where a pointer stands: the row of the thing it marks, the middle of it, and how many names up from the nodes.</summary>
+    private readonly record struct Spot(int Row, double X, int LabelRow);
+
+    private Dictionary<int, (int Row, int Index)> _at = [];
+    private List<(NodePointer Pointer, Spot Spot)> _spots = [];
+    private int[] _rowTop = [];
+    private int[] _labelRows = [];
+    private bool[] _below = [];
+
+    /// <summary>The pointers on a node that wasn't recorded: past the node limit.</summary>
+    private List<NodePointer> Unseen => View.Pointers.Where(p => p.Node is { } id && !_at.ContainsKey(id)).ToList();
+
+    protected override void OnParametersSet()
+    {
+        _at = [];
+        for (var r = 0; r < View.Chains.Count; r++)
+            for (var i = 0; i < View.Chains[r].Nodes.Count; i++)
+                _at[View.Chains[r].Nodes[i].Id] = (r, i);
+
+        // A pointer holding None stands on the first None drawn; when no row ends at None (a cycle, a list cut off), on one of its own
+        // at the end of the first row.
+        var noneRow = View.Chains.ToList().FindIndex(c => c.End == ChainEnd.None);
+        _spareNone = noneRow < 0 && View.Pointers.Any(p => p.Node is null);
+        var none = noneRow >= 0 ? (Row: noneRow, X: NodeX(View.Chains[noneRow].Nodes.Count) + NoneInset + NoneW / 2.0)
+            : (Row: 0, X: SpareNoneX + NoneInset + NoneW / 2.0);
+
+        // Each pointer takes the lowest row of names over its row of nodes where its name clears the others'.
+        var taken = new Dictionary<int, List<List<(double Left, double Right)>>>();
+        _spots = [];
+        foreach (var pointer in View.Pointers)
+        {
+            (int Row, double X) target;
+            if (pointer.Node is not { } id) target = none;
+            else if (_at.TryGetValue(id, out var at)) target = (at.Row, NodeX(at.Index) + (ValW + LinkW) / 2.0);
+            else continue;
+
+            var half = Math.Max(10, LabelW(pointer.Name)) / 2.0;
+            var span = (Left: target.X - half, Right: target.X + half);
+            var rows = taken.TryGetValue(target.Row, out var t) ? t : taken[target.Row] = [];
+            var row = rows.FindIndex(r => r.All(o => span.Right + LabelGap <= o.Left || o.Right + LabelGap <= span.Left));
+            if (row < 0) { row = rows.Count; rows.Add([]); }
+            rows[row].Add(span);
+            _spots.Add((pointer, new Spot(target.Row, target.X, row)));
+        }
+
+        var count = View.Chains.Count;
+        _labelRows = Enumerable.Range(0, count).Select(r => taken.TryGetValue(r, out var rows) ? rows.Count : 0).ToArray();
+        // A row needs room below it for an arrow that runs back to one of its nodes, from its own end or from a row further down.
+        _below = Enumerable.Range(0, count).Select(r => View.Chains.Any(c => c.End is ChainEnd.Back or ChainEnd.Join
+            && c.Target is { } target && _at.TryGetValue(target, out var at) && at.Row == r)).ToArray();
+        _rowTop = new int[count];
+        _rowTop[0] = TopPad;
+        for (var r = 1; r < count; r++)
+            _rowTop[r] = NodeY(r - 1) + NodeH + (_below[r - 1] ? BelowH : 0) + RowGap;
+    }
+
+    private bool _spareNone;
+
+    private int NodeX(int index) => Pad + index * StepX;
+    private int NodeY(int row) => _rowTop[row] + _labelRows[row] * LabelH + TickH;
+
+    // "None" stands a little clear of the arrow that points at it.
+    private const int NoneInset = 5;
+    private static int NoneW => (int)Math.Ceiling(4 * NoneText * MonoW);
+    private static int LabelW(string name) => (int)Math.Ceiling(name.Length * PointerText * MonoW);
+
+    /// <summary>Where the spare None goes when no row ends at None: past the end of the first row and its arrow.</summary>
+    private int SpareNoneX => RowRight(0) + Gap / 2;
+
+    /// <summary>Where a row's drawing ends on the right: its last node and the arrow, None or "+N more" after it.</summary>
+    private int RowRight(int row)
+    {
+        var chain = View.Chains[row];
+        var end = NodeX(chain.Nodes.Count);
+        return chain.End switch
+        {
+            ChainEnd.None => end + NoneInset + NoneW,
+            ChainEnd.More => end + (int)Math.Ceiling($"+{View.More} more".Length * SmallText * MonoW),
+            _ => end - Gap / 2 + 4,     // the loop's turn, half an arrow past the last node
+        };
+    }
+
+    private double Right => Enumerable.Range(0, View.Chains.Count).Select(r => (double)RowRight(r))
+        .Append(_spareNone ? SpareNoneX + NoneInset + NoneW : 0.0)
+        .Concat(_spots.Select(s => s.Spot.X + Math.Max(10, LabelW(s.Pointer.Name)) / 2.0))
+        .Max();
+
+    /// <summary>Where the drawing starts: left of 0 when the first node's pointer has a name wider than the node.</summary>
+    private int OriginX => _spots.Count == 0 ? 0
+        : Math.Min(0, (int)Math.Floor(_spots.Min(s => s.Spot.X - Math.Max(10, LabelW(s.Pointer.Name)) / 2.0)) - Pad / 2);
+
+    private int Width => (int)Math.Ceiling(Right) + Pad - OriginX;
+
+    private int Height
+    {
+        get
+        {
+            var last = View.Chains.Count - 1;
+            return NodeY(last) + NodeH + (_below[last] ? BelowH : 0) + Pad / 2;
+        }
+    }
+
+    private string Size => $"width: {U(Width / 16.0)}rem; height: {U(Height / 16.0)}rem";
+
+    // Numbers written into the drawing in invariant form: "12.8", never a culture's "12,8".
+    private static string U(double value) => value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    // Placed with CSS (not the transform attribute) so that moving to a new place can be a transition.
+    private static string At(double x, double y) => $"transform: translate({U(x)}px, {U(y)}px)";
+
+    private double TargetX(int id) => NodeX(_at[id].Index) + ValW / 2.0;
+    private int TargetBottom(int id) => NodeY(_at[id].Row) + NodeH;
+
+    /// <summary>
+    /// The arrow from the last node of row <paramref name="row"/> to node <paramref name="target"/>: out of the link box, down (or up)
+    /// to the gap under the target's row, along it, and up into the target from below.
+    /// </summary>
+    private string LoopPath(int row, int index, int target)
+    {
+        double x0 = NodeX(index) + DotX, y0 = NodeY(row) + NodeH / 2.0;
+        double turn = NodeX(index) + ValW + LinkW + Gap / 2.0;
+        double lane = TargetBottom(target) + BelowH / 2.0;
+        return $"M{U(x0)} {U(y0)} H{U(turn)} V{U(lane)} H{U(TargetX(target))} V{U(TargetBottom(target) + 8)}";
+    }
+
+    /// <summary>An arrowhead with its tip at (x, y), pointing right or up.</summary>
+    private static string Head(double x, double y, bool up) => up
+        ? $"M{U(x)} {U(y)} L{U(x - 4.5)} {U(y + 7)} L{U(x + 4.5)} {U(y + 7)} Z"
+        : $"M{U(x)} {U(y)} L{U(x - 7)} {U(y - 4.5)} L{U(x - 7)} {U(y + 4.5)} Z";
+
+    private static string LinkColour(NodeView node) => node.Relinked ? "stroke-accent" : "stroke-fg-secondary";
+    private static string HeadColour(NodeView node) => node.Relinked ? "fill-accent animate-pop origin-center [transform-box:fill-box]" : "fill-fg-secondary";
+
+    private static string NodeClass(NodeView node, bool detached) =>
+        "node" + (detached ? " detached" : "") + (node.Changed ? " changed" : "") + (node.Relinked ? " relinked" : "") + (node.Added ? " added" : "");
+
+    private static string ChainKey(ChainView chain) => chain.Nodes.Count == 0 ? "head" : chain.Nodes[0].Id.ToString();
+
+    private static string Clip(string text) => text.Length <= 6 ? text : text[..5] + "…";
+
+    // A long value is set a little smaller so that all of its (at most 6) characters fit inside the box.
+    private static double ValueText(string? text) => Math.Min(ValueTextMax, Math.Round((ValW - 10) / (Clip(text ?? "?").Length * MonoW), 1));
+
+    private string Describe()
+    {
+        string Row(ChainView chain)
+        {
+            var values = chain.Nodes.Select(n => n.Value ?? "?").ToList();
+            var end = chain.End switch
+            {
+                ChainEnd.None => "None",
+                ChainEnd.More => $"{View.More} more",
+                ChainEnd.Back => $"back to {Value(chain.Target!.Value)}",
+                _ => $"on to {Value(chain.Target!.Value)}",
+            };
+            return string.Join(" → ", values.Append(end));
+        }
+        string Value(int id) => View.Nodes.FirstOrDefault(n => n.Id == id)?.Value ?? "?";
+
+        var text = $"{View.Variable}, a linked list: {Row(View.Chains[0])}";
+        if (View.Chains.Count > 1)
+            text += "; not reachable from it: " + string.Join("; ", View.Chains.Skip(1).Select(Row));
+        var pointers = View.Pointers.Where(p => p.Name != View.Variable)
+            .Select(p => p.Node is { } id ? $"{p.Name} at the node holding {Value(id)}" : $"{p.Name} at None").ToList();
+        return text + (pointers.Count > 0 ? "; " + string.Join(", ", pointers) : "");
+    }
+}

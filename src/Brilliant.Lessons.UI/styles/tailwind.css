@@ -84,6 +84,7 @@
     --animate-row-out: row-out .9s var(--ease-app) forwards;
     --animate-cell-in: cell-in .5s var(--ease-app) both;
     --animate-cell-out: cell-out .7s var(--ease-app) forwards;
+    --animate-link-in: link-in .6s var(--ease-app) both;
     --animate-pop: pop .45s cubic-bezier(.3, 1.6, .5, 1) both;
     --animate-turn: turn .7s var(--ease-app);
     --animate-shake: shake .4s var(--ease-app);
@@ -123,6 +124,12 @@
     @keyframes cell-out {
         from { opacity: 1; translate: 0 0; }
         to { opacity: 0; translate: 0 -1.75rem; }
+    }
+
+    /* A linked-list arrow that was rewired draws itself from its node to the new one (the path has pathLength="1"). */
+    @keyframes link-in {
+        from { stroke-dasharray: 1; stroke-dashoffset: 1; }
+        to { stroke-dasharray: 1; stroke-dashoffset: 0; }
     }
 
     /* Answers and tabs respond to what the person did: a pop for what became true, a shake for what did not. */
