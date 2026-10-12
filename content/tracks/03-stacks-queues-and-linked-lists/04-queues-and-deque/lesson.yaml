@@ -1,0 +1,594 @@
+id: lesson.queues-and-deque
+title: Queues and collections.deque
+concepts:
+  - id: concept.list-pop-front-cost
+    title: "Why list.pop(0) is O(n)"
+  - id: concept.deque-operations
+    title: "deque: O(1) at both ends"
+  - id: concept.window-deque
+    title: A deque holds a sliding window
+reviewItems:
+  - id: review.deque.pop-front-cost
+    concept: concept.list-pop-front-cost
+    step: step.deque.check-pop-front-cost
+  - id: review.deque.predict-ops
+    concept: concept.deque-operations
+    step: step.deque.predict-ops
+  - id: review.deque.maxlen
+    concept: concept.deque-operations
+    step: step.deque.predict-maxlen
+  - id: review.deque.predict-window-max
+    concept: concept.window-deque
+    step: step.deque.predict-window-max
+  - id: review.deque.which-problem
+    concept: concept.window-deque
+    step: step.deque.check-which-problem
+    kind: pattern
+  - id: review.deque.why-drop-smaller
+    concept: concept.window-deque
+    step: step.deque.check-why-drop-smaller
+    kind: pattern
+patterns:
+  - id: pattern.window-deque
+    title: A deque for the window
+steps:
+  - id: step.deque.queue
+    type: explain
+    title: First in, first out
+    body: |
+      A **queue** is first in, first out: people join at the back and leave from the front. C# has `Queue<T>`. In Python, use
+      **`collections.deque`** (say "deck", short for *double-ended queue*):
+
+      - **enqueue** is `q.append(x)`, onto the back
+      - **dequeue** is `q.popleft()`, from the front
+      - **peek** is `q[0]` for the front, `q[-1]` for the back
+      - **is it empty?** is `if not q:`, as with a list
+
+      It also works from the other ends: `appendleft(x)` and `pop()`. All four are `O(1)`.
+
+      A deque is not a list, though. Indexing the middle (`q[i]`) is `O(n)`, and it has no slicing. Use it when you work at the
+      ends; use a list when you index.
+    comparison:
+      csharp: |
+        var q = new Queue<int>();
+        q.Enqueue(1);
+        q.Enqueue(2);
+        int front = q.Peek();      // 1
+        int x = q.Dequeue();       // 1, and the queue is [2]
+        if (q.Count == 0) { }
+      python: |
+        from collections import deque
+
+        q = deque()
+        q.append(1)
+        q.append(2)
+        front = q[0]               # 1
+        x = q.popleft()            # 1, and the queue is [2]
+        if not q:
+            pass
+  - id: step.deque.why-not-list
+    type: explain
+    title: Why not just use a list?
+    body: |
+      A list *can* act as a queue: `append` to join and `pop(0)` to leave. It gives the right answer, slowly. A list keeps its
+      items in one block of memory starting at index `0`, so removing the first item **shifts every other item down one place**.
+      That is `O(n)` per dequeue, and `O(n²)` for a loop that empties the queue. `insert(0, x)` has the same problem.
+
+      C# has the same trap: `List<T>.RemoveAt(0)` shifts too, which is why `Queue<T>` exists. A `deque` is built from linked
+      blocks, so neither end ever shifts anything.
+
+      The rule: if you take from the **front**, use a `deque`. If you only touch the **back**, a list is a fine stack.
+    comparison:
+      csharp: |
+        var list = new List<int> { 1, 2, 3 };
+        list.RemoveAt(0);          // O(n): shifts 2 and 3 down
+
+        var q = new Queue<int>(new[] { 1, 2, 3 });
+        q.Dequeue();               // O(1)
+      python: |
+        items = [1, 2, 3]
+        items.pop(0)               # O(n): shifts 2 and 3 down
+
+        q = deque([1, 2, 3])
+        q.popleft()                # O(1)
+  - id: step.deque.trace-ops
+    type: trace
+    title: Both ends of a deque
+    body: |
+      The deque is drawn front to back, left to right. `append` joins at the back and `popleft` leaves from the front, so
+      `"a"` leaves first: it arrived first. `appendleft` lets `"z"` jump the queue, and `pop` takes from the back.
+    code: |
+      from collections import deque
+
+      q = deque()
+      q.append("a")
+      q.append("b")
+      q.append("c")
+      served = q.popleft()
+      q.appendleft("z")
+      served = q.popleft()
+      last = q.pop()
+    visualise:
+      - variable: q
+        as: queue
+  - id: step.deque.predict-ops
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      from collections import deque
+
+      q = deque([1, 2, 3])
+      q.appendleft(0)
+      q.append(4)
+      first = q.popleft()
+      last = q.pop()
+      print(first, last, list(q))
+    accepted:
+      - "0 4 [1, 2, 3]"
+    mistakes:
+      - answers:
+          - "4 0 [1, 2, 3]"
+        feedback: "`popleft()` takes from the front, where `appendleft(0)` put the `0`. `pop()` takes from the back, where `4` is."
+      - answers:
+          - "1 3 [0, 2, 4]"
+          - "1 3 [2]"
+        feedback: "`appendleft(0)` and `append(4)` happen first, so the ends are `0` and `4` by the time anything is popped."
+      - answers:
+          - "0 4 [0, 1, 2, 3, 4]"
+        feedback: "`popleft()` and `pop()` remove the items as well as returning them."
+    hints:
+      - "Write the deque down after each line. After the two appends it is `[0, 1, 2, 3, 4]`."
+      - "`popleft` takes from the left (front); `pop` from the right (back)."
+  - id: step.deque.check-pop-front-cost
+    type: choice
+    title: The slow queue
+    prompt: |
+      A list used as a queue with `append` and `pop(0)` gives correct answers. Why is it slow for a large queue?
+    options:
+      - text: "`pop(0)` shifts every remaining item down one place, so each dequeue is `O(n)`."
+        correct: true
+        feedback: "Right. A list's items start at index `0`, so removing the first means moving all the others. `deque.popleft()` moves nothing: `O(1)`."
+      - text: "`append` copies the whole list every time."
+        correct: false
+        feedback: "`append` at the back is `O(1)` on average; the list grows its block in big steps. The cost is at the front."
+      - text: Python lists are linked lists, so reaching index `0` is slow.
+        correct: false
+        feedback: "It's the other way round: lists are arrays, and reaching index `0` is instant. The cost is shifting everything after it."
+      - text: It isn't slow; `pop(0)` and `popleft()` cost the same.
+        correct: false
+        feedback: "On a list, `pop(0)` is `O(n)`. With a million items, emptying the queue that way does about half a trillion moves."
+    hints:
+      - "After removing index `0`, where must the item that was at index `1` end up?"
+      - "How many items move?"
+  - id: step.deque.predict-maxlen
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      A deque can be given a maximum length. What does this print?
+    code: |
+      from collections import deque
+
+      last_three = deque(maxlen=3)
+      for x in [1, 2, 3, 4, 5]:
+          last_three.append(x)
+      print(list(last_three))
+    accepted:
+      - "[3, 4, 5]"
+    mistakes:
+      - answers:
+          - "[1, 2, 3]"
+        feedback: "A full deque with `maxlen` doesn't refuse new items. Appending at the back pushes the oldest out of the front."
+      - answers:
+          - "[1, 2, 3, 4, 5]"
+        feedback: "`maxlen=3` is enforced: the deque never holds more than three items."
+    hints:
+      - "When the deque is full, `append` drops an item from the other end."
+      - "Which three items arrived most recently?"
+  - id: step.deque.pattern
+    type: explain
+    title: "Pattern: the window lives in a deque"
+    body: |
+      In Track 2 a sliding window was two indices into a list. Sometimes it's simpler to hold the window **itself**: items
+      enter at the back and leave from the front, which is exactly a deque. Watch for:
+
+      - *in the last `k` items*, *a moving average*, *the most recent `t` seconds*
+      - *the maximum (or minimum) of every window of size `k`*
+
+      **Recent items.** Append each new item; `popleft` the ones that are too old. `deque(maxlen=k)` does the dropping for you.
+
+      **Window maximum.** A running sum works for "sum of each window", but a maximum can't be "un-added" when it leaves. So
+      keep a deque of indices whose values **go down from front to back**, a monotonic stack with a front door:
+
+      - before appending index `i`, `pop` every index from the back whose value is `<=` the new one;
+      - `popleft` the front index once it falls out of the window;
+      - the front is always the window's maximum.
+
+      Each index enters once and leaves once, so the whole thing is `O(n)`.
+    comparison:
+      csharp: |
+        // C# has no deque; LinkedList<int> works at both ends.
+        var window = new LinkedList<int>();       // indices
+        for (int i = 0; i < nums.Length; i++)
+        {
+            while (window.Count > 0 && nums[window.Last!.Value] <= nums[i])
+                window.RemoveLast();
+            window.AddLast(i);
+            if (window.First!.Value <= i - k) window.RemoveFirst();
+            if (i >= k - 1) result.Add(nums[window.First!.Value]);
+        }
+      python: |
+        window = deque()                          # indices
+        for i, x in enumerate(nums):
+            while window and nums[window[-1]] <= x:
+                window.pop()
+            window.append(i)
+            if window[0] <= i - k:
+                window.popleft()
+            if i >= k - 1:
+                result.append(nums[window[0]])
+  - id: step.deque.trace-recent
+    type: trace
+    title: Only the last 3000 milliseconds
+    body: |
+      Each ping is a time in milliseconds. A ping joins at the back; any ping more than 3000 ms older than the newest leaves
+      from the front. The deque always holds exactly the recent pings, so `len(q)` is the answer. Watch `1` and `100` leave
+      when `3002` arrives.
+    code: |
+      from collections import deque
+
+      times = [1, 100, 3001, 3002]
+      q = deque()
+      counts = []
+      for t in times:
+          q.append(t)
+          while q[0] < t - 3000:
+              q.popleft()
+          counts.append(len(q))
+    visualise:
+      - variable: q
+        as: queue
+      - variable: counts
+        as: array
+  - id: step.deque.trace-window-max
+    type: trace
+    title: The window maximum
+    body: |
+      `window` holds indices into `nums`, with values going down from front to back. `3` arriving clears `1` from the back:
+      `1` can never be a maximum again while `3` is in the window, and `3` will outlast it. The front index leaves when it is
+      `k` or more places behind `i`. The front's value is the answer for each full window.
+    code: |
+      from collections import deque
+
+      nums = [1, 3, -1, -3, 5, 3, 6]
+      k = 3
+      window = deque()
+      result = []
+      for i, x in enumerate(nums):
+          while window and nums[window[-1]] <= x:
+              window.pop()
+          window.append(i)
+          if window[0] <= i - k:
+              window.popleft()
+          if i >= k - 1:
+              result.append(nums[window[0]])
+    visualise:
+      - variable: nums
+        as: array
+        pointers: [i]
+      - variable: window
+        as: queue
+      - variable: result
+        as: array
+  - id: step.deque.predict-window-max
+    type: predict-output
+    title: Predict the output
+    prompt: What does this print?
+    code: |
+      from collections import deque
+
+
+      def window_max(nums, k):
+          window = deque()
+          result = []
+          for i, x in enumerate(nums):
+              while window and nums[window[-1]] <= x:
+                  window.pop()
+              window.append(i)
+              if window[0] <= i - k:
+                  window.popleft()
+              if i >= k - 1:
+                  result.append(nums[window[0]])
+          return result
+
+
+      print(window_max([9, 8, 7, 6], 2))
+    accepted:
+      - "[9, 8, 7]"
+    mistakes:
+      - answers:
+          - "[9, 9, 9]"
+        feedback: "`9`'s index leaves from the front once the window has moved past it. The window `[8, 7]` doesn't contain `9`."
+      - answers:
+          - "[9, 8, 7, 6]"
+        feedback: "Only full windows produce an answer: with `k = 2` and four items there are three windows."
+      - answers:
+          - "[8, 7, 6]"
+        feedback: "Each window's maximum is its *first* item here: `[9, 8]` gives `9`. On a falling list nothing is popped from the back, so the front is the oldest index in the window."
+    hints:
+      - "List the windows of size 2: `[9, 8]`, `[8, 7]`, `[7, 6]`. What is the maximum of each?"
+      - "The list only falls, so nothing is popped from the back; indices leave only from the front, once they're out of the window."
+  - id: step.deque.check-why-drop-smaller
+    type: choice
+    title: Why throw away smaller items?
+    prompt: |
+      In `window_max`, a new item pops every index from the back whose value is `<=` its own. Why is it safe to throw those
+      items away?
+    options:
+      - text: "They arrived earlier, so they will leave the window earlier, and until then the new, bigger item is in the window with them. None of them can ever be a window's maximum again."
+        correct: true
+        feedback: "Right. A smaller item that will also leave sooner can never win. Dropping it keeps the deque falling from front to back, so the front is the maximum."
+      - text: They are out of the window already.
+        correct: false
+        feedback: "Not necessarily: they can be well inside the window. Leaving the window is handled at the front, by `popleft`."
+      - text: Because the deque has a `maxlen` of `k`.
+        correct: false
+        feedback: "This deque has no `maxlen`. It can hold anywhere from one to `k` indices, depending on the values."
+      - text: "It isn't always safe; it's a speed-up that is sometimes wrong."
+        correct: false
+        feedback: "It is always safe, and that's what makes the method correct in `O(n)`. An item that is smaller and older than another item in the window can never be the maximum."
+    hints:
+      - "The new item and the popped item are both in the window right now. Which leaves first?"
+      - "Can an item be the maximum while a bigger item is in the same window?"
+  - id: step.deque.check-which-problem
+    type: choice
+    title: Which problem needs the deque?
+    prompt: |
+      All four problems below work on a list of numbers. For which one is the falling deque from this lesson the right tool?
+    options:
+      - text: "For every block of `k` consecutive readings, report the highest reading in the block."
+        correct: true
+        feedback: "Right. A maximum can't be subtracted when it leaves a window, so a running total doesn't work. The falling deque keeps the maximum at its front."
+      - text: "For every block of `k` consecutive readings, report the total."
+        correct: false
+        feedback: "A total *can* be updated as the window slides: add the new reading, subtract the one leaving. That's a fixed-size window with a running sum, with no deque needed."
+      - text: For each reading, find the next reading to its right that is higher.
+        correct: false
+        feedback: "The next higher item, for every item: that's the monotonic stack from the last lesson. Nothing leaves from the front."
+      - text: Check that the brackets in a formula are balanced.
+        correct: false
+        feedback: "Matching brackets is a plain stack: push openers, pop on closers."
+    hints:
+      - "Which of these answers can't be kept up to date just by adding and subtracting as the window slides?"
+      - "Which option is about a window *and* a maximum?"
+  - id: step.deque.fill-window-max
+    type: fill-blank
+    title: Complete the window maximum
+    pattern: pattern.window-deque
+    patternCue: "\"The maximum of every window of size `k`\": keep a deque of indices with values falling front to back; drop smaller ones from the back, expired ones from the front, and read the front."
+    prompt: |
+      Fill in the blanks so that `window_max(nums, k)` returns the largest item of each run of `k` consecutive items.
+    template: |
+      from collections import deque
+
+      def window_max(nums, k):
+          window = deque()
+          result = []
+          for i, x in enumerate(nums):
+              while window and nums[window[-1]] <= x:
+                  window.{{back}}()
+              window.append(i)
+              if window[0] <= i - k:
+                  window.{{front}}()
+              if i >= k - 1:
+                  result.append(nums[{{best}}])
+          return result
+    blanks:
+      - id: back
+        accepted:
+          - "pop"
+        mistakes:
+          - answers:
+              - "popleft"
+            feedback: "That removes the oldest index, at the front. The smaller items to drop are at the back, next to where `i` is about to go: `pop`."
+      - id: front
+        accepted:
+          - "popleft"
+        mistakes:
+          - answers:
+              - "pop"
+            feedback: "`pop` takes from the back, where the newest index is. The expired index is the oldest one, at the front: `popleft`."
+          - answers:
+              - "pop(0)"
+            feedback: "`deque.pop` takes no index. Removing from the front of a deque is `popleft()`."
+      - id: best
+        accepted:
+          - "window[0]"
+        mistakes:
+          - answers:
+              - "window[-1]"
+            feedback: "The back holds the newest index, which has the *smallest* value in the deque. The values fall from front to back, so the maximum is at the front."
+          - answers:
+              - "i"
+            feedback: "`nums[i]` is just the newest item. The maximum is whichever index is at the front of the deque."
+    hints:
+      - "Smaller items are cleared from the back; expired items leave from the front."
+      - "The values in the deque fall from front to back. Where is the largest?"
+  - id: step.deque.order-recent
+    type: parsons
+    title: Pings in the last 3 seconds
+    pattern: pattern.window-deque
+    patternCue: "\"How many in the last `t` seconds\": each new time joins the back of a deque, times too old leave from the front, and the length is the count."
+    prompt: |
+      Arrange the lines into `recent_counts(times)`. `times` is a list of ping times in milliseconds, in increasing order. For
+      each ping, the function records how many pings happened in the 3000 ms up to and including it (times from `t - 3000` to
+      `t`). `deque` is already imported.
+    solution: |
+      def recent_counts(times):
+          q = deque()
+          counts = []
+          for t in times:
+              q.append(t)
+              while q[0] < t - 3000:
+                  q.popleft()
+              counts.append(len(q))
+          return counts
+    hints:
+      - "Each new time joins first; then the old ones are cleared from the front."
+      - "The `while` keeps removing until the front time is recent enough. The count is taken after it."
+  - id: step.deque.write-recent
+    type: write-code
+    largeScreenPreferred: true
+    title: Recent pings
+    pattern: pattern.window-deque
+    patternCue: "\"How many in the most recent `t` milliseconds\", for each new event: events join the back of a deque, expired ones leave the front, and the length is the answer."
+    prompt: |
+      `times` is a list of request times in milliseconds, in increasing order. Write `recent_counts(times)` that returns, for
+      each request, how many requests (including itself) happened in the 3000 ms up to it: times from `t - 3000` to `t`
+      inclusive. `[1, 100, 3001, 3002]` gives `[1, 2, 3, 3]`.
+    language: python
+    entrypoint: recent_counts
+    starter: |
+      from collections import deque
+
+
+      def recent_counts(times):
+          pass
+    solution: |
+      from collections import deque
+
+
+      def recent_counts(times):
+          q = deque()
+          counts = []
+          for t in times:
+              q.append(t)
+              while q[0] < t - 3000:
+                  q.popleft()
+              counts.append(len(q))
+          return counts
+    tests:
+      - input: "[1, 100, 3001, 3002]"
+        expected: "[1, 2, 3, 3]"
+      - input: "[0, 3000, 3001, 6002]"
+        expected: "[1, 2, 2, 1]"
+      - input: "[5]"
+        expected: "[1]"
+      - input: "[]"
+        expected: "[]"
+    hints:
+      - "Append each time to a deque, then `popleft` while the front is older than `t - 3000`."
+      - "`t - 3000` itself still counts, so remove only times strictly less than it."
+      - "The deque can never empty in the loop: the time you just added is always recent."
+    walkthrough:
+      call: result = recent_counts([1, 100, 3001, 3002])
+      visualise:
+        - variable: q
+          as: queue
+        - variable: counts
+          as: array
+      explanation: |
+        The first three pings fit: `3001 - 3000 = 1`, and `1` is not older than that. When `3002` arrives the cut-off is `2`, so
+        `1` leaves from the front. `100` stays, and the count is still `3`.
+  - id: step.deque.write-window-max
+    type: write-code
+    largeScreenPreferred: true
+    title: Highest reading in each block
+    pattern: pattern.window-deque
+    patternCue: "\"The highest in every run of `k`\": a maximum can't be subtracted when it leaves, so keep a deque of indices with falling values and read its front."
+    prompt: |
+      A sensor gives a list of readings `nums`. Write `window_max(nums, k)` that returns the highest reading in every run of
+      `k` consecutive readings, in order. `window_max([1, 3, -1, -3, 5, 3, 6, 7], 3)` is `[3, 3, 5, 5, 6, 7]`. You can assume
+      `1 <= k <= len(nums)`. Aim for `O(n)`, not `O(n·k)`.
+    language: python
+    entrypoint: window_max
+    starter: |
+      from collections import deque
+
+
+      def window_max(nums, k):
+          pass
+    solution: |
+      from collections import deque
+
+
+      def window_max(nums, k):
+          window = deque()
+          result = []
+          for i, x in enumerate(nums):
+              while window and nums[window[-1]] <= x:
+                  window.pop()
+              window.append(i)
+              if window[0] <= i - k:
+                  window.popleft()
+              if i >= k - 1:
+                  result.append(nums[window[0]])
+          return result
+    tests:
+      - input: "[1, 3, -1, -3, 5, 3, 6, 7], 3"
+        expected: "[3, 3, 5, 5, 6, 7]"
+      - input: "[9, 8, 7, 6], 2"
+        expected: "[9, 8, 7]"
+      - input: "[4], 1"
+        expected: "[4]"
+      - input: "[1, 2, 3, 4], 4"
+        expected: "[4]"
+      - input: "[2, 2, 2], 2"
+        expected: "[2, 2]"
+    hints:
+      - "Store indices in the deque, so you can tell when the front has left the window."
+      - "Before appending `i`, pop from the back every index whose value is `<=` `nums[i]`. Then `popleft` if the front is `k` or more behind `i`."
+      - "Once `i >= k - 1`, every step completes a window: its maximum is `nums[window[0]]`."
+    walkthrough:
+      call: result = window_max([1, 3, -1, -3, 5, 3, 6, 7], 3)
+      visualise:
+        - variable: nums
+          as: array
+          pointers: [i]
+        - variable: window
+          as: queue
+        - variable: result
+          as: array
+      explanation: |
+        `3` clears `1`; `-1` and `-3` queue up behind it, falling. At `i = 4`, `5` clears the whole deque, since everything is
+        smaller. `3` waits behind `5`; `6` and then `7` clear the back each time. The front is always the window's maximum.
+  - id: step.deque.write-circle
+    type: write-code
+    largeScreenPreferred: true
+    title: Last one standing
+    prompt: |
+      `n` people, numbered `1` to `n`, stand in a circle. Counting starts at person `1`, and every `k`-th person counted leaves
+      the circle; counting carries on from the next person. Write `survivor(n, k)` that returns the number of the last person
+      left. With `n = 7, k = 3` people leave in the order `3, 6, 2, 7, 5, 1`, so the answer is `4`.
+    language: python
+    entrypoint: survivor
+    starter: |
+      from collections import deque
+
+
+      def survivor(n, k):
+          pass
+    solution: |
+      from collections import deque
+
+
+      def survivor(n, k):
+          circle = deque(range(1, n + 1))
+          while len(circle) > 1:
+              for _ in range(k - 1):
+                  circle.append(circle.popleft())
+              circle.popleft()
+          return circle[0]
+    tests:
+      - input: "7, 3"
+        expected: "4"
+      - input: "5, 2"
+        expected: "3"
+      - input: "1, 4"
+        expected: "1"
+      - input: "6, 1"
+        expected: "6"
+    hints:
+      - "Put everyone in a deque. The front is the person about to be counted."
+      - "Counting someone who stays means moving them from the front to the back: `circle.append(circle.popleft())`."
+      - "Do that `k - 1` times, then `popleft` the `k`-th person. Stop when one is left."
