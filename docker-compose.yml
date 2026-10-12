@@ -23,6 +23,8 @@ services:
       context: .
       dockerfile: src/Brilliant.Server/Dockerfile
     restart: unless-stopped
+    # The TLS key is readable by its owner alone (scripts/local-ca.sh), so the server runs as that user; the script sets these in .env.
+    user: "${SERVER_UID:-1000}:${SERVER_GID:-1000}"
     depends_on:
       postgres:
         condition: service_healthy

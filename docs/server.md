@@ -97,6 +97,7 @@ Devices paired before #35 remember `http://…:8080` and must pair again ([https
 | `POSTGRES_PASSWORD` | `.env` | required |
 | `SERVER_PORT` | `.env` | `8443` |
 | `TLS_DIR` | `.env` | `./tls` (holds `server.pem`, `server.key`; see [https.md](https.md)) |
+| `SERVER_UID`, `SERVER_GID` | `.env` (set by `scripts/local-ca.sh`) | `1000`; the user the server runs as, which must own `tls/server.key` |
 | `Tls__CertificatePath`, `Tls__KeyPath`, `Tls__Port` | set in `docker-compose.yml` | `/tls/server.pem`, `/tls/server.key`, `8443` |
 | `ConnectionStrings__Postgres` | set in `docker-compose.yml` | the compose Postgres |
 | `BACKUP_DIR`, `BACKUP_KEEP`, `BACKUP_AT`, `BACKUP_TZ`, `BACKUP_UID`, `BACKUP_GID` | `.env` | `./backups`, `14`, `03:00`, `UTC`, root; see [backup.md](backup.md) |

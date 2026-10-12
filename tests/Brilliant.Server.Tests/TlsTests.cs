@@ -24,6 +24,7 @@ internal sealed class IssuedCertificates : IDisposable
     public string ServerPem => Path.Combine(TlsDir, "server.pem");
     public string ServerKey => Path.Combine(TlsDir, "server.key");
     public string CaCrt => Path.Combine(TlsDir, "brilliant-ca.crt");
+    public string EnvFile => Path.Combine(Root, ".env");
 
     public static string ScriptPath()
     {
@@ -39,6 +40,7 @@ internal sealed class IssuedCertificates : IDisposable
         foreach (var a in args) info.ArgumentList.Add(a);
         info.Environment["BRILLIANT_CA_DIR"] = CaDir;
         info.Environment["BRILLIANT_TLS_DIR"] = TlsDir;
+        info.Environment["BRILLIANT_ENV_FILE"] = EnvFile;
         using var process = Process.Start(info)!;
         var stdout = process.StandardOutput.ReadToEndAsync();
         var stderr = process.StandardError.ReadToEndAsync();
@@ -209,6 +211,69 @@ public class IssuedCertificateTests : IClassFixture<IssuedCertificateTests.Fixtu
     }
 
     [Fact]
+    public void The_servers_private_key_is_readable_by_its_owner_alone_and_the_public_files_by_everyone()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(_issued.ServerKey));
+        var readable = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead;
+        Assert.Equal(readable, File.GetUnixFileMode(_issued.ServerPem));
+        Assert.Equal(readable, File.GetUnixFileMode(_issued.CaCrt));
+    }
+
+    [Fact]
+    public void Check_fails_when_the_private_key_has_become_readable_by_others()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using var shared = new IssuedCertificates().Issue("192.168.1.20");
+        File.SetUnixFileMode(shared.ServerKey, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead);
+
+        var (code, output) = shared.Run("--check");
+
+        Assert.NotEqual(0, code);
+        Assert.Contains("server.key", output);
+        Assert.Contains("readable by other accounts", output);
+    }
+
+    [Fact]
+    public void The_server_runs_as_the_key_owner_and_the_script_records_who_that_is_in_the_env_file()
+    {
+        using var fresh = new IssuedCertificates();
+        Directory.CreateDirectory(fresh.Root);
+        File.WriteAllText(fresh.EnvFile, "POSTGRES_PASSWORD=x\nSERVER_UID=999\n");
+
+        fresh.Issue("192.168.1.20").Issue("192.168.1.20");   // twice: it must not pile up lines
+
+        var lines = File.ReadAllLines(fresh.EnvFile);
+        Assert.Contains("POSTGRES_PASSWORD=x", lines);
+        Assert.Single(lines, l => l.StartsWith("SERVER_UID="));
+        Assert.Single(lines, l => l.StartsWith("SERVER_GID="));
+        Assert.Equal(Id("-u"), lines.Single(l => l.StartsWith("SERVER_UID=")).Split('=')[1]);
+        Assert.Equal(Id("-g"), lines.Single(l => l.StartsWith("SERVER_GID=")).Split('=')[1]);
+    }
+
+    [Fact]
+    public void Without_an_env_file_the_script_creates_none_and_says_what_to_set()
+    {
+        using var fresh = new IssuedCertificates();
+
+        var (code, output) = fresh.Run("192.168.1.20");
+
+        Assert.Equal(0, code);
+        Assert.False(File.Exists(fresh.EnvFile));
+        Assert.Contains("SERVER_UID=" + Id("-u"), output);
+        Assert.Contains("SERVER_GID=" + Id("-g"), output);
+    }
+
+    private static string Id(string flag)
+    {
+        var info = new ProcessStartInfo("id", flag) { RedirectStandardOutput = true };
+        using var process = Process.Start(info)!;
+        var text = process.StandardOutput.ReadToEnd().Trim();
+        process.WaitForExit();
+        return text;
+    }
+
+    [Fact]
     public void A_name_that_cannot_be_a_host_is_refused_before_anything_is_written()
     {
         using var fresh = new IssuedCertificates();
@@ -299,6 +364,20 @@ public class ServerTlsTests : IDisposable
         var e = Assert.Throws<InvalidOperationException>(() => ServerTls.Load(new TlsSettings(Path.Combine(_dir, "nope.pem"), Path.Combine(_dir, "nope.key"), 8443), TimeProvider.System));
         Assert.Contains("nope.pem", e.Message);
         Assert.Contains("scripts/local-ca.sh", e.Message);
+    }
+
+    [Fact]
+    public void A_key_the_server_may_not_read_says_which_user_to_run_as()
+    {
+        if (OperatingSystem.IsWindows() || Environment.UserName == "root") return;
+        using var issued = new IssuedCertificates().Issue("192.168.1.20");
+        File.SetUnixFileMode(issued.ServerKey, UnixFileMode.None);
+
+        var e = Assert.Throws<InvalidOperationException>(() =>
+            ServerTls.Load(new TlsSettings(issued.ServerPem, issued.ServerKey, 0), TimeProvider.System));
+
+        Assert.Contains(issued.ServerKey, e.Message);
+        Assert.Contains("SERVER_UID", e.Message);
     }
 
     [Fact]
@@ -399,6 +478,7 @@ public class DeploymentConfigTests
         Assert.Contains(":/tls:ro", compose);
         Assert.Contains("\"${SERVER_PORT:-8443}:8443\"", compose);
         Assert.DoesNotContain(":8080\"", compose);
+        Assert.Contains("user: \"${SERVER_UID:-1000}:${SERVER_GID:-1000}\"", compose);   // the key is the owner's alone, so the container runs as the owner
     }
 
     [Fact]

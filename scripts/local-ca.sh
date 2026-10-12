@@ -14,12 +14,15 @@
 #   BRILLIANT_TLS_DIR  <repo>/tls        what the server container mounts (git-ignored): server.pem, server.key, and brilliant-ca.crt,
 #                                        the public certificate you install on each device.
 #   BRILLIANT_CERT_DAYS  825             how long a server certificate lasts. Renewing is this script again; devices need nothing.
+#   BRILLIANT_ENV_FILE   <repo>/.env     if it exists, SERVER_UID and SERVER_GID (you) are set in it: the server's key is readable by you
+#                                        alone, so docker compose runs the server as you.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CA_DIR="${BRILLIANT_CA_DIR:-$HOME/.brilliant/ca}"
 TLS_DIR="${BRILLIANT_TLS_DIR:-$ROOT/tls}"
 CERT_DAYS="${BRILLIANT_CERT_DAYS:-825}"
+ENV_FILE="${BRILLIANT_ENV_FILE:-$ROOT/.env}"
 CA_DAYS=3650
 WARN_DAYS=30
 
@@ -47,6 +50,9 @@ check() {
         openssl verify -CAfile "$TLS_DIR/brilliant-ca.crt" "$TLS_DIR/server.pem" >/dev/null 2>&1 \
             || die "the certificate was not issued by $TLS_DIR/brilliant-ca.crt"
     fi
+    local mode
+    mode="$(stat -f %Lp "$TLS_DIR/server.key" 2>/dev/null || stat -c %a "$TLS_DIR/server.key")"
+    [ "${mode: -2}" = "00" ] || die "$TLS_DIR/server.key is readable by other accounts (mode $mode); run chmod 600 on it, or scripts/local-ca.sh"
     openssl x509 -in "$TLS_DIR/server.pem" -noout -checkend 0 >/dev/null || die "the certificate has expired; run scripts/local-ca.sh"
     openssl x509 -in "$TLS_DIR/server.pem" -noout -checkend $((WARN_DAYS * 86400)) >/dev/null \
         || die "the certificate expires within $WARN_DAYS days; run scripts/local-ca.sh to renew it (devices need nothing)"
@@ -131,16 +137,40 @@ openssl x509 -req -in "$work/server.csr" -CA "$CA_DIR/ca.crt" -CAkey "$CA_DIR/ca
     -extfile "$work/server.cnf" -extensions server -out "$work/server.pem" 2>/dev/null
 openssl verify -CAfile "$CA_DIR/ca.crt" "$work/server.pem" >/dev/null || die "the new certificate does not verify against the CA"
 
-# The container's user is not you, so the server's own key has to be readable by others. It only secures this server, and the CA's key,
-# which can vouch for anything, is not here. Everything is put in place only now that all of it was made.
+# The certificates are public. The server's key lets whoever holds it pose as the server to every device that trusts the CA, so it is
+# readable by you alone, and docker-compose.yml runs the server container as you (SERVER_UID, SERVER_GID) so that it can read it.
+# Everything is put in place only now that all of it was made.
 mkdir -p "$TLS_DIR"
 chmod 755 "$TLS_DIR"
 cp "$CA_DIR/ca.crt" "$TLS_DIR/brilliant-ca.crt"
 cp "$work/server.pem" "$TLS_DIR/server.pem"
+chmod 644 "$TLS_DIR/brilliant-ca.crt" "$TLS_DIR/server.pem"
 cp "$work/server.key" "$TLS_DIR/server.key"
-chmod 644 "$TLS_DIR/brilliant-ca.crt" "$TLS_DIR/server.pem" "$TLS_DIR/server.key"
+chmod 600 "$TLS_DIR/server.key"
+
+uid="$(id -u)"
+gid="$(id -g)"
+set_env() {   # set_env NAME VALUE: replace the line in the env file, or add it
+    if grep -q "^$1=" "$ENV_FILE"; then
+        local tmp
+        tmp="$(mktemp "$ENV_FILE.XXXXXX")"
+        sed "s|^$1=.*|$1=$2|" "$ENV_FILE" > "$tmp" && cat "$tmp" > "$ENV_FILE"
+        rm -f "$tmp"
+    else
+        printf '%s=%s\n' "$1" "$2" >> "$ENV_FILE"
+    fi
+}
 
 echo
 echo "Server certificate: $TLS_DIR/server.pem (+ server.key), valid $CERT_DAYS days"
 echo "Install this on every Mac and Android device:  $TLS_DIR/brilliant-ca.crt"
-echo "Then (re)start the server so it loads it: docker compose up -d --force-recreate server   (docs/https.md)"
+if [ -f "$ENV_FILE" ]; then
+    set_env SERVER_UID "$uid"
+    set_env SERVER_GID "$gid"
+    echo "Set SERVER_UID=$uid and SERVER_GID=$gid in $ENV_FILE: the server's key is readable by you alone, so the server runs as you."
+else
+    echo "The server's key is readable by you alone, so the server must run as you. Put these in .env (copy .env.example first):"
+    echo "  SERVER_UID=$uid"
+    echo "  SERVER_GID=$gid"
+fi
+echo "Then (re)start the server so it loads it: docker compose up -d --build --force-recreate server   (docs/https.md)"

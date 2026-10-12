@@ -44,6 +44,11 @@ public static class ServerTls
         {
             throw new InvalidOperationException($"{settings.CertificatePath} and {settings.KeyPath} are not a matching PEM certificate and key ({e.Message}). {Fix}", e);
         }
+        catch (Exception e) when (e is UnauthorizedAccessException or IOException)
+        {
+            throw new InvalidOperationException(
+                $"This user can't read {settings.KeyPath} ({e.Message}). The key is readable by its owner alone: set SERVER_UID and SERVER_GID in .env to the owner's (scripts/local-ca.sh does this), then recreate the server (docs/https.md).", e);
+        }
 
         var now = clock.GetUtcNow();
         var (notBefore, notAfter) = (certificate.NotBefore, certificate.NotAfter);

@@ -18,18 +18,21 @@ It needs only `openssl` (on macOS and Ubuntu already). It creates:
 |---|---|---|
 | `~/.brilliant/ca/ca.key` | the CA's private key (mode 600, in a 700 folder) | **private, and backed up with `~/.brilliant/android/`**. It is never copied anywhere. Whoever holds it can make certificates your devices believe. |
 | `~/.brilliant/ca/ca.crt` | the CA's certificate | public |
-| `tls/server.pem`, `tls/server.key` | the server's certificate and key (git-ignored; the container mounts this folder read-only) | the key is readable by the container's user, so by anyone on this machine; it only secures this one server |
+| `tls/server.pem` | the server's certificate (git-ignored; the container mounts this folder read-only) | public |
+| `tls/server.key` | the server's private key (mode 600, yours alone) | **private.** Whoever holds it can pose as the server to every device that trusts the CA, so it is not readable by other accounts. The server container runs as you (below) to read it. |
 | `tls/brilliant-ca.crt` | a copy of `ca.crt`: **the file you install on devices** | public |
 
-`BRILLIANT_CA_DIR` and `BRILLIANT_TLS_DIR` move the folders; `--help` lists the options.
+The script also sets `SERVER_UID` and `SERVER_GID` (your `id -u` and `id -g`) in `.env` when it exists, or prints them to add: `docker-compose.yml` runs the server container as that user because only that user can read `server.key`. The server says so if it can't read the key. (Docker Desktop on a Mac doesn't enforce file permissions on mounted folders, so the restriction only bites on Linux, the Ubuntu laptop.)
+
+`BRILLIANT_CA_DIR`, `BRILLIANT_TLS_DIR` and `BRILLIANT_ENV_FILE` move the folders and the env file; `--help` lists the options.
 
 The certificate lists `localhost`, `127.0.0.1`, `::1` and `10.0.2.2` (the Android emulator's name for the machine it runs on) besides what you pass. **A device only accepts the server at a name that is on the certificate**, so give the script every address you will type. Give the server a fixed address first (a DHCP reservation in the router); if it changes, run the script again with the new one and pair the devices again.
 
 Then start the server:
 
 ```bash
-cp .env.example .env     # first time only; set POSTGRES_PASSWORD
-docker compose up -d --build
+cp .env.example .env     # first time only; set POSTGRES_PASSWORD, then run scripts/local-ca.sh again if you ran it before .env existed
+docker compose up -d --build --force-recreate
 ```
 
 The server now listens on **8443** (`SERVER_PORT` in `.env` changes the port on the host) and **refuses to start** without the files, naming the missing one. Check it, trusting only the CA:
@@ -89,7 +92,7 @@ The address is now `192.168.1.20:8443`; typing a bare host means `https://` and 
 
 The server certificate lasts 825 days (Apple refuses longer), the CA ten years. Run `scripts/local-ca.sh` again with the same names to renew: **the CA is kept and devices need nothing**. Then `docker compose up -d --force-recreate server`.
 
-`scripts/local-ca.sh --check` reports the expiry and exits non-zero if it is within 30 days. The server also prints a warning at start when the certificate is within 30 days of expiring, and **refuses to start with an expired one** (every device would refuse it anyway). When the CA itself expires, or if `ca.key` is ever exposed, delete `~/.brilliant/ca`, run the script again and install the new CA on every device.
+`scripts/local-ca.sh --check` reports the expiry and exits non-zero if it is within 30 days or if `server.key` has become readable by other accounts. The server also prints a warning at start when the certificate is within 30 days of expiring, and **refuses to start with an expired one** (every device would refuse it anyway). When the CA itself expires, or if `ca.key` is ever exposed, delete `~/.brilliant/ca`, run the script again and install the new CA on every device.
 
 ## What this does and doesn't protect
 
@@ -107,7 +110,7 @@ Automated: `tests/Brilliant.Server.Tests/TlsTests.cs` runs the real script, star
 |---|---|
 | `scripts/local-ca.sh` | creates the CA and issues/renews/checks the server certificate |
 | `src/Brilliant.Server/ServerTls.cs` | loads the certificate, refuses an expired one, listens on HTTPS only |
-| `docker-compose.yml`, `src/Brilliant.Server/Dockerfile` | mount `tls/` at `/tls`, publish 8443 |
+| `docker-compose.yml`, `src/Brilliant.Server/Dockerfile` | mount `tls/` at `/tls`, publish 8443, run the server as `SERVER_UID`:`SERVER_GID` |
 | `src/Brilliant.Core/Sync/ServerAddress.cs`, `UntrustedCertificate.cs` | https-only addresses; tells an untrusted certificate from an absent server |
 | `src/Brilliant.App/Platforms/Android/Resources/xml/network_security_config.xml` | no cleartext; trusts system and user CAs |
 | `src/Brilliant.App/Platforms/MacCatalyst/Info.plist` | no App Transport Security exceptions |
