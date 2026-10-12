@@ -637,6 +637,17 @@ public static partial class ContentValidator
                 if (v.Variable is not null && visuals.FindIndex(x => x.Variable == v.Variable) is var first and >= 0)
                     report.Add(file, $"{where}: '{v.Variable}' is already drawn by visualise[{first}].");
 
+                // A linked list's options say how to walk its nodes; no other drawing has nodes.
+                var isList = v.As == Visual.LinkedList;
+                foreach (var (option, value) in new[] { ("next", v.Next), ("value", v.Value) })
+                {
+                    if (value is null) continue;
+                    if (!isList)
+                        report.Add(file, $"{where}: '{option}' is an option of a {Visual.LinkedList} only, not of '{v.As}'.");
+                    else if (!PythonIdentifier.IsMatch(value))
+                        report.Add(file, $"{where}: {option} '{value}' is not a valid Python attribute name.");
+                }
+
                 var pointers = new List<string>();
                 foreach (var pointer in v.Pointers ?? [])
                 {
@@ -644,10 +655,13 @@ public static partial class ContentValidator
                         report.Add(file, $"{where}: pointer '{pointer}' is not a valid Python name.");
                     else if (pointers.Contains(pointer))
                         report.Add(file, $"{where}: pointer '{pointer}' is listed twice.");
+                    else if (isList && pointer == v.Variable)
+                        report.Add(file, $"{where}: pointer '{pointer}' is the list's own variable, which is already drawn on its first node.");
                     else
                         pointers.Add(pointer);
                 }
-                visuals.Add(new Visual(v.Variable ?? "", v.As ?? "", pointers));
+                visuals.Add(new Visual(v.Variable ?? "", v.As ?? "", pointers,
+                    v.Next ?? Visual.DefaultNext, v.Value ?? Visual.DefaultValue));
             }
 
         return visuals;
@@ -781,7 +795,14 @@ public static partial class ContentValidator
         public string? PatternCue { get; set; }
     }
     private sealed class WalkthroughDto { public string? Call { get; set; } public List<VisualDto>? Visualise { get; set; } public string? Explanation { get; set; } }
-    private sealed class VisualDto { public string? Variable { get; set; } public string? As { get; set; } public List<string>? Pointers { get; set; } }
+    private sealed class VisualDto
+    {
+        public string? Variable { get; set; }
+        public string? As { get; set; }
+        public List<string>? Pointers { get; set; }
+        public string? Next { get; set; }
+        public string? Value { get; set; }
+    }
     private sealed class BlankDto { public string? Id { get; set; } public List<string>? Accepted { get; set; } public List<MistakeDto>? Mistakes { get; set; } }
     private sealed class TestDto { public string? Input { get; set; } public string? Expected { get; set; } }
     private sealed class MistakeDto { public List<string>? Answers { get; set; } public string? Regex { get; set; } public string? Feedback { get; set; } }

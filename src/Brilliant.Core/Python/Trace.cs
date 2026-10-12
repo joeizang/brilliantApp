@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Brilliant.Core.Content;
 
@@ -31,6 +32,17 @@ public sealed record TableRow(string Key, string? Value, int? Id = null);
 /// </summary>
 public sealed record TrackedTable(string Kind, string Type, IReadOnlyList<TableRow> Rows, int More, IReadOnlyDictionary<string, int>? Hits = null);
 
+/// <summary>A linked-list node as recorded: its id (its identity, the same at every step), the repr of its value (null when it has none), and the id of the node it links to (null at the end).</summary>
+public sealed record ListNode(int Id, string? Value, int? Next);
+
+/// <summary>
+/// A watched linked list as recorded at one step. <see cref="Head"/> is the id of the node the variable holds, null when it holds None.
+/// <see cref="Nodes"/> are the nodes reached from the head, then those reached only from a pointer (detached), each run of them in link
+/// order; a node whose <c>Next</c> is an id not among them links to one beyond the ones recorded, and <see cref="More"/> counts those.
+/// <see cref="Pointers"/> maps each pointer that holds a node to its id, or to null when it holds None.
+/// </summary>
+public sealed record TrackedList(int? Head, IReadOnlyList<ListNode> Nodes, int More, IReadOnlyDictionary<string, int?> Pointers);
+
 /// <summary>
 /// The state just before <see cref="Line"/> ran (<see cref="Event"/> "line"), or the state the module finished in
 /// (<see cref="Event"/> "return", <see cref="Line"/> null).
@@ -41,7 +53,8 @@ public sealed record TraceFrame(
     string Function,
     IReadOnlyList<TraceLocal> Locals,
     IReadOnlyDictionary<string, TrackedArray> Tracked,
-    IReadOnlyDictionary<string, TrackedTable>? Tables = null);
+    IReadOnlyDictionary<string, TrackedTable>? Tables = null,
+    IReadOnlyDictionary<string, TrackedList>? Lists = null);
 
 /// <summary>What the Python tracer (wwwroot/python/tracer.py) recorded.</summary>
 public sealed record TraceResult(
@@ -64,9 +77,24 @@ public static class TraceResultJson
         JsonSerializer.Deserialize<TraceResult>(json, Options)
         ?? throw new InvalidOperationException("The Python runtime returned an empty trace.");
 
-    /// <summary>The variables the tracer should record (sequences, dicts and sets): <c>["nums","counts"]</c>.</summary>
-    public static string SerializeWatch(IEnumerable<Visual> visuals) =>
-        JsonSerializer.Serialize(visuals.Where(v => Visual.Kinds.Contains(v.As)).Select(v => v.Variable).Distinct());
+    /// <summary>
+    /// The variables the tracer should record: a sequence, dict or set by its name, a linked list as an object that also says how to
+    /// follow it and which pointers to look up: <c>["nums",{"variable":"head","as":"linked_list","next":"next","value":"val","pointers":["curr"]}]</c>.
+    /// </summary>
+    public static string SerializeWatch(IEnumerable<Visual> visuals)
+    {
+        var watch = new JsonArray();
+        var seen = new HashSet<string>();
+        foreach (var v in visuals.Where(v => Visual.Kinds.Contains(v.As) && seen.Add(v.Variable)))
+            watch.Add(v.As == Visual.LinkedList
+                ? new JsonObject
+                {
+                    ["variable"] = v.Variable, ["as"] = v.As, ["next"] = v.Next, ["value"] = v.Value,
+                    ["pointers"] = new JsonArray(v.Pointers.Select(p => (JsonNode?)JsonValue.Create(p)).ToArray()),
+                }
+                : JsonValue.Create(v.Variable));
+        return watch.ToJsonString();
+    }
 }
 
 public sealed record LocalView(string Name, string Type, string Value, bool Changed);
@@ -113,10 +141,42 @@ public sealed record RowView(string Id, string Key, string? Value, RowChange Cha
 /// </summary>
 public sealed record TableView(string Variable, string Kind, IReadOnlyList<RowView> Rows, int More, IReadOnlyList<string> Misses);
 
+/// <summary>
+/// A linked-list node. <see cref="Next"/> is the id of the node it links to (null: None). <see cref="Changed"/>: its value differs from
+/// the step before; <see cref="Relinked"/>: its link does (the arrow was rewired); <see cref="Added"/>: it wasn't drawn the step before.
+/// </summary>
+public sealed record NodeView(int Id, string? Value, int? Next, bool Changed = false, bool Relinked = false, bool Added = false);
+
+/// <summary>How a run of linked nodes ends: at None, back on a node of its own run (a cycle), on a node of an earlier run, or past the nodes recorded.</summary>
+public enum ChainEnd { None, Back, Join, More }
+
+/// <summary>
+/// Nodes in link order, drawn as one row. <see cref="Target"/> is the id of the node the last one links to when the chain ends
+/// <see cref="ChainEnd.Back"/> or <see cref="ChainEnd.Join"/>.
+/// </summary>
+public sealed record ChainView(IReadOnlyList<NodeView> Nodes, ChainEnd End, int? Target = null);
+
+/// <summary>A variable drawn on the node it holds; <see cref="Node"/> is null when it holds None (shown "at None").</summary>
+public sealed record NodePointer(string Name, int? Node, bool Moved);
+
+/// <summary>
+/// A linked list drawn as rows of nodes. <see cref="Chains"/>[0] runs from the head (empty when the list is); the others are detached,
+/// reached only from a pointer. <see cref="Pointers"/> starts with the variable itself, on the head. <see cref="More"/> counts the
+/// nodes beyond the ones recorded.
+/// </summary>
+public sealed record LinkedListView(string Variable, IReadOnlyList<ChainView> Chains, int More, IReadOnlyList<NodePointer> Pointers)
+{
+    public IEnumerable<NodeView> Nodes => Chains.SelectMany(c => c.Nodes);
+}
+
 /// <summary>One step of the player: what to highlight and draw. <see cref="Line"/> is null on the final state.</summary>
 public sealed record TraceState(
     int Index, int? Line, string Function, bool IsFinal,
-    IReadOnlyList<LocalView> Locals, IReadOnlyList<ArrayView> Arrays, IReadOnlyList<TableView> Tables);
+    IReadOnlyList<LocalView> Locals, IReadOnlyList<ArrayView> Arrays, IReadOnlyList<TableView> Tables,
+    IReadOnlyList<LinkedListView>? Lists = null)
+{
+    public IReadOnlyList<LinkedListView> Lists { get; init; } = Lists ?? [];
+}
 
 /// <summary>
 /// The Trace Model: turns the raw frames of a run into the states the Trace Player renders, with what changed since the
@@ -129,6 +189,7 @@ public static class TraceModel
     {
         var arrayVisuals = visuals.Where(v => Visual.Sequences.Contains(v.As)).ToList();
         var tableVisuals = visuals.Where(v => v.As is Visual.Dict or Visual.Set).ToList();
+        var listVisuals = visuals.Where(v => v.As == Visual.LinkedList).ToList();
         var states = new List<TraceState>(result.Frames.Count);
         TraceFrame? previousFrame = null;
         TraceState? previous = null;
@@ -136,7 +197,8 @@ public static class TraceModel
         {
             var comparable = previous is not null && previousFrame!.Function == frame.Function ? previous : null;
             var state = new TraceState(index, frame.Line, frame.Function, frame.Line is null,
-                Locals(frame, comparable), Arrays(frame, arrayVisuals, comparable), Tables(frame, tableVisuals, comparable));
+                Locals(frame, comparable), Arrays(frame, arrayVisuals, comparable), Tables(frame, tableVisuals, comparable),
+                Lists(frame, listVisuals, comparable));
             states.Add(state);
             previousFrame = frame;
             previous = state;
@@ -299,5 +361,69 @@ public static class TraceModel
             views.Add(new TableView(visual.Variable, tracked.Kind, rows, tracked.More, misses));
         }
         return views;
+    }
+
+    private static IReadOnlyList<LinkedListView> Lists(TraceFrame frame, List<Visual> visuals, TraceState? previous)
+    {
+        var views = new List<LinkedListView>();
+        foreach (var visual in visuals)
+        {
+            if (frame.Lists is null || !frame.Lists.TryGetValue(visual.Variable, out var tracked)) continue;
+            var before = previous?.Lists.FirstOrDefault(l => l.Variable == visual.Variable);
+            var was = before?.Nodes.ToDictionary(n => n.Id);
+            NodeView View(ListNode node) =>
+                was is null ? new NodeView(node.Id, node.Value, node.Next)
+                : was.TryGetValue(node.Id, out var old) ? new NodeView(node.Id, node.Value, node.Next, old.Value != node.Value, old.Next != node.Next)
+                : new NodeView(node.Id, node.Value, node.Next, Added: true);
+
+            var pointers = new List<NodePointer>();
+            void Point(string name, int? node)
+            {
+                var moved = before is not null && before.Pointers.FirstOrDefault(p => p.Name == name) is var old && (old is null || old.Node != node);
+                pointers.Add(new NodePointer(name, node, moved));
+            }
+            Point(visual.Variable, tracked.Head);
+            foreach (var name in visual.Pointers)
+                if (tracked.Pointers.TryGetValue(name, out var node)) Point(name, node);
+
+            views.Add(new LinkedListView(visual.Variable, Chains(tracked, View), tracked.More, pointers));
+        }
+        return views;
+    }
+
+    /// <summary>
+    /// The recorded nodes as rows: the first follows the links from the head, each other one from the first node no row has taken yet
+    /// (the recorder lists a detached run's first node first). A row stops at None, at a node already in it (a cycle), at a node of an
+    /// earlier row, or at a node that wasn't recorded.
+    /// </summary>
+    internal static IReadOnlyList<ChainView> Chains(TrackedList tracked, Func<ListNode, NodeView> view)
+    {
+        var byId = new Dictionary<int, ListNode>();
+        foreach (var node in tracked.Nodes) byId.TryAdd(node.Id, node);
+        var row = new Dictionary<int, int>();   // node id -> the row it is in
+        var chains = new List<ChainView>();
+
+        ChainView Follow(int? start)
+        {
+            var nodes = new List<NodeView>();
+            var at = start;
+            while (at is { } id && byId.TryGetValue(id, out var node) && !row.ContainsKey(id))
+            {
+                row[id] = chains.Count;
+                nodes.Add(view(node));
+                at = node.Next;
+            }
+            return at switch
+            {
+                null => new ChainView(nodes, ChainEnd.None),
+                { } id when row.TryGetValue(id, out var r) => new ChainView(nodes, r == chains.Count ? ChainEnd.Back : ChainEnd.Join, id),
+                _ => new ChainView(nodes, ChainEnd.More),
+            };
+        }
+
+        chains.Add(Follow(tracked.Head));
+        foreach (var node in tracked.Nodes)
+            if (!row.ContainsKey(node.Id)) chains.Add(Follow(node.Id));
+        return chains;
     }
 }
