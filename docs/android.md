@@ -63,6 +63,10 @@ An emulator is a good stand-in for the build, the install and the offline behavi
 
 - **Edge-to-edge.** Apps targeting API 35+ draw under the status and navigation bars. `MainPage.xaml` sets `SafeAreaEdges=All` on Android so the web view sits between the status bar and the navigation bar (measured on the emulator: it spans y=159 to 2920 of 2992, where `Container,SoftInput` let it run under the navigation bar). `All` also includes the on-screen keyboard. Mac Catalyst is unchanged.
 - **Pyodide.** It runs in a module worker, and Android's WebView serves `.wasm` with the wrong MIME type, which the worker works around. Load failures and timeouts are shown to the learner rather than hanging. Details in [the spike](spikes/pyodide-blazorwebview.md).
+- **Back gesture.** The app is one page whose screens the course shell swaps itself, so the web view has no history and Android would
+  close the app on back. `MainPage.OnBackButtonPressed` sends back to the shell's own Back instead (one level up: lesson → track →
+  Tracks → Today, as the Mac menu's Back does). On Today, where `StepShortcuts.CanGoBack` is false, back leaves the app as usual.
+  Verified on the emulator: Track → Tracks → Today → app closes.
 - **Device name.** Android reports its machine name as `localhost`, so the Sync screen suggests the phone's model (`DeviceInfo.Name`) via `DeviceLabel`.
 
 ## What was verified, and what is yours to verify

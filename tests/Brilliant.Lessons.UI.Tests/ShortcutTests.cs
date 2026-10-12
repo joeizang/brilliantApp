@@ -167,10 +167,12 @@ public class ShortcutTests : ShortcutContext
     public async Task Back_climbs_one_level_at_a_time_and_stops_at_Today()
     {
         var cut = OpenShell();
+        Assert.False(Shortcuts.CanGoBack);
         cut.Find("button.browse").Click();
         cut.Find("main .card").Click();                              // the track
         cut.Find("main ol.lessons button.primary").Click();          // lesson A
         Assert.Contains("Title lesson.a.1", cut.Find("main").TextContent);
+        Assert.True(Shortcuts.CanGoBack);
 
         await Press(StepCommand.Back);
         Assert.Contains("lessons complete", cut.Find("main").TextContent);
@@ -181,6 +183,7 @@ public class ShortcutTests : ShortcutContext
 
         await Press(StepCommand.Back);
         Assert.Equal("Today", cut.Find("main h1").TextContent.Trim());
+        Assert.False(Shortcuts.CanGoBack);                           // so Android's back gesture leaves the app
 
         await Press(StepCommand.Back);                               // already at the top
         Assert.Equal("Today", cut.Find("main h1").TextContent.Trim());
