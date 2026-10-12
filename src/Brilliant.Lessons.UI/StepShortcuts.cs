@@ -40,6 +40,12 @@ public sealed class StepShortcuts
 {
     private readonly List<Func<StepShortcut, Task>> _handlers = [];
 
+    /// <summary>
+    /// Whether <see cref="StepCommand.Back"/> has somewhere to go: false on Today, the top of the app. The course shell keeps it up to
+    /// date; Android's back gesture reads it to choose between going back in the app and leaving it.
+    /// </summary>
+    public bool CanGoBack { get; set; }
+
     /// <summary>Listens until the returned handle is disposed.</summary>
     public IDisposable Subscribe(Func<StepShortcut, Task> handler)
     {

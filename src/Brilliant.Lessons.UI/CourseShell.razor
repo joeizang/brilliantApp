@@ -111,6 +111,7 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        Shortcuts.CanGoBack = !IsToday;
         if (!firstRender) return;
         try
         {
