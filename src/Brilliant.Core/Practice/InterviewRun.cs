@@ -53,14 +53,18 @@ public static class InterviewRuns
     {
         var list = events as IReadOnlyList<ProgressEvent> ?? events.ToList();
         var finished = list.Where(e => e.Type == ProgressEventTypes.InterviewFinished).Select(RunOf).OfType<string>().ToHashSet();
-        var answers = list.Select(PracticeAnswer.From).OfType<PracticeAnswer>()
-            .Where(a => a.Mode == PracticeMode.Interview && a.Run is not null)
+        // Oldest first, ties broken by event ID, as the projector orders them: two devices holding the same events in different append
+        // orders agree on which answer came first, and the run shows the answer that was scheduled.
+        var answers = list.Select(e => (Event: e, Answer: PracticeAnswer.From(e)))
+            .Where(x => x.Answer is { Mode: PracticeMode.Interview, Run: not null })
+            .OrderBy(x => x.Event.OccurredAt).ThenBy(x => x.Event.Id, StringComparer.Ordinal)
+            .Select(x => x.Answer!)
             .ToLookup(a => a.Run!);
         var runs = new List<InterviewRun>();
-        foreach (var e in list.Where(e => e.Type == ProgressEventTypes.InterviewStarted).OrderBy(e => e.OccurredAt))
+        foreach (var e in list.Where(e => e.Type == ProgressEventTypes.InterviewStarted).OrderBy(e => e.OccurredAt).ThenBy(e => e.Id, StringComparer.Ordinal))
         {
             if (Started(e) is not { } run || runs.Any(r => r.Id == run.Id)) continue;
-            // The first answer to each part counts; the log is in append order, which is answer order on any one device.
+            // The first answer to each part counts.
             var first = answers[run.Id].GroupBy(a => (a.Step, a.Part)).Select(g => g.First()).ToList();
             runs.Add(run with { IsFinished = finished.Contains(run.Id), Answers = first });
         }
@@ -94,7 +98,7 @@ public static class InterviewRuns
             if (root.ValueKind != JsonValueKind.Object) return null;
             if (String(root, "run") is not { Length: > 0 } run) return null;
             if (InterviewPresets.Parse(String(root, "preset")) is not { } preset) return null;
-            if (!root.TryGetProperty("limitSeconds", out var l) || !l.TryGetInt32(out var seconds) || seconds <= 0) return null;
+            if (!root.TryGetProperty("limitSeconds", out var l) || l.ValueKind != JsonValueKind.Number || !l.TryGetInt32(out var seconds) || seconds <= 0) return null;
             if (!root.TryGetProperty("steps", out var steps) || steps.ValueKind != JsonValueKind.Array) return null;
             var problems = new List<InterviewProblem>();
             foreach (var s in steps.EnumerateArray())

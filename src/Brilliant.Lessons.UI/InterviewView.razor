@@ -3,10 +3,13 @@
    nothing: the clock keeps running and the run resumes as the log has it. *@
 @using Brilliant.Core.Practice
 @using Brilliant.Core.Progress
+@using System.Text.Json
+@using Brilliant.Core.Drafts
 @using Brilliant.Core.Python
 @implements IDisposable
 @inject ProgressRecorder Recorder
 @inject ScreenInfo Screen
+@inject ICodeDraftStore Drafts
 
 <div class="practice-bar content-column mt-2 flex items-center gap-4 text-[.9rem]">
     <button class="link btn-link" @onclick="() => OnExit.InvokeAsync()"><Icon Name="back" Class="size-5" /> Back</button>
@@ -131,10 +134,12 @@ else
             @switch (presented)
             {
                 case FillBlankStep fill:
-                    <FillBlankStepView Step="fill" Title="@ProblemPrompt.Title" CheckText="Submit" OnAnswered="a => Solved(problem, presented, a.Result.IsCorrect)" />
+                    <FillBlankStepView Step="fill" Title="@ProblemPrompt.Title" CheckText="Submit" Initial="Saved<Dictionary<string, string>>(problem, Blanks)"
+                                       OnChanged="r => Save(problem, Blanks, r)" OnAnswered="a => Solved(problem, presented, a.Result.IsCorrect)" />
                     break;
                 case ParsonsStep parsons:
-                    <ParsonsStepView Step="parsons" Title="@ProblemPrompt.Title" CheckText="Submit" OnAnswered="a => Solved(problem, presented, a.Result.IsCorrect)" />
+                    <ParsonsStepView Step="parsons" Title="@ProblemPrompt.Title" CheckText="Submit" Initial="Saved<List<ParsonsPlacement>>(problem, Lines)"
+                                     OnChanged="r => Save(problem, Lines, r)" OnAnswered="a => Solved(problem, presented, a.Result.IsCorrect)" />
                     break;
                 case WriteCodeStep write:
                     <WriteCodeStepView @ref="_write" Step="write" Title="@ProblemPrompt.Title" DraftKey="@($"interview.{_run.Id}.{problem.StepId}")" OfferContinue="false" />
@@ -294,6 +299,21 @@ else
         var state = Recorder.Project(Content, Screen.Class);
         return run.Problems.Select(p => StepOf(p)?.Pattern).OfType<string>().Distinct()
             .Select(state.Pattern).OfType<PatternMastery>().OrderBy(p => p.Mastery).Select(PracticeText.Standing).FirstOrDefault();
+    }
+
+    // Work not yet submitted is kept as a draft per run, problem and form, so switching problems, leaving or another device picks it
+    // up where it was: what is in the blanks, or the arrangement of the lines. Write-code keeps its own draft under the bare key.
+    private const string Blanks = "blanks", Lines = "lines";
+
+    private string DraftOf(InterviewProblem problem, string form) => $"interview.{_run!.Id}.{problem.StepId}.{form}";
+
+    private void Save<T>(InterviewProblem problem, string form, T work) => Drafts.Save(DraftOf(problem, form), JsonSerializer.Serialize(work));
+
+    private T? Saved<T>(InterviewProblem problem, string form) where T : class
+    {
+        if (Drafts.Get(DraftOf(problem, form)) is not { } json) return null;
+        try { return JsonSerializer.Deserialize<T>(json); }
+        catch (JsonException) { return null; }
     }
 
     private void Reload() => _run = InterviewRuns.Get(Recorder.Log.ReadAll(), _run!.Id) ?? _run;

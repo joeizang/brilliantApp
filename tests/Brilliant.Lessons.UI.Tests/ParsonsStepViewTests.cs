@@ -45,6 +45,31 @@ public class ParsonsStepViewTests : ShortcutContext
     }
 
     [Fact]
+    public void It_starts_from_an_arrangement_given_and_reports_every_change()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        IReadOnlyList<ParsonsPlacement>? changed = null;
+        ParsonsPlacement[] left = [new(4, 2), new(0, 0), new(2, 1), new(1, 0), new(3, 1)];
+        var cut = Render<ParsonsStepView>(p => p.Add(c => c.Step, Step).Add(c => c.Initial, left).Add(c => c.OnChanged, r => changed = r));
+
+        Assert.Equal(left.Select(r => Step.Lines[r.Piece].Text), Texts(cut));
+        Assert.Contains("indented 2 levels", cut.FindAll(".row")[0].GetAttribute("aria-label"));
+
+        cut.FindAll(".row")[0].QuerySelector("button[aria-label='Move down']")!.Click();
+        Assert.Equal([new(0, 0), new(4, 2), new(2, 1), new(1, 0), new(3, 1)], changed);
+        cut.FindAll(".row")[0].QuerySelector("button[aria-label='Indent']")!.Click();
+        Assert.Equal(new ParsonsPlacement(0, 1), changed![0]);
+    }
+
+    [Fact]
+    public void An_arrangement_that_no_longer_fits_the_step_is_ignored()
+    {
+        var cut = Render<ParsonsStepView>(p => p.Add(c => c.Step, Step).Add(c => c.Initial, [new ParsonsPlacement(0, 0)]));
+
+        Assert.Equal(Step.Lines.Select(l => l.Text).Order(), Texts(cut).Order());
+    }
+
+    [Fact]
     public void Every_line_is_shown_once_in_a_different_order_and_unindented()
     {
         var cut = Open();

@@ -233,11 +233,44 @@ public class InterviewTests
     {
         foreach (var data in new[] { null, "[]", "{}", "{\"run\":\"r\",\"preset\":\"marathon\",\"limitSeconds\":60,\"steps\":[{\"step\":\"s\",\"lesson\":\"l\"}]}",
                      "{\"run\":\"r\",\"preset\":\"interview\",\"limitSeconds\":0,\"steps\":[{\"step\":\"s\",\"lesson\":\"l\"}]}",
-                     "{\"run\":\"r\",\"preset\":\"interview\",\"limitSeconds\":60,\"steps\":[]}", "not json" })
+                     "{\"run\":\"r\",\"preset\":\"interview\",\"limitSeconds\":60,\"steps\":[]}", "not json" }
+                     .Concat(new[] { "\"1800\"", "null", "true", "{}", "[]", "1.5" }.Select(limit =>
+                         $"{{\"run\":\"r\",\"preset\":\"interview\",\"limitSeconds\":{limit},\"steps\":[{{\"step\":\"s\",\"lesson\":\"l\"}}]}}")))
             _log.Append(new ProgressEvent(Guid.NewGuid().ToString("N"), "d", T0, ProgressEventTypes.InterviewStarted, "", "", data));
 
         Assert.Empty(InterviewRuns.From(_log.Items));
         Assert.Null(InterviewRuns.Open(_log.Items));
+    }
+
+    [Fact]
+    public void The_first_answer_is_chosen_by_time_then_event_ID_whatever_order_the_log_holds_them_in()
+    {
+        Finish(A, B, C);
+        var run = Start();
+        var problem = run.Problems[0];
+        var wrong = problem.Choices.First(c => c != StepOf(problem.StepId)!.Pattern);
+        _clock.Now = T0.AddMinutes(1);
+        Recorder.PracticePicked(problem.LessonId, problem.StepId, wrong, false, TimeSpan.FromMinutes(1), PracticeMode.Interview, run.Id);
+        _clock.Now = T0.AddMinutes(2);
+        Recorder.PracticePicked(problem.LessonId, problem.StepId, StepOf(problem.StepId)!.Pattern, true, TimeSpan.FromMinutes(2), PracticeMode.Interview, run.Id);
+
+        // Two answers at the same instant (one device answering, another finishing the run): the lower event ID comes first.
+        var tied = run.Problems[1];
+        var answers = new[] { true, false }.Select(correct =>
+        {
+            Recorder.PracticePicked(tied.LessonId, tied.StepId, correct ? StepOf(tied.StepId)!.Pattern : null, correct, TimeSpan.Zero, PracticeMode.Interview, run.Id);
+            return _log.Items[^1];
+        }).ToList();
+        var renamed = answers.Select((e, i) => e with { Id = i == 0 ? "b" : "a" }).ToList();   // the wrong one has the lower ID
+        _log.Items.RemoveRange(_log.Items.Count - 2, 2);
+        _log.Items.AddRange(renamed);
+
+        foreach (var order in new[] { _log.Items.ToList(), Enumerable.Reverse(_log.Items).ToList() })
+        {
+            var read = InterviewRuns.Get(order, run.Id)!;
+            Assert.False(read.Answer(problem.StepId, PracticePart.Pick)!.Correct);
+            Assert.False(read.Answer(tied.StepId, PracticePart.Pick)!.Correct);
+        }
     }
 
     /// <summary>Runs hold lists, so records compare them by reference; this compares what they say.</summary>

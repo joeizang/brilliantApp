@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Brilliant.Core.Content;
+using Brilliant.Core.Drafts;
 using Brilliant.Core.Practice;
 using Brilliant.Core.Progress;
 using Bunit;
@@ -29,6 +30,14 @@ public class InterviewViewTests : ShortcutContext
         public EventPage ReadSince(long cursor) { var items = Items; return new(items.Skip((int)cursor).ToList(), items.Count); }
     }
 
+    private sealed class MemoryDrafts : ICodeDraftStore
+    {
+        public Dictionary<string, string> Saved { get; } = [];
+        public string? Get(string stepId) => Saved.GetValueOrDefault(stepId);
+        public void Save(string stepId, string code) => Saved[stepId] = code;
+        public void Reset(string stepId) => Saved.Remove(stepId);
+    }
+
     /// <summary>A lesson teaching pattern.{name} ("Pattern {name}") with one fill-in-the-blank problem tagged with it; the blank's answer is "x".</summary>
     private static Lesson Teaching(string name) =>
         new($"lesson.{name}", $"Lesson {name}", "track.t",
@@ -53,11 +62,13 @@ public class InterviewViewTests : ShortcutContext
     private readonly MemoryLog _log = new();
     private readonly Clock _clock = new();
     private readonly ProgressRecorder _recorder;
+    private readonly MemoryDrafts _drafts = new();
 
     public InterviewViewTests()
     {
         _recorder = new ProgressRecorder(_log, "device", _clock);
         Services.AddSingleton(_recorder);
+        Services.AddSingleton<ICodeDraftStore>(_drafts);
         JSInterop.Mode = JSRuntimeMode.Loose;
         JSInterop.SetupModule("./_content/Brilliant.Lessons.UI/shortcuts.js");
     }
@@ -200,6 +211,25 @@ public class InterviewViewTests : ShortcutContext
         cut.FindAll("button.interview-tab")[0].Click();
         Assert.Equal("Solution submitted.", cut.Find(".solve-submitted").TextContent.Trim());
         Assert.Empty(cut.FindAll("input.blank"));
+    }
+
+    [Fact]
+    public void Work_not_yet_submitted_is_kept_when_switching_problems_and_after_leaving()
+    {
+        Finish(3);
+        var cut = Start();
+        var first = Shown(cut);
+        PickPattern(cut, "Pattern " + first);
+        cut.Find("input.blank").Input("keep this work");
+
+        cut.FindAll("button.interview-tab")[1].Click();
+        cut.FindAll("button.interview-tab")[0].Click();
+        Assert.Equal("keep this work", cut.Find("input.blank").GetAttribute("value"));
+
+        var resumed = Open();
+        Assert.Equal(first, Shown(resumed));
+        Assert.Equal("keep this work", resumed.Find("input.blank").GetAttribute("value"));
+        Assert.Equal($"interview.{Run.Id}.step.{first}.p.blanks", Assert.Single(_drafts.Saved).Key);
     }
 
     [Fact]

@@ -231,7 +231,8 @@ Core in `Brilliant.Core/Practice/InterviewRun.cs`, the screen in `Brilliant.Less
 `tests/Brilliant.Core.Tests/InterviewTests.cs` and `tests/Brilliant.Lessons.UI.Tests/InterviewViewTests.cs`.
 
 **The run, from the log.** `InterviewRuns.From(events)` rebuilds every run: its preset, problems (with their stored choices), start
-time, limit, whether it is finished, and its interview-mode answers (the first per step and part, as in Practice). `Open` is the last
+time, limit, whether it is finished, and its interview-mode answers (the first per step and part, ordered by time then event ID as the
+projector orders them, so every device and the schedule agree on which answer counts). `Open` is the last
 unfinished run; a malformed `InterviewStarted` is ignored. `InterviewRun.Left(now)` is `startedAt + limit − now`, never negative, and
 `IsOver(now)` is finished or out of time.
 
@@ -255,7 +256,9 @@ progress opens whatever Practice's state. In `CourseShell` the interview is a se
   shows only "Locked in: …", with no verdict, cue or marks. Then the step view titled "Problem" with no hint ladder: fill-blank and Parsons
   say *Submit* (a new `CheckText` parameter), and the answer is taken without showing the verdict. Write-code keeps *Run tests* (the
   runner's output is allowed) and adds *Submit solution*, which runs the code as it stands and records whether every test passed
-  (`WriteCodeStepView.RunAsync`; no Continue, via `OfferContinue`). Its draft is kept per run and step (`interview.<run>.<step>`). A
+  (`WriteCodeStepView.RunAsync`; no Continue, via `OfferContinue`). Its draft is kept per run and step (`interview.<run>.<step>`). Fill-blank
+  answers and Parsons arrangements not yet submitted are kept the same way (`interview.<run>.<step>.blanks` / `.lines`, as JSON, through
+  the synced draft store), so switching problems, leaving or resuming on another device loses no work. A
   submit moves to the next unsubmitted problem; the last one ends the run.
 - *Time per problem* is counted while the problem is on screen: the pick's elapsed is the time up to locking it, the solve's the rest.
   Resuming starts each problem from what its answers recorded.
