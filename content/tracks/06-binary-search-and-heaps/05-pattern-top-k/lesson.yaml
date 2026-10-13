@@ -1,0 +1,566 @@
+id: lesson.pattern-top-k
+title: "Pattern: top-K with a heap"
+concepts:
+  - id: concept.top-k-size-k-heap
+    title: "Keep a heap of only k items: push each one, pop when there are k + 1, in O(n log k)"
+  - id: concept.top-k-which-heap
+    title: "The k largest live in a min-heap, the k smallest in a max-heap: the root is the one to evict"
+  - id: concept.top-k-tools
+    title: "heapq.nlargest, nsmallest and Counter.most_common, and when sorting is just as good"
+reviewItems:
+  - id: review.top-k.predict-stream
+    concept: concept.top-k-size-k-heap
+    step: step.top-k.predict-stream
+  - id: review.top-k.which-heap
+    concept: concept.top-k-which-heap
+    step: step.top-k.check-which-heap
+  - id: review.top-k.cost
+    concept: concept.top-k-size-k-heap
+    step: step.top-k.check-cost
+  - id: review.top-k.predict-key
+    concept: concept.top-k-tools
+    step: step.top-k.predict-key
+  - id: review.top-k.which-problem
+    concept: concept.top-k-size-k-heap
+    step: step.top-k.check-which-problem
+    kind: pattern
+  - id: review.top-k.cue
+    concept: concept.top-k-which-heap
+    step: step.top-k.check-cue
+    kind: pattern
+  - id: review.top-k.just-sort
+    concept: concept.top-k-tools
+    step: step.top-k.check-just-sort
+    kind: pattern
+patterns:
+  - id: pattern.top-k
+    title: Keep the k best in a heap of size k, with the weakest of them at the root
+steps:
+  - id: step.top-k.idea
+    type: explain
+    title: The best k, without sorting everything
+    body: |
+      *The 3 highest scores out of a million.* Sorting them all is O(n log n), and orders 999,997 scores nobody asked about.
+
+      Instead, keep a **heap of only `k` items**: the best seen so far. For the `k` **largest**, make it a **min-heap**. Its
+      root is then the **weakest** of the best, the one to throw out when something better turns up:
+
+      1. Push each new number.
+      2. If the heap now holds `k + 1`, pop: out goes the smallest, which can't be among the `k` largest.
+
+      At the end the heap holds the `k` largest, and its root, `heap[0]`, is the **k-th largest**. Each step works on a heap
+      of at most `k + 1`, so the whole pass is **O(n log k)**, and it needs only O(k) memory: the numbers can stream past
+      and never be stored.
+
+      It feels backwards at first: a **min**-heap for the **largest**. The heap isn't there to find the best; it's there to
+      find the worst of the ones you're keeping, quickly.
+    comparison:
+      csharp: |
+        int KthLargest(int[] nums, int k)
+        {
+            var heap = new PriorityQueue<int, int>();
+            foreach (var x in nums)
+            {
+                heap.Enqueue(x, x);
+                if (heap.Count > k) heap.Dequeue();
+            }
+            return heap.Peek();
+        }
+      python: |
+        import heapq
+
+
+        def kth_largest(nums, k):
+            heap = []
+            for x in nums:
+                heapq.heappush(heap, x)
+                if len(heap) > k:
+                    heapq.heappop(heap)
+            return heap[0]
+  - id: step.top-k.trace-largest
+    type: trace
+    title: Keeping the three largest
+    body: |
+      `k` is `3`. The first three numbers, `4`, `9` and `1`, fill the heap. From then on every push makes four, and a pop
+      throws the smallest back out: `7` pushes out `1`, `3` goes in and straight back out, and `8` pushes out `4`. At the
+      end the heap holds `7, 8, 9`, and its root, `7`, is the third largest.
+    code: |
+      import heapq
+
+      nums = [4, 9, 1, 7, 3, 8]
+      k = 3
+      heap = []
+      for x in nums:
+          heapq.heappush(heap, x)
+          if len(heap) > k:
+              heapq.heappop(heap)
+      third = heap[0]
+    visualise:
+      - variable: heap
+        as: heap
+  - id: step.top-k.predict-stream
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      Numbers arrive one at a time. Once two have arrived, this records the 2nd largest so far after each one. What does it
+      print?
+    code: |
+      import heapq
+
+      k = 2
+      heap = []
+      seen = []
+      for x in [5, 1, 9, 3, 7]:
+          heapq.heappush(heap, x)
+          if len(heap) > k:
+              heapq.heappop(heap)
+          if len(heap) == k:
+              seen.append(heap[0])
+      print(*seen)
+    accepted:
+      - "1 5 5 7"
+    mistakes:
+      - answers:
+          - "5 9 9 9"
+          - "5 5 9 9"
+        feedback: "The root of a min-heap is its **smallest** item. Of the two largest so far, that's the second largest, not the largest."
+      - answers:
+          - "1 5 3 7"
+        feedback: "When `3` arrives the heap is `[5, 9]`. `3` goes in and is the smallest of the three, so it's the one popped straight back out: the root stays `5`."
+      - answers:
+          - "5 1 9 3 7"
+          - "1 1 5 5 7"
+        feedback: "Nothing is recorded until the heap holds `k = 2` items, which is after the second number."
+    hints:
+      - "Write the heap after each number. After `5` and `1` it is `[1, 5]`."
+      - "When a third item goes in, the smallest of the three comes straight out."
+  - id: step.top-k.check-which-heap
+    type: choice
+    title: Which heap?
+    prompt: |
+      You want the `k` **smallest** distances out of a long stream, keeping only `k` at a time. Which heap, and what is at its
+      root?
+    options:
+      - text: "A max-heap (push `-d` in `heapq`): its root is the largest of the `k` kept, the one to evict when a smaller distance arrives."
+        correct: true
+        feedback: "Right. Keep the `k` best; the root must be the worst of them. For the smallest, the worst is the largest: a max-heap."
+      - text: "A min-heap: its root is the smallest distance."
+        correct: false
+        feedback: "A min-heap of size `k` would throw out the smallest each time: you'd end with the `k` **largest**. The root has to be the one you'd evict."
+      - text: "A min-heap of every distance, then pop `k` times."
+        correct: false
+        feedback: "That works, but holds the whole stream: O(n) memory, and O(n + k log n) time. The size-`k` heap needs O(k) memory."
+      - text: "Either one: the heap keeps them in order anyway."
+        correct: false
+        feedback: "A heap only knows where its root is. Which end is the root decides which items get thrown out."
+    hints:
+      - "Which of the kept items should leave first when a better one arrives?"
+  - id: step.top-k.check-cost
+    type: choice
+    title: What it costs
+    prompt: |
+      `n` numbers, and you want the `k` largest with a size-`k` heap. What does it cost?
+    options:
+      - text: "O(n log k) time and O(k) memory."
+        correct: true
+        feedback: "Right. Each of the `n` numbers costs a push and maybe a pop on a heap of at most `k + 1`. For small `k`, that's close to O(n)."
+      - text: "O(n log n) time and O(n) memory."
+        correct: false
+        feedback: "That's sorting everything. The heap never grows past `k + 1`, so each operation is O(log k), and only `k` numbers are kept."
+      - text: "O(k log n) time and O(k) memory."
+        correct: false
+        feedback: "Every one of the `n` numbers has to be looked at, so the time is at least O(n): O(n log k)."
+      - text: "O(n) time and O(1) memory."
+        correct: false
+        feedback: "That's enough for `k = 1`, `max()`. For larger `k`, the `k` best have to be kept somewhere, and kept in order."
+    hints:
+      - "How big does the heap ever get?"
+  - id: step.top-k.tools
+    type: explain
+    title: The ready-made tools
+    body: |
+      Python already has the size-`k` heap, ready to use:
+
+      - **`heapq.nlargest(k, items, key=...)`** and **`heapq.nsmallest(k, items, key=...)`** return the `k` best as a list,
+        best first, using a heap of size `k` inside. `key` works as it does for `sorted`.
+      - **`Counter(items).most_common(k)`** gives the `k` most frequent `(item, count)` pairs.
+
+      Pick by the size of `k`:
+
+      - `k == 1`: `min()` or `max()`.
+      - `k` small next to `n`: `nlargest` or the size-`k` heap, O(n log k).
+      - `k` close to `n`: just `sorted(items)[:k]`. Sorting is simple, and the gain from the heap is gone.
+
+      Write the heap by hand when the numbers **stream** in and you need an answer after each one (the k-th largest so far),
+      or when the comparison is unusual.
+
+      In C#, `nums.OrderByDescending(x => x).Take(k)` sorts everything first, O(n log n). The size-`k` `PriorityQueue` is the
+      equivalent of `nlargest`.
+    comparison:
+      csharp: |
+        string[] words = ["kiwi", "fig", "banana", "apple", "plum"];
+
+        var longest = words.OrderByDescending(w => w.Length).Take(2);
+        // banana, apple
+
+        var counts = "mississippi".GroupBy(c => c)
+            .OrderByDescending(g => g.Count()).Take(2);
+      python: |
+        import heapq
+        from collections import Counter
+
+        words = ["kiwi", "fig", "banana", "apple", "plum"]
+
+        longest = heapq.nlargest(2, words, key=len)
+        # ['banana', 'apple']
+
+        counts = Counter("mississippi").most_common(2)
+  - id: step.top-k.predict-key
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      What does this print?
+    code: |
+      import heapq
+
+      words = ["kiwi", "fig", "banana", "apple", "plum"]
+      print(heapq.nlargest(2, words, key=len), heapq.nsmallest(2, words, key=len))
+    accepted:
+      - "['banana', 'apple'] ['fig', 'kiwi']"
+    mistakes:
+      - answers:
+          - "['plum', 'kiwi'] ['apple', 'banana']"
+          - "['plum', 'kiwi'] ['apple', 'fig']"
+        feedback: "With `key=len` the words are compared by length, not alphabetically: the longest are `banana` (6) and `apple` (5)."
+      - answers:
+          - "['banana', 'apple'] ['fig', 'plum']"
+        feedback: "`kiwi` and `plum` are both 4 letters long. On a tie `nsmallest` keeps the one that came first, as `sorted` would: `kiwi`."
+      - answers:
+          - "['apple', 'banana'] ['fig', 'kiwi']"
+        feedback: "`nlargest` lists the best first: the longest word, `banana`, comes before `apple`."
+    hints:
+      - "Write each word's length: 4, 3, 6, 5, 4."
+  - id: step.top-k.trace-smallest
+    type: trace
+    title: The three smallest, with negation
+    body: |
+      For the `k` **smallest**, the kept items need the **largest** at the root, to throw out. `heappush` and `heappop` make a
+      min-heap, so store `-x`: the root, the most negative, is the largest number kept. When `4` arrives, `-4` goes in and `-9` comes
+      out: `9` is no longer among the three smallest. Then `1` pushes out `6`, and `7` goes straight back out.
+    code: |
+      import heapq
+
+      nums = [6, 2, 9, 4, 1, 7]
+      k = 3
+      heap = []
+      for x in nums:
+          heapq.heappush(heap, -x)
+          if len(heap) > k:
+              heapq.heappop(heap)
+      smallest = sorted(-v for v in heap)
+    visualise:
+      - variable: heap
+        as: heap
+  - id: step.top-k.check-which-problem
+    type: choice
+    title: Which one is top-K?
+    prompt: |
+      Which of these is the best fit for a size-`k` heap?
+    options:
+      - text: "A server logs millions of requests; report the 10 slowest."
+        correct: true
+        feedback: "Right. `k = 10` and a huge `n` that streams past: keep a min-heap of the 10 slowest, O(n log 10) time and almost no memory."
+      - text: "Report the single slowest request."
+        correct: false
+        feedback: "That's `k = 1`: `max()` keeps one value, O(n), with no heap."
+      - text: "Print every request from slowest to fastest."
+        correct: false
+        feedback: "That's all `n` of them in order: `sorted(..., reverse=True)`. A size-`k` heap pays off only when `k` is much smaller than `n`."
+      - text: "Was any request slower than 5 seconds?"
+        correct: false
+        feedback: "That's `any(t > 5 for t in times)`, one pass that can stop early."
+    hints:
+      - "Look for \"the k best\" with `k` much smaller than `n`."
+  - id: step.top-k.check-cue
+    type: choice
+    title: Read the cue
+    prompt: |
+      A problem says: *"Scores arrive one at a time. After each one, report the 3rd highest so far."* What do you keep?
+    options:
+      - text: "A min-heap of the 3 highest so far; after each score, `heap[0]` is the answer."
+        correct: true
+        feedback: "Right. \"k-th largest\" means a min-heap of size `k`, and its root is the k-th largest, available in O(1) after each push."
+      - text: "A max-heap of every score; pop three times after each one."
+        correct: false
+        feedback: "That's O(log n) per pop, plus pushing the three back, and it keeps every score. A size-3 min-heap only ever holds three."
+      - text: "A sorted list of all scores, re-sorted after each one."
+        correct: false
+        feedback: "Re-sorting is O(n log n) per score, O(n² log n) in all. The size-3 heap does each score in O(log 3)."
+      - text: "The three highest in three variables, with `if`s to shift them."
+        correct: false
+        feedback: "That works for `k = 3`, but it's a hand-written heap of size 3 that doesn't grow to `k = 100`. The heap does the same work for any `k`."
+    hints:
+      - "\"k-th largest\", after every item: which heap has that at its root?"
+  - id: step.top-k.check-just-sort
+    type: choice
+    title: When to just sort
+    prompt: |
+      You have a list of `n = 1,000` numbers already in memory, and you need the `500` largest. What is the sensible choice?
+    options:
+      - text: "`sorted(nums, reverse=True)[:500]`: with `k` half of `n`, O(n log k) is no better than O(n log n), and sorting is simpler."
+        correct: true
+        feedback: "Right. The heap pays off when `k` is small next to `n`, or when the data streams in. Here neither is true."
+      - text: "A size-500 heap, because heaps are always faster than sorting."
+        correct: false
+        feedback: "Here log 500 is close to log 1000, so there's nothing to gain, and `sorted` runs in fast C code."
+      - text: "`max()` 500 times, removing each one."
+        correct: false
+        feedback: "That's O(k·n), 500,000 steps, and each removal shifts the list."
+      - text: "Binary search for the 500th largest."
+        correct: false
+        feedback: "The list isn't sorted, so there's nothing to binary search on."
+    hints:
+      - "Compare log k with log n when `k` is half of `n`."
+  - id: step.top-k.fill-kth
+    type: fill-blank
+    title: The k-th largest
+    pattern: pattern.top-k
+    patternCue: "\"The k-th largest\": a min-heap of size k; its root is the answer."
+    prompt: |
+      Fill in the blanks so that `kth_largest(nums, k)` returns the `k`-th largest number in `nums` (`1 <= k <= len(nums)`),
+      keeping a heap of at most `k` items.
+    template: |
+      import heapq
+
+
+      def kth_largest(nums, k):
+          heap = []
+          for x in nums:
+              heapq.heappush(heap, x)
+              if {{full}}:
+                  heapq.heappop(heap)
+          return {{answer}}
+    blanks:
+      - id: full
+        accepted:
+          - "len(heap) > k"
+          - "len(heap) == k + 1"
+          - "len(heap) >= k + 1"
+        mistakes:
+          - answers:
+              - "len(heap) >= k"
+              - "len(heap) == k"
+            feedback: "That pops as soon as there are `k`, so the heap never holds more than `k - 1`. Pop only when there are `k + 1`."
+          - answers:
+              - "len(heap) < k"
+            feedback: "That pops while the heap is still filling up. Pop when there's one too many."
+      - id: answer
+        accepted:
+          - "heap[0]"
+          - "heapq.heappop(heap)"
+          - "min(heap)"
+        mistakes:
+          - answers:
+              - "max(heap)"
+            feedback: "That's the largest of the `k` kept: the 1st largest. The `k`-th largest is the smallest of them, at the root."
+          - answers:
+              - "heap[-1]"
+            feedback: "The last item of a heap isn't the largest or the smallest of anything in particular: `[1, 3, 8, 5]` ends in `5`. The `k`-th largest is the smallest of the `k` kept, at the root."
+    hints:
+      - "The heap should hold the `k` largest seen so far."
+      - "Of the `k` largest, which is the `k`-th largest?"
+  - id: step.top-k.order-smallest
+    type: parsons
+    title: The k smallest
+    pattern: pattern.top-k
+    patternCue: "\"The k smallest\": a max-heap of size k (negated values in heapq), evicting the largest kept."
+    prompt: |
+      Arrange the lines into `k_smallest(nums, k)`, which returns the `k` smallest numbers in ascending order, keeping a heap
+      of at most `k` items.
+    solution: |
+      import heapq
+
+
+      def k_smallest(nums, k):
+          heap = []
+          for x in nums:
+              heapq.heappush(heap, -x)
+              if len(heap) > k:
+                  heapq.heappop(heap)
+          return sorted(-v for v in heap)
+    hints:
+      - "Push `-x`, so the largest number kept is at the root."
+      - "Negate them back on the way out, then sort."
+  - id: step.top-k.write-frequent
+    type: write-code
+    largeScreenPreferred: true
+    title: The most frequent words
+    pattern: pattern.top-k
+    patternCue: "\"The k most frequent\": count with a Counter, then take the top k by (count, word) with a heap."
+    prompt: |
+      Write `top_words(words, k)` that returns the `k` most frequent words, most frequent first. Words that appear equally
+      often go in alphabetical order. `k` is at most the number of different words.
+
+      `top_words(["a", "b", "a", "c", "b", "a"], 2)` is `["a", "b"]`.
+    language: python
+    entrypoint: top_words
+    starter: |
+      import heapq
+      from collections import Counter
+
+
+      def top_words(words, k):
+          pass
+    solution: |
+      import heapq
+      from collections import Counter
+
+
+      def top_words(words, k):
+          counts = Counter(words)
+          return heapq.nsmallest(k, counts, key=lambda w: (-counts[w], w))
+    tests:
+      - input: "[\"a\", \"b\", \"a\", \"c\", \"b\", \"a\"], 2"
+        expected: "[\"a\", \"b\"]"
+      - input: "[\"i\", \"love\", \"code\", \"i\", \"love\", \"python\"], 2"
+        expected: "[\"i\", \"love\"]"
+      - input: "[\"the\", \"day\", \"is\", \"sunny\", \"the\", \"the\", \"sunny\", \"is\", \"is\"], 4"
+        expected: "[\"is\", \"the\", \"sunny\", \"day\"]"
+      - input: "[\"b\", \"a\", \"c\"], 3"
+        expected: "[\"a\", \"b\", \"c\"]"
+      - input: "[\"x\"], 1"
+        expected: "[\"x\"]"
+    hints:
+      - "Count the words with `Counter`."
+      - "Rank each word by `(-count, word)`: smaller is better, so the most frequent come first, and ties go alphabetically."
+      - "`heapq.nsmallest(k, counts, key=...)` takes the `k` best by that rank."
+  - id: step.top-k.write-closest
+    type: write-code
+    largeScreenPreferred: true
+    title: The closest points
+    pattern: pattern.top-k
+    patternCue: "\"The k closest\": a max-heap of size k on the distance, evicting the farthest kept."
+    prompt: |
+      `points` is a list of `(x, y)` tuples. Write `k_closest(points, k)` that returns the `k` points nearest to `(0, 0)`,
+      nearest first. No two points are the same distance away. Keep a heap of at most `k` points.
+
+      `k_closest([(1, 3), (-2, 2), (5, -1), (0, 1)], 2)` is `[(0, 1), (-2, 2)]`.
+
+      Compare squared distances, `x * x + y * y`: they put points in the same order, without square roots.
+    language: python
+    entrypoint: k_closest
+    starter: |
+      import heapq
+
+
+      def k_closest(points, k):
+          pass
+    solution: |
+      import heapq
+
+
+      def k_closest(points, k):
+          heap = []
+          for x, y in points:
+              heapq.heappush(heap, (-(x * x + y * y), x, y))
+              if len(heap) > k:
+                  heapq.heappop(heap)
+          return [(x, y) for _, x, y in sorted(heap, reverse=True)]
+    tests:
+      - input: "[(1, 3), (-2, 2), (5, -1), (0, 1)], 2"
+        expected: "[(0, 1), (-2, 2)]"
+      - input: "[(3, 3), (5, -1), (-2, 4)], 2"
+        expected: "[(3, 3), (-2, 4)]"
+      - input: "[(1, 0)], 1"
+        expected: "[(1, 0)]"
+      - input: "[(0, 9), (0, 1), (0, 5), (0, 3)], 3"
+        expected: "[(0, 1), (0, 3), (0, 5)]"
+      - input: "[(2, 2), (1, 1)], 2"
+        expected: "[(1, 1), (2, 2)]"
+    hints:
+      - "Keep the `k` nearest, with the **farthest** of them at the root: push `(-distance, x, y)`."
+      - "Pop when the heap holds `k + 1`."
+      - "At the end, the most negative entry is the farthest. Sort the heap so the nearest comes first."
+    walkthrough:
+      call: result = k_closest([(1, 3), (-2, 2), (5, -1), (0, 1)], 2)
+      visualise:
+        - variable: heap
+          as: heap
+      explanation: |
+        The squared distances are `10`, `8`, `26` and `1`. After two points the heap holds `-10` and `-8`, with `-10`, the
+        farther, at the root. `(5, -1)` goes in as `-26` and straight back out. `(0, 1)` goes in as `-1`, and `-10` leaves.
+        Sorted nearest first: `(0, 1)`, then `(-2, 2)`.
+    phoneAlternative:
+      id: step.top-k.write-closest.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `k_closest(points, k)`, the `k` points nearest to `(0, 0)`, nearest first, keeping a heap of at most `k`
+        points. Arrange the lines instead of typing them.
+      solution: |
+        import heapq
+
+
+        def k_closest(points, k):
+            heap = []
+            for x, y in points:
+                heapq.heappush(heap, (-(x * x + y * y), x, y))
+                if len(heap) > k:
+                    heapq.heappop(heap)
+            return [(x, y) for _, x, y in sorted(heap, reverse=True)]
+      hints:
+        - "The distance is negated so the farthest kept point is at the root."
+  - id: step.top-k.write-running
+    type: write-code
+    largeScreenPreferred: true
+    title: The k-th largest so far
+    pattern: pattern.top-k
+    patternCue: "\"The k-th largest after each one\": a size-k min-heap kept up to date; read its root each time."
+    prompt: |
+      Scores arrive one by one. Write `running_kth(scores, k)` that returns a list with one entry per score: the `k`-th
+      highest score so far, or `None` while fewer than `k` scores have arrived.
+
+      `running_kth([5, 1, 9, 3, 7], 2)` is `[None, 1, 5, 5, 7]`.
+    language: python
+    entrypoint: running_kth
+    starter: |
+      import heapq
+
+
+      def running_kth(scores, k):
+          pass
+    solution: |
+      import heapq
+
+
+      def running_kth(scores, k):
+          heap = []
+          result = []
+          for s in scores:
+              heapq.heappush(heap, s)
+              if len(heap) > k:
+                  heapq.heappop(heap)
+              result.append(heap[0] if len(heap) == k else None)
+          return result
+    tests:
+      - input: "[5, 1, 9, 3, 7], 2"
+        expected: "[None, 1, 5, 5, 7]"
+      - input: "[4, 5, 8, 2], 3"
+        expected: "[None, None, 4, 4]"
+      - input: "[3, 1, 2], 1"
+        expected: "[3, 3, 3]"
+      - input: "[], 2"
+        expected: "[]"
+      - input: "[10, 10, 10], 2"
+        expected: "[None, 10, 10]"
+    hints:
+      - "Keep a min-heap of the `k` highest so far, popping when it reaches `k + 1`."
+      - "After each score, the answer is `heap[0]` once the heap is full."
+    walkthrough:
+      call: result = running_kth([5, 1, 9, 3, 7], 2)
+      visualise:
+        - variable: heap
+          as: heap
+      explanation: |
+        After `5` the heap isn't full: `None`. After `1` it holds `[1, 5]`, root `1`. `9` pushes `1` out, root `5`. `3` goes in
+        and straight back out, root still `5`. `7` pushes `5` out, root `7`.
