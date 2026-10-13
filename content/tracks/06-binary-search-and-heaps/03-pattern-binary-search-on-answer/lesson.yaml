@@ -1,0 +1,553 @@
+id: lesson.pattern-binary-search-on-answer
+title: "Pattern: binary search on the answer"
+concepts:
+  - id: concept.answer-monotone
+    title: If an answer works, every bigger one works too, so the answers can be binary searched
+  - id: concept.feasibility-check
+    title: Write a check that says whether one guess is enough, then search for the smallest guess that passes
+  - id: concept.answer-bounds
+    title: Start lo at the smallest answer that could work and hi at one that surely does
+reviewItems:
+  - id: review.on-answer.predict-hours
+    concept: concept.feasibility-check
+    step: step.on-answer.predict-hours
+  - id: review.on-answer.why-monotone
+    concept: concept.answer-monotone
+    step: step.on-answer.check-why-monotone
+  - id: review.on-answer.bounds
+    concept: concept.answer-bounds
+    step: step.on-answer.check-bounds
+  - id: review.on-answer.predict-days
+    concept: concept.feasibility-check
+    step: step.on-answer.predict-days
+  - id: review.on-answer.which-problem
+    concept: concept.answer-monotone
+    step: step.on-answer.check-which-problem
+    kind: pattern
+  - id: review.on-answer.cue
+    concept: concept.answer-monotone
+    step: step.on-answer.check-cue
+    kind: pattern
+  - id: review.on-answer.not-monotone
+    concept: concept.answer-monotone
+    step: step.on-answer.check-not-monotone
+    kind: pattern
+patterns:
+  - id: pattern.binary-search-on-answer
+    title: Binary search the answer, testing whether each guess is enough
+steps:
+  - id: step.on-answer.idea
+    type: explain
+    title: Search the answers, not the data
+    body: |
+      *A koala has piles of bamboo, `[3, 6, 7, 11]`, and 8 hours. Each hour it picks one pile and eats up to `k` stalks from
+      it; a smaller pile still takes the whole hour. What is the slowest speed `k` that finishes in time?*
+
+      There's no sorted list here. But ask of each speed, *is it fast enough?*, and the answers are in order: too slow, too
+      slow, ..., fast enough, fast enough. Eating faster never takes **longer**, so once a speed works, every faster one
+      does. That's the `False ... True` shape of the last lesson, laid over the **answers**, and the slowest speed that works
+      is where it switches.
+
+      The recipe has two parts:
+
+      1. **A check** that says whether one guess is enough. Here, the hours at speed `k` are the sum of `ceil(pile / k)`,
+         and `k` works if that's at most 8. It's an O(n) loop.
+      2. **A boundary search** over the guesses: `lo` the smallest that could possibly work, `hi` one that surely does,
+         `hi = mid` when `mid` passes and `lo = mid + 1` when it fails.
+
+      Here `lo = 1` (at least one stalk an hour) and `hi = max(piles)` (one pile an hour; there are no more piles than
+      hours). The search runs the check log₂(max) times, so the whole thing is **O(n log max)**: far less than trying every
+      speed.
+
+      Rounding up: `-(-p // k)` or `(p + k - 1) // k`. In C# integer division truncates, so it's `(p + k - 1) / k` there too, with `p` widened to `long` first so the sum can't overflow.
+    comparison:
+      csharp: |
+        bool Enough(int[] piles, int h, int k) =>
+            piles.Sum(p => ((long)p + k - 1) / k) <= h;
+
+        int lo = 1, hi = piles.Max();
+        while (lo < hi)
+        {
+            int mid = lo + (hi - lo) / 2;
+            if (Enough(piles, h, mid)) hi = mid;
+            else lo = mid + 1;
+        }
+        // lo is the slowest speed that works
+      python: |
+        def enough(piles, h, k):
+            return sum((p + k - 1) // k for p in piles) <= h
+
+
+        lo, hi = 1, max(piles)
+        while lo < hi:
+            mid = (lo + hi) // 2
+            if enough(piles, h, mid):
+                hi = mid
+            else:
+                lo = mid + 1
+        # lo is the slowest speed that works
+  - id: step.on-answer.trace-speeds
+    type: trace
+    title: Halving the speeds
+    body: |
+      To see the search, the possible speeds `1` to `11` are laid out in `speeds`, and `lo`, `mid` and `hi` point into it.
+      (A real solution never builds this list; it searches the numbers themselves.) `hours` is what the check works out for
+      the speed at `mid`: `8` or less is fast enough, so `hi` moves onto `mid`; more is too slow, so `lo` moves past it.
+    code: |
+      piles = [3, 6, 7, 11]
+      h = 8
+      speeds = list(range(1, max(piles) + 1))
+      lo, hi = 0, len(speeds) - 1
+      while lo < hi:
+          mid = (lo + hi) // 2
+          hours = sum((p + speeds[mid] - 1) // speeds[mid] for p in piles)
+          if hours <= h:
+              hi = mid
+          else:
+              lo = mid + 1
+      slowest = speeds[lo]
+    visualise:
+      - variable: speeds
+        as: array
+        pointers: [lo, mid, hi]
+  - id: step.on-answer.predict-hours
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      The check works out how many hours each speed needs. What does this print?
+    code: |
+      def hours(piles, k):
+          return sum((p + k - 1) // k for p in piles)
+
+
+      piles = [3, 6, 7, 11]
+      print(hours(piles, 3), hours(piles, 4), hours(piles, 11))
+    accepted:
+      - "10 8 4"
+    mistakes:
+      - answers:
+          - "9 7 4"
+          - "8 6 4"
+        feedback: "A pile that doesn't divide evenly needs one more hour for what's left: at speed `4`, the `7` takes two hours, not one and three quarters."
+      - answers:
+          - "9 7 3"
+        feedback: "That's `sum(piles) // k`, as if one hour could finish one pile and start the next. Each pile is rounded up on its own."
+      - answers:
+          - "10 8 1"
+        feedback: "At speed `11` each pile still takes a whole hour, even the `3`: four piles, four hours."
+    hints:
+      - "`(p + k - 1) // k` is `p / k` rounded up. Work it out for each pile."
+  - id: step.on-answer.check-why-monotone
+    type: choice
+    title: Why can we binary search?
+    prompt: |
+      Binary search on the speeds needs one fact about them. Which?
+    options:
+      - text: "If speed `k` finishes in time, so does every speed above `k`."
+        correct: true
+        feedback: "Right. Eating faster never adds hours, so the answers to *fast enough?* run `False ... True` and switch once."
+      - text: "The piles are sorted."
+        correct: false
+        feedback: "They needn't be: the check adds up every pile in any order. What's in order is the answers to *fast enough?*"
+      - text: "The speeds are whole numbers."
+        correct: false
+        feedback: "That makes the search end on a whole number, but it's not why halving is safe. Halving is safe because the answers switch only once."
+      - text: "The answer is always `max(piles)`."
+        correct: false
+        feedback: "`max(piles)` always works, which is why it's a good `hi`. The slowest speed that works is often smaller: `4` for these piles."
+    hints:
+      - "Binary search throws half the guesses away. When is that safe?"
+  - id: step.on-answer.check-bounds
+    type: choice
+    title: Where to start
+    prompt: |
+      A ship carries packages in the order given, one day's load at a time, up to its capacity. You want the smallest capacity
+      that ships all of `weights` within `days` days. Which range do you search?
+    options:
+      - text: "`lo = max(weights)`, `hi = sum(weights)`."
+        correct: true
+        feedback: "Right. A smaller capacity can't lift the heaviest package at all, and `sum(weights)` ships everything in one day."
+      - text: "`lo = 1`, `hi = max(weights)`."
+        correct: false
+        feedback: "Below `max(weights)` the heaviest package can never be loaded, and `max(weights)` may be too small: `[5, 5]` in 1 day needs `10`."
+      - text: "`lo = 0`, `hi = len(weights)`."
+        correct: false
+        feedback: "That's the range of *indexes*. Here we search capacities, which are weights, not counts."
+      - text: "`lo = min(weights)`, `hi = max(weights)`."
+        correct: false
+        feedback: "The capacity must be at least the heaviest package, and it may need to be well above it."
+    hints:
+      - "What's the smallest capacity that can carry every package? What capacity surely finishes?"
+  - id: step.on-answer.predict-days
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      This check works out how many days a capacity needs. What does it print?
+    code: |
+      def days_needed(weights, cap):
+          days, load = 1, 0
+          for w in weights:
+              if load + w > cap:
+                  days += 1
+                  load = 0
+              load += w
+          return days
+
+
+      weights = [3, 2, 2, 4, 1, 4]
+      print(days_needed(weights, 6), days_needed(weights, 5), days_needed(weights, 16))
+    accepted:
+      - "3 4 1"
+    mistakes:
+      - answers:
+          - "2 4 1"
+          - "3 3 1"
+        feedback: "The packages go in order, so a day can't skip one to fit a lighter one. At capacity `6`: `[3, 2]`, `[2, 4]`, `[1, 4]`."
+      - answers:
+          - "3 4 0"
+        feedback: "`days` starts at `1`: the first day's load is counted from the start. At `16` everything goes in that one day."
+    hints:
+      - "Follow `load`: a package that won't fit starts a new day."
+  - id: step.on-answer.check-which-problem
+    type: choice
+    title: Which one searches the answer?
+    prompt: |
+      Which of these is the best fit for binary search on the answer?
+    options:
+      - text: "Split a list of chapter lengths into `k` volumes, in order, so that the longest volume is as short as possible."
+        correct: true
+        feedback: "Right. Guess a longest-volume limit and check in O(n) whether `k` volumes are enough. A bigger limit never needs more volumes, so search for the smallest limit that works."
+      - text: "Find the longest run of chapters whose total length is at most 100."
+        correct: false
+        feedback: "That's a variable-size sliding window (Track 2): grow on the right, shrink on the left."
+      - text: "Is a chapter of length exactly 37 in the sorted list of lengths?"
+        correct: false
+        feedback: "That's a plain binary search over the data. Searching the answer is for when you guess a value and check it."
+      - text: "Count how many chapters have each length."
+        correct: false
+        feedback: "That's counting with a dict, in one pass."
+    hints:
+      - "Which asks for the smallest value that makes something possible?"
+  - id: step.on-answer.check-cue
+    type: choice
+    title: The words that give it away
+    prompt: |
+      Which wording most often means *binary search on the answer*?
+    options:
+      - text: "\"The minimum X such that it's possible to ...\", or \"the largest Y that still ...\""
+        correct: true
+        feedback: "Right. A smallest or largest value, plus a yes-or-no question you could answer if you knew it: guess it and check."
+      - text: "\"Find two numbers that add up to ...\""
+        correct: false
+        feedback: "That's a pair search: a hash map, or two pointers on a sorted list."
+      - text: "\"Every subarray of length k ...\""
+        correct: false
+        feedback: "A fixed length moving along a list is a fixed-size sliding window."
+      - text: "\"In the order they arrive ...\""
+        correct: false
+        feedback: "Order of arrival points to a queue, or to processing a stream one item at a time."
+    hints:
+      - "Binary search on the answer needs a yes-or-no question about a guess."
+  - id: step.on-answer.check-not-monotone
+    type: choice
+    title: When it doesn't work
+    prompt: |
+      For which question would binary searching the answer give **wrong** results?
+    options:
+      - text: "The largest `k` with `k * k <= n`."
+        correct: false
+        feedback: "That one is fine: once `k * k` is bigger than `n`, every larger `k` is too, so the answers switch once."
+      - text: "The smallest `k` such that `f(k) == 0`, where `f` goes up and down."
+        correct: true
+        feedback: "Right. If `f` goes up and down, `f(k) == 0` can be true, false, true again: no single switch, so halving can throw away the answer."
+      - text: "The smallest speed that finishes the piles in `h` hours."
+        correct: false
+        feedback: "That one is fine: a faster speed never takes longer, so the answers switch once."
+      - text: "The smallest capacity that ships everything in `d` days."
+        correct: false
+        feedback: "That one is fine: a bigger capacity never needs more days."
+    hints:
+      - "Binary search needs the answers to run `False ... True` with one switch. Which can switch back?"
+  - id: step.on-answer.fill-ship
+    type: fill-blank
+    title: Ship it in time
+    pattern: pattern.binary-search-on-answer
+    patternCue: "\"The smallest capacity that finishes in d days\": check a capacity in O(n), binary search the capacities."
+    prompt: |
+      Fill in the blanks so that `ship(weights, days)` returns the smallest capacity that ships every package, in order, in at
+      most `days` days.
+    template: |
+      def ship(weights, days):
+          def fits(cap):
+              used, load = 1, 0
+              for w in weights:
+                  if load + w > cap:
+                      used += 1
+                      load = 0
+                  load += w
+              return used <= days
+
+          lo, hi = {{bounds}}
+          while lo < hi:
+              mid = (lo + hi) // 2
+              if {{test}}:
+                  hi = mid
+              else:
+                  lo = mid + 1
+          return lo
+    blanks:
+      - id: bounds
+        accepted:
+          - "max(weights), sum(weights)"
+        mistakes:
+          - answers:
+              - "1, sum(weights)"
+              - "0, sum(weights)"
+            feedback: "Below `max(weights)` the heaviest package never fits: `fits` would start a new day for it and still overload it. Start at `max(weights)`."
+          - answers:
+              - "max(weights), max(weights)"
+              - "min(weights), max(weights)"
+            feedback: "`hi` must be a capacity that surely works. `sum(weights)` ships everything in one day."
+      - id: test
+        accepted:
+          - "fits(mid)"
+          - "fits(mid) == True"
+          - "fits(mid) is True"
+        mistakes:
+          - answers:
+              - "not fits(mid)"
+            feedback: "When `mid` works, the smallest working capacity is `mid` or below it: that's when `hi` moves to `mid`."
+          - answers:
+              - "fits(lo)"
+              - "fits(hi)"
+            feedback: "Test the guess in the middle, `mid`: that's what halves the range."
+    hints:
+      - "The answer is at least the heaviest package and at most all of them together."
+      - "If capacity `mid` works, keep it in the range and look below it."
+  - id: step.on-answer.order-isqrt
+    type: parsons
+    title: The whole square root
+    pattern: pattern.binary-search-on-answer
+    patternCue: "\"The largest k with k * k <= n\": find the first k that is too big, then step back one."
+    prompt: |
+      Arrange the lines into `isqrt(n)`, which returns the largest whole number `k` with `k * k <= n`, for `n >= 0`, without
+      `math`. It searches for the first `k` whose square is **too big**, then steps back.
+    solution: |
+      def isqrt(n):
+          lo, hi = 0, n + 1
+          while lo < hi:
+              mid = (lo + hi) // 2
+              if mid * mid > n:
+                  hi = mid
+              else:
+                  lo = mid + 1
+          return lo - 1
+    hints:
+      - "`n + 1` is surely too big, since `(n + 1)²` is more than `n`."
+      - "When `lo` and `hi` meet, they're at the first `k` that's too big. The answer is one less."
+  - id: step.on-answer.write-speed
+    type: write-code
+    largeScreenPreferred: true
+    title: The slowest speed
+    pattern: pattern.binary-search-on-answer
+    patternCue: "\"The slowest speed that finishes in h hours\": a speed check in O(n), binary search from 1 to max(piles)."
+    prompt: |
+      `piles` holds positive whole numbers, and `h >= len(piles)`. Each hour a koala picks one pile and eats up to `k` stalks
+      from it (all of a smaller pile, and nothing else that hour). Write `slowest_speed(piles, h)` that returns the smallest
+      whole `k` that finishes every pile within `h` hours.
+
+      `slowest_speed([3, 6, 7, 11], 8)` is `4`, and `slowest_speed([30, 11, 23, 4, 20], 5)` is `30`.
+    language: python
+    entrypoint: slowest_speed
+    starter: |
+      def slowest_speed(piles, h):
+          pass
+    solution: |
+      def slowest_speed(piles, h):
+          lo, hi = 1, max(piles)
+          while lo < hi:
+              mid = (lo + hi) // 2
+              if sum((p + mid - 1) // mid for p in piles) <= h:
+                  hi = mid
+              else:
+                  lo = mid + 1
+          return lo
+    tests:
+      - input: "[3, 6, 7, 11], 8"
+        expected: "4"
+      - input: "[30, 11, 23, 4, 20], 5"
+        expected: "30"
+      - input: "[30, 11, 23, 4, 20], 6"
+        expected: "23"
+      - input: "[1], 1"
+        expected: "1"
+      - input: "[1000000000], 2"
+        expected: "500000000"
+      - input: "[5, 5, 5], 15"
+        expected: "1"
+    hints:
+      - "Write the check: at speed `k`, the hours are the sum of each pile divided by `k`, rounded up."
+      - "Search `k` from `1` to `max(piles)`. If `mid` is fast enough, the answer is `mid` or slower."
+    walkthrough:
+      call: result = slowest_speed([3, 6, 7, 11], 8)
+      visualise:
+        - variable: piles
+          as: array
+      explanation: |
+        The speeds run from `1` to `11`. At `6` the piles take `1 + 1 + 2 + 2 = 6` hours, fine, so `hi = 6`. At `3`:
+        `1 + 2 + 3 + 4 = 10`, too slow, so `lo = 4`. At `5`: `1 + 2 + 2 + 3 = 8`, fine, `hi = 5`. At `4`: `1 + 2 + 2 + 3 = 8`,
+        fine, `hi = 4`. `lo` and `hi` meet at `4`.
+  - id: step.on-answer.write-ship
+    type: write-code
+    largeScreenPreferred: true
+    title: Capacity to ship
+    pattern: pattern.binary-search-on-answer
+    patternCue: "\"The smallest capacity that ships in d days\": search from max(weights) to sum(weights), checking each guess."
+    prompt: |
+      Packages with `weights` must be shipped in the order given. Each day the ship takes the next packages, as many as fit
+      under its capacity. Write `ship_capacity(weights, days)` that returns the smallest capacity that ships them all within
+      `days` days.
+
+      `ship_capacity([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 5)` is `15`: `[1..5]`, `[6, 7]`, `[8]`, `[9]`, `[10]`.
+    language: python
+    entrypoint: ship_capacity
+    starter: |
+      def ship_capacity(weights, days):
+          pass
+    solution: |
+      def ship_capacity(weights, days):
+          def fits(cap):
+              used, load = 1, 0
+              for w in weights:
+                  if load + w > cap:
+                      used += 1
+                      load = 0
+                  load += w
+              return used <= days
+
+          lo, hi = max(weights), sum(weights)
+          while lo < hi:
+              mid = (lo + hi) // 2
+              if fits(mid):
+                  hi = mid
+              else:
+                  lo = mid + 1
+          return lo
+    tests:
+      - input: "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 5"
+        expected: "15"
+      - input: "[3, 2, 2, 4, 1, 4], 3"
+        expected: "6"
+      - input: "[1, 2, 3, 1, 1], 4"
+        expected: "3"
+      - input: "[7], 1"
+        expected: "7"
+      - input: "[5, 5], 1"
+        expected: "10"
+      - input: "[5, 5], 3"
+        expected: "5"
+    hints:
+      - "Write `fits(cap)`: load packages in order, starting a new day when the next won't fit, and count the days."
+      - "Search capacities from `max(weights)` to `sum(weights)`."
+    walkthrough:
+      call: result = ship_capacity([3, 2, 2, 4, 1, 4], 3)
+      visualise:
+        - variable: weights
+          as: array
+      explanation: |
+        Capacities run from `4` to `16`. `10` fits in two days, so `hi = 10`; `7` in three, `hi = 7`. `5` needs four days
+        (`[3, 2]`, `[2]`, `[4, 1]`, `[4]`), so `lo = 6`. `6` takes `[3, 2]`, `[2, 4]`, `[1, 4]`: three days. The answer is `6`.
+    phoneAlternative:
+      id: step.on-answer.write-ship.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `ship_capacity(weights, days)`, the smallest capacity that ships the packages, in order, within `days` days.
+        Arrange the lines instead of typing them.
+      solution: |
+        def ship_capacity(weights, days):
+            def fits(cap):
+                used, load = 1, 0
+                for w in weights:
+                    if load + w > cap:
+                        used += 1
+                        load = 0
+                    load += w
+                return used <= days
+
+            lo, hi = max(weights), sum(weights)
+            while lo < hi:
+                mid = (lo + hi) // 2
+                if fits(mid):
+                    hi = mid
+                else:
+                    lo = mid + 1
+            return lo
+      hints:
+        - "The check counts days for one capacity; the search halves the capacities."
+  - id: step.on-answer.write-gap
+    type: write-code
+    largeScreenPreferred: true
+    title: Spread them out
+    pattern: pattern.binary-search-on-answer
+    patternCue: "\"The largest smallest gap\": check a gap greedily, and search for the last gap that still fits everyone."
+    prompt: |
+      `stalls` are positions along a line (distinct, in any order), and `k` birds (`2 <= k <= len(stalls)`) need a stall each.
+      Birds squabble when they're close, so put them where the **smallest** distance between two birds is as **large** as
+      possible. Write `widest_gap(stalls, k)` that returns that distance.
+
+      `widest_gap([1, 2, 8, 4, 9], 3)` is `3`: birds at `1`, `4` and `8` (or `9`).
+
+      This time you want the **largest** gap that works: a gap works if birds can be placed at least that far apart, and a
+      smaller gap is always easier. Search for the first gap that **doesn't** work, then step back one.
+    language: python
+    entrypoint: widest_gap
+    starter: |
+      def widest_gap(stalls, k):
+          pass
+    solution: |
+      def widest_gap(stalls, k):
+          stalls = sorted(stalls)
+
+          def fits(gap):
+              placed, last = 1, stalls[0]
+              for s in stalls[1:]:
+                  if s - last >= gap:
+                      placed += 1
+                      last = s
+              return placed >= k
+
+          lo, hi = 1, stalls[-1] - stalls[0] + 1
+          while lo < hi:
+              mid = (lo + hi) // 2
+              if not fits(mid):
+                  hi = mid
+              else:
+                  lo = mid + 1
+          return lo - 1
+    tests:
+      - input: "[1, 2, 8, 4, 9], 3"
+        expected: "3"
+      - input: "[1, 2, 3, 4, 5], 2"
+        expected: "4"
+      - input: "[1, 2, 3, 4, 5], 5"
+        expected: "1"
+      - input: "[10, 0], 2"
+        expected: "10"
+      - input: "[0, 3, 4, 7, 10, 9], 4"
+        expected: "3"
+      - input: "[5, 1, 100], 3"
+        expected: "4"
+    hints:
+      - "Sort the stalls. To check a gap, put a bird in the first stall, then in each stall at least `gap` past the last bird. Did all `k` fit?"
+      - "Gaps from `1` to `stalls[-1] - stalls[0]` might work. Find the first that doesn't, with `hi` one past the largest."
+      - "The answer is one less than the first gap that fails."
+    walkthrough:
+      call: result = widest_gap([1, 2, 8, 4, 9], 3)
+      visualise:
+        - variable: stalls
+          as: array
+      explanation: |
+        Sorted, the stalls are `1, 2, 4, 8, 9`, and gaps `1` to `8` might work. Gap `5` places birds at `1` and `8` only, so it
+        fails: `hi = 5`. Gap `3` places them at `1`, `4` and `8`: fine, `lo = 4`. Gap `4` places `1` and `8` only: fails,
+        `hi = 4`. The first gap that fails is `4`, so the widest that works is `3`.

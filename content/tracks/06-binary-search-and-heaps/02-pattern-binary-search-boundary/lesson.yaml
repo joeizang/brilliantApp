@@ -1,0 +1,545 @@
+id: lesson.pattern-binary-search-boundary
+title: "Pattern: binary search for a boundary"
+concepts:
+  - id: concept.lower-bound
+    title: Search for the first index where a condition turns true, with a half-open lo..hi
+  - id: concept.first-last-occurrence
+    title: First and last occurrence, counts and insert positions are all boundaries
+  - id: concept.bisect-module
+    title: bisect_left and bisect_right are the two boundaries, ready-made
+reviewItems:
+  - id: review.boundary.predict-bisect
+    concept: concept.bisect-module
+    step: step.boundary.predict-bisect
+  - id: review.boundary.hi-is-mid
+    concept: concept.lower-bound
+    step: step.boundary.check-hi-is-mid
+  - id: review.boundary.past-the-end
+    concept: concept.lower-bound
+    step: step.boundary.check-past-the-end
+  - id: review.boundary.predict-count
+    concept: concept.first-last-occurrence
+    step: step.boundary.predict-count
+  - id: review.boundary.which-problem
+    concept: concept.first-last-occurrence
+    step: step.boundary.check-which-problem
+    kind: pattern
+  - id: review.boundary.monotone
+    concept: concept.lower-bound
+    step: step.boundary.check-monotone
+    kind: pattern
+  - id: review.boundary.many-queries
+    concept: concept.bisect-module
+    step: step.boundary.check-many-queries
+    kind: pattern
+patterns:
+  - id: pattern.binary-search-boundary
+    title: Find the first index where a condition turns true
+steps:
+  - id: step.boundary.idea
+    type: explain
+    title: Not "where is it?" but "where does it start?"
+    body: |
+      Plain binary search answers *is `x` here, and where?* Many questions are a little different. With repeats, `[1, 3, 7, 7,
+      7, 9]`: where is the **first** `7`? With `x` missing: where would it **go**? Each is a **boundary**.
+
+      Ask of every item, *is it `>= x`?* In a sorted list the answers run `False, False, ..., True, True`: once true, true from
+      then on. The first `True` is where `x` starts if it's there, and where it would be inserted if it isn't. Binary search
+      can find that switch:
+
+      ```python
+      lo, hi = 0, len(nums)          # hi is one past the end
+      while lo < hi:
+          mid = (lo + hi) // 2
+          if nums[mid] >= x:         # the switch is at mid or left of it
+              hi = mid
+          else:                      # the switch is right of mid
+              lo = mid + 1
+      return lo                      # first index with nums[i] >= x, or len(nums)
+      ```
+
+      Here the range is **half-open**: the answer is in `lo..hi`, `hi` included, and `hi = len(nums)` stands for *no item is
+      `>= x`*. When `nums[mid]` passes the test it might be the answer itself, so `hi = mid`, not `mid - 1`. The loop stops
+      when `lo == hi`: one place left, and that's the answer. There's no `== x` check inside the loop at all.
+
+      C#'s `Array.BinarySearch` returns the index if it finds `x`, and if not, `~i` (the bitwise complement, a negative number)
+      where `i` is the insert position. With repeats it returns *some* match, not the first.
+    comparison:
+      csharp: |
+        int i = Array.BinarySearch(nums, x);
+        if (i < 0) i = ~i;   // not found: ~i is where x would go
+        // with repeats, i is some match, not the first
+      python: |
+        import bisect
+
+        i = bisect.bisect_left(nums, x)
+        # the first index with nums[i] >= x,
+        # or len(nums) when there's none
+  - id: step.boundary.trace-lower
+    type: trace
+    title: Closing in on the switch
+    body: |
+      The search looks for the first item `>= 7`. Whenever `nums[mid]` passes, `hi` moves onto `mid`, since that could be the
+      answer; whenever it fails, `lo` moves past it. At the start `hi` is `7`, one past the last index, so it isn't on a cell.
+      The two meet at index `2`: the first `7`.
+    code: |
+      nums = [1, 3, 7, 7, 7, 9, 12]
+      x = 7
+      lo, hi = 0, len(nums)
+      while lo < hi:
+          mid = (lo + hi) // 2
+          if nums[mid] >= x:
+              hi = mid
+          else:
+              lo = mid + 1
+    visualise:
+      - variable: nums
+        as: array
+        pointers: [lo, mid, hi]
+  - id: step.boundary.bisect
+    type: explain
+    title: Two boundaries, and the bisect module
+    body: |
+      Change `>=` to `>` and the same loop finds the first item **bigger** than `x`: the place just past the last `x`. These
+      two boundaries are in Python's `bisect` module:
+
+      - `bisect_left(a, x)`: the first index with `a[i] >= x`. If `x` is there, its first copy.
+      - `bisect_right(a, x)` (also just `bisect`): the first index with `a[i] > x`. If `x` is there, one past its last copy.
+
+      Between them sit exactly the copies of `x`, so:
+
+      - **count of `x`** is `bisect_right(a, x) - bisect_left(a, x)`;
+      - **first occurrence** is `bisect_left`, if that index is in range and holds `x`;
+      - **last occurrence** is `bisect_right(a, x) - 1`, if that holds `x`;
+      - **how many are `< x`** is `bisect_left`, and **how many are `<= x`** is `bisect_right`.
+
+      `bisect.insort(a, x)` puts `x` in its sorted place. The search is O(log n), but making room shifts the items after it,
+      so the insert is O(n). Both take `lo` and `hi` to search part of a list, and (since Python 3.10) a `key` function.
+  - id: step.boundary.predict-bisect
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      What does this print?
+    code: |
+      import bisect
+
+      a = [1, 3, 7, 7, 7, 9]
+      print(bisect.bisect_left(a, 7), bisect.bisect_right(a, 7), bisect.bisect_left(a, 4))
+    accepted:
+      - "2 5 2"
+    mistakes:
+      - answers:
+          - "2 4 2"
+        feedback: "`bisect_right` returns one **past** the last `7`: the first index whose item is bigger than `7`, which is `5` (the `9`)."
+      - answers:
+          - "2 5 -1"
+          - "2 5 None"
+        feedback: "`bisect` never reports *not found*. For a missing `4` it gives where `4` would go: after `3`, at index `2`."
+      - answers:
+          - "2 5 1"
+        feedback: "Index `1` holds `3`, which is smaller than `4`. The first index with an item `>= 4` is `2`."
+    hints:
+      - "`bisect_left` gives the first index whose item is `>= x`; `bisect_right` the first whose item is `> x`."
+  - id: step.boundary.check-hi-is-mid
+    type: choice
+    title: Why hi = mid?
+    prompt: |
+      In the boundary search, why is it `hi = mid` when `nums[mid] >= x`, and not `hi = mid - 1` as in plain binary search?
+    options:
+      - text: "Because `mid` itself might be the first item `>= x`, so it has to stay in the range."
+        correct: true
+        feedback: "Right. Plain search checks `nums[mid] == x` and is done with `mid`. Here passing the test doesn't rule `mid` out: it might be the switch."
+      - text: "Because `hi` is one past the end."
+        correct: false
+        feedback: "That's why `hi` starts at `len(nums)`. It's not why `hi` moves only to `mid`: that's about `mid` still being a candidate."
+      - text: "It makes no difference: both find the same index."
+        correct: false
+        feedback: "With `mid - 1`, a `mid` that was the answer is thrown away. On `[1, 7]` with `x = 7`, `mid` is `1`, the answer, but `hi` drops to `0` and the search returns `0`."
+      - text: "To make the loop faster."
+        correct: false
+        feedback: "It does the opposite of what speed would ask for, keeping one more item in the range. It's there because that item could be the answer."
+    hints:
+      - "Could `nums[mid]` be the first item `>= x`?"
+  - id: step.boundary.check-past-the-end
+    type: choice
+    title: Past the end
+    prompt: |
+      `i = bisect.bisect_left(a, x)` with `a = [2, 4, 6]` and `x = 10`. Then the code reads `a[i] == x` to check whether `x` is
+      there. What happens?
+    options:
+      - text: "`i` is `3`, one past the end, so `a[i]` raises `IndexError`. Check `i < len(a)` first."
+        correct: true
+        feedback: "Right. No item is `>= 10`, so the boundary is at the very end. `i < len(a) and a[i] == x` is the safe check."
+      - text: "`i` is `-1`, so `a[i]` reads `6` and the check is `False`."
+        correct: false
+        feedback: "`bisect` never returns `-1`. A value bigger than everything goes at the end: index `3`."
+      - text: "`i` is `2`, and `a[2] == 10` is `False`."
+        correct: false
+        feedback: "`a[2]` is `6`, smaller than `10`, so the first item `>= 10` must come after it. There is none, so `i` is `3`."
+      - text: "`bisect_left` raises `ValueError` because `10` isn't in the list."
+        correct: false
+        feedback: "Unlike `list.index`, `bisect` never raises for a missing value. It returns where the value would go."
+    hints:
+      - "What does `bisect_left` return for a value bigger than everything in the list?"
+  - id: step.boundary.predict-count
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      What does this print?
+    code: |
+      from bisect import bisect_left, bisect_right
+
+      scores = [40, 55, 55, 70, 70, 70, 85, 90]
+      print(bisect_right(scores, 70) - bisect_left(scores, 70), bisect_left(scores, 60), len(scores) - bisect_left(scores, 85))
+    accepted:
+      - "3 3 2"
+    mistakes:
+      - answers:
+          - "2 3 2"
+        feedback: "`bisect_right(scores, 70)` is `6`, one past the last `70`, and `bisect_left` is `3`. `6 - 3` is `3`: the three `70`s."
+      - answers:
+          - "3 2 2"
+        feedback: "`bisect_left(scores, 60)` is how many scores are below `60`: `40, 55, 55`, which is `3`."
+      - answers:
+          - "3 3 1"
+          - "3 3 3"
+        feedback: "`bisect_left(scores, 85)` is `6`, the first `85`; the scores from there on are `85` and `90`. `8 - 6` is `2`."
+    hints:
+      - "`bisect_left(a, x)` is also how many items are `< x`."
+      - "`len(a) - bisect_left(a, x)` is how many are `>= x`."
+  - id: step.boundary.check-which-problem
+    type: choice
+    title: Which one is a boundary?
+    prompt: |
+      A sorted list of timestamps is a log of logins. Which question is a **boundary** search, rather than a plain *is it
+      there?* search?
+    options:
+      - text: "How many logins happened between 09:00 and 17:00?"
+        correct: true
+        feedback: "Right. Find where 09:00 starts and where 17:00 ends: `bisect_right(t, end) - bisect_left(t, start)`. Two boundaries, no scan."
+      - text: "Did anyone log in at exactly 12:34:56?"
+        correct: false
+        feedback: "That's *is it there?*, which plain binary search (or `bisect_left` and one check) answers. The range count needs both ends."
+      - text: "Which hour had the most logins?"
+        correct: false
+        feedback: "That's counting per hour, a pass with a dict (or `Counter`). It looks at every login."
+      - text: "Is the list really sorted?"
+        correct: false
+        feedback: "Checking order needs a look at every neighbouring pair, O(n). No search can skip items there."
+    hints:
+      - "Which question asks where a run of values starts and ends?"
+  - id: step.boundary.check-monotone
+    type: choice
+    title: It doesn't have to be numbers
+    prompt: |
+      Versions `0` to `n - 1` of a program were released in order. One of them broke a test, and every version after a broken
+      one is broken too. `is_broken(v)` takes a minute to run. How do you find the first broken version?
+    options:
+      - text: "Binary search on `v`: `is_broken` runs `False, ..., False, True, ..., True`, so find where it switches. About log₂ n runs."
+        correct: true
+        feedback: "Right. Nothing is a sorted list, but the answers are in order, and that's all a boundary search needs."
+      - text: "Try every version from `0` until one is broken."
+        correct: false
+        feedback: "That works, but takes up to `n` minutes. The answers switch once, so halving finds the switch in about log₂ n minutes."
+      - text: "Binary search won't work: there's no list to search."
+        correct: false
+        feedback: "Binary search needs a test whose answers run `False ... True`, not a list. `mid` is just a version number."
+      - text: "Sort the versions by `is_broken` first."
+        correct: false
+        feedback: "They're already in that order: every broken version comes after every working one. Sorting would cost a run per version anyway."
+    hints:
+      - "Write out `is_broken(0)`, `is_broken(1)`, ... What shape do the answers have?"
+  - id: step.boundary.check-many-queries
+    type: choice
+    title: Many questions, one sort
+    prompt: |
+      You get an unsorted list of `n` prices, then `q` questions, each *how many prices are at most `p`?* With `q` about as big
+      as `n`, which is best?
+    options:
+      - text: "Sort once, O(n log n), then answer each with `bisect_right(prices, p)`, O(log n): O((n + q) log n) in all."
+        correct: true
+        feedback: "Right. The sort is paid once and shared by every question. `bisect_right` counts the prices `<= p` without looking at them."
+      - text: "For each question, count with a loop over the prices: O(n) each."
+        correct: false
+        feedback: "That's O(n·q), which is O(n²) when `q` is about `n`. Sorting once makes each question O(log n)."
+      - text: "Put the prices in a set."
+        correct: false
+        feedback: "A set answers *is `p` there?*, not *how many are at most `p`?*: it has no order to count along."
+      - text: "Binary search the unsorted list."
+        correct: false
+        feedback: "Without the order, the halves mean nothing and the counts come out wrong. Sort first."
+    hints:
+      - "When many questions share the same data, what can you do to it once?"
+  - id: step.boundary.fill-lower
+    type: fill-blank
+    title: The first one at least x
+    pattern: pattern.binary-search-boundary
+    patternCue: "\"Where does it start, or where would it go?\": search for the first index where the test turns true."
+    prompt: |
+      Fill in the blanks so that `lower_bound(nums, x)` returns the first index `i` with `nums[i] >= x`, or `len(nums)` if
+      there's none, as `bisect_left` does.
+    template: |
+      def lower_bound(nums, x):
+          lo, hi = 0, {{start}}
+          while lo < hi:
+              mid = (lo + hi) // 2
+              if nums[mid] >= x:
+                  {{keep}}
+              else:
+                  lo = mid + 1
+          return lo
+    blanks:
+      - id: start
+        accepted:
+          - "len(nums)"
+        mistakes:
+          - answers:
+              - "len(nums) - 1"
+            feedback: "The answer can be `len(nums)` itself, when every item is smaller than `x`. `hi` has to start one past the last index."
+      - id: keep
+        accepted:
+          - "hi = mid"
+        mistakes:
+          - answers:
+              - "hi = mid - 1"
+            feedback: "`nums[mid]` passed the test, so it might be the answer. `hi = mid` keeps it in the range."
+          - answers:
+              - "return mid"
+            feedback: "`nums[mid] >= x`, but an earlier item might be too. Keep searching to the left, with `mid` still in the range."
+    hints:
+      - "The answer is somewhere from `0` to `len(nums)`, both included."
+      - "If `nums[mid]` passes, could it be the answer?"
+  - id: step.boundary.order-first-last
+    type: parsons
+    title: First and last
+    pattern: pattern.binary-search-boundary
+    patternCue: "\"Where does the run of x start and end?\": bisect_left for the start, bisect_right - 1 for the end."
+    prompt: |
+      Arrange the lines into `first_last(nums, x)`, which returns `[first, last]`: the indexes of the first and last `x` in
+      the sorted list `nums`, or `[-1, -1]` if `x` isn't there.
+    solution: |
+      from bisect import bisect_left, bisect_right
+
+
+      def first_last(nums, x):
+          first = bisect_left(nums, x)
+          if first == len(nums) or nums[first] != x:
+              return [-1, -1]
+          return [first, bisect_right(nums, x) - 1]
+    hints:
+      - "`bisect_left` gives where `x` would start. Check it's in range and really holds `x`."
+      - "`bisect_right` is one past the last `x`."
+  - id: step.boundary.write-insert
+    type: write-code
+    largeScreenPreferred: true
+    title: Where it goes
+    pattern: pattern.binary-search-boundary
+    patternCue: "\"Its index, or where it would go\": the first index with nums[i] >= target."
+    prompt: |
+      Write `search_insert(nums, target)`. `nums` is sorted with no repeats. Return the index of `target` if it's there, and
+      otherwise the index where it would go to keep `nums` sorted. Write the search yourself (no `bisect`), in O(log n).
+
+      `search_insert([1, 3, 5, 6], 5)` is `2`, `search_insert([1, 3, 5, 6], 2)` is `1`, and `search_insert([1, 3, 5, 6], 7)` is
+      `4`.
+    language: python
+    entrypoint: search_insert
+    starter: |
+      def search_insert(nums, target):
+          pass
+    solution: |
+      def search_insert(nums, target):
+          lo, hi = 0, len(nums)
+          while lo < hi:
+              mid = (lo + hi) // 2
+              if nums[mid] >= target:
+                  hi = mid
+              else:
+                  lo = mid + 1
+          return lo
+    tests:
+      - input: "[1, 3, 5, 6], 5"
+        expected: "2"
+      - input: "[1, 3, 5, 6], 2"
+        expected: "1"
+      - input: "[1, 3, 5, 6], 7"
+        expected: "4"
+      - input: "[1, 3, 5, 6], 0"
+        expected: "0"
+      - input: "[], 3"
+        expected: "0"
+      - input: "[4], 4"
+        expected: "0"
+    hints:
+      - "Both answers are the same thing: the first index whose item is `>= target`."
+      - "Start with `hi = len(nums)`: the answer can be one past the end."
+    walkthrough:
+      call: result = search_insert([1, 3, 5, 6], 2)
+      visualise:
+        - variable: nums
+          as: array
+          pointers: [lo, mid, hi]
+      explanation: |
+        `lo = 0` and `hi = 4`. `mid = 2` holds `5`, which is `>= 2`, so `hi = 2`. `mid = 1` holds `3`, also `>= 2`, so `hi = 1`.
+        `mid = 0` holds `1`, too small, so `lo = 1`. They meet at `1`: `2` goes between `1` and `3`.
+  - id: step.boundary.write-first-bad
+    type: write-code
+    largeScreenPreferred: true
+    title: The first bad version
+    pattern: pattern.binary-search-boundary
+    patternCue: "\"Every one after the first bad one is bad too\": a test that switches once, so binary search the switch."
+    prompt: |
+      `broken` is a list of `True` and `False`, with every `False` before every `True`: `broken[v]` says whether version `v`
+      is broken. Write `first_bad(broken)` that returns the first broken version, or `len(broken)` if none is, looking at
+      O(log n) entries. (In the real problem each look is an expensive test, so a scan won't do.)
+
+      `first_bad([False, False, False, True, True])` is `3`.
+    language: python
+    entrypoint: first_bad
+    starter: |
+      def first_bad(broken):
+          pass
+    solution: |
+      def first_bad(broken):
+          lo, hi = 0, len(broken)
+          while lo < hi:
+              mid = (lo + hi) // 2
+              if broken[mid]:
+                  hi = mid
+              else:
+                  lo = mid + 1
+          return lo
+    tests:
+      - input: "[False, False, False, True, True]"
+        expected: "3"
+      - input: "[True, True]"
+        expected: "0"
+      - input: "[False, False]"
+        expected: "2"
+      - input: "[]"
+        expected: "0"
+      - input: "[False, True]"
+        expected: "1"
+      - input: "[False, False, False, False, False, False, True]"
+        expected: "6"
+    hints:
+      - "This is the boundary search with the test `broken[mid]` in place of `nums[mid] >= x`."
+      - "A broken `mid` might be the first one: `hi = mid`. A working one can't be: `lo = mid + 1`."
+    walkthrough:
+      call: result = first_bad([False, False, False, True, True])
+      visualise:
+        - variable: broken
+          as: array
+          pointers: [lo, mid, hi]
+      explanation: |
+        `mid = 2` works, so the first bad one is after it: `lo = 3`. `mid = 4` is broken, so `hi = 4`. `mid = 3` is broken too,
+        so `hi = 3`, and `lo` and `hi` meet at `3`.
+  - id: step.boundary.write-range-count
+    type: write-code
+    largeScreenPreferred: true
+    title: How many in range?
+    pattern: pattern.binary-search-boundary
+    patternCue: "\"How many between low and high?\": the boundary after high minus the boundary before low."
+    prompt: |
+      `nums` is sorted, and may hold repeats. Write `count_between(nums, low, high)` that returns how many items `v` have
+      `low <= v <= high`, in O(log n). You may use `bisect`.
+
+      `count_between([1, 2, 2, 4, 6, 6, 9], 2, 6)` is `5`.
+    language: python
+    entrypoint: count_between
+    starter: |
+      def count_between(nums, low, high):
+          pass
+    solution: |
+      from bisect import bisect_left, bisect_right
+
+
+      def count_between(nums, low, high):
+          return max(0, bisect_right(nums, high) - bisect_left(nums, low))
+    tests:
+      - input: "[1, 2, 2, 4, 6, 6, 9], 2, 6"
+        expected: "5"
+      - input: "[1, 2, 2, 4, 6, 6, 9], 3, 3"
+        expected: "0"
+      - input: "[1, 2, 2, 4, 6, 6, 9], 0, 100"
+        expected: "7"
+      - input: "[], 1, 5"
+        expected: "0"
+      - input: "[5, 5, 5], 5, 5"
+        expected: "3"
+      - input: "[1, 3, 5], 6, 2"
+        expected: "0"
+    hints:
+      - "Everything `<= high` is before `bisect_right(nums, high)`. Everything `< low` is before `bisect_left(nums, low)`."
+      - "Take one from the other. If `low > high` the difference can go negative, and the count is `0`."
+    walkthrough:
+      call: result = count_between([1, 2, 2, 4, 6, 6, 9], 2, 6)
+      visualise:
+        - variable: nums
+          as: array
+      explanation: |
+        `bisect_right(nums, 6)` is `6`, the index of `9`: six items are `<= 6`. `bisect_left(nums, 2)` is `1`: one item is
+        `< 2`. The items from index `1` to `5` are the ones in range: `6 - 1 = 5`.
+    phoneAlternative:
+      id: step.boundary.write-range-count.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `count_between(nums, low, high)`, which counts the items of the sorted list from `low` to `high`. Arrange the
+        lines instead of typing them.
+      solution: |
+        from bisect import bisect_left, bisect_right
+
+
+        def count_between(nums, low, high):
+            return max(0, bisect_right(nums, high) - bisect_left(nums, low))
+      hints:
+        - "One boundary for each end: right of `high`, left of `low`."
+  - id: step.boundary.write-next-letter
+    type: write-code
+    largeScreenPreferred: true
+    title: The next letter
+    pattern: pattern.binary-search-boundary
+    patternCue: "\"The smallest one bigger than x\": bisect_right, wrapping round to the start."
+    prompt: |
+      `letters` is a sorted list of lowercase letters, with at least two different ones (and maybe repeats). Write
+      `next_letter(letters, target)` that returns the smallest letter in the list that comes **after** `target`. If none does,
+      wrap round and return the first letter. Look at O(log n) items.
+
+      `next_letter(["c", "f", "j"], "c")` is `"f"`, and `next_letter(["c", "f", "j"], "j")` is `"c"`.
+    language: python
+    entrypoint: next_letter
+    starter: |
+      def next_letter(letters, target):
+          pass
+    solution: |
+      from bisect import bisect_right
+
+
+      def next_letter(letters, target):
+          i = bisect_right(letters, target)
+          return letters[i % len(letters)]
+    tests:
+      - input: "['c', 'f', 'j'], 'a'"
+        expected: "'c'"
+      - input: "['c', 'f', 'j'], 'c'"
+        expected: "'f'"
+      - input: "['c', 'f', 'j'], 'd'"
+        expected: "'f'"
+      - input: "['c', 'f', 'j'], 'j'"
+        expected: "'c'"
+      - input: "['e', 'e', 'e', 'n', 'n'], 'e'"
+        expected: "'n'"
+      - input: "['a', 'b'], 'z'"
+        expected: "'a'"
+    hints:
+      - "\"Strictly after `target`\" is the first item `> target`: that's `bisect_right`."
+      - "If that's `len(letters)`, nothing comes after: wrap to index `0`. `% len(letters)` does both."
+    walkthrough:
+      call: "result = next_letter(['e', 'e', 'e', 'n', 'n'], 'e')"
+      visualise:
+        - variable: letters
+          as: array
+          pointers: [i]
+      explanation: |
+        `bisect_right` skips past every `"e"`: the first item bigger than `"e"` is at index `3`, `"n"`. Index `3` is in range,
+        so `3 % 5` is `3`, and the answer is `"n"`.
