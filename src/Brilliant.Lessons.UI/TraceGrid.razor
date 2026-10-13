@@ -1,0 +1,200 @@
+@* A 2-D table in the Trace Player: a list of lists (or strings) drawn as rows of cells, row 0 on top, with the row and column indexes
+   along the edges and, when drawn, the labels (dp's a and b) outside them. A pointer stands in a lane of its own on both edges: its
+   column's name above the grid, its row's on the left, and a ring around the cell it is on; markers and ring slide as it moves. The
+   cells the highlight marks are shaded. A cell that changed flashes; one that came in grows in. *@
+@using Brilliant.Core.Python
+
+<figure class="grid mx-0 my-4 rounded-md border border-hairline bg-surface-raised px-4 pt-2 pb-4" data-variable="@View.Variable" data-kind="grid">
+    <figcaption class="grid-name mb-1 text-[.9rem] text-fg-secondary [overflow-wrap:anywhere]"><code>@View.Variable</code> <span class="grid-kind ml-[.4rem] text-[.8rem]">grid</span></figcaption>
+    <div class="grid-scroll overflow-x-auto">
+        @* Laid out in user units and sized in rem (16 units to 1rem), with the text in the same units, as the other drawings are. *@
+        <svg class="grid-svg block max-w-none overflow-visible" role="img" aria-label="@Describe()" style="@Size" viewBox="0 0 @Width @Height">
+            @if (View.Rows.Count == 0)
+            {
+                <g class="grid-empty" transform="translate(@Pad @Pad)">
+                    <rect class="fill-none stroke-border stroke-2 [stroke-dasharray:4_3]" width="@(2 * CellW)" height="@CellH" rx="4" />
+                    <text class="fill-fg-secondary" font-size="@U(SmallText)" x="@CellW" y="@(CellH / 2.0)" text-anchor="middle" dominant-baseline="central">empty</text>
+                </g>
+            }
+            else
+            {
+                @if (View.ColLabels is { } colLabels)
+                {
+                    @for (var c = 0; c < colLabels.Count; c++)
+                    {
+                        if (colLabels[c] is not { } label) continue;
+                        <g class="col-label" data-col="@c">
+                            <title>@label</title>
+                            <text class="fill-fg font-mono" font-size="@U(LabelText)" x="@U(CellX(c) + CellW / 2.0)" y="@U(ColLabelTop + LabelH / 2.0)"
+                                  text-anchor="middle" dominant-baseline="central">@ClipLabel(label)</text>
+                        </g>
+                    }
+                }
+                @for (var c = 0; c < View.Columns; c++)
+                {
+                    <g class="col-index" data-col="@c">
+                        <text class="fill-fg-secondary" font-size="@U(SmallText)" x="@U(CellX(c) + CellW / 2.0)" y="@U(IndexTop + IndexH / 2.0)"
+                              text-anchor="middle" dominant-baseline="central">@c</text>
+                    </g>
+                }
+                @foreach (var row in View.Rows)
+                {
+                    var y = CellY(row.Row) + CellH / 2.0;
+                    @if (View.RowLabels is { } rowLabels && rowLabels[row.Row] is { } label)
+                    {
+                        <g class="row-label" data-row="@row.Row">
+                            <title>@label</title>
+                            <text class="fill-fg font-mono" font-size="@U(LabelText)" x="@U(RowLabelLeft + _rowLabelW / 2.0)" y="@U(y)"
+                                  text-anchor="middle" dominant-baseline="central">@ClipLabel(label)</text>
+                        </g>
+                    }
+                    <g class="row-index" data-row="@row.Row">
+                        <text class="fill-fg-secondary" font-size="@U(SmallText)" x="@U(GridLeft - 6)" y="@U(y)" text-anchor="end" dominant-baseline="central">@row.Row</text>
+                    </g>
+
+                    @foreach (var cell in row.Cells)
+                    {
+                        <g class="@CellClass(cell)" data-row="@cell.Row" data-col="@cell.Col" transform="translate(@U(CellX(cell.Col)) @U(CellY(cell.Row)))" @key="@($"cell-{cell.Row}-{cell.Col}")">
+                            <title>@cell.Text</title>
+                            <g class="cell-body origin-center [transform-box:fill-box] @(cell.Added ? "animate-cell-in" : "")">
+                                <rect class="stroke-border stroke-1 @(cell.Shaded ? "fill-accent-tint" : "fill-surface") @(cell.Changed ? "animate-cell-flash" : "")"
+                                      width="@CellW" height="@CellH" @key="@(cell.Changed ? $"value-{Step}" : "value")" />
+                                <text class="cell-value fill-fg font-mono" font-size="@U(ValueText(cell.Text))" x="@(CellW / 2.0)" y="@(CellH / 2.0)"
+                                      text-anchor="middle" dominant-baseline="central">@Clip(cell.Text)</text>
+                            </g>
+                        </g>
+                    }
+                    @if (row.More > 0)
+                    {
+                        <g class="row-more" data-row="@row.Row">
+                            <text class="fill-fg-secondary" font-size="@U(SmallText)" x="@U(CellX(row.Cells.Count) + 6)" y="@U(y)" dominant-baseline="central">+@row.More</text>
+                        </g>
+                    }
+                }
+
+                @* The pointers: a ring around the cell, the column's name above the grid and the row's on the left, each in its own lane. *@
+                @for (var k = 0; k < View.Pointers.Count; k++)
+                {
+                    var pointer = View.Pointers[k];
+                    if (!pointer.OnGrid || pointer.Row is not { } r || pointer.Col is not { } c) continue;
+                    var moved = pointer.Moved ? " moved" : "";
+                    <g class="pointer-ring@(moved) transition-transform duration-450 ease-app" data-name="@pointer.Name" data-row="@r" data-col="@c"
+                       style="@At(CellX(c), CellY(r))" @key="@($"ring-{pointer.Name}")">
+                        <rect class="fill-none stroke-accent stroke-2" x="@(1 + k * 2)" y="@(1 + k * 2)" width="@(CellW - 2 - k * 4)" height="@(CellH - 2 - k * 4)" rx="3" />
+                    </g>
+                    <g class="pointer-col@(moved) transition-transform duration-450 ease-app" data-name="@pointer.Name" data-col="@c"
+                       style="@At(CellX(c) + CellW / 2.0, Pad + k * LaneH)" @key="@($"col-{pointer.Name}")">
+                        <text class="pointer-label fill-accent font-mono font-semibold" font-size="@U(PointerText)" y="@U(LaneH / 2.0 - 3)" text-anchor="middle" dominant-baseline="central">@pointer.ColName</text>
+                        <path class="pointer-arrow fill-accent" d="@($"M-4 {LaneH - 6} L4 {LaneH - 6} L0 {LaneH - 1} Z")" />
+                    </g>
+                    <g class="pointer-row@(moved) transition-transform duration-450 ease-app" data-name="@pointer.Name" data-row="@r"
+                       style="@At(_laneLeft[k] + _laneW[k], CellY(r) + CellH / 2.0)" @key="@($"row-{pointer.Name}")">
+                        <text class="pointer-label fill-accent font-mono font-semibold" font-size="@U(PointerText)" x="-9" text-anchor="end" dominant-baseline="central">@pointer.RowName</text>
+                        <path class="pointer-arrow fill-accent" d="M-6 -4 L-6 4 L-1 0 Z" />
+                    </g>
+                }
+            }
+        </svg>
+    </div>
+    @foreach (var note in Notes())
+    {
+        <p class="grid-note mt-2 mb-0 text-[.9rem] text-fg-secondary">@note</p>
+    }
+</figure>
+
+@code {
+    [Parameter, EditorRequired] public GridView View { get; set; } = default!;
+
+    /// <summary>The player's step number. What changed is keyed by it, so it is a fresh element and replays its animation.</summary>
+    [Parameter, EditorRequired] public int Step { get; set; }
+
+    // A cell is CellW by CellH. Above the grid: a lane LaneH high for each pointer's column marker, the column labels (LabelH) and the
+    // column indexes (IndexH). Left of it, in the same order outwards in: the row indexes, the row labels and a lane for each pointer.
+    private const int CellW = 40, CellH = 32, Pad = 8, LaneH = 22, LabelH = 18, IndexH = 16;
+
+    // Text sizes in user units (16 is 1rem). A monospace character is about .6 of its size wide.
+    private const double SmallText = 12.8, PointerText = 14.4, LabelText = 14.4, ValueTextMax = 15.2, MonoW = .6;
+
+    private double[] _laneLeft = [], _laneW = [];
+    private double _rowLabelW, _indexW, _left, _colHalf;
+
+    protected override void OnParametersSet()
+    {
+        // Every pointer of the visual has its lane at every step, so a marker never jumps to another lane.
+        _laneW = View.Pointers.Select(p => Math.Max(10, p.RowName.Length * PointerText * MonoW) + 12).ToArray();
+        _rowLabelW = View.RowLabels is null ? 0
+            : Math.Max(16, View.RowLabels.Select(l => ClipLabel(l ?? "").Length).DefaultIfEmpty(0).Max() * LabelText * MonoW) + 8;
+        _indexW = Math.Max(1, (View.Rows.Count - 1).ToString().Length) * SmallText * MonoW + 10;
+        // A column marker's name is centred over its cell and may be wider than it: half the widest, so the grid stands far enough
+        // from the left edge (and the drawing reaches far enough right) for that name to fit over the first (or last) column.
+        _colHalf = View.Pointers.Select(p => p.ColName.Length * PointerText * MonoW / 2).DefaultIfEmpty(0).Max();
+        _left = Pad + Math.Max(0, _colHalf - CellW / 2.0 - _laneW.Sum() - _rowLabelW - _indexW);
+        _laneLeft = new double[_laneW.Length];
+        for (var k = 0; k < _laneW.Length; k++) _laneLeft[k] = _left + _laneW.Take(k).Sum();
+    }
+
+    private double RowLabelLeft => _left + _laneW.Sum();
+    private double GridLeft => RowLabelLeft + _rowLabelW + _indexW;
+    private double ColLabelTop => Pad + View.Pointers.Count * LaneH;
+    private double IndexTop => ColLabelTop + (View.ColLabels is null ? 0 : LabelH);
+    private double GridTop => IndexTop + IndexH;
+
+    private double CellX(int col) => GridLeft + col * CellW;
+    private double CellY(int row) => GridTop + row * CellH;
+
+    private double Right => View.Rows.Count == 0 ? Pad + 2 * CellW
+        : View.Rows.Select(r => CellX(r.Cells.Count) + (r.More > 0 ? 8 + (r.More.ToString().Length + 1) * SmallText * MonoW : 0))
+            .Append(CellX(View.Columns)).Append(CellX(View.Columns - 1) + CellW / 2.0 + _colHalf).Max();
+
+    private int Width => (int)Math.Ceiling(Right) + Pad;
+    private int Height => (int)Math.Ceiling(View.Rows.Count == 0 ? Pad + CellH : CellY(View.Rows.Count)) + Pad;
+
+    private string Size => $"width: {U(Width / 16.0)}rem; height: {U(Height / 16.0)}rem";
+
+    // Numbers written into the drawing in invariant form: "12.8", never a culture's "12,8".
+    private static string U(double value) => value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    // Placed with CSS (not the transform attribute) so that moving to a new place can be a transition.
+    private static string At(double x, double y) => $"transform: translate({U(x)}px, {U(y)}px)";
+
+    private static string CellClass(GridCellView cell) =>
+        "cell" + (cell.Changed ? " changed" : "") + (cell.Added ? " added" : "") + (cell.Shaded ? " shaded" : "");
+
+    private static string Clip(string text) => text.Length <= 4 ? text : text[..3] + "…";
+    private static string ClipLabel(string text) => text.Length <= 3 ? text : text[..2] + "…";
+
+    // A long value is set a little smaller so that all of its (at most 4) characters fit inside the cell.
+    private static double ValueText(string text) => Math.Min(ValueTextMax, Math.Round((CellW - 6) / (Math.Max(1, Clip(text).Length) * MonoW), 1));
+
+    private List<string> Notes()
+    {
+        var notes = new List<string>();
+        if (View.More > 0)
+            notes.Add($"+{View.More} more {(View.More == 1 ? "row" : "rows")} not shown.");
+        foreach (var p in View.Pointers.Where(p => p.Defined && !p.OnGrid))
+            notes.Add(p.Row is { } r && p.Col is { } c ? $"{p.Name} is at ({r}, {c}), off the grid."
+                : p.RowName != p.ColName ? $"{p.RowName} and {p.ColName} aren't both ints."
+                : $"{p.Name} is None.");
+        if (View.Highlight is { } highlight)
+        {
+            notes.Add($"Shaded: the cells {highlight.Variable} marks.");
+            if (highlight.Unmatched > 0)
+                notes.Add($"{highlight.Unmatched} {(highlight.Unmatched == 1 ? "member" : "members")} of {highlight.Variable} mark no cell shown.");
+        }
+        return notes;
+    }
+
+    private string Describe()
+    {
+        if (View.Rows.Count == 0) return $"{View.Variable}, a grid: empty";
+        string Row(GridRowView row) =>
+            $"row {row.Row}" + (View.RowLabels?[row.Row] is { } label ? $" ({label})" : "") + ": "
+            + string.Join(", ", row.Cells.Select(c => c.Text + (c.Shaded ? " (shaded)" : "")))
+            + (row.More > 0 ? $", and {row.More} more" : "");
+        var text = $"{View.Variable}, a grid of {View.Rows.Count + View.More} rows; " + string.Join("; ", View.Rows.Select(Row));
+        if (View.ColLabels is { } cols && cols.Any(l => l is not null))
+            text += "; columns labelled " + string.Join(", ", cols.Select((l, c) => $"{c}: {l ?? "none"}"));
+        var pointers = View.Pointers.Where(p => p.OnGrid).Select(p => $"{p.Name} at row {p.Row}, column {p.Col}").ToList();
+        return text + (pointers.Count > 0 ? "; " + string.Join(", ", pointers) : "");
+    }
+}

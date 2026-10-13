@@ -1388,4 +1388,154 @@ public class TraceTests
         Assert.Equal(("lo", "hi", "key", "order"), (visual.Left, visual.Right, visual.Value, visual.Visited));
         Assert.Equal(["node"], visual.Pointers);
     }
+
+    private static readonly Visual Dp = new("dp", Visual.Grid, []);
+
+    private static TrackedGrid Grid(string[][] rows, params (string Name, int[]? At)[] pointers) =>
+        new(rows, rows.Select(r => r.Length).ToList(), 0,
+            pointers.ToDictionary(p => p.Name, p => p.At is null ? null : (IReadOnlyList<int>?)p.At));
+
+    private static TraceFrame GridFrame(int? line, TrackedGrid grid, string function = "<module>") =>
+        new(line is null ? "return" : "line", line, function, [], new Dictionary<string, TrackedArray>(),
+            Grids: new Dictionary<string, TrackedGrid> { ["dp"] = grid });
+
+    private static GridView GridAt(IReadOnlyList<TraceState> states, int index) => states[index].Grids.Single();
+
+    [Fact]
+    public void A_grid_is_watched_with_its_pairs_labels_and_highlight()
+    {
+        var visual = Dp with { Pointers = ["cell"], Cells = [new CellPair("i", "j")], RowLabels = "a", ColLabels = "b", Highlight = "seen" };
+
+        Assert.Equal("""[{"variable":"dp","as":"grid","pointers":["cell"],"cells":[["i","j"]],"rowLabels":"a","colLabels":"b","highlight":"seen"}]""",
+            TraceResultJson.SerializeWatch([visual]));
+    }
+
+    [Fact]
+    public void A_grid_is_read_from_the_recorder_json()
+    {
+        var result = TraceResultJson.Parse("""
+            {"status":"ok","stdout":"","message":null,"traceback":null,"errorLine":null,"frames":[{"event":"line","line":1,"function":"<module>",
+             "locals":[],"tracked":{},"grids":{"dp":{"rows":[["0","1"]],"lengths":[4],"more":2,"pointers":{"i,j":[0,1],"cell":null},
+             "rowLabels":["a"],"colLabels":null,"highlight":{"cells":[[0,0]],"unmatched":1}}}}]}
+            """);
+
+        var grid = result.Frames[0].Grids!["dp"];
+        Assert.Equal((4, 2, "1"), (grid.Lengths[0], grid.More, grid.Rows[0][1]));
+        Assert.Equal([0, 1], grid.Pointers["i,j"]);
+        Assert.Null(grid.Pointers["cell"]);
+        Assert.Equal((1, 0), (grid.Highlight!.Unmatched, grid.Highlight.Cells[0][1]));
+    }
+
+    [Fact]
+    public void A_grid_is_drawn_row_by_row_with_the_cells_cut_off_counted()
+    {
+        var tracked = new TrackedGrid([["0", "1"], ["2"]], [5, 1], 3, new Dictionary<string, IReadOnlyList<int>?>());
+        var view = GridAt(Build(Run(GridFrame(1, tracked)), Dp), 0);
+
+        Assert.Equal([["0", "1"], ["2"]], view.Rows.Select(r => r.Cells.Select(c => c.Text)));
+        Assert.Equal([3, 0], view.Rows.Select(r => r.More));
+        Assert.Equal((3, 2), (view.More, view.Columns));
+        Assert.DoesNotContain(view.Rows.SelectMany(r => r.Cells), c => c.Changed || c.Added || c.Shaded);
+    }
+
+    [Fact]
+    public void A_cell_that_changed_flashes_and_one_that_came_in_grows()
+    {
+        var states = Build(Run(GridFrame(1, Grid([["0", "0"]])), GridFrame(2, Grid([["0", "5"], ["7"]]))), Dp);
+        var cells = GridAt(states, 1).Rows.SelectMany(r => r.Cells).Select(c => (c.Text, c.Changed, c.Added));
+
+        Assert.Equal([("0", false, false), ("5", true, false), ("7", false, true)], cells);
+    }
+
+    [Fact]
+    public void A_grid_marks_nothing_against_another_function()
+    {
+        var states = Build(Run(GridFrame(1, Grid([["0"]])), GridFrame(2, Grid([["9"], ["1"]]), "f")), Dp);
+
+        Assert.DoesNotContain(GridAt(states, 1).Rows.SelectMany(r => r.Cells), c => c.Changed || c.Added);
+    }
+
+    [Fact]
+    public void Grid_pointers_are_listed_in_order_and_say_where_they_are()
+    {
+        var visual = Dp with { Pointers = ["cell", "gone"], Cells = [new CellPair("i", "j"), new CellPair("r", "c")] };
+        var tracked = Grid([["0", "0"], ["0", "0"]], ("i,j", [1, 0]), ("r,c", [5, 0]), ("cell", null));
+        var view = GridAt(Build(Run(GridFrame(1, tracked)), visual), 0);
+
+        Assert.Equal([
+            new GridPointerView("i,j", "i", "j", 1, 0, true, true, false),
+            new GridPointerView("r,c", "r", "c", 5, 0, true, false, false),
+            new GridPointerView("cell", "cell", "cell", null, null, true, false, false),
+            new GridPointerView("gone", "gone", "gone", null, null, false, false, false),
+        ], view.Pointers);
+    }
+
+    [Fact]
+    public void A_grid_pointer_at_a_negative_index_is_off_the_grid()
+    {
+        var visual = Dp with { Cells = [new CellPair("i", "j"), new CellPair("r", "c")] };
+        var tracked = Grid([["1"]], ("i,j", [-1, 0]), ("r,c", [0, -1]));
+        var view = GridAt(Build(Run(GridFrame(1, tracked)), visual), 0);
+
+        Assert.Equal([(-1, 0, false), (0, -1, false)], view.Pointers.Select(p => (p.Row!.Value, p.Col!.Value, p.OnGrid)));
+    }
+
+    [Fact]
+    public void A_grid_pointer_that_moved_is_marked()
+    {
+        var visual = Dp with { Cells = [new CellPair("i", "j")] };
+        var states = Build(Run(
+            GridFrame(1, Grid([["0", "0"]], ("i,j", [0, 0]))),
+            GridFrame(2, Grid([["0", "0"]], ("i,j", [0, 1]))),
+            GridFrame(3, Grid([["0", "0"]], ("i,j", [0, 1])))), visual);
+
+        Assert.Equal([false, true, false], states.Select(s => s.Grids.Single().Pointers.Single().Moved));
+    }
+
+    [Fact]
+    public void Labels_line_up_with_the_rows_and_columns_from_the_offset()
+    {
+        var visual = Dp with { RowLabels = "a", ColLabels = "b", LabelOffset = 1 };
+        var tracked = Grid([["0", "0", "0"], ["0", "0", "0"]]) with { RowLabels = ["x"], ColLabels = ["p", "q", "r"] };
+        var view = GridAt(Build(Run(GridFrame(1, tracked)), visual), 0);
+
+        Assert.Equal([null, "x"], view.RowLabels!);
+        Assert.Equal([null, "p", "q"], view.ColLabels!);
+    }
+
+    [Fact]
+    public void Labels_not_drawn_are_null_and_ones_not_recorded_are_blank()
+    {
+        var tracked = Grid([["0"]]);
+
+        Assert.Null(GridAt(Build(Run(GridFrame(1, tracked)), Dp), 0).RowLabels);
+        Assert.Equal([null], GridAt(Build(Run(GridFrame(1, tracked)), Dp with { RowLabels = "a" }), 0).RowLabels!);
+    }
+
+    [Fact]
+    public void A_highlight_shades_its_cells_and_counts_the_unmatched()
+    {
+        var tracked = Grid([["0", "0"], ["0", "0"]]) with { Highlight = new GridHighlight([[0, 1], [1, 0]], 2) };
+        var view = GridAt(Build(Run(GridFrame(1, tracked)), Dp with { Highlight = "seen" }), 0);
+
+        Assert.Equal([(0, 1), (1, 0)], view.Rows.SelectMany(r => r.Cells).Where(c => c.Shaded).Select(c => (c.Row, c.Col)));
+        Assert.Equal(new GridHighlightView("seen", 2), view.Highlight);
+    }
+
+    [Fact]
+    public void A_grid_visual_survives_a_pack_round_trip_with_its_options()
+    {
+        var step = new TraceStep("step.g", "Fill", "Watch.", "dp = []\n",
+            [Dp with { Pointers = ["cell"], Cells = [new CellPair("i", "j")], RowLabels = "a", ColLabels = "b", LabelOffset = 1, Highlight = "seen" }]);
+        using var ms = new MemoryStream();
+        ContentPackFormat.Write(ms, new PackManifest("pack.t", "1.0.0", ContentPackFormat.CurrentFormatVersion),
+            [new Track("track.a", "A", ["lesson.one"])], [new Lesson("lesson.one", "One", "track.a", [step])]);
+        ms.Position = 0;
+
+        var visual = Assert.IsType<TraceStep>(ContentPackFormat.Load(ms).Get<Lesson>("lesson.one").Steps[0]).Visuals.Single();
+
+        Assert.Equal(("a", "b", 1, "seen"), (visual.RowLabels, visual.ColLabels, visual.LabelOffset, visual.Highlight));
+        Assert.Equal([new CellPair("i", "j")], visual.Cells);
+        Assert.Equal(["cell"], visual.Pointers);
+    }
 }

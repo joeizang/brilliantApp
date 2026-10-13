@@ -1138,6 +1138,161 @@ public class TracePlayerTests : ShortcutContext
         Assert.Contains("[overflow-wrap:anywhere]", cut.Find("figure.tree figcaption").ClassName);
     }
 
+    // ---- Grids ----
+
+    private static readonly IReadOnlyList<Visual> DpVisual =
+        [new Visual("dp", Visual.Grid, ["cell"]) { Cells = [new CellPair("i", "j")], RowLabels = "a", ColLabels = "b", LabelOffset = 1, Highlight = "seen" }];
+
+    private static TrackedGrid GridOf(string[][] rows, params (string Name, int[]? At)[] pointers) =>
+        new(rows, rows.Select(r => r.Length).ToList(), 0, pointers.ToDictionary(p => p.Name, p => p.At is null ? null : (IReadOnlyList<int>?)p.At));
+
+    private static TraceFrame GridFrame(int line, TrackedGrid grid) =>
+        new("line", line, "<module>", [], new Dictionary<string, TrackedArray>(), Grids: new Dictionary<string, TrackedGrid> { ["dp"] = grid });
+
+    private IRenderedComponent<TracePlayer> Grids(params TrackedGrid[] steps) =>
+        Start(RunOf(steps.Select((grid, i) => GridFrame(i + 1, grid)).ToArray()), DpVisual, out _);
+
+    private static AngleSharp.Dom.IElement CellOf(IRenderedComponent<TracePlayer> cut, int row, int col) =>
+        cut.Find($"figure.grid g.cell[data-row='{row}'][data-col='{col}']");
+
+    private static (double X, double Y) Translated(AngleSharp.Dom.IElement element)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(element.GetAttribute("transform")!, @"translate\((-?[\d.]+) (-?[\d.]+)\)");
+        return (double.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture), double.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture));
+    }
+
+    private static readonly string[][] Zeros = [["0", "0", "0"], ["0", "0", "0"]];
+
+    [Fact]
+    public void A_grid_draws_its_rows_of_cells_with_indexes()
+    {
+        var cut = Grids(GridOf([["0", "1", "2"], ["3", "4", "5"]]));
+
+        Assert.Equal(["0", "1", "2", "3", "4", "5"], cut.FindAll("figure.grid .cell-value").Select(t => t.TextContent));
+        Assert.Equal(Translated(CellOf(cut, 0, 1)).Y, Translated(CellOf(cut, 0, 0)).Y);
+        Assert.True(Translated(CellOf(cut, 0, 1)).X > Translated(CellOf(cut, 0, 0)).X);
+        Assert.True(Translated(CellOf(cut, 1, 0)).Y > Translated(CellOf(cut, 0, 0)).Y);
+        Assert.Equal(["0", "1", "2"], cut.FindAll("figure.grid g.col-index").Select(t => t.TextContent.Trim()));
+        Assert.Equal(["0", "1"], cut.FindAll("figure.grid g.row-index").Select(t => t.TextContent.Trim()));
+        Assert.Equal("grid", cut.Find("figure.grid").GetAttribute("data-kind"));
+    }
+
+    [Fact]
+    public void A_changed_cell_flashes_and_a_new_row_grows_in()
+    {
+        var cut = Grids(GridOf([["0", "0"]]), GridOf([["0", "5"], ["7"]]));
+        cut.Find("button.next").Click();
+
+        Assert.NotNull(CellOf(cut, 0, 1).QuerySelector("rect.animate-cell-flash"));
+        Assert.Null(CellOf(cut, 0, 0).QuerySelector(".animate-cell-flash"));
+        Assert.NotNull(CellOf(cut, 1, 0).QuerySelector(".cell-body.animate-cell-in"));
+    }
+
+    [Fact]
+    public void A_pointer_rings_its_cell_and_marks_its_row_and_column_then_slides()
+    {
+        var cut = Grids(GridOf(Zeros, ("i,j", [0, 1])), GridOf(Zeros, ("i,j", [1, 2])));
+
+        var col = cut.Find("figure.grid g.pointer-col[data-name='i,j']");
+        var row = cut.Find("figure.grid g.pointer-row[data-name='i,j']");
+        Assert.Equal(("j", "i"), (col.TextContent.Trim(), row.TextContent.Trim()));
+        var before = (Col: Place(col).X, Row: Place(row).Y);
+        cut.Find("button.next").Click();
+
+        var ring = cut.Find("figure.grid g.pointer-ring[data-name='i,j']");
+        Assert.Equal(("1", "2"), (ring.GetAttribute("data-row"), ring.GetAttribute("data-col")));
+        Assert.Contains("moved", ring.ClassList);
+        Assert.Contains("transition-transform", ring.ClassList);
+        Assert.Equal(Translated(CellOf(cut, 1, 2)), Place(ring));
+        Assert.True(Place(cut.Find("figure.grid g.pointer-col[data-name='i,j']")).X > before.Col);
+        Assert.True(Place(cut.Find("figure.grid g.pointer-row[data-name='i,j']")).Y > before.Row);
+        Assert.Contains("i,j at row 1, column 2", cut.Find("figure.grid svg").GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public void Pointers_off_the_grid_or_at_none_are_noted_not_drawn()
+    {
+        var cut = Grids(GridOf(Zeros, ("i,j", [4, 0]), ("cell", null)));
+
+        Assert.Empty(cut.FindAll("figure.grid g.pointer-ring"));
+        var notes = cut.FindAll(".grid-note").Select(n => n.TextContent).ToList();
+        Assert.Contains("i,j is at (4, 0), off the grid.", notes);
+        Assert.Contains("cell is None.", notes);
+    }
+
+    [Fact]
+    public void Pointers_at_negative_indexes_are_noted_not_drawn()
+    {
+        var cut = Grids(GridOf(Zeros, ("i,j", [-1, 0])));
+
+        Assert.Empty(cut.FindAll("figure.grid g.pointer-ring"));
+        Assert.Contains("i,j is at (-1, 0), off the grid.", cut.FindAll(".grid-note").Select(n => n.TextContent));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(4)]
+    public void A_long_column_pointer_name_fits_inside_the_drawing_over_the_first_and_last_column(int columns)
+    {
+        var visuals = new[] { new Visual("dp", Visual.Grid, []) { Cells = [new CellPair("i", "current_column_index")] } };
+        var row = Enumerable.Repeat("0", columns).ToArray();
+        var first = new TrackedGrid([row], [columns], 0, new Dictionary<string, IReadOnlyList<int>?> { ["i,current_column_index"] = [0, 0] });
+        var last = first with { Pointers = new Dictionary<string, IReadOnlyList<int>?> { ["i,current_column_index"] = [0, columns - 1] } };
+        var cut = Start(RunOf(GridFrame(1, first), GridFrame(2, last)), visuals, out _);
+
+        foreach (var _ in new[] { 0, 1 })
+        {
+            var width = double.Parse(cut.Find("figure.grid svg").GetAttribute("viewBox")!.Split(' ')[2], CultureInfo.InvariantCulture);
+            var x = Place(cut.Find("figure.grid g.pointer-col")).X;
+            var half = "current_column_index".Length * 14.4 * .6 / 2;
+            Assert.True(x - half >= 0, $"the name starts at {x - half}");
+            Assert.True(x + half <= width, $"the name ends at {x + half}, past {width}");
+            cut.Find("button.next").Click();
+        }
+    }
+
+    [Fact]
+    public void Labels_stand_outside_the_indexes_from_the_offset()
+    {
+        var cut = Grids(GridOf(Zeros) with { RowLabels = ["x"], ColLabels = ["p", "q"] });
+
+        Assert.Equal(["1", "2"], cut.FindAll("figure.grid g.col-label").Select(l => l.GetAttribute("data-col")));
+        Assert.Equal(["p", "q"], cut.FindAll("figure.grid g.col-label text").Select(l => l.TextContent));
+        Assert.Equal("1", cut.Find("figure.grid g.row-label").GetAttribute("data-row"));
+        Assert.Contains("row 1 (x): 0, 0, 0", cut.Find("figure.grid svg").GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public void Highlighted_cells_are_shaded_and_the_unmatched_noted()
+    {
+        var cut = Grids(GridOf(Zeros) with { Highlight = new GridHighlight([[1, 0]], 2) });
+
+        Assert.Contains("shaded", CellOf(cut, 1, 0).ClassList);
+        Assert.Contains("fill-accent-tint", CellOf(cut, 1, 0).QuerySelector("rect")!.ClassList);
+        Assert.DoesNotContain("shaded", CellOf(cut, 0, 0).ClassList);
+        var notes = cut.FindAll(".grid-note").Select(n => n.TextContent).ToList();
+        Assert.Contains("Shaded: the cells seen marks.", notes);
+        Assert.Contains("2 members of seen mark no cell shown.", notes);
+    }
+
+    [Fact]
+    public void Cells_and_rows_past_the_ones_recorded_are_counted()
+    {
+        var cut = Grids(new TrackedGrid([["0", "1"]], [9], 4, new Dictionary<string, IReadOnlyList<int>?>()));
+
+        Assert.Equal("+7", cut.Find("figure.grid g.row-more").TextContent.Trim());
+        Assert.Contains("+4 more rows not shown.", cut.FindAll(".grid-note").Select(n => n.TextContent));
+    }
+
+    [Fact]
+    public void An_empty_grid_is_a_dashed_box()
+    {
+        var cut = Grids(GridOf([]));
+
+        Assert.Contains("empty", cut.Find("figure.grid g.grid-empty").TextContent);
+        Assert.Equal("dp, a grid: empty", cut.Find("figure.grid svg").GetAttribute("aria-label"));
+    }
+
     // ---- The call stack ----
 
     private static readonly IReadOnlyList<Visual> StackVisual = [new Visual("", Visual.CallStack, [])];

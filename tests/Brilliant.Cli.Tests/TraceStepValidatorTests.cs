@@ -156,7 +156,8 @@ public sealed class TraceStepValidatorTests : IDisposable
     {
         public bool Equals(Visual? a, Visual? b) =>
             a!.Variable == b!.Variable && a.As == b.As && a.Pointers.SequenceEqual(b.Pointers) && (a.Next, a.Value) == (b.Next, b.Value)
-            && (a.Left, a.Right, a.Visited) == (b.Left, b.Right, b.Visited);
+            && (a.Left, a.Right, a.Visited) == (b.Left, b.Right, b.Visited) && a.Cells.SequenceEqual(b.Cells)
+            && (a.RowLabels, a.ColLabels, a.LabelOffset, a.Highlight) == (b.RowLabels, b.ColLabels, b.LabelOffset, b.Highlight);
         public int GetHashCode(Visual v) => v.Variable.GetHashCode();
     }
 
@@ -719,6 +720,125 @@ public sealed class TraceStepValidatorTests : IDisposable
         var m = Errors(Head + Body + Bst + TreeVisual + "        left: lo\n", new CPythonRunner());
 
         Assert.Contains(m, x => x.Contains("'root'") && x.Contains("never holds a tree node"));
+    }
+
+    // ---- Grids ----
+
+    private const string GridVisual = "    visualise:\n      - variable: dp\n        as: grid\n";
+
+    /// <summary>
+    /// A trace in which dp is a 2×2 grid (none: never a grid), each named pointer at its (row, col) (null: None), the labels recorded or
+    /// not, and the highlight marking the given cells (null: not recorded).
+    /// </summary>
+    private static TraceResult GridTrace(bool grid = true, bool labels = true, int[][]? highlight = null, params (string Name, int[]? At)[] pointers)
+    {
+        var tracked = new TrackedGrid([["0", "0"], ["0", "0"]], [2, 2], 0,
+            pointers.ToDictionary(p => p.Name, p => p.At is null ? null : (IReadOnlyList<int>?)p.At),
+            labels ? ["a", "b"] : null, labels ? ["c", "d"] : null,
+            highlight is null ? null : new GridHighlight(highlight, 0));
+        TraceFrame F(int? line) => new(line is null ? "return" : "line", line, "<module>", [], new Dictionary<string, TrackedArray>(),
+            Grids: grid ? new Dictionary<string, TrackedGrid> { ["dp"] = tracked } : null);
+        return new(TraceStatus.Ok, [F(1), F(null)], "", null, null, null);
+    }
+
+    [Fact]
+    public void A_grid_loads_with_its_options()
+    {
+        WriteLesson(Header + Head + Body + Code + GridVisual
+            + "        cells: [[i, j]]\n        pointers: [cell]\n        rowLabels: a\n        colLabels: b\n        labelOffset: 1\n        highlight: seen\n");
+        var outPath = Path.Combine(_root, "out", "p.zip");
+
+        var report = ContentPacker.Pack(_root, outPath, new FakeRunner((_, _) => GridTrace(true, true, [[0, 0]], ("i,j", [1, 1]), ("cell", [0, 1]))));
+
+        Assert.True(report.IsValid, string.Join("\n", report.Errors));
+        var step = Assert.IsType<TraceStep>(ContentPackFormat.Load(outPath).Get<Lesson>("lesson.one").Steps[0]);
+        Assert.Equal(new Visual("dp", Visual.Grid, ["cell"])
+        {
+            Cells = [new CellPair("i", "j")], RowLabels = "a", ColLabels = "b", LabelOffset = 1, Highlight = "seen",
+        }, step.Visuals[0], new VisualComparer());
+    }
+
+    [Theory]
+    [InlineData("cells: [[i, j]]", "'cells'")]
+    [InlineData("rowLabels: a", "'rowLabels'")]
+    [InlineData("colLabels: b", "'colLabels'")]
+    [InlineData("highlight: seen", "'highlight'")]
+    [InlineData("labelOffset: 1", "'labelOffset'")]
+    public void Grid_options_belong_to_a_grid_only(string option, string says)
+    {
+        var m = Errors(Head + Body + Code + Visualise + "        " + option + "\n");
+
+        Assert.Contains(m, x => x.Contains(says) && x.Contains("grid only") && x.Contains("not of 'array'"));
+    }
+
+    [Theory]
+    [InlineData("cells: [[i]]", "a pair of int variables")]
+    [InlineData("cells: [[i, j, k]]", "a pair of int variables")]
+    [InlineData("cells: [[i, 'j k']]", "not a valid Python name")]
+    [InlineData("cells: [[i, j], [i, j]]", "listed twice")]
+    [InlineData("cells: [[dp, j]]", "the grid's own variable")]
+    [InlineData("rowLabels: 9a", "not a valid Python name")]
+    [InlineData("highlight: dp", "the grid's own variable")]
+    [InlineData("pointers: [dp]", "the grid's own variable")]
+    [InlineData("rowLabels: a\n        labelOffset: -1", "negative")]
+    [InlineData("labelOffset: 1", "no labels")]
+    public void Grid_options_are_checked(string option, string says)
+    {
+        var m = Errors(Head + Body + Code + GridVisual + "        " + option + "\n", new FakeRunner((_, _) => GridTrace()));
+
+        Assert.Contains(m, x => x.Contains(says));
+    }
+
+    [Fact]
+    public void A_grid_whose_variable_is_never_a_grid_is_reported()
+    {
+        var m = Errors(Head + Body + Code + GridVisual, new FakeRunner((_, _) => GridTrace(grid: false)));
+
+        Assert.Contains(m, x => x.Contains("'dp'") && x.Contains("never a non-empty list of lists or strings"));
+    }
+
+    [Fact]
+    public void Grid_pointers_that_never_land_on_a_cell_are_reported()
+    {
+        var m = Errors(Head + Body + Code + GridVisual + "        cells: [[i, j], [r, c]]\n        pointers: [cell, gone]\n",
+            new FakeRunner((_, _) => GridTrace(true, true, null, ("i,j", [1, 1]), ("r,c", [2, 0]), ("cell", [0, 0]), ("gone", null))));
+
+        Assert.Equal(2, m.Count);
+        Assert.Contains(m, x => x.Contains("cells pair [r, c]") && x.Contains("never indexes a cell"));
+        Assert.Contains(m, x => x.Contains("pointer 'gone'") && x.Contains("never holds a (row, col) pair"));
+    }
+
+    [Fact]
+    public void Grid_labels_and_highlight_that_are_never_recorded_are_reported()
+    {
+        var never = Errors(Head + Body + Code + GridVisual + "        rowLabels: a\n        colLabels: b\n        highlight: seen\n",
+            new FakeRunner((_, _) => GridTrace(labels: false)));
+        var empty = Errors(Head + Body + Code + GridVisual + "        highlight: seen\n", new FakeRunner((_, _) => GridTrace(highlight: [])));
+
+        Assert.Contains(never, x => x.Contains("rowLabels 'a'") && x.Contains("labels no row"));
+        Assert.Contains(never, x => x.Contains("colLabels 'b'") && x.Contains("labels no column"));
+        Assert.Contains(never, x => x.Contains("highlight 'seen'") && x.Contains("is never a list"));
+        Assert.Contains(empty, x => x.Contains("highlight 'seen'") && x.Contains("never marks a cell"));
+    }
+
+    private const string Lcs = "    code: |\n      a, b = 'ab', 'cb'\n"
+        + "      dp = [[0] * (len(b) + 1) for _ in range(len(a) + 1)]\n"
+        + "      for i in range(1, len(a) + 1):\n          for j in range(1, len(b) + 1):\n"
+        + "              dp[i][j] = dp[i - 1][j - 1] + 1 if a[i - 1] == b[j - 1] else max(dp[i - 1][j], dp[i][j - 1])\n";
+
+    [Fact]
+    public void Real_cpython_traces_a_dp_table_with_labels_and_a_cell_pair()
+    {
+        Assert.Empty(Errors(Head + Body + Lcs + GridVisual + "        cells: [[i, j]]\n        rowLabels: a\n        colLabels: b\n        labelOffset: 1\n",
+            new CPythonRunner()));
+    }
+
+    [Fact]
+    public void Real_cpython_reports_a_grid_variable_that_is_never_a_grid()
+    {
+        var m = Errors(Head + Body + Code + "    visualise:\n      - variable: nums\n        as: grid\n", new CPythonRunner());
+
+        Assert.Contains(m, x => x.Contains("'nums'") && x.Contains("no grid to draw"));
     }
 
     // ---- Call stack ----

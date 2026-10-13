@@ -18,6 +18,10 @@ trace_code(code, watch_json, max_frames=MAX_FRAMES) -> JSON string:
                                       "nodes": [{"id": int, "value": str | null, "left": id | null, "right": id | null}],
                                       "pointers": {pointer: id | null},
                                       "visited": {"ordered": bool, "nodes": [{"id": int, "order": int | null}], "unmatched": int} | null}},
+                 "grids": {variable: {"rows": [[str]], "lengths": [int], "more": int,
+                                      "pointers": {pointer: [row, col] | null},
+                                      "rowLabels": [str] | null, "colLabels": [str] | null,
+                                      "highlight": {"cells": [[row, col]], "unmatched": int} | null}},
                  "calls": {"frames": [{"id": int, "function": str, "args": [{"name", "repr"}], "returning": str | null}],
                            "more": int, "returned": {"function": str, "value": str, "to": id | null} | null}}],
      "stdout": str, "message": str | null, "traceback": str | null, "errorLine": int | null}
@@ -50,6 +54,18 @@ tuple, deque or set that a traversal fills: a member that is a node of the tree 
 whose value equals it. In a list (ordered) each member marks the first node, level by level, it matches that no earlier member has,
 and "order" is its place in the list, from 1; in a set every node it matches is marked and "order" is null. "unmatched" counts the
 members that mark no recorded node; only the first MAX_VISITED members are matched, and the rest count as unmatched. "visited" is null when the variable is not given, or is not one of those.
+
+A watch entry {"variable": "dp", "as": "grid", "cells": [["i", "j"]], "pointers": ["cell"], "rowLabels": "a", "colLabels": "b",
+"highlight": "seen"} records a 2-D table in "grids" while the variable holds a list or tuple whose rows are lists, tuples or strings (a
+string's cells are its characters, shown as they are). At most MAX_GRID rows are recorded, and MAX_GRID cells of each; "lengths" are the
+recorded rows' full lengths and "more" counts the rows cut off. "pointers" maps a pair of int variables (named "i,j") or a variable holding
+a (row, col) pair of ints to that pair, or to null when a variable of the pair isn't an int or the pointer holds None; a pointer whose
+variable isn't defined, or that holds anything else, is left out. The pair is recorded as it is, so it can be off the grid. A label
+variable that is a string gives its characters, a list or tuple its items (a string as it is, anything else as its repr), the first
+MAX_GRID of them; null when it is neither. "highlight" names a list, tuple or set of (row, col) pairs, or a grid of True/False flags the
+same shape as the table: "cells" are the recorded cells it marks, sorted, and "unmatched" counts the pairs that mark no recorded cell (or
+aren't pairs at all); only the first MAX_VISITED members are looked at, and the rest count as unmatched. It is null when the variable is
+not given, or is none of those.
 
 A watch entry {"as": "call_stack", "functions": ["fact"]} records the active calls in "calls" at every frame (and only
 when it is watched, the frames below grow by one per return). Its "frames" are the calls of functions defined in the learner's code
@@ -89,6 +105,7 @@ MAX_NODES = 30         # linked-list nodes recorded per frame (the rest are coun
 MAX_WALK = 1000        # linked-list or tree nodes followed per frame at most, so a huge one doesn't slow every step
 MAX_TREE_NODES = 31    # tree nodes recorded per frame, five full levels (the rest are counted in "more")
 MAX_VISITED = 100      # members of a tree's visited list or set matched against its nodes (the rest mark nothing)
+MAX_GRID = 15          # rows of a grid recorded per frame, and cells of each row (the rest are counted)
 MAX_CALLS = 12         # calls on the stack recorded per frame, the innermost (the rest are counted in "more")
 MAX_CELL_REPR = 24     # characters of an array cell's, or a table key's or value's, repr
 MAX_OUTPUT = 4000      # characters of stdout kept
@@ -321,6 +338,95 @@ def _trees(frame, watch, nodes):
     return found
 
 
+def _int(value):
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def _pair(value):
+    """[row, col] when the value is a pair of ints (a tuple or list of two), else None."""
+    if isinstance(value, (tuple, list)) and len(value) == 2:
+        row, col = _int(value[0]), _int(value[1])
+        if row is not None and col is not None:
+            return [row, col]
+    return None
+
+
+def _is_grid(value):
+    return isinstance(value, (list, tuple)) and all(isinstance(row, (list, tuple, str)) for row in itertools.islice(value, MAX_GRID))
+
+
+def _labels(value):
+    if isinstance(value, str):
+        return list(value[:MAX_GRID])
+    if isinstance(value, (list, tuple)):
+        return [_clip(item, MAX_CELL_REPR) if isinstance(item, str) else _repr(item, MAX_CELL_REPR) for item in value[:MAX_GRID]]
+    return None
+
+
+def _highlight(value, widths):
+    """The recorded cells a list or set of (row, col) pairs, or a grid of True/False flags, marks. widths are the recorded rows' cell counts."""
+    if not isinstance(value, (list, tuple, set, frozenset)):
+        return None
+    inside = lambda row, col: 0 <= row < len(widths) and 0 <= col < widths[row]
+    rows = list(itertools.islice(value, MAX_GRID)) if isinstance(value, (list, tuple)) else []
+    if rows and all(isinstance(row, (list, tuple)) for row in rows) \
+            and all(isinstance(flag, bool) for row in rows for flag in itertools.islice(row, MAX_GRID)):
+        cells = [[r, c] for r, row in enumerate(rows) for c, flag in enumerate(itertools.islice(row, MAX_GRID)) if flag and inside(r, c)]
+        return {"cells": cells, "unmatched": 0}
+    marked, unmatched = set(), 0
+    for member in itertools.islice(value, MAX_VISITED):
+        pair = _pair(member)
+        if pair is not None and inside(*pair):
+            marked.add(tuple(pair))
+        else:
+            unmatched += 1
+    return {"cells": [list(cell) for cell in sorted(marked)], "unmatched": unmatched + max(0, len(value) - MAX_VISITED)}
+
+
+def _grid(entry, frame):
+    """One grid as recorded at this frame, or None while its variable holds no list of rows."""
+    value = _lookup(frame, entry["variable"])
+    if not _is_grid(value):
+        return None
+    rows, lengths = [], []
+    for row in itertools.islice(value, MAX_GRID):
+        lengths.append(len(row))
+        rows.append(list(row[:MAX_GRID]) if isinstance(row, str) else [_repr(cell, MAX_CELL_REPR) for cell in itertools.islice(row, MAX_GRID)])
+
+    pointers = {}
+    for names in entry.get("cells", []):
+        row, col = (_lookup(frame, name) for name in names)
+        if row is _MISSING or col is _MISSING:
+            continue
+        row, col = _int(row), _int(col)
+        pointers[",".join(names)] = None if row is None or col is None else [row, col]
+    for name in entry.get("pointers", []):
+        held = _lookup(frame, name)
+        if held is None:
+            pointers[name] = None
+        elif _pair(held) is not None:
+            pointers[name] = _pair(held)
+
+    def named(option, read):
+        name = entry.get(option)
+        held = _MISSING if not name else _lookup(frame, name)
+        return None if held is _MISSING else read(held)
+
+    return {"rows": rows, "lengths": lengths, "more": max(0, len(value) - MAX_GRID), "pointers": pointers,
+            "rowLabels": named("rowLabels", _labels), "colLabels": named("colLabels", _labels),
+            "highlight": named("highlight", lambda held: _highlight(held, [len(r) for r in rows]))}
+
+
+def _grids(frame, watch):
+    found = {}
+    for entry in watch:
+        if isinstance(entry, dict) and entry.get("as") == "grid":
+            recorded = _grid(entry, frame)
+            if recorded is not None:
+                found[entry["variable"]] = recorded
+    return found
+
+
 def _tracked(frame, watch):
     found = {}
     for name, value in _watched(frame, watch):
@@ -502,6 +608,7 @@ def trace_code(code, watch_json, max_frames=MAX_FRAMES):
             "event": event, "line": line, "function": frame.f_code.co_name,
             "locals": _locals(shown), "tracked": _tracked(frame, watch), "tables": _tables(frame, watch, shown, identities),
             "lists": _lists(frame, watch, nodes), "trees": _trees(frame, watch, nodes),
+            "grids": _grids(frame, watch),
         }
         if calls is not None:
             recorded["calls"] = calls.record(frame, returning)

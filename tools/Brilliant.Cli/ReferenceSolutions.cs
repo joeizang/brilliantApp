@@ -202,6 +202,8 @@ internal static class ReferenceSolutionChecker
                         $"variable '{visual.Variable}' never holds a node (an object with a '{visual.Next}' attribute) in the trace, so there is no list to draw.",
                     Visual.Tree =>
                         $"variable '{visual.Variable}' never holds a tree node (an object with '{visual.Left}' and '{visual.Right}' attributes) in the trace, so there is no tree to draw.",
+                    Visual.Grid =>
+                        $"variable '{visual.Variable}' is never a non-empty list of lists or strings in the trace, so there is no grid to draw.",
                     Visual.CallStack => visual.Functions.Count == 0
                         ? "the code never calls a function of its own, so the call stack has nothing to draw."
                         : $"the code never calls {string.Join(" or ", visual.Functions.Select(f => $"'{f}'"))}, so the call stack has nothing to draw.",
@@ -217,6 +219,11 @@ internal static class ReferenceSolutionChecker
             if (visual.As == Visual.Tree)
             {
                 foreach (var problem in DescribeTree(result, visual)) yield return problem;
+                continue;
+            }
+            if (visual.As == Visual.Grid)
+            {
+                foreach (var problem in DescribeGrid(result, visual)) yield return problem;
                 continue;
             }
             if (visual.As == Visual.CallStack)
@@ -272,8 +279,37 @@ internal static class ReferenceSolutionChecker
         }
     }
 
+    /// <summary>
+    /// Each grid pointer and pair must land on a cell at some step, each label variable must be a string, list or tuple at some step, and
+    /// the highlight must be a list, tuple or set of pairs (or a grid of flags) at some step and mark a cell at some step.
+    /// </summary>
+    private static IEnumerable<string> DescribeGrid(TraceResult result, Visual visual)
+    {
+        var grids = result.Frames.Select(f => f.Grids?.GetValueOrDefault(visual.Variable)).OfType<TrackedGrid>().ToList();
+        bool OnACell(TrackedGrid g, string name) => g.Pointers.TryGetValue(name, out var at) && at is [var r, var c]
+            && r >= 0 && r < g.Rows.Count && c >= 0 && c < g.Rows[r].Count;
+        foreach (var pair in visual.Cells)
+            if (!grids.Any(g => OnACell(g, pair.Name)))
+                yield return $"cells pair [{pair.Row}, {pair.Col}] (of '{visual.Variable}') never indexes a cell of the grid in the trace.";
+        foreach (var pointer in visual.Pointers)
+            if (!grids.Any(g => OnACell(g, pointer)))
+                yield return $"pointer '{pointer}' (of '{visual.Variable}') never holds a (row, col) pair of a cell of the grid in the trace.";
+        if (visual.RowLabels is { } rows && !grids.Any(g => g.RowLabels is not null))
+            yield return $"rowLabels '{rows}' (of '{visual.Variable}') is never a string, list or tuple in the trace, so it labels no row.";
+        if (visual.ColLabels is { } cols && !grids.Any(g => g.ColLabels is not null))
+            yield return $"colLabels '{cols}' (of '{visual.Variable}') is never a string, list or tuple in the trace, so it labels no column.";
+        if (visual.Highlight is { } highlight)
+        {
+            if (!grids.Any(g => g.Highlight is not null))
+                yield return $"highlight '{highlight}' (of '{visual.Variable}') is never a list, tuple or set of (row, col) pairs, or a grid of True/False, in the trace.";
+            else if (!grids.Any(g => g.Highlight is { Cells.Count: > 0 }))
+                yield return $"highlight '{highlight}' (of '{visual.Variable}') never marks a cell of the grid in the trace.";
+        }
+    }
+
     private static bool Draws(TraceFrame frame, Visual visual) => visual.As switch
     {
+        Visual.Grid => frame.Grids is not null && frame.Grids.TryGetValue(visual.Variable, out var grid) && grid.Rows.Count > 0,
         Visual.Tree => frame.Trees is not null && frame.Trees.TryGetValue(visual.Variable, out var tree) && tree.Root is not null,
         Visual.LinkedList => frame.Lists is not null && frame.Lists.TryGetValue(visual.Variable, out var list) && list.Head is not null,
         Visual.CallStack => frame.Calls is { Frames.Count: > 0 },

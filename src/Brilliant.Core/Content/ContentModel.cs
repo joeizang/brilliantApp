@@ -217,7 +217,7 @@ public sealed record PackManifest(string PackId, string Version, int FormatVersi
 /// <see cref="Array"/> (a list, tuple or deque shown as cells), <see cref="Stack"/> (a list or deque, bottom to top),
 /// <see cref="Queue"/> (a list or deque, front to back), <see cref="Dict"/> (key/value rows), <see cref="Set"/> (members),
 /// <see cref="LinkedList"/> (nodes joined by arrows, from the node the variable holds), <see cref="Tree"/> (a binary tree, from the
-/// root node the variable holds, laid out level by level) or <see cref="CallStack"/> (the calls under way,
+/// root node the variable holds, laid out level by level), <see cref="Grid"/> (a list of lists or strings, as a 2-D table) or <see cref="CallStack"/> (the calls under way,
 /// one frame each, the running one on top; it draws no variable, so <see cref="Variable"/> is empty).
 /// <see cref="Pointers"/> name variables drawn as labelled markers: for an array, stack or queue, int variables, on the cell they
 /// index; for a dict or set, variables holding a key, on the row with that key (a lookup); for a linked list or a tree, variables
@@ -225,13 +225,24 @@ public sealed record PackManifest(string PackId, string Version, int FormatVersi
 /// to the next node and the value shown (<see cref="Value"/> is a tree node's too). <see cref="Left"/> and <see cref="Right"/> are a
 /// tree node's links to its children. <see cref="Visited"/>, for a tree, names a list or set whose members (values, or the nodes
 /// themselves) mark the nodes visited, numbered in order for a list. <see cref="Functions"/>, for a call stack, keeps only the calls
-/// of those functions (empty: all of them).
+/// of those functions (empty: all of them). For a grid, <see cref="Pointers"/> name variables holding a (row, col) pair and
+/// <see cref="Cells"/> pairs of int variables, each drawn on the cell they index; <see cref="RowLabels"/> and <see cref="ColLabels"/> name
+/// a string, list or tuple labelling the rows and columns, from row or column <see cref="LabelOffset"/> on (so <c>dp[i][j]</c> over
+/// <c>a[i - 1]</c> and <c>b[j - 1]</c> takes 1); <see cref="Highlight"/> names a list or set of (row, col) pairs, or a grid of
+/// True/False flags, shading the cells it marks.
 /// </summary>
 public sealed record Visual(string Variable, string As, IReadOnlyList<string> Pointers,
     string Next = Visual.DefaultNext, string Value = Visual.DefaultValue, IReadOnlyList<string>? Functions = null,
     string Left = Visual.DefaultLeft, string Right = Visual.DefaultRight, string? Visited = null)
 {
     public IReadOnlyList<string> Functions { get; init; } = Functions ?? [];
+
+    /// <summary>A grid's pairs of int variables, each drawn on the cell <c>grid[Row][Col]</c>.</summary>
+    public IReadOnlyList<CellPair> Cells { get; init => field = value.Count == 0 ? [] : value; } = [];
+    public string? RowLabels { get; init; }
+    public string? ColLabels { get; init; }
+    public int LabelOffset { get; init; }
+    public string? Highlight { get; init; }
 
     public const string Array = "array";
     public const string Stack = "stack";
@@ -240,6 +251,7 @@ public sealed record Visual(string Variable, string As, IReadOnlyList<string> Po
     public const string Set = "set";
     public const string LinkedList = "linked_list";
     public const string Tree = "tree";
+    public const string Grid = "grid";
     public const string CallStack = "call_stack";
 
     public const string DefaultNext = "next";
@@ -248,7 +260,7 @@ public sealed record Visual(string Variable, string As, IReadOnlyList<string> Po
     public const string DefaultRight = "right";
 
     /// <summary>Every drawing the player knows, in the order the docs list them.</summary>
-    public static readonly IReadOnlyList<string> Kinds = [Array, Stack, Queue, Dict, Set, LinkedList, Tree, CallStack];
+    public static readonly IReadOnlyList<string> Kinds = [Array, Stack, Queue, Dict, Set, LinkedList, Tree, Grid, CallStack];
 
     /// <summary>The drawings of a sequence as cells, whose pointers are indexes.</summary>
     public static readonly IReadOnlyList<string> Sequences = [Array, Stack, Queue];
@@ -266,6 +278,12 @@ public sealed record Visual(string Variable, string As, IReadOnlyList<string> Po
 
     /// <summary>Whether this drawing shows a value the recorder tracked as cells of <paramref name="type"/>.</summary>
     public bool Draws(string type) => As == Array || SequenceTypes(As).Contains(type);
+}
+
+/// <summary>A grid pointer made of two int variables, the row's and the column's. <see cref="Name"/> is how the trace names it: <c>i,j</c>.</summary>
+public sealed record CellPair(string Row, string Col)
+{
+    public string Name => $"{Row},{Col}";
 }
 
 /// <summary>
