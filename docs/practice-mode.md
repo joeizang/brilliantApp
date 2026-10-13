@@ -73,6 +73,8 @@ the step or its phone alternative, is a **warning**: `brilliant validate`, `pack
 | `pattern.top-down-state` (Carry what the path knows down as arguments) | Track 4 lesson 7 | its 5 problems; lesson 9 `max_ancestor_diff` |
 | `pattern.backtracking` (Choose, explore, unchoose) | Track 4 lesson 8 | its 5 problems |
 | `pattern.graph-dfs` (Dive along the edges, marking nodes seen) | Track 5 lesson 2 | its 5 problems |
+| `pattern.graph-bfs` (Spread out one step at a time for the fewest steps) | Track 5 lessons 3–4 | lesson 3's 5 problems, lesson 4's `escape` |
+| `pattern.grid-flood-fill` (Flood out from a cell to its four neighbours) | Track 5 lesson 4 | its other 4 problems |
 
 Left untagged: every problem in Track 1 lessons 1–6 (Python and Big-O drills), Track 5 lesson 1's graph-building drills, Track 2 lesson 6's `count_subarrays` (its prompt says
 "prefix sums and a dict" on purpose, to teach when a window fails) and `count_palindromes` (expand-around-centre, not one of the eight).
