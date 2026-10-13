@@ -255,9 +255,9 @@ steps:
       - text: "When `n` is the length of the list, so the node to remove is the head and there is no node before it."
         correct: true
         feedback: "Right. Removing means relinking the node *before* the target. The dummy is the node before the head."
-      - text: "When `n` is `1`, the last node."
+      - text: "When `n` is `1` and the list has at least two nodes, so the node to remove is the last one."
         correct: false
-        feedback: "The last node has a node before it, so `slow.next = slow.next.next` removes it fine. The head has none."
+        feedback: "With at least two nodes, the last node has a node before it, so `slow.next = slow.next.next` removes it fine. Only the head has none. (In a one-node list the last node is the head, and that's the first option's case.)"
       - text: "When the list has an even number of nodes."
         correct: false
         feedback: "The gap version doesn't care about even or odd. The trouble is removing the head."
