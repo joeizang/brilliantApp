@@ -1,0 +1,628 @@
+id: lesson.pattern-multi-source-bfs
+title: "Pattern: multi-source BFS"
+concepts:
+  - id: concept.multi-source-start
+    title: Start the queue with every source at distance 0
+  - id: concept.multi-source-nearest
+    title: Each node's distance is to its nearest source, in one pass
+  - id: concept.multi-source-minutes
+    title: Spreading by rounds counts the minutes, and leftovers were never reached
+reviewItems:
+  - id: review.multi-source.predict-line
+    concept: concept.multi-source-nearest
+    step: step.multi-source.predict-line
+  - id: review.multi-source.one-pass
+    concept: concept.multi-source-start
+    step: step.multi-source.check-one-pass
+  - id: review.multi-source.why-nearest
+    concept: concept.multi-source-nearest
+    step: step.multi-source.check-why-nearest
+  - id: review.multi-source.predict-rot
+    concept: concept.multi-source-minutes
+    step: step.multi-source.predict-rot
+  - id: review.multi-source.which-problem
+    concept: concept.multi-source-nearest
+    step: step.multi-source.check-which-problem
+    kind: pattern
+  - id: review.multi-source.leftover
+    concept: concept.multi-source-minutes
+    step: step.multi-source.check-leftover
+    kind: pattern
+patterns:
+  - id: pattern.multi-source-bfs
+    title: Start the queue with every source at once
+steps:
+  - id: step.multi-source.idea
+    type: explain
+    title: Many ripples at once
+    body: |
+      Some questions have many starting points: how far is each house from its **nearest** fire station, how long until rot
+      spreading from every bad orange reaches the whole crate. You could run a BFS from each source and keep the smallest
+      distance, but with `k` sources that's `k` searches.
+
+      Instead, put **every source** in the queue at the start, each at distance `0`, and run one BFS. The ripples spread from all
+      of them together, a ring at a time, and the first ripple to reach a node comes from its nearest source. It's one pass,
+      O(V + E), however many sources there are.
+
+      It's as if one imaginary node were joined to every source: a BFS from it reaches the sources first, then everything else
+      in order of distance to the nearest one.
+    comparison:
+      csharp: |
+        var dist = new Dictionary<string, int>();
+        var queue = new Queue<string>();
+        foreach (var s in sources)
+        {
+            dist[s] = 0;
+            queue.Enqueue(s);
+        }
+        // then the same BFS loop as before
+      python: |
+        dist = {s: 0 for s in sources}
+        queue = deque(sources)
+        # then the same BFS loop as before
+  - id: step.multi-source.trace-nearest
+    type: trace
+    title: Distance to the nearest zero
+    body: |
+      Every `0` in `grid` joins the queue first, at distance `0` in `dist`; every other cell starts at `-1`, meaning not yet
+      reached. Then one BFS fills in `dist` a ring at a time. `r,c` marks the cell just popped and `nr,nc` the neighbour being
+      looked at. Each `1` ends up with the distance to whichever `0` is closest.
+    code: |
+      from collections import deque
+
+      grid = [[0, 1, 1], [1, 1, 1], [1, 1, 0]]
+      rows, cols = len(grid), len(grid[0])
+      dist = [[-1] * cols for _ in range(rows)]
+      queue = deque()
+      for r in range(rows):
+          for c in range(cols):
+              if grid[r][c] == 0:
+                  dist[r][c] = 0
+                  queue.append((r, c))
+      r = c = nr = nc = None
+      while queue:
+          r, c = queue.popleft()
+          for nr, nc in ((r + 1, c), (r - 1, c), (r, c + 1), (r, c - 1)):
+              if 0 <= nr < rows and 0 <= nc < cols and dist[nr][nc] == -1:
+                  dist[nr][nc] = dist[r][c] + 1
+                  queue.append((nr, nc))
+    visualise:
+      - variable: dist
+        as: grid
+        cells: [[r, c], [nr, nc]]
+      - variable: queue
+        as: queue
+  - id: step.multi-source.predict-line
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      Six stops on a line, `0` to `5`, with stations at stops `0` and `4`. What does this print?
+    code: |
+      from collections import deque
+
+      g = {0: [1], 1: [0, 2], 2: [1, 3], 3: [2, 4], 4: [3, 5], 5: [4]}
+      sources = [0, 4]
+      dist = {s: 0 for s in sources}
+      queue = deque(sources)
+      while queue:
+          node = queue.popleft()
+          for nb in g[node]:
+              if nb not in dist:
+                  dist[nb] = dist[node] + 1
+                  queue.append(nb)
+      print([dist[n] for n in range(6)])
+    accepted:
+      - "[0, 1, 2, 1, 0, 1]"
+    mistakes:
+      - answers:
+          - "[0, 1, 2, 3, 4, 5]"
+        feedback: "That's a BFS from `0` alone. `4` is a source too, at distance `0`, and its neighbours `3` and `5` are one stop from it."
+      - answers:
+          - "[0, 1, 2, 3, 0, 1]"
+        feedback: "`3` is next to the station at `4`, so its nearest station is one stop away, not three."
+      - answers:
+          - "[0, 1, 1, 1, 0, 1]"
+        feedback: "`2` is two stops from both stations: `0 → 1 → 2` and `4 → 3 → 2`."
+    hints:
+      - "Both `0` and `4` start at distance `0`."
+      - "Each stop's distance is to whichever station is closer."
+  - id: step.multi-source.check-one-pass
+    type: choice
+    title: One search or many?
+    prompt: |
+      With `k` sources, why start one BFS with all of them instead of running `k` separate BFSs and keeping each node's smallest
+      distance?
+    options:
+      - text: "Both give the same distances, but one BFS visits each node once: O(V + E) instead of O(k × (V + E))."
+        correct: true
+        feedback: "Right. The answers agree; the multi-source BFS just gets them in a single pass."
+      - text: "Separate BFSs give wrong answers."
+        correct: false
+        feedback: "Taking the smallest of `k` correct distances is correct, just slow. The gain is speed."
+      - text: "One BFS uses less memory but takes longer."
+        correct: false
+        feedback: "It's faster too: each node and edge is handled once, not once per source."
+      - text: "There's no difference; both are O(V + E)."
+        correct: false
+        feedback: "Each separate BFS is O(V + E), and there are `k` of them."
+    hints:
+      - "How many times does each approach visit a node?"
+  - id: step.multi-source.check-why-nearest
+    type: choice
+    title: Why the nearest?
+    prompt: |
+      In a multi-source BFS, why is the distance a node gets the distance to its **nearest** source?
+    options:
+      - text: "All sources start at distance 0, so nodes leave the queue in order of distance to the closest source, and the first ripple to arrive wins."
+        correct: true
+        feedback: "Right. It's the same argument as for one source: everything at distance `d` (from any source) is dequeued before anything at `d + 1`."
+      - text: "The BFS keeps the smallest distance when a node is reached twice."
+        correct: false
+        feedback: "A node is never updated once it has a distance. The order of the queue makes the first distance the smallest."
+      - text: "Sources are put in the queue in order of how close they are."
+        correct: false
+        feedback: "They're all at distance `0`, in any order. It's the rings spreading out from them together that matter."
+      - text: "It isn't: a node gets the distance to the first source in the list."
+        correct: false
+        feedback: "The first source's ripple only wins where it's closest; elsewhere another source's ripple gets there first."
+    hints:
+      - "What are the sources' distances, and how does BFS order its queue?"
+  - id: step.multi-source.rounds
+    type: explain
+    title: Counting the minutes
+    body: |
+      Sometimes the question is "**how long** until it has spread everywhere": rot passing from bad oranges to the fresh ones
+      next to them, once a minute. Each minute is one **ring** of the BFS. Process the queue a ring at a time, as in the
+      level-order tree BFS, taking exactly `len(queue)` items per round, and count the rounds:
+
+      ```python
+      minutes = 0
+      while queue and fresh:
+          for _ in range(len(queue)):
+              ...           # rot the fresh neighbours, add them
+          minutes += 1
+      ```
+
+      Alternatively, record distances and take the largest. Either way, check at the end for anything the spread **never
+      reached**: a fresh orange walled off by empty cells stays fresh for ever, and the answer is `-1`. Counting the fresh
+      oranges up front, and down as each one rots, makes that check `fresh == 0`.
+  - id: step.multi-source.trace-rot
+    type: trace
+    title: Rot, a minute at a time
+    body: |
+      `2` is a rotten orange, `1` a fresh one and `0` an empty cell. Both rotten oranges join the queue first. Each pass of the
+      `for` loop is one minute: every orange that rotted last minute rots its fresh neighbours. `fresh` counts down to `0`, so
+      the answer is the number of rounds, `minutes`.
+    code: |
+      from collections import deque
+
+      grid = [[2, 1, 1], [0, 1, 0], [1, 1, 2]]
+      rows, cols = len(grid), len(grid[0])
+      queue = deque()
+      fresh = 0
+      for r in range(rows):
+          for c in range(cols):
+              if grid[r][c] == 2:
+                  queue.append((r, c))
+              elif grid[r][c] == 1:
+                  fresh += 1
+      minutes = 0
+      r = c = None
+      while queue and fresh:
+          for _ in range(len(queue)):
+              r, c = queue.popleft()
+              for nr, nc in ((r + 1, c), (r - 1, c), (r, c + 1), (r, c - 1)):
+                  if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == 1:
+                      grid[nr][nc] = 2
+                      fresh -= 1
+                      queue.append((nr, nc))
+          minutes += 1
+    visualise:
+      - variable: grid
+        as: grid
+        cells: [[r, c]]
+      - variable: queue
+        as: queue
+  - id: step.multi-source.predict-rot
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      Rot spreads from each rotten orange (`2`) to the fresh oranges (`1`) up, down, left and right of it, once a minute. What
+      does this print?
+    code: |
+      from collections import deque
+
+      grid = [[1, 1, 2], [1, 0, 1], [2, 1, 1]]
+      rows, cols = len(grid), len(grid[0])
+      queue = deque()
+      fresh = 0
+      for r in range(rows):
+          for c in range(cols):
+              if grid[r][c] == 2:
+                  queue.append((r, c))
+              elif grid[r][c] == 1:
+                  fresh += 1
+      minutes = 0
+      while queue and fresh:
+          for _ in range(len(queue)):
+              r, c = queue.popleft()
+              for nr, nc in ((r + 1, c), (r - 1, c), (r, c + 1), (r, c - 1)):
+                  if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == 1:
+                      grid[nr][nc] = 2
+                      fresh -= 1
+                      queue.append((nr, nc))
+          minutes += 1
+      print(minutes)
+    accepted:
+      - "2"
+    mistakes:
+      - answers:
+          - "4"
+        feedback: "That's spreading from one rotten orange only. Both rot at once: after one minute the four cells next to them are rotten, and after two the corners."
+      - answers:
+          - "3"
+        feedback: "The far corners `(0, 0)` and `(2, 2)` are each two steps from a rotten orange, so it's done after two minutes."
+      - answers:
+          - "-1"
+        feedback: "The empty middle doesn't cut anything off: every fresh orange is joined to a rotten one around the edge."
+    hints:
+      - "Both rotten oranges spread at the same time."
+      - "Which fresh oranges are next to a rotten one? Which are two steps away?"
+  - id: step.multi-source.check-which-problem
+    type: choice
+    title: Which one starts from many?
+    prompt: |
+      Which of these is the best fit for a multi-source BFS?
+    options:
+      - text: "For every empty room in a building plan, the number of steps to the nearest exit."
+        correct: true
+        feedback: "Right. Put every exit in the queue at distance 0; one BFS gives every room its distance to the nearest one."
+      - text: "The fewest steps from the front door to the kitchen."
+        correct: false
+        feedback: "One start and one target: a plain BFS from the front door."
+      - text: "How many separate rooms the plan has."
+        correct: false
+        feedback: "Counting regions is a flood fill from each unseen cell (lesson 4), not distances."
+      - text: "The order to install packages so that each comes after what it needs."
+        correct: false
+        feedback: "That's an ordering of a directed graph: a topological sort, in the next lesson."
+    hints:
+      - "Which question asks for each place's distance to the closest of many?"
+  - id: step.multi-source.check-leftover
+    type: choice
+    title: The orange no one reaches
+    prompt: |
+      In the rotting-oranges problem, the BFS finishes and `fresh` is `2`. What should the function return?
+    options:
+      - text: "`-1`: two fresh oranges are cut off from every rotten one, so they never rot."
+        correct: true
+        feedback: "Right. The queue ran dry with fresh oranges left, so no amount of time will reach them."
+      - text: "`minutes + 2`, one more minute for each of them."
+        correct: false
+        feedback: "Rot only spreads from neighbours. These two have no path from a rotten orange, so they never rot."
+      - text: "`minutes`: the spread is over."
+        correct: false
+        feedback: "The spread is over, but not everything rotted: the question asks when all of them have, which never happens."
+      - text: "`0`, because the search failed."
+        correct: false
+        feedback: "`0` means everything was already rotten at the start. Use a different value for \"never\"."
+    hints:
+      - "Can those two oranges ever be reached?"
+  - id: step.multi-source.fill-start
+    type: fill-blank
+    title: Every source at once
+    pattern: pattern.multi-source-bfs
+    patternCue: "\"Each stop's distance to the nearest station\": every station joins the queue at distance 0, then one BFS."
+    prompt: |
+      Fill in the blanks so that `nearest_station(g, stations)` returns a dict of each reachable node's distance (in edges) to
+      its nearest station. `stations` is a non-empty list of nodes of `g`.
+    template: |
+      from collections import deque
+
+
+      def nearest_station(g, stations):
+          dist = {{start}}
+          queue = deque({{queue}})
+          while queue:
+              node = queue.popleft()
+              for nb in g[node]:
+                  if nb not in dist:
+                      dist[nb] = dist[node] + 1
+                      queue.append(nb)
+          return dist
+    blanks:
+      - id: start
+        accepted:
+          - "{s: 0 for s in stations}"
+          - "{station: 0 for station in stations}"
+          - "{x: 0 for x in stations}"
+          - "dict.fromkeys(stations, 0)"
+        mistakes:
+          - answers:
+              - "{stations[0]: 0}"
+            feedback: "Only the first station starts at `0` that way; the others would get distances from it. Every station is a source."
+          - answers:
+              - "{}"
+            feedback: "Then the stations themselves have no distance, and the BFS can reach them again with a distance above `0`."
+      - id: queue
+        accepted:
+          - "stations"
+          - "list(stations)"
+        mistakes:
+          - answers:
+              - "[stations]"
+            feedback: "That's a queue holding one item, the whole list. Each station should be its own item: `deque(stations)`."
+          - answers:
+              - "[stations[0]]"
+            feedback: "Only the first station would spread. All of them start in the queue."
+    hints:
+      - "Every station is at distance `0`."
+      - "Every station starts in the queue."
+  - id: step.multi-source.order-nearest
+    type: parsons
+    title: Nearest of many
+    pattern: pattern.multi-source-bfs
+    patternCue: "\"How far is each node from the closest source\": seed the queue with all the sources, then BFS once."
+    prompt: |
+      Arrange the lines into `nearest_source(g, sources)`, which returns each reachable node's distance to its nearest source,
+      as a dict. (`deque` is imported.)
+    solution: |
+      def nearest_source(g, sources):
+          dist = {s: 0 for s in sources}
+          queue = deque(sources)
+          while queue:
+              node = queue.popleft()
+              for nb in g[node]:
+                  if nb not in dist:
+                      dist[nb] = dist[node] + 1
+                      queue.append(nb)
+          return dist
+    hints:
+      - "Seed `dist` and the queue with every source before the loop."
+      - "The loop is an ordinary BFS."
+  - id: step.multi-source.write-rot
+    type: write-code
+    largeScreenPreferred: true
+    title: Rotting oranges
+    pattern: pattern.multi-source-bfs
+    patternCue: "\"How many minutes until every orange is rotten\": all rotten oranges start in the queue; count the rounds."
+    prompt: |
+      `grid` is a list of lists: `0` is an empty cell, `1` a fresh orange, `2` a rotten one. Every minute, each rotten orange
+      rots the fresh oranges up, down, left and right of it. Write `rot_time(grid)` that returns how many minutes pass until no
+      fresh orange is left, `0` if there are none to begin with, or `-1` if some can never rot. You may change `grid`.
+
+      `rot_time([[2, 1, 1], [1, 1, 0], [0, 1, 1]])` is `4`.
+
+      The `deque` import is in the starter; keep it.
+    language: python
+    entrypoint: rot_time
+    starter: |
+      from collections import deque
+
+
+      def rot_time(grid):
+          pass
+    solution: |
+      from collections import deque
+
+
+      def rot_time(grid):
+          rows, cols = len(grid), len(grid[0])
+          queue = deque()
+          fresh = 0
+          for r in range(rows):
+              for c in range(cols):
+                  if grid[r][c] == 2:
+                      queue.append((r, c))
+                  elif grid[r][c] == 1:
+                      fresh += 1
+          minutes = 0
+          while queue and fresh:
+              for _ in range(len(queue)):
+                  r, c = queue.popleft()
+                  for nr, nc in ((r + 1, c), (r - 1, c), (r, c + 1), (r, c - 1)):
+                      if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == 1:
+                          grid[nr][nc] = 2
+                          fresh -= 1
+                          queue.append((nr, nc))
+              minutes += 1
+          return minutes if fresh == 0 else -1
+    tests:
+      - input: "[[2, 1, 1], [1, 1, 0], [0, 1, 1]]"
+        expected: "4"
+      - input: "[[2, 1, 1], [0, 1, 1], [1, 0, 1]]"
+        expected: "-1"
+      - input: "[[0, 2]]"
+        expected: "0"
+      - input: "[[1]]"
+        expected: "-1"
+      - input: "[[0]]"
+        expected: "0"
+      - input: "[[2, 1, 1, 1, 2]]"
+        expected: "2"
+    hints:
+      - "Put every rotten orange in the queue first, and count the fresh ones."
+      - "Each round takes `len(queue)` oranges off the queue and rots their fresh neighbours: one round, one minute."
+      - "Stop when the queue is empty or nothing is fresh; if anything is still fresh, return `-1`."
+    walkthrough:
+      call: "result = rot_time([[2, 1, 1], [1, 1, 0], [0, 1, 1]])"
+      visualise:
+        - variable: grid
+          as: grid
+          cells: [[r, c], [nr, nc]]
+        - variable: queue
+          as: queue
+      explanation: |
+        The one rotten orange at the top-left rots `(0, 1)` and `(1, 0)` in minute 1, `(0, 2)` and `(1, 1)` in minute 2,
+        `(2, 1)` in minute 3 and `(2, 2)` in minute 4. Then `fresh` is `0` and the loop stops.
+    phoneAlternative:
+      id: step.multi-source.write-rot.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `rot_time(grid)`, which returns the minutes until every orange is rotten, or `-1`. Arrange the lines instead of
+        typing them.
+      solution: |
+        def rot_time(grid):
+            rows, cols = len(grid), len(grid[0])
+            queue = deque()
+            fresh = 0
+            for r in range(rows):
+                for c in range(cols):
+                    if grid[r][c] == 2:
+                        queue.append((r, c))
+                    elif grid[r][c] == 1:
+                        fresh += 1
+            minutes = 0
+            while queue and fresh:
+                for _ in range(len(queue)):
+                    r, c = queue.popleft()
+                    for nr, nc in ((r + 1, c), (r - 1, c), (r, c + 1), (r, c - 1)):
+                        if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == 1:
+                            grid[nr][nc] = 2
+                            fresh -= 1
+                            queue.append((nr, nc))
+                minutes += 1
+            return minutes if fresh == 0 else -1
+      hints:
+        - "The setup loops seed the queue and count the fresh oranges."
+        - "One pass of the `for _ in range(len(queue))` loop is one minute."
+  - id: step.multi-source.write-nearest-zero
+    type: write-code
+    largeScreenPreferred: true
+    title: Distance to the nearest zero
+    pattern: pattern.multi-source-bfs
+    patternCue: "\"Each cell's distance to the nearest 0\": every 0 starts in the queue, then one BFS fills in the rest."
+    prompt: |
+      `grid` is a list of lists of `0`s and `1`s with at least one `0`. Write `nearest_zero(grid)` that returns a new grid of
+      the same shape, where each cell holds the fewest moves (up, down, left or right) from it to a `0`.
+
+      `nearest_zero([[0, 0, 0], [0, 1, 0], [1, 1, 1]])` is `[[0, 0, 0], [0, 1, 0], [1, 2, 1]]`.
+
+      The `deque` import is in the starter; keep it.
+    language: python
+    entrypoint: nearest_zero
+    starter: |
+      from collections import deque
+
+
+      def nearest_zero(grid):
+          pass
+    solution: |
+      from collections import deque
+
+
+      def nearest_zero(grid):
+          rows, cols = len(grid), len(grid[0])
+          dist = [[-1] * cols for _ in range(rows)]
+          queue = deque()
+          for r in range(rows):
+              for c in range(cols):
+                  if grid[r][c] == 0:
+                      dist[r][c] = 0
+                      queue.append((r, c))
+          while queue:
+              r, c = queue.popleft()
+              for nr, nc in ((r + 1, c), (r - 1, c), (r, c + 1), (r, c - 1)):
+                  if 0 <= nr < rows and 0 <= nc < cols and dist[nr][nc] == -1:
+                      dist[nr][nc] = dist[r][c] + 1
+                      queue.append((nr, nc))
+          return dist
+    tests:
+      - input: "[[0, 0, 0], [0, 1, 0], [1, 1, 1]]"
+        expected: "[[0, 0, 0], [0, 1, 0], [1, 2, 1]]"
+      - input: "[[0]]"
+        expected: "[[0]]"
+      - input: "[[1, 0, 1, 1]]"
+        expected: "[[1, 0, 1, 2]]"
+      - input: "[[1, 1], [1, 0]]"
+        expected: "[[2, 1], [1, 0]]"
+      - input: "[[0, 1, 1, 1, 0]]"
+        expected: "[[0, 1, 2, 1, 0]]"
+    hints:
+      - "Make a grid of `-1`s for \"not reached yet\"."
+      - "Every `0` is a source: set its distance to `0` and put it in the queue."
+      - "Then BFS: an unreached neighbour is one more than the cell it was reached from."
+    walkthrough:
+      call: "result = nearest_zero([[0, 0, 0], [0, 1, 0], [1, 1, 1]])"
+      visualise:
+        - variable: dist
+          as: grid
+          cells: [[r, c], [nr, nc]]
+        - variable: queue
+          as: queue
+      explanation: |
+        All five `0`s start at distance 0. The first ring reaches the middle `1` and the bottom corners, at distance 1. The
+        bottom middle is only reached on the second ring, from the `1` above it, so it gets 2.
+  - id: step.multi-source.write-far
+    type: write-code
+    largeScreenPreferred: true
+    title: As far from land as possible
+    pattern: pattern.multi-source-bfs
+    patternCue: "\"The water cell farthest from any land\": all land starts in the queue; the last ring reached is the answer."
+    prompt: |
+      `grid` is a list of lists: `1` is land and `0` is water. Write `farthest_water(grid)` that returns the largest distance
+      (fewest moves up, down, left or right) from a water cell to its **nearest** land, or `-1` if the grid has no land or no
+      water.
+
+      `farthest_water([[1, 0, 1], [0, 0, 0], [1, 0, 1]])` is `2`: the middle cell is two moves from every corner.
+
+      The `deque` import is in the starter; keep it.
+    language: python
+    entrypoint: farthest_water
+    starter: |
+      from collections import deque
+
+
+      def farthest_water(grid):
+          pass
+    solution: |
+      from collections import deque
+
+
+      def farthest_water(grid):
+          rows, cols = len(grid), len(grid[0])
+          dist = {}
+          queue = deque()
+          for r in range(rows):
+              for c in range(cols):
+                  if grid[r][c] == 1:
+                      dist[(r, c)] = 0
+                      queue.append((r, c))
+          if not queue or len(queue) == rows * cols:
+              return -1
+          far = 0
+          while queue:
+              r, c = queue.popleft()
+              for nr, nc in ((r + 1, c), (r - 1, c), (r, c + 1), (r, c - 1)):
+                  if 0 <= nr < rows and 0 <= nc < cols and (nr, nc) not in dist:
+                      dist[(nr, nc)] = dist[(r, c)] + 1
+                      far = max(far, dist[(nr, nc)])
+                      queue.append((nr, nc))
+          return far
+    tests:
+      - input: "[[1, 0, 1], [0, 0, 0], [1, 0, 1]]"
+        expected: "2"
+      - input: "[[1, 0, 0], [0, 0, 0], [0, 0, 0]]"
+        expected: "4"
+      - input: "[[1, 1], [1, 1]]"
+        expected: "-1"
+      - input: "[[0, 0], [0, 0]]"
+        expected: "-1"
+      - input: "[[0, 1]]"
+        expected: "1"
+    hints:
+      - "Every land cell is a source at distance `0`."
+      - "With no land, or no water, the answer is `-1`: check before the BFS."
+      - "The largest distance the BFS gives any cell is the answer."
+    walkthrough:
+      call: "result = farthest_water([[1, 0, 0], [0, 0, 0], [0, 0, 0]])"
+      visualise:
+        - variable: grid
+          as: grid
+          cells: [[r, c], [nr, nc]]
+        - variable: dist
+          as: dict
+      explanation: |
+        With one piece of land in the corner, the rings spread diagonally across the grid: 1, then 2, 3, and finally the far
+        corner at 4, which is the answer.
