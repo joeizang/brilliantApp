@@ -229,8 +229,8 @@ public sealed class WalkthroughValidatorTests : IDisposable
     [Fact]
     public void A_walkthroughs_visuals_are_checked_like_a_trace_steps()
     {
-        var (errors, _) = Check(WriteCode + Explanation + "      visualise:\n        - variable: nums\n          as: heap\n");
+        var (errors, _) = Check(WriteCode + Explanation + "      visualise:\n        - variable: nums\n          as: trie\n");
 
-        Assert.Contains(errors, e => e.Contains("walkthrough: visualise[0]") && e.Contains("unsupported 'as' value 'heap'"));
+        Assert.Contains(errors, e => e.Contains("walkthrough: visualise[0]") && e.Contains("unsupported 'as' value 'trie'"));
     }
 }

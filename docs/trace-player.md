@@ -43,7 +43,7 @@ offline and takes a few milliseconds once Pyodide has started). `content validat
       as: set
 ```
 
-`as` is `array`, `stack`, `queue`, `dict`, `set`, `linked_list`, `tree`, `grid` or `call_stack`. A pointer on a dict or set is any variable, of any type, whose value is a key: the row with that key
+`as` is `array`, `stack`, `queue`, `dict`, `set`, `linked_list`, `tree`, `heap`, `grid` or `call_stack`. A pointer on a dict or set is any variable, of any type, whose value is a key: the row with that key
 is marked with the pointer's name, and when no row has that key the player says *Looking up `word` finds no such key.*
 
 `body` and `code` are required, and there must be at least one visual. A trace step takes no `hints` and can't be a review item.
@@ -62,6 +62,8 @@ The validator rejects, with the file and step in the message:
   or a tree only); the tree's own variable listed as a pointer or as `visited`; `visited` on a kind other than a tree or a graph, or not an identifier; a
   `variable` that never holds a node; nodes with no `value` attribute; a pointer that never holds a node of the tree; and a `visited`
   variable that is never a list or set, or never marks a node.
+- on a heap: `max` on any other kind; any option of another kind on a heap; the heap's own variable as a pointer; a `variable` that is
+  never a list (the message says there is no heap to draw); and a pointer that is never an `int`.
 - on a grid: `cells`, `rowLabels`, `colLabels`, `labelOffset` or `highlight` on any other kind; a `cells` entry that isn't a pair of
   identifiers, is listed twice or names the grid's own variable; the grid's own variable as a pointer, a label or the highlight; a
   negative `labelOffset`, or one given without labels; a `variable` that is never a non-empty list of lists or strings; a pair or pointer
@@ -204,6 +206,43 @@ The validator rejects, with the file and step in the message:
   its edge draws itself in, and a value that changed flashes.
 - At most 31 nodes are drawn (five full levels), taken level by level; the rest are *+N more*, and a link to one of them is a short dashed
   stub. A long tree scrolls sideways.
+
+### Heaps
+
+```yaml
+- id: step.heaps.push
+  type: trace
+  title: Pushing onto a heap
+  body: |
+    A push puts the value at the end, then swaps it with its parent for as long as it is the smaller of the two.
+  code: |
+    import heapq
+
+    heap = [2, 5, 4, 8]
+    heap.append(1)
+    i = len(heap) - 1
+    while i > 0 and heap[i] < heap[(i - 1) // 2]:
+        parent = (i - 1) // 2
+        heap[i], heap[parent] = heap[parent], heap[i]
+        i = parent
+    smallest = heapq.heappop(heap)
+  visualise:
+    - variable: heap
+      as: heap
+      pointers: [i]         # int variables: the cell they index, and its node
+      # max: true           # label it a max-heap (the drawing is the same)
+```
+
+- The list is drawn twice: as a row of cells with their indexes, and under it as the tree those cells stand for, the children of cell
+  `i` at `2i + 1` and `2i + 2`. The caption says *min-heap*, or *max-heap* with `max: true`; nothing checks the order, since a heap
+  part-way through a sift is out of order on purpose.
+- A value keeps its cell and its node while it stays in the heap, so a swap slides both values, in the row and in the tree, and a moved
+  value is outlined in the accent. A pushed value grows in at its place; a popped one fades from where it was for one step, and a note
+  names it (*1 left the heap.*). A value written over another flashes.
+- `heapq.heappush`, `heappop`, `heapify` and the rest are one step each, since the recorder doesn't go into the standard library: the
+  learner sees the heap before the call and after it. To watch a sift swap by swap, write the sift in the step's code.
+- A pointer stands under its cell and under its node; one that isn't on a cell is listed in a note. At most 31 cells are drawn (five
+  full levels), and the rest are *+N more*. A wide heap scrolls sideways.
 
 ### Grids
 
@@ -355,6 +394,9 @@ whose value equals it (an `__eq__` that raises is no match); in a list a member 
 `[1, 1]` numbers two nodes holding 1. `order` is the member's place in the list (null for a set), and `unmatched` counts the members that
 mark nothing, plus those past the first 100.
 
+A heap is recorded as `{type, cells, more}`, with the watch entry `{"variable", "as": "heap"}` (its pointers are read from the locals,
+as an array's are). It is recorded only while the variable is a `list`: `cells` are the first 31 items' reprs and `more` counts the rest.
+
 A grid is recorded as `{rows, lengths, more, pointers, rowLabels, colLabels, highlight}`, with the watch entry `{"variable", "as": "grid",
 "pointers", "cells": [["i", "j"]], "rowLabels", "colLabels", "highlight"}`. It is recorded while the variable is a list or tuple whose
 first 15 items are lists, tuples or strings. `rows` are the first 15 rows' first 15 cells (reprs, or a string's characters), `lengths`
@@ -441,6 +483,11 @@ being "new" isn't a change the learner caused.
   (a node already claimed: a shared child or a cycle), `More` (a node not recorded) or `None`. Compared by id with the step before:
   `Added` a node it didn't have, `Changed` one whose value differs, and `JustVisited` one newly marked or renumbered. `Pointers` are the
   variable itself (on the root) and the recorded pointers, each `Moved` when it holds a different node.
+- **Heaps** (`HeapView`): `Cells` are `HeapCellView`s in list order, each with an `Id` that follows its value from step to step. A
+  cell with the same text at the same place keeps its id; else it takes the nearest old cell with the same text not yet taken (`Moved`,
+  so a swap is two moves); else the old cell at its place (`Changed`); else a new id (`Added`). Old cells left over are `Gone`, ghosts
+  with their last place, for one step. When either step was cut off (`More` > 0) nothing is marked added or gone, since the value may
+  only have crossed the cut. `Pointers` are `PointerView`s as on an array, and `Max` is the visual's.
 - **Grids** (`GridView`): `Rows` of `GridCellView`s, each with its row and column, `More` the cells cut off a row and the view's `More`
   the rows cut off. Compared by place with the step before: `Changed` a cell whose text differs, `Added` a cell the step before didn't
   have; `Shaded` a cell the highlight marks. `Pointers` lists every pointer of the visual, pairs first, at every step (`Defined` says
@@ -462,7 +509,7 @@ being "new" isn't a change the learner caused.
 
 - `TracePlayer.razor`: a read-only `CodeEditor` (new `ReadOnly` parameter) with the current line highlighted through the existing
   `HighlightLineAsync`; Previous, Play/Pause and Next; *Step n of m*; the speed buttons; one `TraceSequence` per watched stack or queue; one SVG per watched array; one `TraceTable` per
-  watched dict or set (after the lists, whatever order the lesson names them in); one `TraceLinkedList` per watched linked list; one `TraceTree` per watched tree; one `TraceGrid` per watched grid; a `TraceCallStack` above them all when the call stack is watched; a *Variables* table; and, on the last step only,
+  watched dict or set (after the lists, whatever order the lesson names them in); one `TraceLinkedList` per watched linked list; one `TraceTree` per watched tree; one `TraceHeap` per watched heap (before the grids); one `TraceGrid` per watched grid; a `TraceCallStack` above them all when the call stack is watched; a *Variables* table; and, on the last step only,
   what the run printed, the error that ended it, or a note that it was cut short (`TraceEnding.razor`).
 - **Animation is CSS.** A pointer is a `<g>` positioned with `style="transform: translate(…)"` and keyed by variable and name, so Blazor
   patches the same element and the browser transitions it from the old cell to the new one. A changed cell is keyed by step too, so it is
@@ -491,6 +538,11 @@ being "new" isn't a change the learner caused.
   draws itself in (`animate-link-in`). Visited nodes are filled with the accent tint; pointer names stack in rows under their node, and a name wider than the leftmost
   node's column moves the drawing's left edge rather than being cut off. The
   SVG's label reads the tree level by level for a screen reader.
+- A heap (`TraceHeap.razor`) is an SVG in a sideways scroll box, sized in rem: the row of cells, the tree under it. A cell and its node
+  are `<g>`s keyed by the value's id and placed with CSS transforms, so a swap slides both; an added one grows in, a changed one flashes
+  (keyed by step), and a gone one fades (`animate-cell-out`). The indexes and the edges are keyed by place, so they stay while values move
+  along them; an edge draws itself in when the tree gains a level. Each pointer is two `<g>`s, under its cell and under its node. The
+  SVG's label reads the cells, then the tree parent by parent, then the pointers.
 - A grid (`TraceGrid.razor`) is an SVG in a sideways scroll box, sized in rem. Each cell is a `<g>` keyed by its place; a changed one
   flashes (keyed by step) and a new one grows in. Each pointer is three `<g>`s keyed by its name (the ring, the column marker and the row
   marker), placed with CSS transforms, so they slide; nested rings stand inside one another when pointers share a cell. The SVG's label
@@ -544,7 +596,7 @@ by the last rung of the hint ladder, see [hints.md](hints.md).
 Per-variable speed or scrubbing, trees with more than two children (a general tree), drawing nested structures (a dict of lists, a node whose value is a node), doubly linked
 lists (a `prev` arrow), and reading a trace aloud.
 `Visual.As` is a string and the model builds one `ArrayView` per `array`, `stack` or `queue` visual, one `TableView` per `dict` or `set`
-visual, one `LinkedListView` per `linked_list` visual, one `TreeView` per `tree` visual, one `GridView` per `grid` visual, one `GraphView` per `graph` visual and one `CallStackView` for the `call_stack`, so another kind slots in beside them.
+visual, one `LinkedListView` per `linked_list` visual, one `TreeView` per `tree` visual, one `HeapView` per `heap` visual, one `GridView` per `grid` visual, one `GraphView` per `graph` visual and one `CallStackView` for the `call_stack`, so another kind slots in beside them.
 
 ## Tests
 
@@ -553,7 +605,7 @@ visual, one `LinkedListView` per `linked_list` visual, one `TreeView` per `tree`
 `tests/Brilliant.Lessons.UI.Tests/TracePlayerTests.cs`, `TraceStepViewTests.cs` and `WalkthroughRungTests.cs` (rendering, stepping, playback on a manual clock, shortcuts,
 line highlight, lesson wiring), `tests/js/shortcuts.test.mjs` (key classification) and `ShortcutTests.cs` (the page listener's mapping).
 bUnit can't observe a CSS transition or element reuse, so the sliding, flashing, the ghost row's fade and the stack and queue cells
-growing in and rising away, a linked list's nodes sliding and arrows drawing in, a tree's nodes sliding, edges drawing in and visit badges popping, a grid's pointers sliding and cells flashing, a graph's edges drawing in and marks popping, and the call stack's frames growing in and values popping up, are checked by looking at the running app.
+growing in and rising away, a linked list's nodes sliding and arrows drawing in, a tree's nodes sliding, edges drawing in and visit badges popping, a heap's values sliding in the row and the tree at once, a grid's pointers sliding and cells flashing, a graph's edges drawing in and marks popping, and the call stack's frames growing in and values popping up, are checked by looking at the running app.
 
 Known limit: the recorder keeps only the first 20 rows, so a pointer on a later row is shown as nothing (neither marked nor a miss) beside
 *+N more*.

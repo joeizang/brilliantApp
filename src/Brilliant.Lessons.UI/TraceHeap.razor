@@ -1,0 +1,242 @@
+@* A heap in the Trace Player: its list as a row of cells, and under it the tree those cells stand for, the children of cell i at 2i + 1
+   and 2i + 2, so a sift is seen both as cells trading places and as a value climbing or sinking a level. A cell and its node keep their
+   elements (by id) while the value stays in the heap, so a swap slides both, in the row and in the tree; a pushed value grows in at its
+   place, and a popped one fades from where it was (for one step). Pointers are int variables, on the cell they index and on its node. *@
+@using Brilliant.Core.Python
+
+<figure class="heap mx-0 my-4 rounded-md border border-hairline bg-surface-raised px-4 pt-2 pb-4" data-variable="@View.Variable" data-kind="heap">
+    <figcaption class="heap-name mb-1 text-[.9rem] text-fg-secondary [overflow-wrap:anywhere]"><code>@View.Variable</code> <span class="heap-kind ml-[.4rem] text-[.8rem]">@Kind</span></figcaption>
+    <div class="heap-scroll overflow-x-auto">
+        @* Laid out in user units and sized in rem (16 units to 1rem), with the text in the same units, as the other drawings are. *@
+        <svg class="heap-svg block max-w-none overflow-visible" role="img" aria-label="@Describe()" style="@Size" viewBox="@OriginX 0 @Width @Height">
+            @if (Live == 0)
+            {
+                <g class="heap-empty" transform="translate(@Pad @CellTop)">
+                    <rect class="fill-none stroke-border stroke-2 [stroke-dasharray:4_4]" width="@(CellW - 4)" height="@BoxH" rx="6" />
+                    <text class="fill-fg-secondary italic" font-size="@U(SmallText)" x="@(CellW / 2 - 2)" y="@(BoxH / 2)" text-anchor="middle" dominant-baseline="central">empty</text>
+                </g>
+            }
+
+            @* The row of cells. An index belongs to the place, not the value, so it stays put while the values slide. *@
+            @for (var i = 0; i < Live; i++)
+            {
+                <g @key="@($"index-{i}")"><text class="cell-index fill-fg-secondary font-mono" font-size="@U(SmallText)" x="@(CellX(i) + CellW / 2 - 2)" y="@(CellTop - 6)" text-anchor="middle">@i</text></g>
+            }
+            @for (var i = 0; i < Live; i++)
+            {
+                var cell = View.Cells[i];
+                <g class="@Class("cell", cell) transition-transform duration-450 ease-app" data-index="@i" data-id="@cell.Id" style="@At(CellX(i), CellTop)" @key="@($"cell-{cell.Id}")">
+                    <title>@cell.Text</title>
+                    <g class="cell-body origin-center [transform-box:fill-box] @(cell.Added ? "animate-cell-in" : "")">
+                        <rect class="cell-box fill-surface stroke-2 @(cell.Moved ? "stroke-accent" : "stroke-border") @(cell.Changed ? "animate-cell-flash" : "")"
+                              width="@(CellW - 4)" height="@BoxH" rx="6" @key="@(cell.Changed ? $"value-{Step}" : "value")" />
+                        <text class="cell-text fill-fg font-mono" font-size="@U(CellText(cell.Text))" x="@(CellW / 2 - 2)" y="@(BoxH / 2)" text-anchor="middle" dominant-baseline="central">@Clip(cell.Text)</text>
+                    </g>
+                </g>
+            }
+            @if (View.More > 0)
+            {
+                <g class="cell more" transform="translate(@CellX(Live) @CellTop)" @key="@("more")">
+                    <text class="more-text fill-fg-secondary font-mono" font-size="@U(SmallText)" x="@(CellW / 2 - 2)" y="@(BoxH / 2)" text-anchor="middle" dominant-baseline="central">+@View.More more</text>
+                </g>
+            }
+
+            @* The tree: the edges first, so the nodes sit on top of them. An edge joins two places, so it stays while values move along it. *@
+            @for (var i = 1; i < Live; i++)
+            {
+                var (x1, y1) = Centre((i - 1) / 2);
+                var (x2, y2) = Centre(i);
+                <g class="edge" data-from="@((i - 1) / 2)" data-to="@i" @key="@($"edge-{i}-{Levels}")">
+                    <path class="stroke-border stroke-2 fill-none animate-link-in" pathLength="1" d="@($"M{U(x1)} {U(y1)} L{U(x2)} {U(y2)}")" />
+                </g>
+            }
+            @for (var i = 0; i < Live; i++)
+            {
+                var cell = View.Cells[i];
+                var (x, y) = Centre(i);
+                <g class="@Class("node", cell) transition-transform duration-450 ease-app" data-index="@i" data-id="@cell.Id" style="@At(x, y)" @key="@($"node-{cell.Id}")">
+                    <title>@cell.Text</title>
+                    <g class="node-body origin-center [transform-box:fill-box] @(cell.Added ? "animate-cell-in" : "")">
+                        <circle class="node-circle fill-surface stroke-2 @(cell.Moved ? "stroke-accent" : "stroke-border") @(cell.Changed ? "animate-cell-flash" : "")"
+                                r="@NodeR" @key="@(cell.Changed ? $"value-{Step}" : "value")" />
+                        <text class="node-value fill-fg font-mono" font-size="@U(NodeText(cell.Text))" text-anchor="middle" dominant-baseline="central">@ClipNode(cell.Text)</text>
+                    </g>
+                </g>
+            }
+
+            @* What left fades where it was, in the row and in the tree. *@
+            @foreach (var gone in View.Gone)
+            {
+                var (x, y) = Centre(gone.Index);
+                <g class="cell gone" aria-hidden="true" data-index="@gone.Index" style="@At(CellX(gone.Index), CellTop)" @key="@($"gone-cell-{gone.Id}")">
+                    <g class="cell-body animate-cell-out">
+                        <rect class="cell-box fill-surface stroke-border stroke-2 [stroke-dasharray:4_3]" width="@(CellW - 4)" height="@BoxH" rx="6" />
+                        <text class="cell-text fill-fg-secondary font-mono" font-size="@U(CellText(gone.Text))" x="@(CellW / 2 - 2)" y="@(BoxH / 2)" text-anchor="middle" dominant-baseline="central">@Clip(gone.Text)</text>
+                    </g>
+                </g>
+                <g class="node gone" aria-hidden="true" data-index="@gone.Index" style="@At(x, y)" @key="@($"gone-node-{gone.Id}")">
+                    <g class="node-body animate-cell-out">
+                        <circle class="fill-surface stroke-border stroke-2 [stroke-dasharray:4_3]" r="@NodeR" />
+                        <text class="fill-fg-secondary font-mono" font-size="@U(NodeText(gone.Text))" text-anchor="middle" dominant-baseline="central">@ClipNode(gone.Text)</text>
+                    </g>
+                </g>
+            }
+
+            @* Each pointer twice: under its cell, and under its node. *@
+            @foreach (var (pointer, row) in _rows)
+            {
+                var index = pointer.Index!.Value;
+                var (x, y) = Centre(index);
+                <g class="@(pointer.Moved ? "pointer on-cell moved" : "pointer on-cell") transition-transform duration-450 ease-app" data-name="@pointer.Name" data-index="@index" data-row="@row"
+                   style="@At(CellX(index) + CellW / 2 - 2, CellTop + BoxH + 4 + row * LabelH)" @key="@($"cell-pointer-{pointer.Name}")">
+                    @if (row == 0)
+                    {
+                        <path class="pointer-arrow fill-accent" d="M0 0 L-5 7 L5 7 Z" />
+                    }
+                    <text class="pointer-label fill-accent font-mono font-semibold" font-size="@U(PointerText)" y="@(TickH + LabelH / 2)" text-anchor="middle" dominant-baseline="central">@pointer.Name</text>
+                </g>
+                <g class="@(pointer.Moved ? "pointer on-node moved" : "pointer on-node") transition-transform duration-450 ease-app" data-name="@pointer.Name" data-index="@index" data-row="@row"
+                   style="@At(x, y + NodeR + 2 + row * LabelH)" @key="@($"node-pointer-{pointer.Name}")">
+                    @if (row == 0)
+                    {
+                        <path class="pointer-arrow fill-accent" d="M0 0 L-5 7 L5 7 Z" />
+                    }
+                    <text class="pointer-label fill-accent font-mono font-semibold" font-size="@U(PointerText)" y="@(TickH + LabelH / 2)" text-anchor="middle" dominant-baseline="central">@pointer.Name</text>
+                </g>
+            }
+        </svg>
+    </div>
+    @foreach (var note in Notes())
+    {
+        <p class="heap-note mt-2 mb-0 text-[.9rem] text-fg-secondary">@note</p>
+    }
+</figure>
+
+@code {
+    [Parameter, EditorRequired] public HeapView View { get; set; } = default!;
+
+    /// <summary>The player's step number. A changed value is keyed by it, so it is a fresh element and replays its flash.</summary>
+    [Parameter, EditorRequired] public int Step { get; set; }
+
+    // A cell is CellW wide (its box 4 less) and BoxH high, CellTop down to leave room for its index. The tree starts TreeGap under
+    // the row's pointers; a node is a circle NodeR across its middle, in a slot SlotW wide on the bottom level, a level LevelH below
+    // its parent. Pointers' names stand under what they point at, LabelH a name, TickH below the arrow.
+    private const int CellW = 48, BoxH = 40, CellTop = 20, Pad = 8, TreeGap = 18, NodeR = 17, SlotW = 42, LevelH = 64, LabelH = 18, TickH = 8;
+
+    // Text sizes in user units (16 is 1rem). A monospace character is about .6 of its size wide.
+    private const double SmallText = 12.8, PointerText = 14.4, CellTextMax = 15.2, MonoW = .6;
+
+    private List<(PointerView Pointer, int Row)> _rows = [];
+
+    protected override void OnParametersSet()
+    {
+        // Pointers on one cell stack in rows under it, in the order they're listed.
+        _rows = [];
+        var taken = new Dictionary<int, int>();
+        foreach (var pointer in View.Pointers)
+            if (pointer.Index is { } index)
+            {
+                var row = taken.GetValueOrDefault(index);
+                taken[index] = row + 1;
+                _rows.Add((pointer, row));
+            }
+    }
+
+    private int Live => View.Cells.Count;
+
+    private string Kind => View.Max ? "max-heap" : "min-heap";
+
+    /// <summary>The places drawn: the cells, and the places of values that just left, which can be past the last cell.</summary>
+    private int Places => View.Gone.Select(g => g.Index + 1).Append(Live).Max();
+
+    /// <summary>How many levels the tree has. A level's places are 2^level wide, so cell i is on level ⌊log2(i + 1)⌋.</summary>
+    private int Levels => Places == 0 ? 0 : Level(Places - 1) + 1;
+
+    private static int Level(int index) => (int)Math.Floor(Math.Log2(index + 1));
+
+    private int PointerRows => _rows.Count == 0 ? 0 : _rows.Max(r => r.Row) + 1;
+
+    private static int CellX(int index) => Pad + index * CellW;
+
+    private int TreeTop => CellTop + BoxH + (PointerRows == 0 ? 0 : 4 + TickH + PointerRows * LabelH) + TreeGap;
+
+    /// <summary>Where cell i's node goes: its level's places share the bottom level's width evenly, so a parent sits over its two children.</summary>
+    private (double X, double Y) Centre(int index)
+    {
+        var level = Level(index);
+        var place = index - ((1 << level) - 1);
+        var span = (1 << (Levels - 1 - level)) * SlotW;
+        return (Pad + place * span + span / 2.0, TreeTop + NodeR + level * LevelH);
+    }
+
+    private static double LabelHalf(string name) => Math.Max(10, name.Length * PointerText * MonoW) / 2;
+
+    private double Right => new[]
+        {
+            CellX(Places + (View.More > 0 ? 1 : 0)) + 0.0,   // a value that just left fades past the last cell
+            Pad + (Levels == 0 ? 0 : (1 << (Levels - 1)) * SlotW),
+            CellX(1),
+        }
+        .Concat(_rows.Select(r => Centre(r.Pointer.Index!.Value).X + LabelHalf(r.Pointer.Name)))
+        .Concat(_rows.Select(r => CellX(r.Pointer.Index!.Value) + CellW / 2.0 + LabelHalf(r.Pointer.Name)))
+        .Max();
+
+    private double Bottom => Levels == 0 ? CellTop + BoxH + 0.0
+        : _rows.Select(r => Centre(r.Pointer.Index!.Value).Y + NodeR + 2 + r.Row * LabelH + TickH + LabelH)
+            .Append(TreeTop + (Levels - 1) * LevelH + 2.0 * NodeR)
+            .Max();
+
+    /// <summary>Where the drawing starts: left of 0 when a pointer on the first cell or the leftmost node has a name wider than its place.</summary>
+    private int OriginX => _rows.Count == 0 ? 0
+        : Math.Min(0, (int)Math.Floor(_rows.SelectMany(r => new[]
+            {
+                Centre(r.Pointer.Index!.Value).X - LabelHalf(r.Pointer.Name),
+                CellX(r.Pointer.Index!.Value) + CellW / 2.0 - LabelHalf(r.Pointer.Name),
+            }).Min()) - Pad / 2);
+
+    private int Width => (int)Math.Ceiling(Right) + Pad - OriginX;
+    private int Height => (int)Math.Ceiling(Bottom) + Pad / 2;
+
+    private string Size => $"width: {U(Width / 16.0)}rem; height: {U(Height / 16.0)}rem";
+
+    // Numbers written into the drawing in invariant form: "12.8", never a culture's "12,8".
+    private static string U(double value) => value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    // Placed with CSS (not the transform attribute) so that moving to a new place can be a transition.
+    private static string At(double x, double y) => $"transform: translate({U(x)}px, {U(y)}px)";
+
+    private static string Class(string what, HeapCellView cell) =>
+        what + (cell.Changed ? " changed" : "") + (cell.Added ? " added" : "") + (cell.Moved ? " moved" : "");
+
+    private static string Clip(string text) => text.Length <= 5 ? text : text[..4] + "…";
+    private static string ClipNode(string text) => text.Length <= 4 ? text : text[..3] + "…";
+
+    // A long value is set a little smaller so that all of its characters fit inside the box or the circle.
+    private static double CellText(string text) => Math.Min(CellTextMax, Math.Round((CellW - 12) / (Clip(text).Length * MonoW), 1));
+    private static double NodeText(string text) => Math.Min(CellTextMax, Math.Round((2 * NodeR - 8) / (ClipNode(text).Length * MonoW), 1));
+
+    private List<string> Notes()
+    {
+        var notes = new List<string>();
+        if (View.Gone.Count > 0)
+            notes.Add($"{string.Join(", ", View.Gone.Select(g => g.Text))} left the heap.");
+        if (View.More > 0)
+            notes.Add($"+{View.More} more {(View.More == 1 ? "cell" : "cells")} not shown, in the row or the tree.");
+        var off = View.Pointers.Where(p => p.Index is null).Select(p => p.Name).ToList();
+        if (off.Count > 0)
+            notes.Add($"{string.Join(", ", off)} {(off.Count == 1 ? "is" : "are")} not on a cell right now.");
+        return notes;
+    }
+
+    private string Describe()
+    {
+        if (Live == 0) return $"{View.Variable}, a {Kind}: empty" + (View.More > 0 ? $" and {View.More} more" : "");
+        var cells = string.Join(", ", View.Cells.Select(c => c.Text)) + (View.More > 0 ? $" and {View.More} more" : "");
+        var parents = Enumerable.Range(0, Live).Where(i => 2 * i + 1 < Live)
+            .Select(i => $"{View.Cells[i].Text} over {string.Join(" and ", new[] { 2 * i + 1, 2 * i + 2 }.Where(c => c < Live).Select(c => View.Cells[c].Text))}");
+        var pointers = View.Pointers.Select(p => p.Index is { } i ? $"{p.Name} at index {i}" : $"{p.Name} not on a cell");
+        return $"{View.Variable}, a {Kind}: {cells}; as a tree, root {View.Cells[0].Text}"
+            + (parents.Any() ? ", " + string.Join(", ", parents) : "")
+            + (View.Pointers.Count > 0 ? "; " + string.Join(", ", pointers) : "");
+    }
+}

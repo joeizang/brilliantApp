@@ -27,6 +27,7 @@ trace_code(code, watch_json, max_frames=MAX_FRAMES) -> JSON string:
                                        "pointers": {pointer: id | null},
                                        "visited": {"nodes": [id], "unmatched": int} | null,
                                        "frontier": {"nodes": [id], "unmatched": int} | null}},
+                 "heaps": {variable: {"type": str, "cells": [str], "more": int}},
                  "calls": {"frames": [{"id": int, "function": str, "args": [{"name", "repr"}], "returning": str | null}],
                            "more": int, "returned": {"function": str, "value": str, "to": id | null} | null}}],
      "stdout": str, "message": str | null, "traceback": str | null, "errorLine": int | null}
@@ -85,6 +86,12 @@ list, tuple or deque (a queue or a stack): "nodes" are the recorded nodes their 
 the members that are none (only the first MAX_VISITED are looked at; the rest count as unmatched). Each is null when its variable is
 not given, or is none of those.
 
+A watch entry {"variable": "heap", "as": "heap", "pointers": ["i"], "max": true} records a binary heap in "heaps" while the variable
+holds a list: its cells, at most MAX_HEAP_CELLS of them (five full levels of the tree they stand for; "more" counts the rest). The
+player draws the cells as an array and as the implicit tree, the children of cell i at 2i+1 and 2i+2; "max" only labels the drawing.
+Pointers are int variables, read from "locals" as an array's are. heapq's functions are written in C, so a heappush or heappop is one
+step: the cells before it and the cells after.
+
 A watch entry {"as": "call_stack", "functions": ["fact"]} records the active calls in "calls" at every frame (and only
 when it is watched, the frames below grow by one per return). Its "frames" are the calls of functions defined in the learner's code
 that haven't returned yet, outermost first, so the last is the one running; "functions", when given, keeps only the calls
@@ -126,6 +133,7 @@ MAX_VISITED = 100      # members of a tree's visited list or set matched against
 MAX_GRID = 15          # rows of a grid recorded per frame, and cells of each row (the rest are counted)
 MAX_GRAPH_NODES = 20   # graph nodes recorded per frame (the rest are counted in "more")
 MAX_GRAPH_EDGES = 60   # graph edges recorded per frame (the rest are counted in "moreEdges")
+MAX_HEAP_CELLS = 31    # heap cells recorded per frame, five full levels of its tree (the rest are counted in "more")
 MAX_CALLS = 12         # calls on the stack recorded per frame, the innermost (the rest are counted in "more")
 MAX_CELL_REPR = 24     # characters of an array cell's, or a table key's or value's, repr
 MAX_OUTPUT = 4000      # characters of stdout kept
@@ -569,6 +577,20 @@ def _tracked(frame, watch):
     return found
 
 
+def _heaps(frame, watch):
+    found = {}
+    for entry in watch:
+        if isinstance(entry, dict) and entry.get("as") == "heap":
+            value = _lookup(frame, entry.get("variable"))
+            if isinstance(value, list):
+                found[entry["variable"]] = {
+                    "type": type(value).__name__,
+                    "cells": [_repr(cell, MAX_CELL_REPR) for cell in value[:MAX_HEAP_CELLS]],
+                    "more": max(0, len(value) - MAX_HEAP_CELLS),
+                }
+    return found
+
+
 def _members(value):
     if len(value) > MAX_SORT:
         return list(itertools.islice(value, MAX_ROWS))
@@ -738,6 +760,7 @@ def trace_code(code, watch_json, max_frames=MAX_FRAMES):
             "locals": _locals(shown), "tracked": _tracked(frame, watch), "tables": _tables(frame, watch, shown, identities),
             "lists": _lists(frame, watch, nodes), "trees": _trees(frame, watch, nodes),
             "grids": _grids(frame, watch), "graphs": _graphs(frame, watch, identities),
+            "heaps": _heaps(frame, watch),
         }
         if calls is not None:
             recorded["calls"] = calls.record(frame, returning)

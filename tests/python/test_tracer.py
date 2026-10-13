@@ -530,6 +530,34 @@ class Grids(unittest.TestCase):
         self.assertIsNone(grid["highlight"])
 
 
+class Heaps(unittest.TestCase):
+    def heaps(self, code, **options):
+        entry = dict({"variable": "heap", "as": "heap"}, **options)
+        return trace(code, [entry])
+
+    def test_records_the_cells_of_a_list(self):
+        r = self.heaps("heap = [3, 'x']\nend = 1\n")
+        self.assertEqual(r["frames"][-1]["heaps"]["heap"], {"type": "list", "cells": ["3", "'x'"], "more": 0})
+
+    def test_a_heappush_and_heappop_are_one_step_each(self):
+        code = "import heapq\nheap = [2, 5]\nheapq.heappush(heap, 1)\nsmallest = heapq.heappop(heap)\n"
+        r = self.heaps(code)
+        cells = [f["heaps"]["heap"]["cells"] for f in r["frames"] if "heap" in f["heaps"]]
+        self.assertEqual(cells, [["2", "5"], ["1", "5", "2"], ["2", "5"]])
+
+    def test_anything_but_a_list_is_not_recorded(self):
+        r = self.heaps("heap = (1, 2)\nend = 1\n")
+        self.assertNotIn("heap", r["frames"][-1]["heaps"])
+
+    def test_cuts_the_cells_at_five_levels_and_counts_the_rest(self):
+        heap = self.heaps("heap = list(range(40))\nend = 1\n")["frames"][-1]["heaps"]["heap"]
+        self.assertEqual((len(heap["cells"]), heap["more"]), (31, 9))
+
+    def test_a_plain_name_entry_is_still_an_array(self):
+        r = trace("heap = [1]\nend = 1\n", ["heap"])
+        self.assertEqual((r["frames"][-1]["heaps"], r["frames"][-1]["tracked"]["heap"]["cells"]), ({}, ["1"]))
+
+
 class Graphs(unittest.TestCase):
     def graphs(self, code, **options):
         entry = dict({"variable": "g", "as": "graph"}, **options)

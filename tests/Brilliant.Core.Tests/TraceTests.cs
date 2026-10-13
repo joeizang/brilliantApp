@@ -67,7 +67,7 @@ public class TraceTests
     [Fact]
     public void The_watch_list_names_each_variable_once_and_only_for_drawings_the_player_knows()
     {
-        var watch = TraceResultJson.SerializeWatch([Nums, new Visual("nums", Visual.Array, ["j"]), new Visual("tree", "heap", [])]);
+        var watch = TraceResultJson.SerializeWatch([Nums, new Visual("nums", Visual.Array, ["j"]), new Visual("words", "trie", [])]);
 
         Assert.Equal("""["nums"]""", watch);
     }
@@ -1696,5 +1696,143 @@ public class TraceTests
 
         Assert.Equal((true, true, new EdgeNames("node", "nb"), "seen", "queue"), (visual.Directed, visual.Weights, visual.Edge, visual.Visited, visual.Frontier));
         Assert.Equal(["node"], visual.Pointers);
+    }
+
+    // ---- Heaps ----
+
+    private static readonly Visual Heap = new("heap", Visual.Heap, ["i"]);
+
+    private static TraceFrame HeapFrame(int? line, string[] cells, string function = "<module>", int more = 0, params TraceLocal[] locals) =>
+        new(line is null ? "return" : "line", line, function, locals, new Dictionary<string, TrackedArray>(),
+            Heaps: new Dictionary<string, TrackedHeap> { ["heap"] = new("list", cells, more) });
+
+    private static HeapView HeapAt(IReadOnlyList<TraceState> states, int index) => states[index].Heaps.Single();
+
+    private static IEnumerable<(int, string, bool, bool, bool)> Marks(HeapView view) =>
+        view.Cells.Select(c => (c.Id, c.Text, c.Changed, c.Added, c.Moved));
+
+    [Fact]
+    public void The_watch_list_sends_a_heap_by_name_and_kind()
+    {
+        Assert.Equal("""[{"variable":"heap","as":"heap"}]""", TraceResultJson.SerializeWatch([Heap with { Max = true }]));
+    }
+
+    [Fact]
+    public void Heaps_in_the_tracer_json_parse_with_their_cells()
+    {
+        var json = """
+            {"status": "ok", "frames": [{"event": "line", "line": 1, "function": "<module>", "locals": [], "tracked": {},
+              "heaps": {"heap": {"type": "list", "cells": ["1", "5"], "more": 2}}}],
+             "stdout": "", "message": null, "traceback": null, "errorLine": null}
+            """;
+
+        var heap = Assert.Single(TraceResultJson.Parse(json).Frames).Heaps!["heap"];
+
+        Assert.Equal(("list", 2), (heap.Type, heap.More));
+        Assert.Equal(["1", "5"], heap.Cells);
+    }
+
+    [Fact]
+    public void The_first_step_has_ids_by_index_and_marks_nothing()
+    {
+        var view = HeapAt(Build(Run(HeapFrame(1, ["1", "5", "2"])), Heap with { Max = true }), 0);
+
+        Assert.Equal([(0, "1", false, false, false), (1, "5", false, false, false), (2, "2", false, false, false)], Marks(view));
+        Assert.True(view.Max);
+        Assert.Empty(view.Gone);
+    }
+
+    [Fact]
+    public void A_swap_moves_both_cells_and_they_keep_their_ids()
+    {
+        var states = Build(Run(HeapFrame(1, ["5", "1", "2"]), HeapFrame(2, ["1", "5", "2"])), Heap);
+
+        Assert.Equal([(1, "1", false, false, true), (0, "5", false, false, true), (2, "2", false, false, false)], Marks(HeapAt(states, 1)));
+    }
+
+    [Fact]
+    public void A_push_adds_the_new_value_and_moves_the_parent_it_passed()
+    {
+        // heapq.heappush([2, 5], 1) in one step: 1 sifts up past 2.
+        var states = Build(Run(HeapFrame(1, ["2", "5"]), HeapFrame(2, ["1", "5", "2"])), Heap);
+
+        Assert.Equal([(2, "1", false, true, false), (1, "5", false, false, false), (0, "2", false, false, true)], Marks(HeapAt(states, 1)));
+        Assert.Empty(HeapAt(states, 1).Gone);
+    }
+
+    [Fact]
+    public void A_pop_leaves_a_ghost_where_the_root_was_and_moves_the_last_cell_up()
+    {
+        var states = Build(Run(HeapFrame(1, ["1", "5", "2"]), HeapFrame(2, ["2", "5"])), Heap);
+
+        var view = HeapAt(states, 1);
+        Assert.Equal([(2, "2", false, false, true), (1, "5", false, false, false)], Marks(view));
+        Assert.Equal(new HeapGoneCell(0, "1", 0), Assert.Single(view.Gone));
+    }
+
+    [Fact]
+    public void A_value_written_over_another_changes_that_cell()
+    {
+        var states = Build(Run(HeapFrame(1, ["1", "5"]), HeapFrame(2, ["9", "5"])), Heap);
+
+        Assert.Equal([(0, "9", true, false, false), (1, "5", false, false, false)], Marks(HeapAt(states, 1)));
+    }
+
+    [Fact]
+    public void A_repeated_value_moves_from_the_nearest_cell_holding_it()
+    {
+        var states = Build(Run(HeapFrame(1, ["3", "3", "1", "3"]), HeapFrame(2, ["1", "3", "3", "3"])), Heap);
+
+        // Index 1 and 3 stay; the 1 moved up from 2; index 2's 3 is the nearest unmatched 3, the one at 0.
+        Assert.Equal([(2, "1", false, false, true), (1, "3", false, false, false), (0, "3", false, false, true), (3, "3", false, false, false)],
+            Marks(HeapAt(states, 1)));
+    }
+
+    [Fact]
+    public void New_ids_never_reuse_a_ghost_s()
+    {
+        var states = Build(Run(HeapFrame(1, ["1", "2"]), HeapFrame(2, ["2"]), HeapFrame(3, ["2", "7"])), Heap);
+
+        Assert.Equal(new HeapGoneCell(0, "1", 0), Assert.Single(HeapAt(states, 1).Gone));
+        Assert.Equal([(1, "2", false, false, false), (2, "7", false, true, false)], Marks(HeapAt(states, 2)));
+    }
+
+    [Fact]
+    public void Past_five_levels_cells_moving_in_and_out_of_view_are_neither_added_nor_gone()
+    {
+        var states = Build(Run(HeapFrame(1, ["1", "2"], more: 3), HeapFrame(2, ["2", "3"], more: 2)), Heap);
+
+        var view = HeapAt(states, 1);
+        Assert.Equal([(1, "2", false, false, true), (2, "3", false, false, false)], Marks(view));
+        Assert.Empty(view.Gone);
+        Assert.Equal(2, view.More);
+    }
+
+    [Fact]
+    public void Pointers_are_int_locals_on_a_cell_and_moving_one_marks_it()
+    {
+        var states = Build(Run(HeapFrame(1, ["1", "5", "2"], locals: Int("i", 0)), HeapFrame(2, ["1", "5", "2"], locals: Int("i", 2)),
+            HeapFrame(3, ["1", "5", "2"], locals: Int("i", 3))), Heap);
+
+        Assert.Equal(new PointerView("i", 0, false), HeapAt(states, 0).Pointers.Single());
+        Assert.Equal(new PointerView("i", 2, true), HeapAt(states, 1).Pointers.Single());
+        Assert.Equal(new PointerView("i", null, true), HeapAt(states, 2).Pointers.Single());
+    }
+
+    [Fact]
+    public void A_heap_is_only_compared_with_the_step_before_in_the_same_function()
+    {
+        var states = Build(Run(HeapFrame(1, ["5", "1"]), HeapFrame(2, ["1", "5"], function: "sift")), Heap);
+
+        Assert.Equal([(0, "1", false, false, false), (1, "5", false, false, false)], Marks(HeapAt(states, 1)));
+    }
+
+    [Fact]
+    public void A_step_where_the_variable_is_not_a_heap_draws_none()
+    {
+        var states = Build(Run(Frame(1), HeapFrame(2, [])), Heap);
+
+        Assert.Empty(states[0].Heaps);
+        Assert.Empty(HeapAt(states, 1).Cells);
     }
 }
