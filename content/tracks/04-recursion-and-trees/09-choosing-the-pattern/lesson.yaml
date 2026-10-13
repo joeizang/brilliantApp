@@ -1,0 +1,676 @@
+id: lesson.choosing-tree-patterns
+title: "Choosing the pattern: recursion and trees"
+concepts:
+  - id: concept.pick-tree-pattern
+    title: Reading the clues for tree and recursion patterns
+  - id: concept.combine-tree-patterns
+    title: Combining tree patterns in one solution
+reviewItems:
+  - id: review.choose-trees.shallowest
+    concept: concept.pick-tree-pattern
+    step: step.choose-trees.check-shallowest
+    kind: pattern
+  - id: review.choose-trees.increasing-paths
+    concept: concept.pick-tree-pattern
+    step: step.choose-trees.check-increasing-paths
+    kind: pattern
+  - id: review.choose-trees.duplicates
+    concept: concept.pick-tree-pattern
+    step: step.choose-trees.check-not-a-tree-pattern
+    kind: pattern
+  - id: review.choose-trees.kth
+    concept: concept.combine-tree-patterns
+    step: step.choose-trees.predict-kth
+  - id: review.choose-trees.preorder
+    concept: concept.combine-tree-patterns
+    step: step.choose-trees.predict-preorder
+  - id: review.choose-trees.path-sum-return
+    concept: concept.combine-tree-patterns
+    step: step.choose-trees.check-max-path-return
+steps:
+  - id: step.choose-trees.clues
+    type: explain
+    title: Read the question first
+    body: |
+      This track added seven patterns. As before, the question usually names its own: look for the **clue**.
+
+      | If the question says... | Reach for |
+      | --- | --- |
+      | a problem that holds a **smaller copy of itself**: a nested list, `n - 1`, half the input | **solve it from a smaller call** |
+      | visit or list the nodes **in an order**: copy, sorted, children before parents | **pre-order, in-order or post-order** |
+      | **levels**, *shallowest*, *nearest*, *fewest steps*, the view from one side | **BFS with a queue** |
+      | height, size, *balanced*, *longest path*, anything built **from both subtrees** | **combine the children's answers** |
+      | a **BST**: search, *floor*, *ceiling*, a range, validate | **let the BST order pick the side** |
+      | **root-to-leaf** paths, anything compared with the **ancestors** | **pass the state down** |
+      | **every** subset, ordering, combination or arrangement | **choose, explore, unchoose** |
+
+      Bottom-up and top-down are the two directions a DFS answer can flow. If a node needs to know what is **below** it, its
+      children return it; if it needs what is **above** it, its parent passes it down. Some problems need both.
+
+      Two warnings carry over. If the question only needs *have I seen this value before?*, a `set` is simpler than anything
+      shaped like the tree. And a BST pattern needs a BST: on an ordinary binary tree, the order tells you nothing.
+  - id: step.choose-trees.check-shallowest
+    type: choice
+    title: The shallowest leaf
+    prompt: |
+      *A tree has a million nodes, most of them in one very deep branch. Find the depth of its shallowest leaf.* Which pattern
+      does the least work?
+    options:
+      - text: "BFS level by level, stopping at the first level that holds a leaf."
+        correct: true
+        feedback: "Right. *Shallowest* is a level question. BFS never reaches the deep branch below the first leaf's level."
+      - text: "A DFS that returns each subtree's shallowest leaf depth and combines the two."
+        correct: false
+        feedback: "That gives the right answer, but it visits every node, including the whole deep branch. BFS can stop early."
+      - text: "Let the BST order pick the side."
+        correct: false
+        feedback: "Nothing says the tree is a BST, and leaf depth has nothing to do with the values' order."
+      - text: "Backtracking over every root-to-leaf path."
+        correct: false
+        feedback: "That lists every path, deep ones included. Only the shallowest is wanted."
+    hints:
+      - "*Shallowest* is about levels. Which walk sees the shallow levels first?"
+  - id: step.choose-trees.check-increasing-paths
+    type: choice
+    title: Increasing paths
+    prompt: |
+      *List every root-to-leaf path along which the values strictly increase.* Which pattern fits?
+    options:
+      - text: "Pass state down: a shared path list, extended only while the next value is larger than the last."
+        correct: true
+        feedback: "Right. *Root-to-leaf* and a comparison with the node above are both cues for passing state down. A smaller child cuts the branch."
+      - text: "Combine the children's answers: each subtree returns its height."
+        correct: false
+        feedback: "Heights flow up, but whether a path increases depends on the values above each node. Pass the path down."
+      - text: "BFS level by level."
+        correct: false
+        feedback: "A level mixes nodes from different paths. A path is followed most simply with a DFS."
+      - text: "Choose, explore, unchoose over every subset of the nodes."
+        correct: false
+        feedback: "The paths are fixed by the tree's shape: there is nothing to choose, only one path to each leaf to follow."
+    hints:
+      - "Does a node need to know about its ancestors or its descendants?"
+  - id: step.choose-trees.check-not-a-tree-pattern
+    type: choice
+    title: Is it a tree pattern at all?
+    prompt: |
+      *A binary tree, not a search tree, holds numbers. Return `True` if any number appears in it twice.* Which fits best?
+    options:
+      - text: "Walk the tree in any order, keeping a `set` of the values seen so far."
+        correct: true
+        feedback: "Right. *Seen this before?* is a set lookup. The tree only decides how you reach every value."
+      - text: "An in-order walk, comparing each value with the one before."
+        correct: false
+        feedback: "That only works on a BST, where in-order is sorted and equal values sit next to each other."
+      - text: "Validate it as a BST: a repeated value breaks the bounds."
+        correct: false
+        feedback: "It isn't a BST, so the bounds fail for other reasons too. A failed check doesn't mean a repeat."
+      - text: "Combine the children's answers: return each subtree's largest value."
+        correct: false
+        feedback: "The largest value says nothing about repeats. A repeat can be anywhere, between any two nodes."
+    hints:
+      - "Is the question about the tree's shape, or only its values?"
+  - id: step.choose-trees.combine
+    type: explain
+    title: Two patterns in one
+    body: |
+      *Find the `k`th smallest value in a BST.* Two clues, two patterns:
+
+      1. **BST order**: an in-order walk of a BST visits the values sorted (lesson 6).
+      2. **In-order DFS** (lesson 3), but don't collect the whole sorted list: **count** the nodes as the walk visits them, and
+         stop once the count reaches `k`.
+
+      The count can't be a parameter: it has to carry on from the left subtree into the node and then into the right subtree,
+      so it is shared, like lesson 5's `best`, with `nonlocal`. Once the answer is found, every remaining call returns at
+      once. In C# a captured local in a local function works the same way.
+
+      On a balanced BST that visits about `log n + k` nodes, not all `n`.
+    comparison:
+      csharp: |
+        static int KthSmallest(Node root, int k)
+        {
+            int count = 0, answer = 0;
+
+            void Walk(Node? node)
+            {
+                if (node == null || count >= k) return;
+                Walk(node.Left);
+                if (count >= k) return;
+                count++;
+                if (count == k) answer = node.Val;
+                Walk(node.Right);
+            }
+
+            Walk(root);
+            return answer;
+        }
+      python: |
+        def kth_smallest(root, k):
+            count = 0
+            answer = None
+
+            def walk(node):
+                nonlocal count, answer
+                if node is None or count >= k:
+                    return
+                walk(node.left)
+                if count >= k:
+                    return
+                count += 1
+                if count == k:
+                    answer = node.val
+                walk(node.right)
+
+            walk(root)
+            return answer
+  - id: step.choose-trees.trace-kth
+    type: trace
+    title: The 3rd smallest
+    body: |
+      The walk goes all the way left to `1`, the smallest, and counts it. Then `3`, then the left side of `6` gives `4`: the
+      count reaches `3`. Every call after that returns straight away, so `6`, `7` and the whole right side of `8` are skipped.
+    code: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def kth_smallest(root, k):
+          count = 0
+          answer = None
+
+          def walk(node):
+              nonlocal count, answer
+              if node is None or count >= k:
+                  return
+              walk(node.left)
+              if count >= k:
+                  return
+              count += 1
+              if count == k:
+                  answer = node.val
+              walk(node.right)
+
+          walk(root)
+          return answer
+
+
+      root = Node(8,
+                  Node(3, Node(1), Node(6, Node(4), Node(7))),
+                  Node(10, None, Node(14)))
+      result = kth_smallest(root, 3)
+    visualise:
+      - as: call_stack
+        functions: [kth_smallest, walk]
+      - variable: root
+        as: tree
+        pointers: [node]
+  - id: step.choose-trees.predict-kth
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      Same BST, now with `k = 5`. What does this print?
+    code: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+
+      def kth_smallest(root, k):
+          count = 0
+          answer = None
+
+          def walk(node):
+              nonlocal count, answer
+              if node is None or count >= k:
+                  return
+              walk(node.left)
+              if count >= k:
+                  return
+              count += 1
+              if count == k:
+                  answer = node.val
+              walk(node.right)
+
+          walk(root)
+          return answer
+
+
+      #          8
+      #        /   \
+      #       3     10
+      #      / \      \
+      #     1   6      14
+      #        / \
+      #       4   7
+      root = Node(8,
+                  Node(3, Node(1), Node(6, Node(4), Node(7))),
+                  Node(10, None, Node(14)))
+      print(kth_smallest(root, 5))
+    accepted:
+      - "7"
+    mistakes:
+      - answers:
+          - "8"
+        feedback: "Sorted, the values are `1, 3, 4, 6, 7, 8, 10, 14`. `8` is 6th: `7`, the last node of the left subtree, comes before it."
+      - answers:
+          - "6"
+        feedback: "`6` is 4th: `1`, `3`, `4`, then `6`. One more step in-order is `7`."
+      - answers:
+          - "4"
+        feedback: "That would be the 5th node in pre-order (`8, 3, 1, 6, 4`). The walk is in-order, which visits the values sorted."
+    hints:
+      - "An in-order walk of a BST visits the values sorted. List them."
+  - id: step.choose-trees.predict-preorder
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      This version counts each node **before** walking its left side. What does it print for `k = 3`?
+    code: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+
+      def kth_smallest(root, k):
+          count = 0
+          answer = None
+
+          def walk(node):
+              nonlocal count, answer
+              if node is None or count >= k:
+                  return
+              count += 1
+              if count == k:
+                  answer = node.val
+              walk(node.left)
+              walk(node.right)
+
+          walk(root)
+          return answer
+
+
+      root = Node(8,
+                  Node(3, Node(1), Node(6, Node(4), Node(7))),
+                  Node(10, None, Node(14)))
+      print(kth_smallest(root, 3))
+    accepted:
+      - "1"
+    mistakes:
+      - answers:
+          - "4"
+        feedback: "That is the 3rd smallest, which in-order gives. Counting before the left side is pre-order: `8`, `3`, then `1`."
+      - answers:
+          - "6"
+        feedback: "Pre-order goes left before right: `8`, `3`, then `3`'s left child, `1`. `6` would be 4th."
+      - answers:
+          - "8"
+        feedback: "`8` is counted first, as the 1st. Two more nodes are counted before the 3rd."
+    hints:
+      - "Counting before the children is pre-order. Which three nodes come first in pre-order?"
+  - id: step.choose-trees.check-max-path-return
+    type: choice
+    title: What does each call return?
+    prompt: |
+      *The largest sum of any path in the tree, where a path may start and end at any nodes, going up then down.* Values may
+      be negative. Like lesson 5's diameter, each call returns one thing and records the answer on the side. What should a
+      call return?
+    options:
+      - text: "The best sum of a path going **down** from this node: `node.val + max(0, left, right)`."
+        correct: true
+        feedback: "Right. A parent can extend only a path that goes down one side. The path that bends through the node, `node.val + max(0, left) + max(0, right)`, is recorded, not returned."
+      - text: "The best sum of a path bending through this node, using both children."
+        correct: false
+        feedback: "A path through both children can't be extended by the parent: it would branch. That value is recorded on the side."
+      - text: "The sum of every value in the subtree."
+        correct: false
+        feedback: "A path doesn't take a whole subtree, only one line through it. And with negative values, more nodes can mean less."
+      - text: "`node.val + left + right`, always using both children."
+        correct: false
+        feedback: "That branches, and adds negative sides that should be left out. `max(0, …)` drops a side that would only lower the sum."
+    hints:
+      - "Which kind of path can the parent add itself on top of?"
+  - id: step.choose-trees.fill-lca
+    type: fill-blank
+    title: Lowest common ancestor in a BST
+    pattern: pattern.bst-ordering
+    patternCue: "\"The lowest common ancestor in a BST\": go down while both values are on the same side; where they split is the answer."
+    prompt: |
+      The **lowest common ancestor** of two values is the deepest node with both of them in its subtree (a node counts as in
+      its own subtree). Fill in the blanks so that `lca(root, p, q)` returns its value. `p` and `q` are both in the BST.
+    template: |
+      def lca(root, p, q):
+          node = root
+          while node is not None:
+              if p < node.val and q < node.val:
+                  node = {{both-smaller}}
+              elif {{both-larger}}:
+                  node = node.right
+              else:
+                  return {{split}}
+    blanks:
+      - id: both-smaller
+        accepted:
+          - "node.left"
+        mistakes:
+          - answers:
+              - "node.right"
+            feedback: "Both values are smaller than the node, so both are in its left subtree."
+      - id: both-larger
+        accepted:
+          - "p > node.val and q > node.val"
+          - "q > node.val and p > node.val"
+          - "node.val < p and node.val < q"
+          - "node.val < q and node.val < p"
+        mistakes:
+          - answers:
+              - "p > node.val or q > node.val"
+            feedback: "With `or`, one value could be on the left while the other is on the right: then this node is the answer, and going right loses it."
+      - id: split
+        accepted:
+          - "node.val"
+        mistakes:
+          - answers:
+              - "node"
+            feedback: "The function returns the ancestor's value, not the node."
+          - answers:
+              - "p"
+            feedback: "`p` is the answer only when `p` is the node itself. In general, the split happens at `node`."
+    hints:
+      - "While both values are on the same side, the answer is on that side too."
+      - "When they split, or one of them is the node itself, this node is the deepest one holding both."
+  - id: step.choose-trees.order-zigzag
+    type: parsons
+    title: Zigzag levels
+    pattern: pattern.bfs-level-order
+    patternCue: "\"Each level, alternating direction\": level-by-level BFS, reversing every other level before saving it."
+    prompt: |
+      Arrange the lines into `zigzag(root)`, which returns the values level by level, the first level left to right, the next
+      right to left, and so on. `deque` is imported.
+    solution: |
+      def zigzag(root):
+          if root is None:
+              return []
+          result = []
+          queue = deque([root])
+          left_to_right = True
+          while queue:
+              level = []
+              for _ in range(len(queue)):
+                  node = queue.popleft()
+                  level.append(node.val)
+                  if node.left:
+                      queue.append(node.left)
+                  if node.right:
+                      queue.append(node.right)
+              if not left_to_right:
+                  level.reverse()
+              result.append(level)
+              left_to_right = not left_to_right
+          return result
+    hints:
+      - "It is lesson 4's level order: one pass of the `for` per level."
+      - "The children always join the queue left to right. Only the saved level is reversed, every other time."
+  - id: step.choose-trees.write-kth
+    type: write-code
+    largeScreenPreferred: true
+    title: The kth smallest
+    pattern: pattern.dfs-traversal
+    patternCue: "\"The kth smallest in a BST\": in-order visits a BST sorted, so count nodes in-order and stop at k."
+    prompt: |
+      Write `kth_smallest(root, k)` that returns the `k`th smallest value in the BST (`k = 1` is the smallest). The tree has
+      at least `k` nodes. Stop once you have the answer, instead of collecting every value.
+
+      `Node` is in the starter; keep it.
+    language: python
+    entrypoint: kth_smallest
+    starter: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def kth_smallest(root, k):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def kth_smallest(root, k):
+          count = 0
+          answer = None
+
+          def walk(node):
+              nonlocal count, answer
+              if node is None or count >= k:
+                  return
+              walk(node.left)
+              if count >= k:
+                  return
+              count += 1
+              if count == k:
+                  answer = node.val
+              walk(node.right)
+
+          walk(root)
+          return answer
+    tests:
+      - input: "Node(3, Node(1, None, Node(2)), Node(4)), 1"
+        expected: "1"
+      - input: "Node(3, Node(1, None, Node(2)), Node(4)), 3"
+        expected: "3"
+      - input: "Node(3, Node(1, None, Node(2)), Node(4)), 4"
+        expected: "4"
+      - input: "Node(5, Node(3, Node(2, Node(1)), Node(4)), Node(6)), 3"
+        expected: "3"
+      - input: "Node(7), 1"
+        expected: "7"
+      - input: "Node(1, None, Node(2, None, Node(3, None, Node(4)))), 2"
+        expected: "2"
+    hints:
+      - "In-order visits a BST's values smallest first."
+      - "Keep a count shared by every call (`nonlocal`), and add one when the walk visits a node, between its two sides."
+      - "When the count reaches `k`, record the value; every call after that can return at once."
+    walkthrough:
+      call: result = kth_smallest(Node(5, Node(3, Node(2, Node(1)), Node(4)), Node(6)), 3)
+      visualise:
+        - as: call_stack
+          functions: [kth_smallest, walk]
+      explanation: |
+        The walk goes left from `5` to `3` to `2` to `1`, and counts `1`, then `2`, then `3`: the count is `3`, so the answer
+        is `3`. The call for `4` returns at once, `5` returns before counting itself, and `6` is never visited.
+    phoneAlternative:
+      id: step.choose-trees.write-kth.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `kth_smallest(root, k)`, which counts the nodes in-order and stops at the `k`th. Arrange the lines instead of
+        typing them.
+      solution: |
+        def kth_smallest(root, k):
+            count = 0
+            answer = None
+
+            def walk(node):
+                nonlocal count, answer
+                if node is None or count >= k:
+                    return
+                walk(node.left)
+                if count >= k:
+                    return
+                count += 1
+                if count == k:
+                    answer = node.val
+                walk(node.right)
+
+            walk(root)
+            return answer
+      hints:
+        - "The node is counted after its left side and before its right side."
+  - id: step.choose-trees.write-ancestor-diff
+    type: write-code
+    largeScreenPreferred: true
+    title: Largest ancestor difference
+    pattern: pattern.top-down-state
+    patternCue: "\"Compared with any ancestor\": pass the smallest and largest values on the path down."
+    prompt: |
+      Write `max_ancestor_diff(root)` that returns the largest `abs(a.val - b.val)` where `a` is an ancestor of `b` (any node
+      above it on its path from the root). The tree has at least one node; a single node gives `0`.
+
+      `Node` is in the starter; keep it.
+    language: python
+    entrypoint: max_ancestor_diff
+    starter: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def max_ancestor_diff(root):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def max_ancestor_diff(root):
+          def walk(node, low, high):
+              if node is None:
+                  return high - low
+              low = min(low, node.val)
+              high = max(high, node.val)
+              return max(walk(node.left, low, high), walk(node.right, low, high))
+
+          return walk(root, root.val, root.val)
+    tests:
+      - input: "Node(8, Node(3, Node(1), Node(6, Node(4), Node(7))), Node(10, None, Node(14, Node(13))))"
+        expected: "7"
+      - input: "Node(1, None, Node(2, None, Node(0, Node(3))))"
+        expected: "3"
+      - input: "Node(5)"
+        expected: "0"
+      - input: "Node(2, Node(9), Node(-4))"
+        expected: "7"
+      - input: "Node(4, Node(4, Node(4)))"
+        expected: "0"
+    hints:
+      - "The best difference for a node is with the smallest or the largest value above it."
+      - "Pass the smallest and largest values on the path down, updated with each node's value."
+      - "At an empty child the path is over: its difference is `high - low`. Return the larger of the two sides."
+    walkthrough:
+      call: result = max_ancestor_diff(Node(8, Node(3, Node(1), Node(6, Node(4), Node(7))), Node(10, None, Node(14, Node(13)))))
+      visualise:
+        - as: call_stack
+          functions: [max_ancestor_diff, walk]
+      explanation: |
+        Down the left, `low` falls to `1` while `high` stays `8`: `8 - 1` is `7`. Down the right, `high` rises to `14` while
+        `low` stays `8`: `6`. The larger, `7`, is the answer.
+  - id: step.choose-trees.write-max-path
+    type: write-code
+    largeScreenPreferred: true
+    title: The largest path sum
+    pattern: pattern.dfs-return-values
+    patternCue: "\"The best path anywhere\": return the best path going down, and record the best path bending through each node."
+    prompt: |
+      A **path** joins nodes by edges, going up then down at most once, and holds at least one node. Write
+      `max_path_sum(root)` that returns the largest sum of the values on any path. Values may be negative. The tree has at
+      least one node.
+
+      `Node` is in the starter; keep it.
+    language: python
+    entrypoint: max_path_sum
+    starter: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def max_path_sum(root):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def max_path_sum(root):
+          best = root.val
+
+          def down(node):
+              nonlocal best
+              if node is None:
+                  return 0
+              left = max(0, down(node.left))
+              right = max(0, down(node.right))
+              best = max(best, node.val + left + right)
+              return node.val + max(left, right)
+
+          down(root)
+          return best
+    tests:
+      - input: "Node(1, Node(2), Node(3))"
+        expected: "6"
+      - input: "Node(-10, Node(9), Node(20, Node(15), Node(7)))"
+        expected: "42"
+      - input: "Node(-3)"
+        expected: "-3"
+      - input: "Node(2, Node(-1))"
+        expected: "2"
+      - input: "Node(-2, Node(-1))"
+        expected: "-1"
+      - input: "Node(5, Node(4, Node(11, Node(7), Node(2))), Node(8, Node(13), Node(4, None, Node(1))))"
+        expected: "48"
+    hints:
+      - "Like diameter: return one thing, record another with `nonlocal`."
+      - "Return the best sum going down from the node: its value plus the better child's, ignoring a child below `0`."
+      - "Record the best path bending through the node: its value plus both children's (each at least `0`). Start `best` at the root's value, in case every value is negative."
+    walkthrough:
+      call: result = max_path_sum(Node(-10, Node(9), Node(20, Node(15), Node(7))))
+      visualise:
+        - as: call_stack
+          functions: [max_path_sum, down]
+      explanation: |
+        `9`, `15` and `7` return themselves. `20` records `15 + 20 + 7`, `42`, and returns `20 + 15`, `35`. The root records
+        `-10 + 9 + 35`, only `34`, so `42`, the path that never reaches the root, is the answer.
