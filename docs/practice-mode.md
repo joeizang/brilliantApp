@@ -68,6 +68,8 @@ the step or its phone alternative, is a **warning**: `brilliant validate`, `pack
 | `pattern.recursive-decomposition` (Solve it from a smaller call) | Track 4 lesson 2 | its 5 problems (lesson 1's `count_digits`, `digit_sum` and `gcd` are recursion drills, untagged) |
 | `pattern.dfs-traversal` (Pick the walk: pre-order, in-order or post-order) | Track 4 lesson 3 | its 5 problems |
 | `pattern.bfs-level-order` (Level by level with a queue) | Track 4 lesson 4 | its 5 problems |
+| `pattern.dfs-return-values` (Combine the children's answers) | Track 4 lesson 5 | its 5 problems |
+| `pattern.bst-ordering` (Let the BST order pick the side) | Track 4 lesson 6 | its 5 problems |
 
 Left untagged: every problem in Track 1 lessons 1–6 (Python and Big-O drills), Track 2 lesson 6's `count_subarrays` (its prompt says
 "prefix sums and a dict" on purpose, to teach when a window fails) and `count_palindromes` (expand-around-centre, not one of the eight).
