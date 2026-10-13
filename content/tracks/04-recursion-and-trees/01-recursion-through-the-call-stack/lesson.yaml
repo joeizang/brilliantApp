@@ -1,0 +1,448 @@
+id: lesson.recursion-call-stack
+title: Recursion through the call stack
+concepts:
+  - id: concept.recursion-two-cases
+    title: A base case and a recursive case
+  - id: concept.recursion-own-frame
+    title: Each call has its own frame
+  - id: concept.recursion-limit
+    title: "The recursion limit (Python's RecursionError, C#'s StackOverflowException)"
+reviewItems:
+  - id: review.recursion.order
+    concept: concept.recursion-own-frame
+    step: step.recursion.predict-order
+  - id: review.recursion.no-base
+    concept: concept.recursion-two-cases
+    step: step.recursion.check-no-base
+  - id: review.recursion.own-locals
+    concept: concept.recursion-own-frame
+    step: step.recursion.predict-own-locals
+  - id: review.recursion.too-deep
+    concept: concept.recursion-limit
+    step: step.recursion.check-too-deep
+  - id: review.recursion.missed-base
+    concept: concept.recursion-two-cases
+    step: step.recursion.check-missed-base
+steps:
+  - id: step.recursion.idea
+    type: explain
+    title: A function that calls itself
+    body: |
+      A **recursive** function calls itself on a smaller version of its own problem. `4!` is `4 × 3!`, and `3!` is `3 × 2!`,
+      until `1!`, which is just `1`. Every recursive function has two parts:
+
+      - the **base case**, small enough to answer straight away (`n <= 1`: the answer is `1`)
+      - the **recursive case**, which calls the function on something smaller and uses what comes back (`n * fact(n - 1)`)
+
+      Recursion works the same way in Python as in C#. Each call waits for the call it made to return. While it waits, its own
+      `n` sits in its **frame** on the call stack. The calls pile up until one reaches the base case, then the values come back
+      down the stack, one return at a time.
+    comparison:
+      csharp: |
+        static long Fact(int n)
+        {
+            if (n <= 1) return 1;          // base case
+            return n * Fact(n - 1);        // recursive case
+        }
+
+        Console.WriteLine(Fact(4));        // 24
+      python: |
+        def fact(n):
+            if n <= 1:
+                return 1                   # base case
+            return n * fact(n - 1)         # recursive case
+
+
+        print(fact(4))                     # 24
+  - id: step.recursion.trace-fact
+    type: trace
+    title: Calls waiting on calls
+    body: |
+      Watch the call stack. `fact(n=4)` can't finish until `fact(n=3)` returns, so it waits underneath. The stack grows to
+      `fact(n=1)`, which is the base case and returns `1` straight away. Then each value comes back down: `1` to `fact(n=2)`,
+      which returns `2`, which `fact(n=3)` turns into `6`, and `fact(n=4)` into `24`.
+    code: |
+      def fact(n):
+          if n <= 1:
+              return 1
+          return n * fact(n - 1)
+
+
+      result = fact(4)
+    visualise:
+      - as: call_stack
+  - id: step.recursion.two-cases
+    type: explain
+    title: Two rules, and a frame for every call
+    body: |
+      A recursive function is correct when two rules hold:
+
+      1. **Every call gets closer to a base case.** `fact(n - 1)` makes `n` smaller each time, so it must reach `n <= 1`.
+      2. **The base case really is reached.** If the input can step *over* it, the calls never stop.
+
+      Each call is a separate run of the function with its **own frame**: its own parameters and its own local variables. The
+      `n` in `fact(4)` and the `n` in `fact(3)` are different variables that happen to have the same name. A deeper call can't
+      change a waiting call's locals. It can only hand back a value.
+
+      The order matters too. Code **before** the recursive call runs on the way down, outermost call first. Code **after** it
+      runs on the way back up, innermost call first.
+  - id: step.recursion.predict-order
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      `visit` records something before its recursive call and something after it. What does this print?
+    code: |
+      order = []
+
+
+      def visit(n):
+          if n == 0:
+              order.append("base")
+              return
+          order.append(f"in {n}")
+          visit(n - 1)
+          order.append(f"out {n}")
+
+
+      visit(2)
+      print(order)
+    accepted:
+      - "['in 2', 'in 1', 'base', 'out 1', 'out 2']"
+    mistakes:
+      - answers:
+          - "['in 2', 'out 2', 'in 1', 'out 1', 'base']"
+        feedback: "`visit(2)` can't reach its `out 2` line until `visit(1)` has returned. The call runs first, the line after it waits."
+      - answers:
+          - "['in 2', 'in 1', 'base', 'out 2', 'out 1']"
+        feedback: "The calls return innermost first. `visit(1)` returns before `visit(2)` can carry on, so `out 1` comes before `out 2`."
+      - answers:
+          - "['in 2', 'in 1', 'base']"
+        feedback: "The base case returns to `visit(1)`, which carries on from where it called and records `out 1`. Then `visit(2)` does the same."
+    hints:
+      - "`visit(2)` records `in 2`, then calls `visit(1)` and waits. Where is `visit(1)` when it calls `visit(0)`?"
+      - "After `visit(0)` returns, which call carries on first?"
+  - id: step.recursion.check-no-base
+    type: choice
+    title: No way out
+    prompt: |
+      This function has no base case. What happens when `count_down(3)` runs?
+
+      ```python
+      def count_down(n):
+          print(n)
+          count_down(n - 1)
+      ```
+    options:
+      - text: "It prints `3`, `2`, `1`, `0`, `-1` and on, until Python stops it with `RecursionError: maximum recursion depth exceeded`."
+        correct: true
+        feedback: "Right. Each call adds a frame and none ever returns. Python allows about a thousand frames by default, then raises `RecursionError`."
+      - text: "It prints `3`, `2`, `1` and stops, because `n` reaches zero."
+        correct: false
+        feedback: "Nothing in the function looks at `n` except `print`. Zero is just another number to it, so it carries on to `-1`."
+      - text: "It runs for ever, like `while True:`, until you stop it."
+        correct: false
+        feedback: "A loop reuses one frame, but every call needs a new one. The stack runs out long before for ever, and Python raises `RecursionError`."
+      - text: "Python refuses to run it, because a function can't call itself without an `if`."
+        correct: false
+        feedback: "Python doesn't check for a base case. The function starts happily and only fails when the stack gets too deep."
+    hints:
+      - "Every call makes another call. Does any call ever return?"
+      - "Each call that is waiting keeps a frame on the stack. Can the stack grow for ever?"
+  - id: step.recursion.trace-frames
+    type: trace
+    title: Every call has its own i
+    body: |
+      `total(nums, i)` adds up `nums` from index `i` to the end: `nums[i]` plus the total of the rest. Each frame has its own `i`.
+      As the calls go deeper, the pointer moves along the list. As they return, it moves back, because each waiting call still
+      has the `i` it started with.
+    code: |
+      def total(nums, i):
+          if i == len(nums):
+              return 0
+          rest = total(nums, i + 1)
+          return nums[i] + rest
+
+
+      result = total([3, 1, 4], 0)
+    visualise:
+      - as: call_stack
+      - variable: nums
+        as: array
+        pointers: [i]
+  - id: step.recursion.predict-own-locals
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      Every call of `f` sets `x` and then calls `f` again. What does this print?
+    code: |
+      def f(n):
+          if n == 0:
+              return 0
+          x = n * 10
+          f(n - 1)
+          return x
+
+
+      print(f(3))
+    accepted:
+      - "30"
+    mistakes:
+      - answers:
+          - "10"
+        feedback: "The deeper calls set *their own* `x`. When `f(3)` gets its turn again, its `x` is still `30`."
+      - answers:
+          - "0"
+        feedback: "`f(3)` ignores what `f(2)` returns. It returns its own `x`, which is `3 * 10`."
+      - answers:
+          - "60"
+        feedback: "Nothing adds the calls' values together: the value `f(n - 1)` returns is thrown away. `f(3)` returns only its own `x`."
+    hints:
+      - "Is the `x` in `f(1)` the same variable as the `x` in `f(3)`?"
+      - "What does `f(3)` do with the value `f(2)` returns?"
+  - id: step.recursion.limit
+    type: explain
+    title: How deep can it go?
+    body: |
+      Every waiting call holds a frame, and the stack has a limit.
+
+      - **Python** allows about **1,000** frames by default (`sys.getrecursionlimit()`). Past that it raises
+        `RecursionError: maximum recursion depth exceeded`. It is an ordinary exception, so `try`/`except` can catch it.
+      - **C#** has no count of calls. .NET runs out only when the thread's native stack is full, and its size depends on the
+        runtime, the operating system and any override, so it often goes deeper. But when it runs out it throws a
+        `StackOverflowException`, which **can't be caught**: the process ends.
+
+      Neither language turns a recursive call at the end of a function into a loop for you (Python never does, and C# doesn't
+      promise to). So the question is **how deep the recursion goes**, not how much work it does:
+
+      - **Fine:** depth that stays small. A balanced tree of a million nodes is only about 20 levels deep, and halving `n` takes
+        about 20 steps to get from a million to 1.
+      - **Loop instead:** depth that grows with the input. Walking a linked list of 50,000 nodes one call per node is 50,000
+        frames deep. `sys.setrecursionlimit` can raise the limit, but a loop is the real fix.
+    comparison:
+      csharp: |
+        static int Length(Node? node) =>
+            node == null ? 0 : 1 + Length(node.Next);
+
+        // A list of a million nodes: StackOverflowException,
+        // and the process ends. Use a loop.
+        int length = 0;
+        for (var cur = head; cur != null; cur = cur.Next) length++;
+      python: |
+        def length(node):
+            return 0 if node is None else 1 + length(node.next)
+
+        # A list of a million nodes: RecursionError. Use a loop.
+        length = 0
+        cur = head
+        while cur:
+            length += 1
+            cur = cur.next
+  - id: step.recursion.check-too-deep
+    type: choice
+    title: Which one is too deep?
+    prompt: |
+      Each of these is solved by a function that calls itself once per step shown. Which one is likely to hit Python's
+      recursion limit?
+    options:
+      - text: "Counting the nodes of a linked list of 50,000 nodes, one call per node."
+        correct: true
+        feedback: "Right. One call per node is 50,000 frames waiting at once, far past the default limit of about 1,000. Use a loop."
+      - text: "Finding the height of a balanced binary tree of 50,000 nodes, one call per level of the path."
+        correct: false
+        feedback: "A balanced tree of 50,000 nodes is only about 16 levels deep, so at most 16 or so frames wait at once."
+      - text: "Computing `20!` with `n * fact(n - 1)`."
+        correct: false
+        feedback: "That is 20 frames deep at most. It's the input that grows with the depth that causes trouble, and 20 is tiny."
+      - text: "Computing `2 ** 1_000_000` by halving the power on each call."
+        correct: false
+        feedback: "Halving a million gets to 1 in about 20 steps, so the depth stays around 20."
+    hints:
+      - "Depth is the number of calls waiting at the same time. Work out the depth of each."
+      - "Which input's depth grows one for one with its size?"
+  - id: step.recursion.check-missed-base
+    type: choice
+    title: A base case it can step over
+    prompt: |
+      Which call never reaches the base case?
+
+      ```python
+      def down_by_two(n):
+          if n == 0:
+              return "done"
+          return down_by_two(n - 2)
+      ```
+    options:
+      - text: "`down_by_two(5)`"
+        correct: true
+        feedback: "Right. `5, 3, 1, -1, -3, …` steps over `0` and never lands on it, so it ends in `RecursionError`. `if n <= 0:` fixes it."
+      - text: "`down_by_two(4)`"
+        correct: false
+        feedback: "`4, 2, 0` lands exactly on the base case and returns `\"done\"`."
+      - text: "`down_by_two(0)`"
+        correct: false
+        feedback: "`0` is the base case itself, so it returns `\"done\"` without any recursive call."
+      - text: "`down_by_two(2)`"
+        correct: false
+        feedback: "`2, 0` reaches the base case on the second call."
+    hints:
+      - "Write down the values of `n` for each call. Does one of them skip `0`?"
+  - id: step.recursion.fill-fact
+    type: fill-blank
+    title: Complete fact
+    prompt: |
+      Fill in the blanks so that `fact(n)` returns `n!` for any `n >= 0` (`0!` is `1`).
+    template: |
+      def fact(n):
+          if n <= {{base}}:
+              return {{base-value}}
+          return n * {{recurse}}
+    blanks:
+      - id: base
+        accepted:
+          - "1"
+          - "0"
+        mistakes:
+          - answers:
+              - "-1"
+            feedback: "Then `fact(0)` would recurse to `fact(-1)` and return `0 * …`, which is `0`, not `1`. Stop at `1` (or `0`)."
+      - id: base-value
+        accepted:
+          - "1"
+        mistakes:
+          - answers:
+              - "0"
+            feedback: "Every answer is multiplied by what the base case returns, so `0` would make every factorial `0`."
+          - answers:
+              - "n"
+            feedback: "That works for `n = 1` but not for `n = 0`, where it gives `0` instead of `1`."
+      - id: recurse
+        accepted:
+          - "fact(n - 1)"
+          - "fact(n-1)"
+        mistakes:
+          - answers:
+              - "fact(n)"
+            feedback: "That calls the same problem again, not a smaller one, so it never reaches the base case."
+          - answers:
+              - "(n - 1)"
+              - "n - 1"
+            feedback: "That multiplies by `n - 1` once. The rest of the product, `(n - 1)!`, is the job of the recursive call: `fact(n - 1)`."
+    hints:
+      - "The base case is the smallest input you can answer straight away."
+      - "`n!` is `n × (n - 1)!`. Which call gives `(n - 1)!`?"
+  - id: step.recursion.order-count-digits
+    type: parsons
+    title: Count the digits
+    prompt: |
+      Arrange the lines into `count_digits(n)`, which returns how many digits a non-negative integer has. `count_digits(7)` is
+      `1` and `count_digits(2024)` is `4`. Dropping the last digit is `n // 10`.
+    solution: |
+      def count_digits(n):
+          if n < 10:
+              return 1
+          return 1 + count_digits(n // 10)
+    hints:
+      - "A one-digit number is the base case."
+      - "Any other number has one digit more than `n // 10`."
+  - id: step.recursion.write-digit-sum
+    type: write-code
+    largeScreenPreferred: true
+    title: Add up the digits
+    prompt: |
+      Write `digit_sum(n)` that returns the sum of the digits of a non-negative integer, using recursion. `digit_sum(1234)` is
+      `1 + 2 + 3 + 4`, which is `10`, and `digit_sum(0)` is `0`.
+
+      The last digit is `n % 10`, and the number without it is `n // 10`.
+    language: python
+    entrypoint: digit_sum
+    starter: |
+      def digit_sum(n):
+          pass
+    solution: |
+      def digit_sum(n):
+          if n < 10:
+              return n
+          return n % 10 + digit_sum(n // 10)
+    tests:
+      - input: "1234"
+        expected: "10"
+      - input: "0"
+        expected: "0"
+      - input: "7"
+        expected: "7"
+      - input: "909"
+        expected: "18"
+      - input: "1000000"
+        expected: "1"
+    hints:
+      - "What is the digit sum of a number below 10?"
+      - "The digit sum of `1234` is `4` plus the digit sum of `123`."
+      - "`return n % 10 + digit_sum(n // 10)`, with `if n < 10: return n` above it."
+    walkthrough:
+      call: result = digit_sum(1234)
+      visualise:
+        - as: call_stack
+      explanation: |
+        Each call peels off the last digit and calls itself on the rest: `1234`, `123`, `12`, `1`. `digit_sum(1)` is the base
+        case and returns `1`. On the way back, each call adds its own last digit: `1 + 2`, then `3 + 3`, then `6 + 4`, which is
+        `10`.
+    phoneAlternative:
+      id: step.recursion.write-digit-sum.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `digit_sum(n)`, which returns the sum of the digits of a non-negative integer. Arrange the lines instead of typing
+        them.
+      solution: |
+        def digit_sum(n):
+            if n < 10:
+                return n
+            return n % 10 + digit_sum(n // 10)
+      hints:
+        - "A number below 10 is its own digit sum."
+        - "Peel off the last digit with `n % 10`, and recurse on `n // 10`."
+  - id: step.recursion.write-gcd
+    type: write-code
+    largeScreenPreferred: true
+    title: Euclid's greatest common divisor
+    prompt: |
+      Write `gcd(a, b)` that returns the greatest common divisor of two non-negative integers, using recursion. Euclid's rule
+      is all you need:
+
+      - `gcd(a, 0)` is `a`
+      - otherwise `gcd(a, b)` is `gcd(b, a % b)`
+
+      `gcd(12, 18)` is `6`. At least one of the two is above `0`.
+    language: python
+    entrypoint: gcd
+    starter: |
+      def gcd(a, b):
+          pass
+    solution: |
+      def gcd(a, b):
+          if b == 0:
+              return a
+          return gcd(b, a % b)
+    tests:
+      - input: "12, 18"
+        expected: "6"
+      - input: "18, 12"
+        expected: "6"
+      - input: "7, 0"
+        expected: "7"
+      - input: "0, 5"
+        expected: "5"
+      - input: "17, 5"
+        expected: "1"
+      - input: "1071, 462"
+        expected: "21"
+    hints:
+      - "The base case is in the rule: when `b` is `0`, the answer is `a`."
+      - "Otherwise, return the answer to the smaller problem `gcd(b, a % b)`."
+    walkthrough:
+      call: result = gcd(1071, 462)
+      visualise:
+        - as: call_stack
+      explanation: |
+        `1071 % 462` is `147`, so the next call is `gcd(462, 147)`, then `gcd(147, 21)`, then `gcd(21, 0)`, the base case. Each
+        call returns what the call it made returned, so `21` comes straight back down the stack.

@@ -1,0 +1,528 @@
+id: lesson.thinking-recursively
+title: Thinking recursively
+concepts:
+  - id: concept.trust-the-smaller-call
+    title: Trust the smaller call
+  - id: concept.recursion-slicing-cost
+    title: Slicing on every call copies; pass an index instead
+  - id: concept.power-by-halving
+    title: Halving the problem keeps the stack shallow
+reviewItems:
+  - id: review.thinking.predict-mystery
+    concept: concept.trust-the-smaller-call
+    step: step.thinking.predict-mystery
+  - id: review.thinking.combine
+    concept: concept.trust-the-smaller-call
+    step: step.thinking.check-combine
+  - id: review.thinking.slicing
+    concept: concept.recursion-slicing-cost
+    step: step.thinking.check-slicing
+  - id: review.thinking.predict-power
+    concept: concept.power-by-halving
+    step: step.thinking.predict-power
+  - id: review.thinking.which-problem
+    concept: concept.trust-the-smaller-call
+    step: step.thinking.check-which-problem
+    kind: pattern
+  - id: review.thinking.store-half
+    concept: concept.power-by-halving
+    step: step.thinking.check-store-half
+    kind: pattern
+patterns:
+  - id: pattern.recursive-decomposition
+    title: Solve it from a smaller call
+steps:
+  - id: step.thinking.leap
+    type: explain
+    title: Trust the smaller call
+    body: |
+      Following every call down the stack is a good way to *check* a recursive function, but a poor way to *write* one. Write it
+      the way you'd prove it:
+
+      1. **Base case.** What is the smallest input, and what is its answer?
+      2. **Smaller problem.** How do you make the input one step smaller?
+      3. **Trust.** Assume the call on the smaller input already returns the right answer. Don't follow it.
+      4. **Combine.** How does that answer, plus the piece you took off, become the answer to the whole?
+
+      To reverse `"abc"`: the base case is the empty string, which reverses to itself. Take off the first letter, `"a"`. Trust
+      that `rev("bc")` gives `"cb"`. Then the whole is `"cb" + "a"`. That's all: if the base case is right and each step is
+      right, every input is right.
+    comparison:
+      csharp: |
+        static string Rev(string s) =>
+            s.Length == 0 ? "" : Rev(s[1..]) + s[0];
+      python: |
+        def rev(s):
+            if s == "":
+                return ""
+            return rev(s[1:]) + s[0]
+  - id: step.thinking.trace-rev
+    type: trace
+    title: Reversing a string
+    body: |
+      Each call takes off the first letter and waits for the reverse of the rest. The empty string returns `""`, and on the way
+      back each call adds its own first letter to the **end**: `"c"`, then `"cb"`, then `"cba"`.
+    code: |
+      def rev(s):
+          if s == "":
+              return ""
+          return rev(s[1:]) + s[0]
+
+
+      result = rev("abc")
+    visualise:
+      - as: call_stack
+  - id: step.thinking.predict-mystery
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      Don't follow every call. Work out what `mystery` returns for a short string, then trust it for a longer one. What does
+      this print?
+    code: |
+      def mystery(s):
+          if len(s) <= 1:
+              return s
+          return s[-1] + mystery(s[1:-1]) + s[0]
+
+
+      print(mystery("abcde"))
+    accepted:
+      - "edcba"
+    mistakes:
+      - answers:
+          - "abcde"
+        feedback: "The last letter goes to the front and the first letter to the back, so the string can't come out unchanged."
+      - answers:
+          - "eba"
+          - "ea"
+        feedback: "The middle isn't dropped: `mystery(s[1:-1])` is the answer for the middle, and it sits between the two swapped ends."
+      - answers:
+          - "ebcda"
+        feedback: "That swaps the ends once. The middle `\"bcd\"` goes through `mystery` too, which swaps its own ends."
+    hints:
+      - "What does `mystery(\"bcd\")` return? And `mystery(\"c\")`?"
+      - "Each call swaps its ends and puts the answer for the middle between them."
+  - id: step.thinking.check-combine
+    type: choice
+    title: Combine the answer
+    prompt: |
+      `count(nums, target)` returns how many times `target` appears in `nums`. Which line finishes the recursive case?
+
+      ```python
+      def count(nums, target):
+          if not nums:
+              return 0
+          rest = count(nums[1:], target)
+          # ???
+      ```
+    options:
+      - text: "`return rest + (1 if nums[0] == target else 0)`"
+        correct: true
+        feedback: "Right. Trust that `rest` counts the rest of the list, then add one if the first item matches too."
+      - text: "`return 1 + rest`"
+        correct: false
+        feedback: "That adds one for every item, matching or not, so it returns the length of the list."
+      - text: "`return rest if nums[0] == target else 0`"
+        correct: false
+        feedback: "A first item that doesn't match throws away the count for the rest of the list."
+      - text: "`return count(nums[1:], target) + 1`"
+        correct: false
+        feedback: "That makes the same call again, and still adds one whether or not `nums[0]` matches."
+    hints:
+      - "`rest` is already the right answer for everything after `nums[0]`. What does `nums[0]` add to it?"
+  - id: step.thinking.slicing
+    type: explain
+    title: Slices are copies
+    body: |
+      `nums[1:]` reads nicely, but in Python a slice is a **new list**: it copies every item after the first. Call that once per
+      item and a list of `n` items copies `n - 1`, then `n - 2`, and so on: about `n²/2` copies in all. The recursion that looked
+      O(n) is really **O(n²)**.
+
+      The fix is to keep the one list and pass an **index** saying where the rest starts. Give it a default so callers don't
+      have to know about it.
+
+      C# has a cheaper way to slice: a `Span<T>` or `ReadOnlySpan<T>` is a view onto the same memory, so `span[1..]` copies
+      nothing. Python's lists have no such view, so pass the index.
+    comparison:
+      csharp: |
+        static int Total(ReadOnlySpan<int> nums) =>
+            nums.IsEmpty ? 0 : nums[0] + Total(nums[1..]);
+
+        // nums[1..] on a span is a view: nothing is copied.
+      python: |
+        def total(nums, i=0):
+            if i == len(nums):
+                return 0
+            return nums[i] + total(nums, i + 1)
+
+        # One list for every call; only i changes.
+  - id: step.thinking.check-slicing
+    type: choice
+    title: What does the slice cost?
+    prompt: |
+      This makes one call per item of a list of `n` items. What is its total running time?
+
+      ```python
+      def total(nums):
+          if not nums:
+              return 0
+          return nums[0] + total(nums[1:])
+      ```
+    options:
+      - text: "O(n²), because every call copies the rest of the list."
+        correct: true
+        feedback: "Right. The copies are `n - 1`, `n - 2`, …, `1` items long, which adds up to about `n²/2`."
+      - text: "O(n), because there are `n` calls and each does one addition."
+        correct: false
+        feedback: "The addition is cheap, but `nums[1:]` isn't: it builds a new list of everything after the first item."
+      - text: "O(n log n), because the list gets shorter on every call."
+        correct: false
+        feedback: "It gets shorter by one, not by half. Copies of `n - 1`, `n - 2`, … items add up to about `n²/2`."
+      - text: "O(1), because a slice is a view onto the same list."
+        correct: false
+        feedback: "That is true of a C# `Span<T>`, but a Python list slice is a new list with copies of the items."
+    hints:
+      - "How many items does `nums[1:]` copy when `nums` has `k` items?"
+  - id: step.thinking.halving
+    type: explain
+    title: Make it smaller faster
+    body: |
+      "Smaller" doesn't have to mean "one less". `x ** n` taken one step at a time is `x * power(x, n - 1)`: `n` calls, `n`
+      frames deep. But a power can be **halved**:
+
+      - if `n` is even, `x ** n` is `half * half`, where `half = x ** (n // 2)`
+      - if `n` is odd, it's `half * half * x`
+
+      Each call halves `n`, so `power(x, 1_000_000)` makes about 20 calls instead of a million, and never comes near the
+      recursion limit. The one rule: work out `half` **once** and use it twice.
+  - id: step.thinking.trace-power
+    type: trace
+    title: Power by halving
+    body: |
+      `power(2, 10)` calls `power(2, 5)`, then `power(2, 2)`, `power(2, 1)` and `power(2, 0)`, the base case. On the way back:
+      `1`, then `1 * 1 * 2` is `2`, `2 * 2` is `4`, `4 * 4 * 2` is `32` and `32 * 32` is `1024`.
+    code: |
+      def power(x, n):
+          if n == 0:
+              return 1
+          half = power(x, n // 2)
+          if n % 2 == 0:
+              return half * half
+          return half * half * x
+
+
+      result = power(2, 10)
+    visualise:
+      - as: call_stack
+  - id: step.thinking.predict-power
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      This `power` records each `n` it is called with. What does this print?
+    code: |
+      seen = []
+
+
+      def power(x, n):
+          seen.append(n)
+          if n == 0:
+              return 1
+          half = power(x, n // 2)
+          if n % 2 == 0:
+              return half * half
+          return half * half * x
+
+
+      print(power(3, 5), seen)
+    accepted:
+      - "243 [5, 2, 1, 0]"
+    mistakes:
+      - answers:
+          - "243 [5, 4, 3, 2, 1, 0]"
+        feedback: "That is the one-step version. This one calls itself with `n // 2`, so `5` goes to `2`, not `4`."
+      - answers:
+          - "243 [0, 1, 2, 5]"
+        feedback: "Each call appends its `n` *before* it calls itself, so the outermost call's `5` is recorded first."
+      - answers:
+          - "81 [5, 2, 1, 0]"
+        feedback: "`5` is odd, so the last step is `half * half * x`: `9 * 9 * 3`, which is `243`."
+    hints:
+      - "Which `n` does each call pass on? `5 // 2` is `2`."
+      - "`3 ** 5` is `243`. Check that the halving gives the same."
+  - id: step.thinking.check-which-problem
+    type: choice
+    title: Which one is naturally recursive?
+    prompt: |
+      Which of these problems is easiest to solve by trusting a call on a smaller piece of the input?
+    options:
+      - text: "Flattening a list whose items may themselves be lists, nested to any depth, into one flat list."
+        correct: true
+        feedback: "Right. Each item that is a list is the same problem, smaller. Flatten it with a recursive call, however deep it goes."
+      - text: "Finding the largest number in a flat list of numbers."
+        correct: false
+        feedback: "Recursion can do it, but one loop with a running maximum is simpler and has no depth limit."
+      - text: "Counting the vowels in a string."
+        correct: false
+        feedback: "A loop over the characters does it. Recursion would add one frame per character and buy nothing."
+      - text: "Adding up two numbers read from the user."
+        correct: false
+        feedback: "There is no smaller version of this problem to call. It's one addition."
+    hints:
+      - "Look for a problem whose input contains smaller copies of the same kind of input."
+  - id: step.thinking.check-store-half
+    type: choice
+    title: Why store half?
+    prompt: |
+      Someone writes the even case of `power` without storing `half`:
+
+      ```python
+      if n % 2 == 0:
+          return power(x, n // 2) * power(x, n // 2)
+      ```
+
+      What happens to the number of calls `power(x, 1024)` makes?
+    options:
+      - text: "It makes about `n` calls instead of about `log n`, because every call makes two calls."
+        correct: true
+        feedback: "Right. Two calls per level, about `log n` levels deep, is about `2 ** log n` calls, which is `n` again. Store `half` and use it twice."
+      - text: "It makes the same number of calls; Python remembers the first answer."
+        correct: false
+        feedback: "Python doesn't cache function results unless you ask (`functools.cache`). Each call runs again from scratch."
+      - text: "It hits the recursion limit, because the stack gets twice as deep."
+        correct: false
+        feedback: "The depth is unchanged, about `log n`. It's the number of calls that grows: two at every level."
+      - text: "It returns the wrong answer."
+        correct: false
+        feedback: "The answer is still right. Only the work grows."
+    hints:
+      - "How many calls does each call make now? And how many levels are there?"
+  - id: step.thinking.fill-total
+    type: fill-blank
+    title: Total with an index
+    pattern: pattern.recursive-decomposition
+    patternCue: "\"The total is the first item plus the total of the rest\": pass an index for where the rest starts instead of slicing."
+    prompt: |
+      Fill in the blanks so that `total(nums)` adds up the list without copying it. `i` says where the rest of the list starts.
+    template: |
+      def total(nums, i=0):
+          if i == {{stop}}:
+              return 0
+          return nums[i] + {{recurse}}
+    blanks:
+      - id: stop
+        accepted:
+          - "len(nums)"
+        mistakes:
+          - answers:
+              - "len(nums) - 1"
+            feedback: "Then the last item is never added: at `i == len(nums) - 1` the function returns `0` instead of `nums[i]`."
+          - answers:
+              - "0"
+            feedback: "`i` starts at `0`, so every call would return `0` straight away. The rest is empty when `i` reaches the end."
+      - id: recurse
+        accepted:
+          - "total(nums, i + 1)"
+          - "total(nums, i+1)"
+        mistakes:
+          - answers:
+              - "total(nums[1:])"
+              - "total(nums[i + 1:])"
+              - "total(nums[i+1:])"
+            feedback: "That works, but the slice copies the rest of the list on every call. Pass the same list and move `i` on."
+          - answers:
+              - "total(nums, i)"
+            feedback: "That is the same problem again, not a smaller one, so it never reaches the end."
+    hints:
+      - "The rest is empty when `i` has moved past the last index."
+      - "The smaller problem is the same list, starting one place further on."
+  - id: step.thinking.order-palindrome
+    type: parsons
+    title: Is it a palindrome?
+    pattern: pattern.recursive-decomposition
+    patternCue: "\"A palindrome's ends match and its middle is a palindrome\": check the ends, then trust the call on the middle, moving two indices in."
+    prompt: |
+      Arrange the lines into `is_palindrome(s, lo, hi)`, which returns whether `s[lo:hi + 1]` reads the same both ways. It moves
+      two indices in instead of slicing. `is_palindrome("level", 0, 4)` is `True`.
+    solution: |
+      def is_palindrome(s, lo, hi):
+          if lo >= hi:
+              return True
+          if s[lo] != s[hi]:
+              return False
+          return is_palindrome(s, lo + 1, hi - 1)
+    hints:
+      - "Zero or one character left is always a palindrome."
+      - "If the ends differ, stop. Otherwise the answer is the answer for the middle."
+  - id: step.thinking.write-flatten
+    type: write-code
+    largeScreenPreferred: true
+    title: Flatten a nested list
+    pattern: pattern.recursive-decomposition
+    patternCue: "\"Lists inside lists, to any depth\": each inner list is the same problem, smaller, so flatten it with a recursive call."
+    prompt: |
+      Write `flatten(nested)` that takes a list whose items are numbers or lists (which may hold lists in turn, to any depth) and
+      returns one flat list of the numbers, in order. `flatten([1, [2, [3, 4]], 5])` is `[1, 2, 3, 4, 5]`.
+
+      `isinstance(item, list)` tells you whether an item is a list.
+    language: python
+    entrypoint: flatten
+    starter: |
+      def flatten(nested):
+          pass
+    solution: |
+      def flatten(nested):
+          flat = []
+          for item in nested:
+              if isinstance(item, list):
+                  flat.extend(flatten(item))
+              else:
+                  flat.append(item)
+          return flat
+    tests:
+      - input: "[1, [2, [3, 4]], 5]"
+        expected: "[1, 2, 3, 4, 5]"
+      - input: "[]"
+        expected: "[]"
+      - input: "[1, 2, 3]"
+        expected: "[1, 2, 3]"
+      - input: "[[[[7]]]]"
+        expected: "[7]"
+      - input: "[[], [1, []], [[2], 3]]"
+        expected: "[1, 2, 3]"
+    hints:
+      - "Loop over the items. A number goes straight into the result."
+      - "A list item is a smaller nested list. Trust `flatten(item)` to flatten it, and add what it returns."
+      - "`flat.extend(flatten(item))` adds every number of the flattened item."
+    walkthrough:
+      call: result = flatten([1, [2, [3]], 4])
+      visualise:
+        - as: call_stack
+      explanation: |
+        The outer call adds `1`, then meets `[2, [3]]` and calls `flatten` on it. That call adds `2`, meets `[3]` and calls
+        again, which returns `[3]`. So the middle call returns `[2, 3]`, the outer call extends its list with it and adds `4`.
+        There is no separate base case: a list with no list items makes no calls.
+    phoneAlternative:
+      id: step.thinking.write-flatten.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `flatten(nested)`, which flattens a list of numbers and lists, nested to any depth, into one list. Arrange the
+        lines instead of typing them.
+      solution: |
+        def flatten(nested):
+            flat = []
+            for item in nested:
+                if isinstance(item, list):
+                    flat.extend(flatten(item))
+                else:
+                    flat.append(item)
+            return flat
+      hints:
+        - "A number goes straight in. A list goes through `flatten` first."
+  - id: step.thinking.write-power
+    type: write-code
+    largeScreenPreferred: true
+    title: Power by halving
+    pattern: pattern.recursive-decomposition
+    patternCue: "\"x to the n, for very large n\": the answer comes from x to the n // 2, so each call halves n and the stack stays about log n deep."
+    prompt: |
+      Write `power(x, n)` that returns `x ** n` for an integer `x` and an integer `n >= 0`, without using `**` or `pow`. It must
+      make about `log n` calls, not `n`: one test uses `n = 1000`.
+    language: python
+    entrypoint: power
+    starter: |
+      def power(x, n):
+          pass
+    solution: |
+      def power(x, n):
+          if n == 0:
+              return 1
+          half = power(x, n // 2)
+          if n % 2 == 0:
+              return half * half
+          return half * half * x
+    tests:
+      - input: "2, 10"
+        expected: "1024"
+      - input: "3, 5"
+        expected: "243"
+      - input: "7, 0"
+        expected: "1"
+      - input: "5, 1"
+        expected: "5"
+      - input: "-2, 3"
+        expected: "-8"
+      - input: "1, 1000"
+        expected: "1"
+      - input: "2, 64"
+        expected: "18446744073709551616"
+    hints:
+      - "`x ** 0` is `1`."
+      - "`x ** n` comes from `x ** (n // 2)`, times itself, and times one more `x` if `n` is odd."
+      - "Store `half = power(x, n // 2)` and use it twice; calling it twice makes about `n` calls again."
+    walkthrough:
+      call: result = power(3, 5)
+      visualise:
+        - as: call_stack
+      explanation: |
+        `n` goes `5`, `2`, `1`, `0`. The base case returns `1`. `power(3, 1)` is odd: `1 * 1 * 3` is `3`. `power(3, 2)` is even:
+        `3 * 3` is `9`. `power(3, 5)` is odd: `9 * 9 * 3` is `243`. Four calls for `n = 5`, and only eleven for `n = 1000`.
+    phoneAlternative:
+      id: step.thinking.write-power.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `power(x, n)`, which returns `x ** n` by halving `n` on each call. Arrange the lines instead of typing them.
+      solution: |
+        def power(x, n):
+            if n == 0:
+                return 1
+            half = power(x, n // 2)
+            if n % 2 == 0:
+                return half * half
+            return half * half * x
+      hints:
+        - "Work out `half` once, before checking whether `n` is even."
+  - id: step.thinking.write-depth
+    type: write-code
+    largeScreenPreferred: true
+    title: How deep is it nested?
+    pattern: pattern.recursive-decomposition
+    patternCue: "\"How deeply nested\": a list is one level deeper than its deepest item, and each item's depth is the same question, smaller."
+    prompt: |
+      Write `depth(nested)` that returns how deeply a list is nested. A list of only numbers, or an empty list, has depth `1`.
+      A list holding lists has depth one more than its deepest item. `depth([1, [2, [3]]])` is `3`.
+    language: python
+    entrypoint: depth
+    starter: |
+      def depth(nested):
+          pass
+    solution: |
+      def depth(nested):
+          deepest = 0
+          for item in nested:
+              if isinstance(item, list):
+                  deepest = max(deepest, depth(item))
+          return 1 + deepest
+    tests:
+      - input: "[1, [2, [3]]]"
+        expected: "3"
+      - input: "[]"
+        expected: "1"
+      - input: "[1, 2, 3]"
+        expected: "1"
+      - input: "[[], [[]]]"
+        expected: "3"
+      - input: "[[1], 2, [[3], [4, [5]]]]"
+        expected: "4"
+    hints:
+      - "Numbers add no depth. Only list items matter."
+      - "Trust `depth(item)` for each list item, and keep the largest."
+      - "The answer is `1 +` the deepest item, or `1 + 0` when there are no list items."
+    walkthrough:
+      call: result = depth([1, [2, [3]]])
+      visualise:
+        - as: call_stack
+      explanation: |
+        The outer call skips `1` and asks for `depth([2, [3]])`, which skips `2` and asks for `depth([3])`. That list has no list
+        items, so it returns `1 + 0`. Then `[2, [3]]` returns `1 + 1`, and the outer list `1 + 2`, which is `3`.
