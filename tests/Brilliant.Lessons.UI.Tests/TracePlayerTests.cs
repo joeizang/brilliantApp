@@ -1099,6 +1099,34 @@ public class TracePlayerTests : ShortcutContext
         Assert.True(Place(node).Y > Place(root).Y);
     }
 
+    [Fact]
+    public void With_the_root_at_none_a_node_only_a_pointer_holds_is_drawn_dashed_and_read_as_unreachable()
+    {
+        var cut = Trees(Tree(null, [("node", 7)], null, (7, "7", null, null)));
+
+        Assert.Contains("detached", TreeNodeOf(cut, 7).ClassName);
+        Assert.Contains(cut.FindAll("figure.tree p.tree-note"), p => p.TextContent.Contains("can't be reached from root"));
+        Assert.Contains(cut.FindAll("figure.tree p.tree-note"), p => p.TextContent.Contains("root is None"));
+        var label = cut.Find("figure.tree svg").GetAttribute("aria-label");
+        Assert.Contains("root, a binary tree: None; not reachable from it: 7; node at the node holding 7", label);
+        Assert.Contains("translate(31px", TreeNodeOf(cut, 7).GetAttribute("style"));   // at the left edge, no gap for the missing root's tree
+    }
+
+    [Fact]
+    public void A_long_pointer_name_on_the_leftmost_node_widens_the_drawing_to_its_left()
+    {
+        var cut = Render<TraceTree>(p => p
+            .Add(c => c.View, new TreeView("long_root_pointer_name", [new TreeNodeView(1, "1", 0, 0, 0, null, null, TreeLink.None, TreeLink.None)], 0,
+                [new NodePointer("long_root_pointer_name", 1, false)], null))
+            .Add(c => c.Step, 0));
+
+        var box = cut.Find("svg").GetAttribute("viewBox")!.Split(' ').Select(double.Parse).ToArray();
+        // The name is centred under the node at x = 31, about 22 characters of .6 × 14.4 units wide.
+        var halfName = "long_root_pointer_name".Length * 14.4 * .6 / 2;
+        Assert.True(box[0] <= 31 - halfName, $"viewBox starts at {box[0]}, right of the name's left edge {31 - halfName}");
+        Assert.True(box[0] + box[2] >= 31 + halfName, "and still reaches its right edge");
+    }
+
     // ---- The call stack ----
 
     private static readonly IReadOnlyList<Visual> StackVisual = [new Visual("", Visual.CallStack, [])];

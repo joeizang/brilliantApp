@@ -10,7 +10,7 @@
     <figcaption class="tree-name mb-1 text-[.9rem] text-fg-secondary"><code>@View.Variable</code> <span class="tree-kind ml-[.4rem] text-[.8rem]">binary tree</span></figcaption>
     <div class="tree-scroll overflow-x-auto">
         @* Laid out in user units and sized in rem (16 units to 1rem), with the text in the same units, as the other drawings are. *@
-        <svg class="tree-svg block max-w-none overflow-visible" role="img" aria-label="@Describe()" style="@Size" viewBox="0 0 @Width @Height">
+        <svg class="tree-svg block max-w-none overflow-visible" role="img" aria-label="@Describe()" style="@Size" viewBox="@OriginX 0 @Width @Height">
             @if (View.Nodes.Count == 0)
             {
                 <g class="tree-none" transform="translate(@Pad @Top)">
@@ -108,11 +108,13 @@
     private const double SmallText = 12.8, PointerText = 14.4, ValueTextMax = 15.2, MonoW = .6;
 
     private Dictionary<int, TreeNodeView> _byId = [];
+    private int _firstTree;   // 1 when the root is None and only detached trees are drawn, so the first stands at the left edge
     private List<(NodePointer Pointer, double X, double Y, int Row)> _spots = [];
 
     protected override void OnParametersSet()
     {
         _byId = View.Nodes.ToDictionary(n => n.Id);
+        _firstTree = View.Nodes.Count == 0 ? 0 : View.Nodes.Min(n => n.Tree);
         // A pointer stands under the node it holds, under the names of the pointers before it on that node. The variable itself, on
         // an empty tree, stands under None.
         _spots = [];
@@ -132,7 +134,7 @@
     }
 
     private (double X, double Y) Centre(TreeNodeView node) =>
-        (Pad + node.Tree * TreeGap + node.Column * ColW + ColW / 2.0, Top + node.Depth * LevelH + NodeR);
+        (Pad + (node.Tree - _firstTree) * TreeGap + node.Column * ColW + ColW / 2.0, Top + node.Depth * LevelH + NodeR);
 
     private double LabelHalf(string name) => Math.Max(10, name.Length * PointerText * MonoW) / 2;
 
@@ -146,7 +148,11 @@
         .Append(Top + 2.0 * NodeR)
         .Max();
 
-    private int Width => (int)Math.Ceiling(Right) + Pad;
+    /// <summary>Where the drawing starts: left of 0 when a pointer on a leftmost node has a name wider than its column.</summary>
+    private int OriginX => _spots.Count == 0 ? 0
+        : Math.Min(0, (int)Math.Floor(_spots.Min(s => s.X - LabelHalf(s.Pointer.Name))) - Pad / 2);
+
+    private int Width => (int)Math.Ceiling(Right) + Pad - OriginX;
     private int Height => (int)Math.Ceiling(Bottom) + Pad / 2;
 
     private string Size => $"width: {U(Width / 16.0)}rem; height: {U(Height / 16.0)}rem";
@@ -223,7 +229,7 @@
         }
         var levels = View.Nodes.Where(n => n.Tree == 0).GroupBy(n => n.Depth).OrderBy(g => g.Key)
             .Select(g => $"level {g.Key}: " + string.Join(", ", g.OrderBy(n => n.Column).Select(Children)));
-        var text = $"{View.Variable}, a binary tree, " + string.Join("; ", levels);
+        var text = $"{View.Variable}, a binary tree" + (levels.Any() ? ", " + string.Join("; ", levels) : ": None");
         var detached = View.Nodes.Where(n => n.Tree > 0).OrderBy(n => n.Tree).ThenBy(n => n.Depth).ThenBy(n => n.Column).Select(Children).ToList();
         if (detached.Count > 0) text += "; not reachable from it: " + string.Join(", ", detached);
         var pointers = View.Pointers.Where(p => p.Name != View.Variable)

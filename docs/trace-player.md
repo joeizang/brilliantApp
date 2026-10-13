@@ -316,7 +316,8 @@ being "new" isn't a change the learner caused.
   have. `Pointers` are the variable itself (on the head) and then the recorded pointers, each `Moved` when it holds a different node (or
   None) than before.
 - **Trees** (`TreeView`): `Nodes` are `TreeNodeView`s with their place, `Column` (an in-order count across the drawing) and `Depth`,
-  and `Tree`, which tree they belong to (0 is the one from the root; each detached tree after it is another). The layout claims nodes by a
+  and `Tree`, which tree they belong to (0 is the one from the root and only that one: when the root is None, a subtree a pointer holds
+  is still detached, numbered from 1). The layout claims nodes by a
   breadth-first walk from the root, then from the first recorded node not yet claimed; a link is `Child` (drawn as an edge), `Elsewhere`
   (a node already claimed: a shared child or a cycle), `More` (a node not recorded) or `None`. Compared by id with the step before:
   `Added` a node it didn't have, `Changed` one whose value differs, and `JustVisited` one newly marked or renumbered. `Pointers` are the
@@ -358,7 +359,8 @@ being "new" isn't a change the learner caused.
 - A tree (`TraceTree.razor`) is an SVG in a sideways scroll box, its sizes in rem. Each node is a `<g>` keyed by its id and placed with a
   CSS transform, so it slides; an added node grows in (`animate-cell-in`), a changed value flashes (`animate-cell-flash`, keyed by step)
   and a new visit badge pops (`animate-pop`). An edge is keyed by its two ends' places and has `pathLength="1"`, so a new or moved edge
-  draws itself in (`animate-link-in`). Visited nodes are filled with the accent tint; pointer names stack in rows under their node. The
+  draws itself in (`animate-link-in`). Visited nodes are filled with the accent tint; pointer names stack in rows under their node, and a name wider than the leftmost
+  node's column moves the drawing's left edge rather than being cut off. The
   SVG's label reads the tree level by level for a screen reader.
 - The call stack (`TraceCallStack.razor`) is a column of frames drawn bottom up, in user units sized in rem, as wide as its longest call
   and returned value, scrolling sideways (and up and down, at most 30rem) on a phone. Each frame is a `<g>` keyed by its id and placed with
