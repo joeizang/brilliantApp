@@ -1,0 +1,539 @@
+id: lesson.pattern-two-heaps
+title: "Pattern: two heaps"
+concepts:
+  - id: concept.two-heaps-halves
+    title: "A max-heap holds the lower half and a min-heap the upper half: the median sits at their roots"
+  - id: concept.two-heaps-invariant
+    title: "Keep every lower item <= every upper item, and the sizes within one, by passing each new item through"
+  - id: concept.two-heaps-two-orders
+    title: "Two heaps can also hold two different orders: what's allowed yet, and the best of what's allowed"
+reviewItems:
+  - id: review.two-heaps.predict-medians
+    concept: concept.two-heaps-halves
+    step: step.two-heaps.predict-medians
+  - id: review.two-heaps.invariant
+    concept: concept.two-heaps-invariant
+    step: step.two-heaps.check-invariant
+  - id: review.two-heaps.predict-bug
+    concept: concept.two-heaps-invariant
+    step: step.two-heaps.predict-bug
+  - id: review.two-heaps.why-not-sorted
+    concept: concept.two-heaps-halves
+    step: step.two-heaps.check-why-not-sorted
+  - id: review.two-heaps.which-problem
+    concept: concept.two-heaps-halves
+    step: step.two-heaps.check-which-problem
+    kind: pattern
+  - id: review.two-heaps.cue
+    concept: concept.two-heaps-two-orders
+    step: step.two-heaps.check-cue
+    kind: pattern
+  - id: review.two-heaps.once
+    concept: concept.two-heaps-halves
+    step: step.two-heaps.check-once
+    kind: pattern
+patterns:
+  - id: pattern.two-heaps
+    title: Split the items between two heaps, and read the answer from their roots
+steps:
+  - id: step.two-heaps.idea
+    type: explain
+    title: The middle of a stream
+    body: |
+      Numbers arrive one at a time, and after each one you need the **median**: the middle value, or the average of the two
+      middle values when the count is even.
+
+      Picture the numbers sorted and cut in half. The median depends only on the **largest of the lower half** and the
+      **smallest of the upper half**. Those are exactly what heaps give in O(1):
+
+      - `lower`: a **max-heap** (negated in `heapq`) of the smaller half. Its root is the largest of them.
+      - `upper`: a **min-heap** of the larger half. Its root is the smallest of them.
+
+      Keep two rules, and the median is always at the roots:
+
+      1. **Every item in `lower` is `<=` every item in `upper`.**
+      2. **The sizes differ by at most one**, with `lower` allowed the extra one.
+
+      Then with an odd count the median is `lower`'s root; with an even count, the average of the two roots. Adding a number
+      costs O(log n), and reading the median O(1).
+    comparison:
+      csharp: |
+        var lower = new PriorityQueue<int, int>(
+            Comparer<int>.Create((a, b) => b.CompareTo(a)));
+        var upper = new PriorityQueue<int, int>();
+
+        void Add(int x)
+        {
+            lower.Enqueue(x, x);
+            int top = lower.Dequeue();
+            upper.Enqueue(top, top);
+            if (upper.Count > lower.Count)
+            {
+                int low = upper.Dequeue();
+                lower.Enqueue(low, low);
+            }
+        }
+
+        double Median() => lower.Count > upper.Count
+            ? lower.Peek()
+            : (lower.Peek() + upper.Peek()) / 2.0;
+      python: |
+        import heapq
+
+        lower = []  # max-heap, values negated
+        upper = []  # min-heap
+
+
+        def add(x):
+            heapq.heappush(lower, -x)
+            heapq.heappush(upper, -heapq.heappop(lower))
+            if len(upper) > len(lower):
+                heapq.heappush(lower, -heapq.heappop(upper))
+
+
+        def median():
+            if len(lower) > len(upper):
+                return -lower[0]
+            return (-lower[0] + upper[0]) / 2
+  - id: step.two-heaps.add
+    type: explain
+    title: Pass it through
+    body: |
+      The simplest way to keep rule 1 is to send every new number **through both heaps**:
+
+      1. Push it onto `lower`.
+      2. Pop `lower`'s largest and push that onto `upper`. Whatever was largest in the lower half now sits in the upper
+         half, so nothing in `lower` is bigger than anything in `upper`.
+      3. If `upper` is now bigger than `lower`, pop `upper`'s smallest back onto `lower`. That fixes rule 2, and the
+         smallest of the upper half is still no smaller than anything in `lower`.
+
+      Three or four heap operations per number, each O(log n). It looks like extra work, but it's what stops a new number
+      from landing in the wrong half.
+  - id: step.two-heaps.trace-add
+    type: trace
+    title: Medians as numbers arrive
+    body: |
+      `lower` shows its values negated, so `-5` means `5`. After each number, compare the two roots with `medians`. When `1`
+      arrives, it passes through `lower`, `5` is pushed up into `upper`, and then, with `upper` too big, `5` comes back.
+    code: |
+      import heapq
+
+      lower, upper = [], []
+      medians = []
+      for x in [5, 15, 1, 3, 8]:
+          heapq.heappush(lower, -x)
+          heapq.heappush(upper, -heapq.heappop(lower))
+          if len(upper) > len(lower):
+              heapq.heappush(lower, -heapq.heappop(upper))
+          if len(lower) > len(upper):
+              medians.append(-lower[0])
+          else:
+              medians.append((-lower[0] + upper[0]) / 2)
+    visualise:
+      - variable: lower
+        as: heap
+        max: true
+      - variable: upper
+        as: heap
+      - variable: medians
+        as: array
+  - id: step.two-heaps.predict-medians
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      Using the same two-heap code, what does it print?
+    code: |
+      import heapq
+
+      lower, upper = [], []
+      medians = []
+      for x in [2, 8, 4, 6, 1]:
+          heapq.heappush(lower, -x)
+          heapq.heappush(upper, -heapq.heappop(lower))
+          if len(upper) > len(lower):
+              heapq.heappush(lower, -heapq.heappop(upper))
+          if len(lower) > len(upper):
+              medians.append(-lower[0])
+          else:
+              medians.append((-lower[0] + upper[0]) / 2)
+      print(*medians)
+    accepted:
+      - "2 5.0 4 5.0 4"
+    mistakes:
+      - answers:
+          - "2 5 4 5 4"
+        feedback: "With an even count the code averages with `/ 2`, and `/` always gives a float: `5.0`."
+      - answers:
+          - "2 5.0 4 6.0 4"
+          - "2 5.0 4 5.0 6"
+        feedback: "Sort what has arrived each time. After `2, 8, 4, 6` the middle two are `4` and `6`: `5.0`. After `1` as well, the middle of `1, 2, 4, 6, 8` is `4`."
+      - answers:
+          - "2 8 4 6 1"
+        feedback: "That's the input. The code appends the median of everything so far after each number."
+    hints:
+      - "Sort the numbers so far after each one, and take the middle."
+  - id: step.two-heaps.check-invariant
+    type: choice
+    title: The two rules
+    prompt: |
+      Why must every item in `lower` be `<=` every item in `upper`?
+    options:
+      - text: "So the two roots are the two middle values of everything seen; otherwise a root could be far from the middle."
+        correct: true
+        feedback: "Right. The roots are the edges of the two halves only if the halves don't overlap. Mix them, and the roots stop being the middle."
+      - text: "So the heaps stay the same size."
+        correct: false
+        feedback: "That's the other rule. Two heaps of equal size can still have their items in the wrong halves."
+      - text: "Because `heapq` raises an error otherwise."
+        correct: false
+        feedback: "`heapq` knows nothing about the other heap. Break the rule and the code runs, giving wrong medians."
+      - text: "So `lower` can be a min-heap too."
+        correct: false
+        feedback: "`lower` must give its **largest** item, so it's a max-heap whatever happens."
+    hints:
+      - "What do the roots stand for if the halves are mixed up?"
+  - id: step.two-heaps.predict-bug
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      This version skips passing each number through. It just takes turns: `lower` when it isn't bigger, otherwise
+      `upper`. What does it print?
+    code: |
+      import heapq
+
+      lower, upper = [], []
+      medians = []
+      for x in [1, 2, 3, 4, 5]:
+          if len(lower) <= len(upper):
+              heapq.heappush(lower, -x)
+          else:
+              heapq.heappush(upper, x)
+          if len(lower) > len(upper):
+              medians.append(-lower[0])
+          else:
+              medians.append((-lower[0] + upper[0]) / 2)
+      print(*medians)
+    accepted:
+      - "1 1.5 3 2.5 5"
+    mistakes:
+      - answers:
+          - "1 1.5 2 2.5 3"
+        feedback: "Those are the real medians, but this version gets them wrong. `3` goes into `lower`, which then holds `1, 3` while `upper` holds `2`: the halves overlap, and the root of `lower` is `3`."
+      - answers:
+          - "1 2 3 4 5"
+        feedback: "The code appends a median after each number, averaging the roots when the sizes are equal: after `1, 2` that's `1.5`."
+    hints:
+      - "Write both heaps after each number. `1` goes to `lower`, `2` to `upper`, `3` to `lower`..."
+  - id: step.two-heaps.check-why-not-sorted
+    type: choice
+    title: Why not a sorted list?
+    prompt: |
+      Someone keeps the numbers in a sorted list with `bisect.insort`, and reads the middle. Why are two heaps better for a
+      long stream?
+    options:
+      - text: "`insort` finds the place in O(log n) but shifts the items after it, O(n) per number; a heap push is O(log n)."
+        correct: true
+        feedback: "Right. `n` numbers cost O(n²) with the sorted list and O(n log n) with two heaps."
+      - text: "`insort` gives the wrong median when there are duplicates."
+        correct: false
+        feedback: "Duplicates are fine: the sorted list is correct. It's the shifting on every insert that makes it slow."
+      - text: "A sorted list can't find the middle item."
+        correct: false
+        feedback: "It can, in O(1): `items[len(items) // 2]`. The cost is in keeping it sorted."
+      - text: "There's no difference."
+        correct: false
+        feedback: "Each insert into a Python list shifts everything after it. For a million numbers that's around 10¹¹ moves, against about 2 × 10⁷ heap steps."
+    hints:
+      - "What does inserting into the middle of a Python list cost?"
+  - id: step.two-heaps.other
+    type: explain
+    title: Two heaps, two orders
+    body: |
+      Two heaps also help when items have **two different orders** that matter at different times.
+
+      *You can start projects whose capital is at most your money `w`; each finished project adds its profit to `w`. Pick at
+      most `k` projects to end with the most money.*
+
+      Greedy works: each time, start the most profitable project you can afford. But "affordable" changes as `w` grows. So:
+
+      - A **min-heap by capital** (or the projects sorted by capital) holds the ones you **can't afford yet**. As `w` grows,
+        pop every project whose capital is now `<= w`...
+      - ...and push it onto a **max-heap by profit** of the ones you **can**. Its root is the next to start.
+
+      The cue for two heaps: **a middle** (median, balancing two halves), or **"best of what's allowed so far"** where what's
+      allowed keeps growing.
+  - id: step.two-heaps.check-which-problem
+    type: choice
+    title: Which one needs two heaps?
+    prompt: |
+      Which of these is the best fit for two heaps?
+    options:
+      - text: "Sensor readings stream in; after each one, show the median reading so far."
+        correct: true
+        feedback: "Right. A median that must be ready after every arrival: a max-heap of the lower half and a min-heap of the upper."
+      - text: "Show the highest reading so far, after each one."
+        correct: false
+        feedback: "That's a running `max`: one variable, O(1) per reading."
+      - text: "Show the 5 highest readings so far."
+        correct: false
+        feedback: "That's top-K: one min-heap of size 5."
+      - text: "Merge the readings from 20 sensors, each sorted by time."
+        correct: false
+        feedback: "That's a k-way merge: one heap of 20 heads."
+    hints:
+      - "Which one needs the middle?"
+  - id: step.two-heaps.check-cue
+    type: choice
+    title: Read the cue
+    prompt: |
+      *"Tasks become available at given times. Whenever the machine is free, it runs the **shortest** available task."* How
+      many heaps, and what order?
+    options:
+      - text: "Two: tasks sorted (or in a min-heap) by when they become available, and a min-heap by length of the ones available now."
+        correct: true
+        feedback: "Right. One order decides what's allowed (arrival), the other picks the best of what's allowed (length)."
+      - text: "One min-heap by length, holding every task from the start."
+        correct: false
+        feedback: "That could pick a short task that isn't available yet. The arrival order has to gate what goes in."
+      - text: "One min-heap by arrival time."
+        correct: false
+        feedback: "That runs tasks first come, first served, not shortest first."
+      - text: "A max-heap and a min-heap of lengths, for the median length."
+        correct: false
+        feedback: "Nothing asks for a middle here. It's two different orders: arrival, then length."
+    hints:
+      - "What decides whether a task can be chosen, and what decides which one is chosen?"
+  - id: step.two-heaps.check-once
+    type: choice
+    title: Just once?
+    prompt: |
+      You have a list of a million numbers, all in memory, and need its median **once**. What's sensible?
+    options:
+      - text: "Sort it and take the middle: O(n log n), one line."
+        correct: true
+        feedback: "Right. Two heaps are for a median that must be ready after **every** new number. For one answer, sort (or use `statistics.median`)."
+      - text: "Two heaps, adding the numbers one by one."
+        correct: false
+        feedback: "That works, but it's also O(n log n), with more code and slower constants. The heaps pay off only for a stream."
+      - text: "A size-k heap with `k = n // 2`."
+        correct: false
+        feedback: "That's top-K with a huge `k`. Sorting is simpler and as fast."
+      - text: "Binary search the list for the median."
+        correct: false
+        feedback: "The list isn't sorted, so there's nothing to binary search."
+    hints:
+      - "Is anything arriving over time?"
+  - id: step.two-heaps.fill-add
+    type: fill-blank
+    title: Add a number
+    pattern: pattern.two-heaps
+    patternCue: "\"The median after each number\": a max-heap of the lower half and a min-heap of the upper half."
+    prompt: |
+      Fill in the blanks so that `add(lower, upper, x)` adds `x` and keeps both rules: every value in `lower` (stored
+      negated) is `<=` every value in `upper`, and `lower` holds as many as `upper` or one more.
+    template: |
+      import heapq
+
+
+      def add(lower, upper, x):
+          heapq.heappush(lower, -x)
+          heapq.heappush(upper, {{move}})
+          if {{too-big}}:
+              heapq.heappush(lower, -heapq.heappop(upper))
+    blanks:
+      - id: move
+        accepted:
+          - "-heapq.heappop(lower)"
+        mistakes:
+          - answers:
+              - "heapq.heappop(lower)"
+            feedback: "`lower` stores values negated. Negate the popped value back before it goes into `upper`."
+          - answers:
+              - "x"
+              - "-x"
+            feedback: "Push `lower`'s largest into `upper`, not `x` itself: that's what keeps every lower value `<=` every upper value."
+      - id: too-big
+        accepted:
+          - "len(upper) > len(lower)"
+          - "len(lower) < len(upper)"
+        mistakes:
+          - answers:
+              - "len(upper) >= len(lower)"
+              - "len(lower) <= len(upper)"
+            feedback: "With equal sizes nothing needs to move. Move only when `upper` has more."
+          - answers:
+              - "len(lower) > len(upper)"
+              - "len(upper) < len(lower)"
+            feedback: "`lower` is allowed the extra one. It's `upper` getting bigger that breaks the rule."
+    hints:
+      - "Step 2 moves the largest of the lower half into the upper half."
+      - "Step 3 moves one back if `upper` now has more."
+  - id: step.two-heaps.order-median
+    type: parsons
+    title: Read the median
+    pattern: pattern.two-heaps
+    patternCue: "\"The median so far\": the root of the bigger half, or the average of both roots."
+    prompt: |
+      Arrange the lines into `median(lower, upper)`, which reads the median from the two heaps: `lower` a max-heap of
+      negated values holding as many as `upper` or one more, and `upper` a min-heap. Both together hold at least one value.
+    solution: |
+      def median(lower, upper):
+          if len(lower) > len(upper):
+              return -lower[0]
+          return (-lower[0] + upper[0]) / 2
+    hints:
+      - "An odd count means `lower` has the extra one."
+      - "Remember that `lower` stores its values negated."
+  - id: step.two-heaps.write-running
+    type: write-code
+    largeScreenPreferred: true
+    title: The running median
+    pattern: pattern.two-heaps
+    patternCue: "\"The median after each number\": two heaps, each number passed through lower into upper and balanced back."
+    prompt: |
+      Write `running_median(nums)` that returns a list with the median of `nums[:1]`, `nums[:2]`, and so on. With an even
+      count, the median is the average of the middle two (`/ 2`). Each step should cost O(log n): use two heaps.
+
+      `running_median([5, 15, 1, 3])` is `[5, 10.0, 5, 4.0]`.
+    language: python
+    entrypoint: running_median
+    starter: |
+      import heapq
+
+
+      def running_median(nums):
+          pass
+    solution: |
+      import heapq
+
+
+      def running_median(nums):
+          lower, upper = [], []
+          result = []
+          for x in nums:
+              heapq.heappush(lower, -x)
+              heapq.heappush(upper, -heapq.heappop(lower))
+              if len(upper) > len(lower):
+                  heapq.heappush(lower, -heapq.heappop(upper))
+              if len(lower) > len(upper):
+                  result.append(-lower[0])
+              else:
+                  result.append((-lower[0] + upper[0]) / 2)
+          return result
+    tests:
+      - input: "[5, 15, 1, 3]"
+        expected: "[5, 10.0, 5, 4.0]"
+      - input: "[1, 2, 3, 4, 5]"
+        expected: "[1, 1.5, 2, 2.5, 3]"
+      - input: "[]"
+        expected: "[]"
+      - input: "[7]"
+        expected: "[7]"
+      - input: "[4, 4, 4, 1]"
+        expected: "[4, 4.0, 4, 4.0]"
+      - input: "[10, -10, 3, 3, -1, 8]"
+        expected: "[10, 0.0, 3, 3.0, 3, 3.0]"
+    hints:
+      - "`lower` is a max-heap of negated values, `upper` a min-heap."
+      - "For each number: push onto `lower`, move `lower`'s largest to `upper`, and move one back if `upper` is bigger."
+      - "Then read the median from the roots."
+    walkthrough:
+      call: result = running_median([5, 15, 1, 3])
+      visualise:
+        - variable: lower
+          as: heap
+          max: true
+        - variable: upper
+          as: heap
+        - variable: result
+          as: array
+      explanation: |
+        `5` passes through `lower` into `upper` and back: median `5`. `15` passes through `lower` and stays in `upper`: the
+        roots are `5` and `15`, median `10.0`. `1` pushes `5` up, then `5` comes back down: `lower` holds `5, 1`, median
+        `5`. `3` pushes `5` into `upper`: roots `3` and `5`, median `4.0`.
+  - id: step.two-heaps.write-projects
+    type: write-code
+    largeScreenPreferred: true
+    title: Pick the projects
+    pattern: pattern.two-heaps
+    patternCue: "\"The most profitable project you can afford, as your money grows\": projects by capital gate a max-heap by profit."
+    prompt: |
+      You start with money `w`. Project `i` needs `capital[i]` to start (it isn't spent) and adds `profits[i]` to your money
+      when done. Do at most `k` projects, one after another. Write `max_money(k, w, profits, capital)` that returns the most
+      money you can end with.
+
+      `max_money(2, 0, [1, 2, 3], [0, 1, 1])` is `4`: only project `0` is affordable at first (`w` becomes `1`); then project
+      `2`, the most profitable affordable one (`w` becomes `4`).
+    language: python
+    entrypoint: max_money
+    starter: |
+      import heapq
+
+
+      def max_money(k, w, profits, capital):
+          pass
+    solution: |
+      import heapq
+
+
+      def max_money(k, w, profits, capital):
+          waiting = sorted(zip(capital, profits))
+          ready = []
+          i = 0
+          for _ in range(k):
+              while i < len(waiting) and waiting[i][0] <= w:
+                  heapq.heappush(ready, -waiting[i][1])
+                  i += 1
+              if not ready:
+                  break
+              w -= heapq.heappop(ready)
+          return w
+    tests:
+      - input: "2, 0, [1, 2, 3], [0, 1, 1]"
+        expected: "4"
+      - input: "3, 0, [1, 2, 3], [0, 1, 2]"
+        expected: "6"
+      - input: "1, 0, [5], [1]"
+        expected: "0"
+      - input: "5, 10, [1, 2], [0, 0]"
+        expected: "13"
+      - input: "2, 1, [5, 9, 1], [1, 6, 0]"
+        expected: "15"
+    hints:
+      - "Sort the projects by capital. Those are the ones waiting to become affordable."
+      - "Before each pick, move every project you can now afford into a max-heap by profit (negated)."
+      - "Pop the most profitable and add its profit. If nothing is affordable, stop."
+    walkthrough:
+      call: result = max_money(2, 0, [1, 2, 3], [0, 1, 1])
+      visualise:
+        - variable: ready
+          as: heap
+          max: true
+      explanation: |
+        With `w = 0`, only the project needing `0` is ready: profit `1`, so `w = 1`. Now the two needing `1` become ready,
+        profits `2` and `3` (stored as `-2`, `-3`). The root is `-3`, so `w = 4`. Two projects done.
+    phoneAlternative:
+      id: step.two-heaps.write-projects.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `max_money(k, w, profits, capital)`: do at most `k` projects, each time the most profitable one whose capital
+        is at most `w`, adding its profit to `w`. Arrange the lines instead of typing them.
+      solution: |
+        import heapq
+
+
+        def max_money(k, w, profits, capital):
+            waiting = sorted(zip(capital, profits))
+            ready = []
+            i = 0
+            for _ in range(k):
+                while i < len(waiting) and waiting[i][0] <= w:
+                    heapq.heappush(ready, -waiting[i][1])
+                    i += 1
+                if not ready:
+                    break
+                w -= heapq.heappop(ready)
+            return w
+      hints:
+        - "Projects move from `waiting` (sorted by capital) into `ready` (a max-heap by profit) as `w` grows."

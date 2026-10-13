@@ -1,0 +1,542 @@
+id: lesson.choosing-search-heap-patterns
+title: "Choosing the pattern: binary search and heaps"
+concepts:
+  - id: concept.pick-search-heap-pattern
+    title: Reading the clues for binary search and heap patterns
+  - id: concept.combine-search-heap-patterns
+    title: Combining sorting with a heap in one solution
+reviewItems:
+  - id: review.choose-search-heap.first-bad
+    concept: concept.pick-search-heap-pattern
+    step: step.choose-search-heap.check-first-bad
+    kind: pattern
+  - id: review.choose-search-heap.logs
+    concept: concept.pick-search-heap-pattern
+    step: step.choose-search-heap.check-logs
+    kind: pattern
+  - id: review.choose-search-heap.stores
+    concept: concept.pick-search-heap-pattern
+    step: step.choose-search-heap.check-stores
+    kind: pattern
+  - id: review.choose-search-heap.trucks
+    concept: concept.pick-search-heap-pattern
+    step: step.choose-search-heap.check-trucks
+    kind: pattern
+  - id: review.choose-search-heap.not-a-heap
+    concept: concept.pick-search-heap-pattern
+    step: step.choose-search-heap.check-not-a-heap
+    kind: pattern
+  - id: review.choose-search-heap.predict-rooms
+    concept: concept.combine-search-heap-patterns
+    step: step.choose-search-heap.predict-rooms
+  - id: review.choose-search-heap.why-sort
+    concept: concept.combine-search-heap-patterns
+    step: step.choose-search-heap.check-why-sort
+steps:
+  - id: step.choose-search-heap.clues
+    type: explain
+    title: Read the question first
+    body: |
+      This track added seven patterns. Look for the clue in the question:
+
+      | If the question says... | Reach for |
+      | --- | --- |
+      | find a value in a **sorted** list, or say where it would go | **binary search** |
+      | the *first* or *last* position where something becomes true, in sorted data | **binary search for a boundary** |
+      | the *smallest* or *largest* setting (speed, capacity, size) that still works, where a bigger one always works too | **binary search on the answer** |
+      | repeatedly take the *smallest* (or largest), combine, put back | **a heap: repeated min** |
+      | the *k* largest, smallest, closest, most frequent | **top-K with a heap of size k** |
+      | *merge* many sorted lists, streams or files | **k-way merge: a heap of heads** |
+      | the *median* as items arrive, or the best of what's *allowed so far* | **two heaps** |
+
+      Two warnings. Binary search needs **sorted data or a yes/no that flips once**; without that, it gives wrong answers
+      without any error. And a heap is for **repeated** smallest-or-largest; if you need it once, `min()`, `max()` or
+      `sorted()` is simpler.
+  - id: step.choose-search-heap.check-first-bad
+    type: choice
+    title: The broken build
+    prompt: |
+      *Builds are numbered 1 to n. One build broke the tests, and every build after it is broken too. `is_broken(b)` takes a
+      minute to run. Find the first broken build.* Which pattern fits?
+    options:
+      - text: "Binary search for a boundary: the answer flips from false to true once."
+        correct: true
+        feedback: "Right. Around log₂ n calls to `is_broken` instead of n: 20 minutes for a million builds rather than two years."
+      - text: "Plain binary search for a value."
+        correct: false
+        feedback: "There's no value to look for: every broken build is `True`. You want the **first** one, which is a boundary."
+      - text: "A heap of the builds, popping the smallest."
+        correct: false
+        feedback: "The builds are already in order. A heap would still need to test them one by one."
+      - text: "Test every build from 1 until one breaks."
+        correct: false
+        feedback: "Correct, but up to n minutes. The results flip once, so you can halve the range each time."
+    hints:
+      - "Write `is_broken` for builds 1 to n. What does the list look like?"
+  - id: step.choose-search-heap.check-logs
+    type: choice
+    title: Many logs, one timeline
+    prompt: |
+      *Forty servers each write a log sorted by time. Build one timeline of all the entries, in order, without loading
+      everything at once.* Which pattern fits?
+    options:
+      - text: "K-way merge: a heap holding the next entry from each log."
+        correct: true
+        feedback: "Right. Forty heads in the heap, one entry out and the next from that log in: O(log 40) per entry, little memory."
+      - text: "Top-K with k = 40."
+        correct: false
+        feedback: "You want every entry in order, not the 40 best."
+      - text: "Two heaps."
+        correct: false
+        feedback: "Nothing asks for a middle or for two orders. It's many sorted sequences into one."
+      - text: "Read them all into one list and sort it."
+        correct: false
+        feedback: "That loads everything at once, which the question rules out, and ignores that each log is already sorted."
+    hints:
+      - "Each log is already sorted. What's the only entry of each that could be next?"
+  - id: step.choose-search-heap.check-stores
+    type: choice
+    title: The nearest stores
+    prompt: |
+      *A map has a million stores. Show the 10 closest to the user.* Which pattern fits?
+    options:
+      - text: "Top-K: a heap holding the 10 closest seen so far."
+        correct: true
+        feedback: "Right. O(n log 10), with only 10 stores kept at a time (or `heapq.nsmallest(10, ...)`)."
+      - text: "Binary search on the distance."
+        correct: false
+        feedback: "The stores aren't sorted by distance from this user, so there's nothing to halve."
+      - text: "K-way merge."
+        correct: false
+        feedback: "There are no sorted lists to merge, just one big unsorted one."
+      - text: "Two heaps for the median distance."
+        correct: false
+        feedback: "Nobody asked for the middle: it's the 10 smallest."
+    hints:
+      - "\"The 10 closest\": k smallest of many."
+  - id: step.choose-search-heap.check-trucks
+    type: choice
+    title: Enough trucks
+    prompt: |
+      *Parcels, in a fixed order, go onto trucks that leave one after another. Each truck takes the next parcels in order
+      while their weight fits its capacity. With at most `d` trucks, what's the smallest capacity that works?* Which pattern
+      fits?
+    options:
+      - text: "Binary search on the answer: try a capacity, count the trucks, and halve the range."
+        correct: true
+        feedback: "Right. A bigger capacity never needs more trucks, so \"fits in `d` trucks\" flips from false to true once."
+      - text: "A heap: put each parcel on the emptiest truck."
+        correct: false
+        feedback: "The parcels must stay in order, truck after truck. A heap would load them out of order."
+      - text: "Top-K of the heaviest parcels."
+        correct: false
+        feedback: "The heaviest parcel sets a lower bound, but the answer depends on how the rest group together."
+      - text: "Sort the parcels by weight first."
+        correct: false
+        feedback: "The order is fixed. Sorting changes the problem."
+    hints:
+      - "The question asks for the *smallest* capacity that *works*. Does a bigger one always work?"
+  - id: step.choose-search-heap.check-not-a-heap
+    type: choice
+    title: Do you need a heap?
+    prompt: |
+      *Given today's temperatures, report the coldest.* Which is best?
+    options:
+      - text: "`min(temps)`: one pass, O(n)."
+        correct: true
+        feedback: "Right. A heap is for taking the smallest **again and again**. Once, `min()` does it."
+      - text: "`heapq.heapify(temps)` and read `temps[0]`."
+        correct: false
+        feedback: "It works and it's O(n) too, but it rearranges the list and says less clearly what you mean."
+      - text: "Sort and take the first: O(n log n)."
+        correct: false
+        feedback: "Correct, but it sorts everything to find one item."
+      - text: "Binary search."
+        correct: false
+        feedback: "The temperatures aren't sorted, so binary search would give a wrong answer."
+    hints:
+      - "How many times do you need the smallest?"
+  - id: step.choose-search-heap.combine
+    type: explain
+    title: Sort, then heap
+    body: |
+      Some problems need two tools. *Given meetings as `(start, end)`, how many rooms do you need so none overlap?*
+
+      Take the meetings in order of **start** (sort them). For each one you need to know: has any room come free? The room
+      that frees **first** is the one with the **earliest end**, so keep the end times of the rooms in a **min-heap**.
+
+      - If the earliest end is `<=` this meeting's start, that room is free: replace its end with this meeting's end.
+      - Otherwise every room is busy: push this end, which adds a room.
+
+      The heap never shrinks, so at the end its size is the number of rooms. Sorting costs O(n log n), and each meeting one
+      heap operation, O(log n).
+    comparison:
+      csharp: |
+        int MinRooms((int Start, int End)[] meetings)
+        {
+            var ends = new PriorityQueue<int, int>();
+            foreach (var (start, end) in meetings.OrderBy(m => m.Start))
+            {
+                if (ends.Count > 0 && ends.Peek() <= start)
+                    ends.Dequeue();
+                ends.Enqueue(end, end);
+            }
+            return ends.Count;
+        }
+      python: |
+        import heapq
+
+
+        def min_rooms(meetings):
+            ends = []
+            for start, end in sorted(meetings):
+                if ends and ends[0] <= start:
+                    heapq.heapreplace(ends, end)
+                else:
+                    heapq.heappush(ends, end)
+            return len(ends)
+  - id: step.choose-search-heap.trace-rooms
+    type: trace
+    title: Rooms as meetings start
+    body: |
+      Watch `ends`, one end time per room. The meeting `(7, 9)` starts after the earliest end, `4`, so it takes that room
+      instead of adding one.
+    code: |
+      import heapq
+
+      meetings = [(1, 4), (2, 5), (7, 9), (3, 6)]
+      ends = []
+      for start, end in sorted(meetings):
+          if ends and ends[0] <= start:
+              heapq.heapreplace(ends, end)
+          else:
+              heapq.heappush(ends, end)
+      rooms = len(ends)
+    visualise:
+      - variable: ends
+        as: heap
+  - id: step.choose-search-heap.predict-rooms
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      What does this print?
+    code: |
+      import heapq
+
+      meetings = [(0, 30), (5, 10), (15, 20), (10, 15), (25, 35)]
+      ends = []
+      for start, end in sorted(meetings):
+          if ends and ends[0] <= start:
+              heapq.heapreplace(ends, end)
+          else:
+              heapq.heappush(ends, end)
+      print(len(ends), sorted(ends))
+    accepted:
+      - "2 [30, 35]"
+    mistakes:
+      - answers:
+          - "3 [15, 30, 35]"
+          - "3 [20, 30, 35]"
+        feedback: "`(10, 15)` starts exactly when `(5, 10)` ends, and the test is `<=`, so it reuses that room. So does `(15, 20)`."
+      - answers:
+          - "5 [10, 15, 20, 30, 35]"
+        feedback: "A room is reused whenever the earliest end is `<=` the start. Only `(0, 30)` and one other room are ever busy at once."
+      - answers:
+          - "2 [20, 30]"
+        feedback: "`(25, 35)` starts after `20`, so it replaces the `20` with `35`."
+    hints:
+      - "Sorted by start: `(0, 30), (5, 10), (10, 15), (15, 20), (25, 35)`. Track `ends` through each."
+  - id: step.choose-search-heap.check-why-sort
+    type: choice
+    title: Why sort first?
+    prompt: |
+      Why does the room count need the meetings sorted by start?
+    options:
+      - text: "So when a meeting is placed, every meeting that starts earlier has been placed, and a room freed by its end is really free."
+        correct: true
+        feedback: "Right. Out of order, a room could look free at time 7 and then be needed by a meeting starting at 2."
+      - text: "Because `heapq` only accepts sorted input."
+        correct: false
+        feedback: "`heapq` accepts pushes in any order. The sorting is for the logic, not the heap."
+      - text: "So the heap stays small."
+        correct: false
+        feedback: "The heap holds one end per room whatever the order. Sorting is about getting the count right."
+      - text: "It doesn't: any order gives the same count."
+        correct: false
+        feedback: "Try `(7, 9)` then `(1, 4)`: `(1, 4)` would find `9` in the heap, add a room, and miss that `(7, 9)` could share."
+    hints:
+      - "What could go wrong if a later-starting meeting were placed first?"
+  - id: step.choose-search-heap.fill-rooms
+    type: fill-blank
+    title: Count the rooms
+    pattern: pattern.heap-repeated-min
+    patternCue: "\"Which room frees first?\", again and again: a min-heap of end times."
+    prompt: |
+      Fill in the blanks so that `min_rooms(meetings)` returns how many rooms the `(start, end)` meetings need. A meeting may
+      start in a room at the moment another ends there.
+    template: |
+      import heapq
+
+
+      def min_rooms(meetings):
+          ends = []
+          for start, end in {{order}}:
+              if ends and {{free}}:
+                  heapq.heapreplace(ends, end)
+              else:
+                  heapq.heappush(ends, end)
+          return len(ends)
+    blanks:
+      - id: order
+        accepted:
+          - "sorted(meetings)"
+        mistakes:
+          - answers:
+              - "meetings"
+            feedback: "The meetings must be taken in order of start, or a room can look free too early."
+          - answers:
+              - "sorted(meetings, reverse=True)"
+            feedback: "Latest first breaks the logic: rooms free up as time moves forward."
+      - id: free
+        accepted:
+          - "ends[0] <= start"
+          - "start >= ends[0]"
+        mistakes:
+          - answers:
+              - "ends[0] < start"
+              - "start > ends[0]"
+            feedback: "A meeting may start the moment another ends, so equal times free the room: `<=`."
+          - answers:
+              - "ends[-1] <= start"
+              - "max(ends) <= start"
+            feedback: "You need the room that frees **first**, the heap's root `ends[0]`."
+    hints:
+      - "Take the meetings in order of start."
+      - "The room that frees first has the earliest end."
+  - id: step.choose-search-heap.order-split
+    type: parsons
+    title: Split the list
+    pattern: pattern.binary-search-on-answer
+    patternCue: "\"The smallest largest sum that still fits in k groups\": a bigger limit never needs more groups."
+    prompt: |
+      Arrange the lines into `split_array(nums, k)`: split the non-negative `nums` into at most `k` runs of consecutive items
+      (`1 <= k <= len(nums)`), making the largest run sum as small as possible, and return it.
+      `split_array([7, 2, 5, 10, 8], 2)` is `18`: `[7, 2, 5]` and `[10, 8]`.
+    solution: |
+      def split_array(nums, k):
+          def groups(limit):
+              count, total = 1, 0
+              for x in nums:
+                  if total + x > limit:
+                      count += 1
+                      total = 0
+                  total += x
+              return count
+
+          lo, hi = max(nums), sum(nums)
+          while lo < hi:
+              mid = (lo + hi) // 2
+              if groups(mid) <= k:
+                  hi = mid
+              else:
+                  lo = mid + 1
+          return lo
+    hints:
+      - "`groups(limit)` counts runs greedily: start a new one when the next item would go over."
+      - "The answer is between `max(nums)` and `sum(nums)`. Keep `mid` when it fits, so `hi = mid`."
+  - id: step.choose-search-heap.write-climb
+    type: write-code
+    largeScreenPreferred: true
+    title: How far can you climb?
+    pattern: pattern.top-k
+    patternCue: "\"Save the ladders for the biggest climbs\": keep the `ladders` largest climbs in a min-heap, pay bricks for the rest."
+    prompt: |
+      You walk from building `0` along `heights`. Going down or level is free. Going up by `d` costs either `d` bricks or one
+      ladder. Write `furthest(heights, bricks, ladders)` that returns the index of the furthest building you can reach.
+
+      `furthest([4, 2, 7, 6, 9, 14, 12], 5, 1)` is `4`: the climbs are `5`, `3` and `5`. The ladder and the 5 bricks cover
+      two of them, at best a `5` and the `3`, but not the third, so you stop at building `4`.
+    language: python
+    entrypoint: furthest
+    starter: |
+      import heapq
+
+
+      def furthest(heights, bricks, ladders):
+          pass
+    solution: |
+      import heapq
+
+
+      def furthest(heights, bricks, ladders):
+          climbs = []
+          for i in range(len(heights) - 1):
+              d = heights[i + 1] - heights[i]
+              if d <= 0:
+                  continue
+              heapq.heappush(climbs, d)
+              if len(climbs) > ladders:
+                  bricks -= heapq.heappop(climbs)
+                  if bricks < 0:
+                      return i
+          return len(heights) - 1
+    tests:
+      - input: "[4, 2, 7, 6, 9, 14, 12], 5, 1"
+        expected: "4"
+      - input: "[4, 12, 2, 7, 3, 18, 20, 3, 19], 10, 2"
+        expected: "7"
+      - input: "[14, 3, 19, 3], 17, 0"
+        expected: "3"
+      - input: "[1, 5, 1, 2, 3, 4, 10000], 4, 1"
+        expected: "5"
+      - input: "[3], 0, 0"
+        expected: "0"
+      - input: "[1, 2], 0, 0"
+        expected: "0"
+    hints:
+      - "Ladders are best spent on the biggest climbs, but you don't know which those are until you've seen them."
+      - "Push every climb onto a min-heap. While it holds more than `ladders` climbs, the smallest must be paid in bricks."
+      - "If the bricks go negative, you can't get past building `i`."
+    walkthrough:
+      call: result = furthest([4, 2, 7, 6, 9, 14, 12], 5, 1)
+      visualise:
+        - variable: climbs
+          as: heap
+      explanation: |
+        The climb of `5` goes in the heap (the ladder covers it for now). Then the climb of `3`: two climbs, one ladder, so
+        the smaller, `3`, is paid in bricks, leaving `2`. Then the climb of `5` from 9 to 14: the smallest is `5`, and `2`
+        bricks can't pay it. Stuck at index `4`.
+    phoneAlternative:
+      id: step.choose-search-heap.write-climb.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `furthest(heights, bricks, ladders)`: climbing by `d` costs `d` bricks or one ladder; return the index of the
+        furthest building you can reach. Arrange the lines instead of typing them.
+      solution: |
+        import heapq
+
+
+        def furthest(heights, bricks, ladders):
+            climbs = []
+            for i in range(len(heights) - 1):
+                d = heights[i + 1] - heights[i]
+                if d <= 0:
+                    continue
+                heapq.heappush(climbs, d)
+                if len(climbs) > ladders:
+                    bricks -= heapq.heappop(climbs)
+                    if bricks < 0:
+                        return i
+            return len(heights) - 1
+      hints:
+        - "The heap keeps the `ladders` biggest climbs; anything pushed out is paid in bricks."
+  - id: step.choose-search-heap.write-h-index
+    type: write-code
+    largeScreenPreferred: true
+    title: The h-index
+    pattern: pattern.binary-search-boundary
+    patternCue: "\"Sorted citations, find where they catch up with the count\": the test flips once, so search for the boundary."
+    prompt: |
+      A researcher's h-index is the largest `h` such that `h` of their papers have at least `h` citations each. Given
+      `citations` **sorted ascending**, write `h_index(citations)` in O(log n).
+
+      `h_index([0, 1, 3, 5, 6])` is `3`: three papers have at least 3 citations.
+    language: python
+    entrypoint: h_index
+    starter: |
+      def h_index(citations):
+          pass
+    solution: |
+      def h_index(citations):
+          n = len(citations)
+          lo, hi = 0, n
+          while lo < hi:
+              mid = (lo + hi) // 2
+              if citations[mid] >= n - mid:
+                  hi = mid
+              else:
+                  lo = mid + 1
+          return n - lo
+    tests:
+      - input: "[0, 1, 3, 5, 6]"
+        expected: "3"
+      - input: "[1, 2, 100]"
+        expected: "2"
+      - input: "[]"
+        expected: "0"
+      - input: "[0, 0]"
+        expected: "0"
+      - input: "[5, 5, 5]"
+        expected: "3"
+      - input: "[0, 0, 4, 4]"
+        expected: "2"
+    hints:
+      - "Paper `i` and every paper after it make `n - i` papers, each with at least `citations[i]` citations."
+      - "Find the first `i` where `citations[i] >= n - i`. Once true, it stays true."
+      - "The answer is `n - i` for that first `i` (`0` if there is none, when `i == n`)."
+    walkthrough:
+      call: result = h_index([0, 1, 3, 5, 6])
+      visualise:
+        - variable: citations
+          as: array
+          pointers: [lo, mid, hi]
+      explanation: |
+        At `mid = 2`, `citations[2]` is `3` and there are `3` papers from there on: true, so `hi = 2`. At `mid = 1`, `1` is
+        less than `4`: false, so `lo = 2`. The first true index is `2`, and the h-index is `5 - 2 = 3`.
+  - id: step.choose-search-heap.write-ugly
+    type: write-code
+    largeScreenPreferred: true
+    title: Numbers made of 2, 3 and 5
+    pattern: pattern.heap-repeated-min
+    patternCue: "\"The next smallest, again and again, each making new ones\": pop the smallest from a heap, push what it makes."
+    prompt: |
+      The numbers whose only prime factors are 2, 3 and 5 are `1, 2, 3, 4, 5, 6, 8, 9, 10, 12, ...` (`1` counts). Write
+      `nth_number(n)` that returns the `n`-th of them, counting from `1`.
+
+      `nth_number(10)` is `12`.
+    language: python
+    entrypoint: nth_number
+    starter: |
+      import heapq
+
+
+      def nth_number(n):
+          pass
+    solution: |
+      import heapq
+
+
+      def nth_number(n):
+          heap = [1]
+          seen = {1}
+          for _ in range(n - 1):
+              x = heapq.heappop(heap)
+              for f in (2, 3, 5):
+                  if x * f not in seen:
+                      seen.add(x * f)
+                      heapq.heappush(heap, x * f)
+          return heap[0]
+    tests:
+      - input: "10"
+        expected: "12"
+      - input: "1"
+        expected: "1"
+      - input: "7"
+        expected: "8"
+      - input: "15"
+        expected: "24"
+      - input: "150"
+        expected: "5832"
+    hints:
+      - "Every such number except 1 is a smaller one times 2, 3 or 5."
+      - "Start a heap with `1`. Pop the smallest, and push it times 2, 3 and 5."
+      - "`6` is both `2 × 3` and `3 × 2`: keep a set so each number goes in once."
+    walkthrough:
+      call: result = nth_number(7)
+      visualise:
+        - variable: heap
+          as: heap
+      explanation: |
+        Pop `1`, push `2, 3, 5`. Pop `2`, push `4, 6, 10`. Pop `3`, push `9, 15` (`6` is already in). Pop `4`, push `8, 12,
+        20`. Pop `5`, push `25` only. Pop `6`, push `18, 30`. After six pops the root is the 7th number, `8`.

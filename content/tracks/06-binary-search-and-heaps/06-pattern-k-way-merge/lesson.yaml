@@ -1,0 +1,514 @@
+id: lesson.pattern-k-way-merge
+title: "Pattern: k-way merge"
+concepts:
+  - id: concept.k-way-heads
+    title: "Keep one entry per list in a heap, its current head: pop the smallest, push that list's next"
+  - id: concept.k-way-cost
+    title: "Merging N items from k lists costs O(N log k), with a heap of only k entries"
+  - id: concept.k-way-ties
+    title: "Push (value, list index, position) so ties never compare the lists themselves; heapq.merge does it lazily"
+reviewItems:
+  - id: review.k-way.predict-sources
+    concept: concept.k-way-heads
+    step: step.k-way.predict-sources
+  - id: review.k-way.why-index
+    concept: concept.k-way-ties
+    step: step.k-way.check-why-index
+  - id: review.k-way.cost
+    concept: concept.k-way-cost
+    step: step.k-way.check-cost
+  - id: review.k-way.predict-merge
+    concept: concept.k-way-ties
+    step: step.k-way.predict-merge
+  - id: review.k-way.which-problem
+    concept: concept.k-way-heads
+    step: step.k-way.check-which-problem
+    kind: pattern
+  - id: review.k-way.cue
+    concept: concept.k-way-heads
+    step: step.k-way.check-cue
+    kind: pattern
+  - id: review.k-way.just-sort
+    concept: concept.k-way-cost
+    step: step.k-way.check-just-sort
+    kind: pattern
+patterns:
+  - id: pattern.k-way-merge
+    title: Merge k sorted sequences with a heap holding one head from each
+steps:
+  - id: step.k-way.idea
+    type: explain
+    title: Two lists, then k
+    body: |
+      Track 3 merged **two** sorted lists: compare the two heads, take the smaller, step past it. With **k** sorted lists
+      (log files from k servers, sorted runs on disk, a sorted list per shop), comparing all k heads for every item costs
+      O(k) each time.
+
+      A heap finds the smallest head in O(log k). Keep **one entry per list**, its current head:
+
+      1. Push the first item of every non-empty list.
+      2. Pop the smallest. It's the next item of the answer.
+      3. If the list it came from has another item, push that one.
+
+      Each entry carries where it came from, `(value, i, j)`: the value, which list `i`, and its position `j` in that list,
+      so step 3 knows what comes next. The heap never holds more than k entries, one per list still going.
+    comparison:
+      csharp: |
+        List<int> MergeK(List<int[]> lists)
+        {
+            var heap = new PriorityQueue<(int List, int Pos), int>();
+            for (int i = 0; i < lists.Count; i++)
+                if (lists[i].Length > 0) heap.Enqueue((i, 0), lists[i][0]);
+
+            var result = new List<int>();
+            while (heap.TryDequeue(out var at, out var value))
+            {
+                result.Add(value);
+                if (at.Pos + 1 < lists[at.List].Length)
+                    heap.Enqueue((at.List, at.Pos + 1), lists[at.List][at.Pos + 1]);
+            }
+            return result;
+        }
+      python: |
+        import heapq
+
+
+        def merge_k(lists):
+            heap = [(lst[0], i, 0) for i, lst in enumerate(lists) if lst]
+            heapq.heapify(heap)
+            result = []
+            while heap:
+                value, i, j = heapq.heappop(heap)
+                result.append(value)
+                if j + 1 < len(lists[i]):
+                    heapq.heappush(heap, (lists[i][j + 1], i, j + 1))
+            return result
+  - id: step.k-way.trace-merge
+    type: trace
+    title: Three lists, one heap
+    body: |
+      The heap starts with the three heads, `1`, `2` and `3`, each tagged with its list and position. Every pop adds one value
+      to `merged`, and pushes the next item of the same list, until a list runs out. Watch the heap stay at three entries or
+      fewer while `merged` grows in order.
+    code: |
+      import heapq
+
+      lists = [[1, 4, 7], [2, 5, 8], [3, 6]]
+      heap = [(lst[0], i, 0) for i, lst in enumerate(lists)]
+      heapq.heapify(heap)
+      merged = []
+      while heap:
+          value, i, j = heapq.heappop(heap)
+          merged.append(value)
+          if j + 1 < len(lists[i]):
+              heapq.heappush(heap, (lists[i][j + 1], i, j + 1))
+    visualise:
+      - variable: heap
+        as: heap
+      - variable: merged
+        as: array
+  - id: step.k-way.predict-sources
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      This merge prints **which list** each value came from, in the order they're popped. What does it print?
+    code: |
+      import heapq
+
+      lists = [[1, 4, 7], [2, 5], [3]]
+      heap = [(lst[0], i, 0) for i, lst in enumerate(lists)]
+      heapq.heapify(heap)
+      sources = []
+      while heap:
+          value, i, j = heapq.heappop(heap)
+          sources.append(i)
+          if j + 1 < len(lists[i]):
+              heapq.heappush(heap, (lists[i][j + 1], i, j + 1))
+      print(*sources)
+    accepted:
+      - "0 1 2 0 1 0"
+    mistakes:
+      - answers:
+          - "1 2 3 4 5 7"
+        feedback: "That's the merged values. The code collects `i`, the index of the list each value came from."
+      - answers:
+          - "0 0 0 1 1 2"
+        feedback: "That would be joining the lists end to end. The heap always gives the smallest head across all lists: `1` from list `0`, then `2` from list `1`, then `3` from list `2`."
+      - answers:
+          - "0 1 2 0 1"
+        feedback: "Six values in all, and each pop records one. After `5`, list `0` still has `7`."
+    hints:
+      - "Merge the values first: `1 2 3 4 5 7`. Then write which list each came from."
+  - id: step.k-way.check-why-index
+    type: choice
+    title: Why carry the index?
+    prompt: |
+      The heap holds `(value, i, j)`. When merging sorted **linked lists**, why push `(node.val, i, node)` and not just
+      `(node.val, node)`?
+    options:
+      - text: "On a tie in `node.val`, tuples compare the next item. Two nodes can't be compared, so `(val, node)` raises a `TypeError`; the int `i` breaks the tie first."
+        correct: true
+        feedback: "Right. Tuples compare item by item, and only reach the third item when the first two tie. `i` is different for every list, so it never gets that far."
+      - text: "`i` makes the merge stable, which is required for the answer to be sorted."
+        correct: false
+        feedback: "Ties are equal values, so the answer is sorted whichever comes first. The problem is that Python has to compare something to break the tie."
+      - text: "`heapq` only accepts tuples of exactly three items."
+        correct: false
+        feedback: "`heapq` takes anything that compares with `<`. The extra int is there so a tie never reaches the nodes."
+      - text: "It makes the heap faster."
+        correct: false
+        feedback: "It's about correctness: without it, two equal values make Python compare two nodes, and that fails."
+    hints:
+      - "What does Python do when two tuples start with the same value?"
+  - id: step.k-way.check-cost
+    type: choice
+    title: What it costs
+    prompt: |
+      `k` sorted lists hold `N` items in all. What does the heap merge cost?
+    options:
+      - text: "O(N log k) time, and O(k) for the heap."
+        correct: true
+        feedback: "Right. Every item is pushed and popped once, on a heap of at most `k` entries."
+      - text: "O(N log N) time."
+        correct: false
+        feedback: "That's sorting all `N` from scratch. The heap only holds `k` entries, so each operation is O(log k)."
+      - text: "O(N·k) time."
+        correct: false
+        feedback: "That's scanning all `k` heads for every item. The heap finds the smallest head in O(log k) instead."
+      - text: "O(k log k) time."
+        correct: false
+        feedback: "Every one of the `N` items has to be output, so it's at least O(N)."
+    hints:
+      - "How many times is each item pushed and popped, and how big is the heap?"
+  - id: step.k-way.tools
+    type: explain
+    title: heapq.merge, and other shapes
+    body: |
+      **`heapq.merge(*iterables)`** is the k-way merge, ready made. It's **lazy**: it returns an iterator and reads each
+      input only as far as it needs, so it can merge files too big to load. Like the hand-written version, it trusts that
+      each input is already sorted; it doesn't check. It takes `key=` and `reverse=` too.
+
+      The same heap of heads solves problems that don't look like "merge":
+
+      - **The k-th smallest in a matrix whose rows are sorted**: merge the rows, and stop at the k-th pop.
+      - **The k smallest sums `a[i] + b[j]`** of two sorted lists: each `a[i]` starts a sorted "row", `a[i] + b[0]`,
+        `a[i] + b[1]`, ...; merge the rows.
+      - **The smallest range that holds one number from each list**: the heap holds one head per list, and the range runs
+        from the heap's root to the largest head.
+
+      The cue: **several sequences, each already sorted**, and you want them in one order, or the first few of that order.
+    comparison:
+      csharp: |
+        // No built-in k-way merge: write the PriorityQueue loop,
+        // or, when everything fits in memory, concatenate and sort.
+        int[][] lists = [[1, 5, 9], [2, 3], [4, 10]];
+        var all = lists.SelectMany(x => x).Order().ToList();
+      python: |
+        import heapq
+
+        lists = [[1, 5, 9], [2, 3], [4, 10]]
+        merged = list(heapq.merge(*lists))
+        # [1, 2, 3, 4, 5, 9, 10]
+  - id: step.k-way.predict-merge
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      The second call is given a list that isn't sorted. What does it print?
+    code: |
+      import heapq
+
+      print(list(heapq.merge([1, 5, 9], [2, 3], [4, 10])))
+      print(list(heapq.merge([3, 1], [2])))
+    accepted:
+      - |-
+        [1, 2, 3, 4, 5, 9, 10]
+        [2, 3, 1]
+    mistakes:
+      - answers:
+          - |-
+            [1, 2, 3, 4, 5, 9, 10]
+            [1, 2, 3]
+        feedback: "`merge` doesn't sort. It compares the heads, `3` and `2`, takes `2`, then `3`, then the next item of that list, `1`. An unsorted input gives an unsorted output."
+      - answers:
+          - |-
+            [1, 5, 9, 2, 3, 4, 10]
+            [3, 1, 2]
+        feedback: "That's joining the lists end to end. `merge` takes the smallest head each time."
+    hints:
+      - "For the second call, compare the heads `3` and `2`. After taking one, what is that list's next head?"
+  - id: step.k-way.check-which-problem
+    type: choice
+    title: Which one is a k-way merge?
+    prompt: |
+      Which of these is the best fit for a k-way merge?
+    options:
+      - text: "Fifty servers each write a log sorted by time. Produce one log, sorted by time."
+        correct: true
+        feedback: "Right. Fifty sequences, each already sorted, into one order: a heap of fifty heads, O(N log 50)."
+      - text: "One log, in no order, needs sorting by time."
+        correct: false
+        feedback: "One unsorted list: just sort it. A merge needs inputs that are already sorted."
+      - text: "Find the latest entry across fifty logs."
+        correct: false
+        feedback: "Each log's latest entry is its last one: take the `max` of fifty values, no heap needed."
+      - text: "Count the entries per server."
+        correct: false
+        feedback: "That's `len` of each log, or a `Counter`. Nothing is being ordered."
+    hints:
+      - "Look for several inputs that are each already sorted."
+  - id: step.k-way.check-cue
+    type: choice
+    title: Read the cue
+    prompt: |
+      *"Each row of an `n × n` matrix is sorted. Find the k-th smallest number in the matrix."* What's the heap approach?
+    options:
+      - text: "Push the first item of each row as `(value, row, col)`; pop `k` times, pushing the next item of the same row after each pop."
+        correct: true
+        feedback: "Right. The rows are k sorted lists; merge them, but stop at the k-th pop. O(n + k log n)."
+      - text: "Push all n² numbers onto one heap and pop `k` times."
+        correct: false
+        feedback: "That works, but ignores that each row is sorted: O(n²) to build the heap. The merge only ever holds one entry per row."
+      - text: "Binary search each row for `k`."
+        correct: false
+        feedback: "`k` is a rank, not a value in the matrix. Searching for it finds nothing useful."
+      - text: "Take the k-th item of the first row."
+        correct: false
+        feedback: "Other rows can hold smaller numbers. Only the rows are sorted, not the matrix as a whole."
+    hints:
+      - "Each row is a sorted list. What do you do with k sorted lists?"
+  - id: step.k-way.check-just-sort
+    type: choice
+    title: When to just sort
+    prompt: |
+      You have three sorted lists of 20 numbers each, already in memory, and need them as one sorted list. What's the
+      sensible choice?
+    options:
+      - text: "`sorted(a + b + c)`: 60 numbers sort in no time, and the code is one line."
+        correct: true
+        feedback: "Right. The heap merge pays off for many inputs, inputs too big for memory, or when only the first few are needed."
+      - text: "A hand-written heap merge, because it's O(N log k)."
+        correct: false
+        feedback: "It is, but for 60 numbers the difference is invisible, and `sorted` runs in fast C code. Prefer the simple version."
+      - text: "Append the lists and binary search each number into place."
+        correct: false
+        feedback: "Each insert shifts items: O(N²). `sorted` is simpler and faster."
+      - text: "Nothing works: sorted lists can't be combined without losing order."
+        correct: false
+        feedback: "They can: `sorted` re-sorts the whole thing, and a merge keeps the order as it goes."
+    hints:
+      - "How big is the input, and how much code does each option need?"
+  - id: step.k-way.fill-merge
+    type: fill-blank
+    title: Merge k lists
+    pattern: pattern.k-way-merge
+    patternCue: "\"Merge k sorted lists\": a heap of (value, list, position), one per list; pop, then push that list's next."
+    prompt: |
+      Fill in the blanks so that `merge_k(lists)` merges sorted lists of numbers into one sorted list. Some lists may be
+      empty.
+    template: |
+      import heapq
+
+
+      def merge_k(lists):
+          heap = [(lst[0], i, 0) for i, lst in enumerate(lists) if lst]
+          heapq.heapify(heap)
+          result = []
+          while heap:
+              value, i, j = heapq.heappop(heap)
+              result.append(value)
+              if {{more}}:
+                  heapq.heappush(heap, {{entry}})
+          return result
+    blanks:
+      - id: more
+        accepted:
+          - "j + 1 < len(lists[i])"
+          - "j < len(lists[i]) - 1"
+          - "j + 1 <= len(lists[i]) - 1"
+        mistakes:
+          - answers:
+              - "j < len(lists[i])"
+            feedback: "`j` is always less than the length: it's the position just popped. Ask whether there is a **next** item, at `j + 1`."
+          - answers:
+              - "heap"
+              - "lists[i]"
+            feedback: "That doesn't ask whether list `i` has another item after position `j`."
+      - id: entry
+        accepted:
+          - "(lists[i][j + 1], i, j + 1)"
+          - "(lists[i][j+1], i, j+1)"
+        mistakes:
+          - answers:
+              - "(lists[i][j + 1], i, j)"
+              - "(lists[i][j+1], i, j)"
+            feedback: "The position has to move on with the value, or the next pop would push the same item again."
+          - answers:
+              - "lists[i][j + 1]"
+              - "lists[i][j+1]"
+            feedback: "A bare value loses where it came from, and the unpacking `value, i, j` would fail. Push the whole `(value, i, j)` entry."
+    hints:
+      - "After popping list `i`'s item at position `j`, its next item is at `j + 1`, if there is one."
+      - "Push the same shape of entry as the ones built at the start."
+  - id: step.k-way.order-matrix
+    type: parsons
+    title: The k-th smallest in sorted rows
+    pattern: pattern.k-way-merge
+    patternCue: "\"The k-th smallest, rows sorted\": merge the rows with a heap of heads, and stop at the k-th pop."
+    prompt: |
+      Every row of `matrix` is sorted and non-empty. Arrange the lines into `kth_in_rows(matrix, k)`, which returns the
+      `k`-th smallest number in the matrix (`k` counts from `1`).
+    solution: |
+      import heapq
+
+
+      def kth_in_rows(matrix, k):
+          heap = [(row[0], r, 0) for r, row in enumerate(matrix)]
+          heapq.heapify(heap)
+          for _ in range(k - 1):
+              value, r, c = heapq.heappop(heap)
+              if c + 1 < len(matrix[r]):
+                  heapq.heappush(heap, (matrix[r][c + 1], r, c + 1))
+          return heap[0][0]
+    hints:
+      - "Pop `k - 1` times, pushing the next item of the same row after each."
+      - "After `k - 1` pops, the root is the `k`-th smallest."
+  - id: step.k-way.write-unique
+    type: write-code
+    largeScreenPreferred: true
+    title: Merge without repeats
+    pattern: pattern.k-way-merge
+    patternCue: "\"Merge k sorted lists into one sorted list\": a heap of heads; skip a value equal to the last one added."
+    prompt: |
+      Each list in `lists` is sorted. Write `merge_unique(lists)` that returns every number that appears in any of them,
+      once each, in sorted order. Use a heap of the lists' heads, not `sorted` or `set`.
+
+      `merge_unique([[1, 3, 3, 5], [3, 4], [1, 6]])` is `[1, 3, 4, 5, 6]`.
+    language: python
+    entrypoint: merge_unique
+    starter: |
+      import heapq
+
+
+      def merge_unique(lists):
+          pass
+    solution: |
+      import heapq
+
+
+      def merge_unique(lists):
+          heap = [(lst[0], i, 0) for i, lst in enumerate(lists) if lst]
+          heapq.heapify(heap)
+          result = []
+          while heap:
+              value, i, j = heapq.heappop(heap)
+              if not result or result[-1] != value:
+                  result.append(value)
+              if j + 1 < len(lists[i]):
+                  heapq.heappush(heap, (lists[i][j + 1], i, j + 1))
+          return result
+    tests:
+      - input: "[[1, 3, 3, 5], [3, 4], [1, 6]]"
+        expected: "[1, 3, 4, 5, 6]"
+      - input: "[[], [2, 2], []]"
+        expected: "[2]"
+      - input: "[]"
+        expected: "[]"
+      - input: "[[1, 2, 3]]"
+        expected: "[1, 2, 3]"
+      - input: "[[5], [1], [3], [1]]"
+        expected: "[1, 3, 5]"
+    hints:
+      - "Start with the k-way merge: a heap of `(value, list, position)` for each non-empty list."
+      - "Values come out in sorted order, so a repeat always comes straight after its twin. Compare with the last value added."
+    walkthrough:
+      call: result = merge_unique([[1, 3, 3, 5], [3, 4], [1, 6]])
+      visualise:
+        - variable: heap
+          as: heap
+        - variable: result
+          as: array
+      explanation: |
+        The heap starts with `1`, `3` and `1`. The first `1` is added; the second matches the last value and is skipped. Then
+        the three `3`s come out together, and only the first is added. `4`, `5` and `6` follow, each new.
+  - id: step.k-way.write-sums
+    type: write-code
+    largeScreenPreferred: true
+    title: The smallest sums
+    pattern: pattern.k-way-merge
+    patternCue: "\"The k smallest sums of pairs from two sorted lists\": each a[i] starts a sorted row a[i] + b[j]; merge the rows."
+    prompt: |
+      `a` and `b` are sorted and non-empty. Write `smallest_sums(a, b, k)` that returns the `k` smallest values of
+      `a[i] + b[j]`, over all pairs `i`, `j`, in ascending order. `k` is at most `len(a) * len(b)`. Don't build all the
+      pairs.
+
+      `smallest_sums([1, 7, 11], [2, 4, 6], 3)` is `[3, 5, 7]`: `1 + 2`, `1 + 4`, `1 + 6`.
+    language: python
+    entrypoint: smallest_sums
+    starter: |
+      import heapq
+
+
+      def smallest_sums(a, b, k):
+          pass
+    solution: |
+      import heapq
+
+
+      def smallest_sums(a, b, k):
+          heap = [(x + b[0], i, 0) for i, x in enumerate(a)]
+          heapq.heapify(heap)
+          result = []
+          while len(result) < k:
+              total, i, j = heapq.heappop(heap)
+              result.append(total)
+              if j + 1 < len(b):
+                  heapq.heappush(heap, (a[i] + b[j + 1], i, j + 1))
+          return result
+    tests:
+      - input: "[1, 7, 11], [2, 4, 6], 3"
+        expected: "[3, 5, 7]"
+      - input: "[1, 1, 2], [1, 2, 3], 2"
+        expected: "[2, 2]"
+      - input: "[1, 2], [3], 2"
+        expected: "[4, 5]"
+      - input: "[1, 7, 11], [2, 4, 6], 9"
+        expected: "[3, 5, 7, 9, 11, 13, 13, 15, 17]"
+      - input: "[5], [5], 1"
+        expected: "[10]"
+    hints:
+      - "For a fixed `i`, the sums `a[i] + b[0], a[i] + b[1], ...` are sorted: a row."
+      - "Start the heap with `(a[i] + b[0], i, 0)` for each `i`, and merge the rows."
+      - "Stop after `k` pops."
+    walkthrough:
+      call: result = smallest_sums([1, 7, 11], [2, 4, 6], 3)
+      visualise:
+        - variable: heap
+          as: heap
+        - variable: result
+          as: array
+      explanation: |
+        The rows start at `1 + 2 = 3`, `7 + 2 = 9` and `11 + 2 = 13`. `3` is popped, and its row's next sum, `1 + 4 = 5`, is
+        pushed. Then `5`, pushing `1 + 6 = 7`, and then `7`. Three sums, and the other rows were barely touched.
+    phoneAlternative:
+      id: step.k-way.write-sums.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `smallest_sums(a, b, k)`, the `k` smallest `a[i] + b[j]` in ascending order, for sorted `a` and `b`, by merging
+        one sorted row per `a[i]`. Arrange the lines instead of typing them.
+      solution: |
+        import heapq
+
+
+        def smallest_sums(a, b, k):
+            heap = [(x + b[0], i, 0) for i, x in enumerate(a)]
+            heapq.heapify(heap)
+            result = []
+            while len(result) < k:
+                total, i, j = heapq.heappop(heap)
+                result.append(total)
+                if j + 1 < len(b):
+                    heapq.heappush(heap, (a[i] + b[j + 1], i, j + 1))
+            return result
+      hints:
+        - "Each entry is `(sum, i, j)`; after a pop, move along `b` in the same row."

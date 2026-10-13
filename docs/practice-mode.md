@@ -79,10 +79,12 @@ the step or its phone alternative, is a **warning**: `brilliant validate`, `pack
 | `pattern.topo-sort` (Take whatever has nothing left before it) | Track 5 lessons 6, 8 | lesson 6's 5 problems, lesson 8's `install_order` |
 | `pattern.union-find` (Merge groups, then ask which group) | Track 5 lessons 7–8 | lesson 7's 5 problems, lesson 8's `is_tree` |
 | `pattern.binary-search` (Halve a sorted range, keeping the target inside it) | Track 6 lesson 1 | its 5 problems |
-| `pattern.binary-search-boundary` (Find the first index where a condition turns true) | Track 6 lesson 2 | its 6 problems |
-| `pattern.binary-search-on-answer` (Binary search the answer, testing whether each guess is enough) | Track 6 lesson 3 | its 5 problems |
-| `pattern.heap-repeated-min` (Take the smallest (or largest) again and again, as items come and go) | Track 6 lesson 4 | its 3 problems |
-| `pattern.top-k` (Keep the k best in a heap of size k, with the weakest of them at the root) | Track 6 lesson 5 | its 5 problems |
+| `pattern.binary-search-boundary` (Find the first index where a condition turns true) | Track 6 lessons 2, 8 | lesson 2's 6 problems, lesson 8's `h_index` |
+| `pattern.binary-search-on-answer` (Binary search the answer, testing whether each guess is enough) | Track 6 lessons 3, 8 | lesson 3's 5 problems, lesson 8's `split_array` (Parsons) |
+| `pattern.heap-repeated-min` (Take the smallest (or largest) again and again, as items come and go) | Track 6 lessons 4, 8 | lesson 4's 3 problems, lesson 8's `min_rooms` (fill) and `nth_number` |
+| `pattern.top-k` (Keep the k best in a heap of size k, with the weakest of them at the root) | Track 6 lessons 5, 8 | lesson 5's 5 problems, lesson 8's `furthest` |
+| `pattern.k-way-merge` (Merge k sorted sequences with a heap holding one head from each) | Track 6 lesson 6 | its 4 problems |
+| `pattern.two-heaps` (Split the items between two heaps, and read the answer from their roots) | Track 6 lesson 7 | its 4 problems |
 
 Left untagged: every problem in Track 1 lessons 1–6 (Python and Big-O drills), Track 5 lesson 1's graph-building drills, Track 2 lesson 6's `count_subarrays` (its prompt says
 "prefix sums and a dict" on purpose, to teach when a window fails) and `count_palindromes` (expand-around-centre, not one of the eight).
