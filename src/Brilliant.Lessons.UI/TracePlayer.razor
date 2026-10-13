@@ -100,6 +100,11 @@
         <TraceLinkedList View="list" Step="Current.Index" @key="list.Variable" />
     }
 
+    @foreach (var tree in Current.Trees)
+    {
+        <TraceTree View="tree" Step="Current.Index" @key="tree.Variable" />
+    }
+
     @if (Current.Locals.Count > 0)
     {
         <table class="locals my-4 w-full border-collapse text-[.95rem]">

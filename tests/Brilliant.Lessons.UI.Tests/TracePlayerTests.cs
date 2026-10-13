@@ -974,6 +974,131 @@ public class TracePlayerTests : ShortcutContext
         Assert.True(int.Parse(viewBox[0]) < 0);
     }
 
+    // ---- Trees ----
+
+    private static readonly IReadOnlyList<Visual> RootVisual = [new Visual("root", Visual.Tree, ["node"], Visited: "order")];
+
+    private static TrackedTree Tree(int? root, (string Name, int? Node)[] pointers, TreeVisited? visited, params (int Id, string? Value, int? Left, int? Right)[] nodes) =>
+        new(root, nodes.Select(n => new TreeNode(n.Id, n.Value, n.Left, n.Right)).ToList(), 0, pointers.ToDictionary(p => p.Name, p => p.Node), visited);
+
+    private static TrackedTree Tree(int? root, params (int Id, string? Value, int? Left, int? Right)[] nodes) => Tree(root, [], null, nodes);
+
+    private static TraceFrame TreeFrame(int line, TrackedTree tree) =>
+        new("line", line, "<module>", [], new Dictionary<string, TrackedArray>(), Trees: new Dictionary<string, TrackedTree> { ["root"] = tree });
+
+    private IRenderedComponent<TracePlayer> Trees(params TrackedTree[] steps) =>
+        Start(RunOf(steps.Select((tree, i) => TreeFrame(i + 1, tree)).ToArray()), RootVisual, out _);
+
+    private static AngleSharp.Dom.IElement TreeNodeOf(IRenderedComponent<TracePlayer> cut, int id) => cut.Find($"figure.tree g.node[data-id='{id}']");
+
+    private static readonly (int, string?, int?, int?)[] SmallTree =
+        [(4, "4", 2, 6), (2, "2", 1, 3), (6, "6", null, null), (1, "1", null, null), (3, "3", null, null)];
+
+    [Fact]
+    public void A_tree_draws_each_level_lower_and_each_node_in_its_in_order_column()
+    {
+        var cut = Trees(Tree(4, SmallTree));
+
+        var nodes = cut.FindAll("figure.tree g.node");
+        Assert.Equal(["1", "2", "3", "4", "6"], nodes.Select(n => n.QuerySelector(".node-value")!.TextContent));
+        var places = nodes.Select(Place).ToList();
+        Assert.True(places.Zip(places.Skip(1)).All(p => p.First.X < p.Second.X));
+        Assert.True(Place(TreeNodeOf(cut, 4)).Y < Place(TreeNodeOf(cut, 2)).Y && Place(TreeNodeOf(cut, 2)).Y < Place(TreeNodeOf(cut, 1)).Y);
+        Assert.Equal(Place(TreeNodeOf(cut, 2)).Y, Place(TreeNodeOf(cut, 6)).Y);
+        Assert.Equal(4, cut.FindAll("figure.tree g.edge").Count);   // None children are not drawn
+        Assert.Equal("6", cut.Find("figure.tree g.edge[data-from='4'][data-side='right']").GetAttribute("data-to"));
+        Assert.Contains("binary tree", cut.Find(".tree-kind").TextContent);
+        Assert.Contains("level 0: 4 (left 2, right 6); level 1: 2 (left 1, right 3), 6", cut.Find("figure.tree svg").GetAttribute("aria-label"));
+        var root = cut.Find("figure.tree g.pointer[data-name='root']");
+        Assert.Equal("4", root.GetAttribute("data-node"));
+        Assert.Equal(Place(TreeNodeOf(cut, 4)).X, Place(root).X);
+        Assert.True(Place(root).Y > Place(TreeNodeOf(cut, 4)).Y);   // under the node
+    }
+
+    [Fact]
+    public void An_empty_tree_is_its_variable_at_none()
+    {
+        var cut = Trees(Tree(null));
+
+        Assert.Empty(cut.FindAll("figure.tree g.node"));
+        Assert.Equal("None", cut.Find("g.tree-none").TextContent.Trim());
+        Assert.Equal("", cut.Find("figure.tree g.pointer[data-name='root']").GetAttribute("data-node") ?? "");
+        Assert.Contains("root, a binary tree: empty (None)", cut.Find("figure.tree svg").GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public void An_inserted_node_grows_in_the_others_slide_aside_and_a_changed_value_flashes()
+    {
+        var cut = Trees(Tree(4, (4, "4", 2, null), (2, "2", null, null)),
+                        Tree(4, (4, "40", 2, null), (2, "2", null, 3), (3, "3", null, null)));
+        var before = Place(TreeNodeOf(cut, 4));
+        Assert.Empty(cut.FindAll("figure.tree .animate-cell-in, figure.tree .animate-cell-flash"));
+
+        cut.Find("button.next").Click();
+
+        Assert.Contains("added", TreeNodeOf(cut, 3).ClassList);
+        Assert.NotNull(TreeNodeOf(cut, 3).QuerySelector(".node-body.animate-cell-in"));
+        Assert.True(Place(TreeNodeOf(cut, 4)).X > before.X);   // 3 is between 2 and 4 in order, so 4 moves right
+        Assert.Contains("transition-transform", TreeNodeOf(cut, 4).ClassList);
+        Assert.NotNull(TreeNodeOf(cut, 4).QuerySelector(".node-circle.animate-cell-flash"));
+        Assert.Null(TreeNodeOf(cut, 2).QuerySelector(".animate-cell-flash"));
+    }
+
+    [Fact]
+    public void A_visited_list_shades_its_nodes_numbers_them_and_pops_the_new_one()
+    {
+        TreeVisited Marks(params (int Id, int Order)[] marks) => new(true, marks.Select(m => new VisitedNode(m.Id, m.Order)).ToList(), 1);
+        var cut = Trees(Tree(4, [], Marks((1, 1)), SmallTree), Tree(4, [], Marks((1, 1), (2, 2)), SmallTree));
+        cut.Find("button.next").Click();
+
+        Assert.Equal(["1", "2"], cut.FindAll("figure.tree g.visit-order").Select(o => o.TextContent.Trim()));
+        Assert.Contains("visited", TreeNodeOf(cut, 2).ClassList);
+        Assert.Contains("fill-accent-tint", TreeNodeOf(cut, 2).QuerySelector(".node-circle")!.ClassList);
+        Assert.NotNull(TreeNodeOf(cut, 2).QuerySelector(".visit-order .animate-pop"));
+        Assert.Null(TreeNodeOf(cut, 1).QuerySelector(".visit-order .animate-pop"));
+        var notes = cut.FindAll(".tree-note").Select(n => n.TextContent).ToList();
+        Assert.Contains("Shaded: the nodes in order, numbered in its order.", notes);
+        Assert.Contains("1 member of order match no node shown.", notes);
+        Assert.Contains("2 (left 1, right 3), visited 2", cut.Find("figure.tree svg").GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public void A_detached_subtree_stands_to_the_right_dashed_and_a_pointer_at_none_is_noted()
+    {
+        var cut = Start(RunOf(TreeFrame(1, Tree(1, [("node", 8), ("other", null)], null, (1, "a", null, null), (8, "x", null, null)))),
+            [new Visual("root", Visual.Tree, ["node", "other"])], out _);
+
+        var loose = TreeNodeOf(cut, 8);
+        Assert.Contains("detached", loose.ClassList);
+        Assert.True(Place(loose).X > Place(TreeNodeOf(cut, 1)).X + 46);
+        Assert.Equal(Place(loose).X, Place(cut.Find("figure.tree g.pointer[data-name='node']")).X);
+        var notes = cut.FindAll(".tree-note").Select(n => n.TextContent).ToList();
+        Assert.Contains("The dashed nodes can't be reached from root; only a pointer holds them.", notes);
+        Assert.Contains("other is None.", notes);
+    }
+
+    [Fact]
+    public void A_shared_node_is_a_dashed_link_and_a_child_past_the_ones_shown_is_a_stub()
+    {
+        var cut = Trees(Tree(1, (1, "a", 2, 3), (2, "b", null, 9), (3, "c", 2, null)) with { More = 4 });
+
+        Assert.Equal("2", cut.Find("figure.tree g.edge.elsewhere").GetAttribute("data-to"));
+        Assert.Equal("3", cut.Find("figure.tree g.edge.elsewhere").GetAttribute("data-from"));
+        Assert.Equal("2", cut.Find("figure.tree g.edge.more").GetAttribute("data-from"));
+        Assert.Contains("+4 more nodes not shown.", cut.FindAll(".tree-note").Select(n => n.TextContent));
+    }
+
+    [Fact]
+    public void Two_pointers_on_one_node_stack_their_names()
+    {
+        var cut = Start(RunOf(TreeFrame(1, Tree(1, [("node", 1)], null, (1, "a", null, null)))), RootVisual, out _);
+
+        var root = cut.Find("figure.tree g.pointer[data-name='root']");
+        var node = cut.Find("figure.tree g.pointer[data-name='node']");
+        Assert.Equal(("0", "1"), (root.GetAttribute("data-row"), node.GetAttribute("data-row")));
+        Assert.True(Place(node).Y > Place(root).Y);
+    }
+
     // ---- The call stack ----
 
     private static readonly IReadOnlyList<Visual> StackVisual = [new Visual("", Visual.CallStack, [])];
