@@ -1,0 +1,515 @@
+id: lesson.pattern-unbounded-choices
+title: "Pattern: unbounded choices"
+concepts:
+  - id: concept.unbounded-last-item
+    title: Each amount's answer is the best over every item that could be used last, and items can be used again
+  - id: concept.unbounded-impossible
+    title: An amount nothing reaches needs a value meaning "impossible", not zero
+  - id: concept.unbounded-order
+    title: Items in the outer loop count combinations; amounts in the outer loop count orderings
+reviewItems:
+  - id: review.unbounded.predict-fewest
+    concept: concept.unbounded-last-item
+    step: step.unbounded.predict-fewest
+  - id: review.unbounded.greedy
+    concept: concept.unbounded-last-item
+    step: step.unbounded.check-greedy
+  - id: review.unbounded.impossible
+    concept: concept.unbounded-impossible
+    step: step.unbounded.check-impossible
+  - id: review.unbounded.predict-ways
+    concept: concept.unbounded-order
+    step: step.unbounded.predict-ways
+  - id: review.unbounded.order
+    concept: concept.unbounded-order
+    step: step.unbounded.check-order
+  - id: review.unbounded.which-problem
+    concept: concept.unbounded-last-item
+    step: step.unbounded.check-which-problem
+    kind: pattern
+  - id: review.unbounded.cue
+    concept: concept.unbounded-last-item
+    step: step.unbounded.check-cue
+    kind: pattern
+patterns:
+  - id: pattern.dp-unbounded-choices
+    title: Build each amount from every item that could come last, reusing items as often as you like
+steps:
+  - id: step.unbounded.idea
+    type: explain
+    title: The fewest coins
+    body: |
+      You have coins of a few sizes, as many of each as you like. What's the **fewest coins** that make an amount exactly?
+
+      Think about the **last coin** used. If it's a `c`, the rest makes `amount - c`, and that rest should use the fewest coins
+      too. So with `dp[a]` = the fewest coins that make `a`:
+
+      `dp[a] = min(dp[a - c] + 1 for every coin c <= a)`, with `dp[0] = 0`.
+
+      Some amounts can't be made at all (no mix of `2`s makes `3`). Those start as **infinity** and stay there, so a `min` never
+      picks them. At the end, infinity means the answer is `-1`.
+
+      It looks like the stairs from lesson 2, with coins as step sizes. The difference is the question: the fewest, not the
+      number of ways.
+    comparison:
+      csharp: |
+        static int FewestCoins(int[] coins, int amount)
+        {
+            const int Impossible = int.MaxValue;
+            var dp = new int[amount + 1];
+            Array.Fill(dp, Impossible);
+            dp[0] = 0;
+            for (int a = 1; a <= amount; a++)
+                foreach (var c in coins)
+                    if (c <= a && dp[a - c] != Impossible)
+                        dp[a] = Math.Min(dp[a], dp[a - c] + 1);
+            return dp[amount] == Impossible ? -1 : dp[amount];
+        }
+      python: |
+        def fewest_coins(coins, amount):
+            dp = [float("inf")] * (amount + 1)
+            dp[0] = 0
+            for a in range(1, amount + 1):
+                for c in coins:
+                    if c <= a:
+                        dp[a] = min(dp[a], dp[a - c] + 1)
+            return -1 if dp[amount] == float("inf") else dp[amount]
+  - id: step.unbounded.trace-fewest
+    type: trace
+    title: Filling the coin table
+    body: |
+      Coins `1`, `3` and `4`, amount `6`. At `a = 6`, the last coin could be a `1` (`dp[5] + 1 = 3`), a `3` (`dp[3] + 1 = 2`)
+      or a `4` (`dp[2] + 1 = 3`). The `3` wins: `3 + 3`.
+    code: |
+      coins = [1, 3, 4]
+      amount = 6
+      dp = [float("inf")] * (amount + 1)
+      dp[0] = 0
+      for a in range(1, amount + 1):
+          for c in coins:
+              if c <= a:
+                  dp[a] = min(dp[a], dp[a - c] + 1)
+      fewest = dp[amount]
+    visualise:
+      - variable: dp
+        as: array
+        pointers: [a]
+      - variable: coins
+        as: array
+  - id: step.unbounded.predict-fewest
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      What does this print?
+    code: |
+      coins = [1, 3, 4]
+      amount = 6
+      dp = [float("inf")] * (amount + 1)
+      dp[0] = 0
+      for a in range(1, amount + 1):
+          for c in coins:
+              if c <= a:
+                  dp[a] = min(dp[a], dp[a - c] + 1)
+      print(dp)
+    accepted:
+      - "[0, 1, 2, 1, 1, 2, 2]"
+    mistakes:
+      - answers:
+          - "[0, 1, 2, 1, 1, 2, 3]"
+        feedback: "That's the greedy count for `6`: `4 + 1 + 1`. The DP also tries a last coin of `3`: `dp[3] + 1 = 2`, from `3 + 3`."
+      - answers:
+          - "[0, 1, 2, 3, 4, 5, 6]"
+        feedback: "That uses only `1`s. At `a = 3`, a single `3` coin gives `dp[0] + 1 = 1`."
+      - answers:
+          - "[1, 2, 1, 1, 2, 2]"
+        feedback: "`dp` has `amount + 1` cells, starting with `dp[0] = 0`: no coins make nothing."
+    hints:
+      - "`dp[5] = min(dp[4], dp[2], dp[1]) + 1`. Then work out `dp[6]` the same way."
+  - id: step.unbounded.check-greedy
+    type: choice
+    title: Why not the biggest coin first?
+    prompt: |
+      With coins `1`, `3` and `4`, someone makes `6` by always taking the biggest coin that fits. How many coins do they use,
+      and how many does the DP use?
+    options:
+      - text: "Greedy uses `3` (`4 + 1 + 1`); the DP uses `2` (`3 + 3`)."
+        correct: true
+        feedback: "Right. The big coin leaves a remainder that only small coins fill. The DP tries every last coin, so it finds `3 + 3`."
+      - text: "Both use `2`."
+        correct: false
+        feedback: "Greedy takes the `4` first, leaving `2`, which needs two `1`s: three coins."
+      - text: "Both use `3`."
+        correct: false
+        feedback: "`3 + 3` is two coins, and the DP finds it at `a = 6` from `dp[3] + 1`."
+      - text: "Greedy uses `2`; the DP uses `3`."
+        correct: false
+        feedback: "The DP's answer is the minimum over every choice, so it can never be worse than greedy."
+    hints:
+      - "After the `4`, what's left, and which coins fit it?"
+  - id: step.unbounded.check-impossible
+    type: choice
+    title: Why start at infinity?
+    prompt: |
+      Coins `[2]`, amount `3`. Why does the table start every cell after `dp[0]` at infinity rather than `0`?
+    options:
+      - text: "So that an amount no coins reach stays infinite. Starting at `0`, every `min` would keep `0` and claim no coins are needed."
+        correct: true
+        feedback: "Right. `dp[1]` and `dp[3]` stay infinite because no last coin leads to a reachable amount, so the answer is `-1`."
+      - text: "Python lists must start with a large number."
+        correct: false
+        feedback: "They needn't. The value means \"not reachable yet\", and it has to lose every `min`."
+      - text: "So the loop runs faster."
+        correct: false
+        feedback: "The loop does the same work either way. The value is about getting the right answer."
+      - text: "It doesn't matter: `0` works the same."
+        correct: false
+        feedback: "With `0`, `min(dp[a], ...)` would keep `0` for every amount: zero coins for anything."
+    hints:
+      - "What would `min(0, anything)` give?"
+  - id: step.unbounded.ways-idea
+    type: explain
+    title: Counting the ways to pay
+    body: |
+      Now count the **ways** to make an amount. With coins `1` and `2`, is `1 + 2` a different way from `2 + 1`?
+
+      - For **change**, no: a handful of coins is a handful, whatever the order. That's counting **combinations**.
+      - For the **stairs**, yes: the moves happen in order. That's counting **orderings**.
+
+      The same recurrence, `dp[a] += dp[a - c]`, gives either. Only the loop order changes:
+
+      - **Coins outside**, amounts inside: each coin is added in its own pass, after the coins before it, so a handful is only
+        ever built in one order. Combinations.
+      - **Amounts outside**, coins inside: every amount tries every coin last, so `1 + 2` and `2 + 1` are both counted.
+        Orderings, exactly lesson 2's `count_ways`.
+    comparison:
+      csharp: |
+        static long Combinations(int[] coins, int amount)
+        {
+            var dp = new long[amount + 1];
+            dp[0] = 1;
+            foreach (var c in coins)
+                for (int a = c; a <= amount; a++)
+                    dp[a] += dp[a - c];
+            return dp[amount];
+        }
+      python: |
+        def combinations(coins, amount):
+            dp = [0] * (amount + 1)
+            dp[0] = 1
+            for c in coins:
+                for a in range(c, amount + 1):
+                    dp[a] += dp[a - c]
+            return dp[amount]
+  - id: step.unbounded.trace-ways
+    type: trace
+    title: One coin at a time
+    body: |
+      Coins `1`, `2` and `5`, amount `5`. After the `1` pass every amount has one way (all ones). The `2` pass adds the
+      handfuls with twos, and the `5` pass adds the single `5`.
+    code: |
+      coins = [1, 2, 5]
+      amount = 5
+      dp = [0] * (amount + 1)
+      dp[0] = 1
+      for c in coins:
+          for a in range(c, amount + 1):
+              dp[a] += dp[a - c]
+      ways = dp[amount]
+    visualise:
+      - variable: dp
+        as: array
+        pointers: [a]
+  - id: step.unbounded.predict-ways
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      What does this print?
+    code: |
+      coins = [1, 2, 5]
+      amount = 5
+
+      combos = [1] + [0] * amount
+      for c in coins:
+          for a in range(c, amount + 1):
+              combos[a] += combos[a - c]
+
+      orders = [1] + [0] * amount
+      for a in range(1, amount + 1):
+          for c in coins:
+              if c <= a:
+                  orders[a] += orders[a - c]
+
+      print(combos[amount], orders[amount])
+    accepted:
+      - "4 9"
+    mistakes:
+      - answers:
+          - "9 4"
+        feedback: "Swapped. Coins outside counts each handful once (`4`). Amounts outside counts every order (`9`)."
+      - answers:
+          - "4 4"
+        feedback: "With amounts outside, `1 + 2 + 2`, `2 + 1 + 2` and `2 + 2 + 1` are three ways, not one."
+      - answers:
+          - "3 9"
+        feedback: "The handfuls for `5` are `5`, `2 + 2 + 1`, `2 + 1 + 1 + 1` and `1 + 1 + 1 + 1 + 1`: four."
+    hints:
+      - "List the handfuls that make `5`."
+      - "With order counting, the amounts go `1, 1, 2, 3, 5, 9`: each is the sum of the one and two before, plus `1` at `5`."
+  - id: step.unbounded.check-order
+    type: choice
+    title: Why does coins-outside count each handful once?
+    prompt: |
+      Why does putting the coins in the outer loop count `1 + 2` and `2 + 1` as one way?
+    options:
+      - text: "Each pass adds one more coin size on top of handfuls made only of earlier sizes, so every handful is built in one fixed order of sizes."
+        correct: true
+        feedback: "Right. In the `2` pass, `dp[a - 2]` only holds handfuls of `1`s and `2`s. A `2` is never put before a `1`."
+      - text: "Python sorts the coins first."
+        correct: false
+        feedback: "Nothing sorts them. Any order of coins in the list works; what matters is that each size gets its own pass."
+      - text: "It divides by the number of orderings at the end."
+        correct: false
+        feedback: "There's no division. The order of the loops alone stops duplicates being made."
+      - text: "It skips amounts that were already counted."
+        correct: false
+        feedback: "Every amount is updated in every pass. What changes is which coins `dp[a - c]` can contain."
+    hints:
+      - "During the `1` pass, what can `dp` hold? And during the `2` pass?"
+  - id: step.unbounded.pattern
+    type: explain
+    title: Spotting it
+    body: |
+      The cue: **a target amount** (money, length, a total) built from **items you can reuse** as often as you like, and you want
+      the fewest, the most, the number of ways, or just whether it's possible.
+
+      1. **State**: `dp[a]` = the answer for amount `a`.
+      2. **Choices**: every item that could be **last**: `dp[a - size] + its value` (or `+ 1` when counting pieces).
+      3. **Base**: `dp[0]` (`0` pieces, or `1` way to make nothing). Unreachable amounts start as infinity, or `0` ways.
+      4. **Order**: amounts upwards, since `a - size` is smaller. For counting combinations, items outside.
+      5. **Answer**: `dp[target]`.
+
+      It's O(target × items). Lesson 8's knapsack is the cousin where each item can be used **at most once**.
+  - id: step.unbounded.check-which-problem
+    type: choice
+    title: Which problem?
+    prompt: |
+      Which of these fits the unbounded choices pattern?
+    options:
+      - text: "A rod of length `n` sells in pieces, and a piece of length `k` earns `price[k]`. Cut it to earn the most."
+        correct: true
+        feedback: "Right. The amount is the length, and each piece length can be cut as often as you like: `dp[n] = max(dp[n - k] + price[k])`."
+      - text: "Sort the coins in a purse by size."
+        correct: false
+        feedback: "That's `sorted()`, no amount to build."
+      - text: "Count how many coins in a purse are worth more than `5`."
+        correct: false
+        feedback: "A loop with a counter: no choices to combine."
+      - text: "Pick the most valuable coin from a purse."
+        correct: false
+        feedback: "`max()`."
+    hints:
+      - "Where is there an amount to fill with reusable pieces?"
+  - id: step.unbounded.check-cue
+    type: choice
+    title: Read the cue
+    prompt: |
+      *"What is the fewest perfect squares (`1`, `4`, `9`, ...) that add up to `n`?"* What's the recurrence?
+    options:
+      - text: "`dp[a] = min(dp[a - s * s] + 1)` over every `s` with `s * s <= a`, with `dp[0] = 0`."
+        correct: true
+        feedback: "Right. The squares are the coins, and each can be used again. `12` is `4 + 4 + 4`: three."
+      - text: "Take the largest square that fits, then repeat on what's left."
+        correct: false
+        feedback: "Greedy: `12` becomes `9 + 1 + 1 + 1`, four squares, but `4 + 4 + 4` is three."
+      - text: "`dp[a] = dp[a - 1] + 1`."
+        correct: false
+        feedback: "That uses only `1`s, so `dp[a] = a`. The other squares are choices too."
+      - text: "`dp[a] = dp[a // 2] * 2`."
+        correct: false
+        feedback: "Halving has nothing to do with squares. Choose the last square instead."
+    hints:
+      - "Which items are reusable, and what's the amount?"
+  - id: step.unbounded.fill-fewest
+    type: fill-blank
+    title: The fewest coins
+    pattern: pattern.dp-unbounded-choices
+    patternCue: "\"The fewest coins for an amount, unlimited of each\": every coin could be the last, so take the best of them."
+    prompt: |
+      Fill in the blanks so `fewest_coins(coins, amount)` returns the fewest coins that make `amount` exactly, or `-1` if no
+      mix of them does. Every coin is a positive whole number.
+    template: |
+      def fewest_coins(coins, amount):
+          dp = [float("inf")] * (amount + 1)
+          dp[0] = 0
+          for a in range(1, amount + 1):
+              for c in coins:
+                  if c <= a:
+                      dp[a] = min(dp[a], {{last-coin}})
+          return {{none}} if dp[amount] == float("inf") else dp[amount]
+    blanks:
+      - id: last-coin
+        accepted:
+          - "dp[a - c] + 1"
+          - "dp[a-c] + 1"
+          - "dp[a-c]+1"
+          - "1 + dp[a - c]"
+        mistakes:
+          - answers:
+              - "dp[a - c]"
+              - "dp[a-c]"
+            feedback: "The coin `c` itself counts: add `1`."
+          - answers:
+              - "dp[a - 1] + 1"
+              - "dp[a-1] + 1"
+            feedback: "A last coin of size `c` leaves `a - c`, not `a - 1`."
+          - answers:
+              - "dp[c] + 1"
+            feedback: "The rest of the amount is `a - c`."
+      - id: none
+        accepted:
+          - "-1"
+        mistakes:
+          - answers:
+              - "0"
+            feedback: "`0` would mean no coins are needed. The prompt asks for `-1` when nothing works."
+    hints:
+      - "If the last coin is `c`, the fewest for the rest is `dp[a - c]`."
+      - "Infinity at the end means no mix reached the amount."
+  - id: step.unbounded.order-combos
+    type: parsons
+    title: Ways to make change
+    pattern: pattern.dp-unbounded-choices
+    patternCue: "\"How many handfuls make the amount\": coins in the outer loop, so each handful is counted once."
+    prompt: |
+      Arrange the lines into `change_ways(coins, amount)`: the number of handfuls of coins (as many of each as you like) that
+      make `amount`, where the order of the coins doesn't matter.
+    solution: |
+      def change_ways(coins, amount):
+          dp = [0] * (amount + 1)
+          dp[0] = 1
+          for c in coins:
+              for a in range(c, amount + 1):
+                  dp[a] += dp[a - c]
+          return dp[amount]
+    hints:
+      - "One way to make nothing."
+      - "Which loop goes outside, so `1 + 2` and `2 + 1` aren't both counted?"
+  - id: step.unbounded.write-squares
+    type: write-code
+    largeScreenPreferred: true
+    title: The fewest squares
+    pattern: pattern.dp-unbounded-choices
+    patternCue: "\"The fewest squares that sum to n\": the squares are coins you can reuse; the last one is any that fits."
+    prompt: |
+      Write `fewest_squares(n)` that returns the fewest perfect squares (`1`, `4`, `9`, `16`, ...) adding up to `n`, for a
+      whole number `n >= 0`. A square can be used more than once.
+
+      `fewest_squares(12)` is `3` (`4 + 4 + 4`), and `fewest_squares(13)` is `2` (`4 + 9`).
+    language: python
+    entrypoint: fewest_squares
+    starter: |
+      def fewest_squares(n):
+          pass
+    solution: |
+      def fewest_squares(n):
+          dp = [0] + [n] * n
+          for a in range(1, n + 1):
+              s = 1
+              while s * s <= a:
+                  dp[a] = min(dp[a], dp[a - s * s] + 1)
+                  s += 1
+          return dp[n]
+    tests:
+      - input: "12"
+        expected: "3"
+      - input: "13"
+        expected: "2"
+      - input: "0"
+        expected: "0"
+      - input: "1"
+        expected: "1"
+      - input: "7"
+        expected: "4"
+      - input: "43"
+        expected: "3"
+    hints:
+      - "`dp[a]` = the fewest squares that make `a`. `n` ones always work, so `n` is a safe start."
+      - "The last square is any `s * s <= a`: try `dp[a - s * s] + 1` for each."
+      - "`dp[0] = 0`."
+    walkthrough:
+      call: result = fewest_squares(12)
+      visualise:
+        - variable: dp
+          as: array
+          pointers: [a]
+      explanation: |
+        `dp` fills to `[0, 1, 2, 3, 1, 2, 3, 4, 2, 1, 2, 3, 3]`. At `12`, the last square `4` leaves `8`, which takes `2`
+        (`4 + 4`), so `3`. Taking `9` first leaves `3`, which needs three `1`s: worse.
+    phoneAlternative:
+      id: step.unbounded.write-squares.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `fewest_squares(n)`: the fewest perfect squares adding up to `n`, each usable again. Arrange the lines instead of
+        typing them.
+      solution: |
+        def fewest_squares(n):
+            dp = [0] + [n] * n
+            for a in range(1, n + 1):
+                s = 1
+                while s * s <= a:
+                    dp[a] = min(dp[a], dp[a - s * s] + 1)
+                    s += 1
+            return dp[n]
+      hints:
+        - "Try every square that fits as the last one."
+  - id: step.unbounded.write-rod
+    type: write-code
+    largeScreenPreferred: true
+    title: Cutting the rod
+    pattern: pattern.dp-unbounded-choices
+    patternCue: "\"Cut a length into pieces for the most money\": every piece length could be the last cut, and lengths repeat."
+    prompt: |
+      A rod of length `n = len(prices)` is cut into whole-number pieces (or left whole). A piece of length `k` sells for
+      `prices[k - 1]`. Write `best_cut(prices)` that returns the most money the rod can make.
+
+      `best_cut([1, 5, 8, 9])` is `10`: two pieces of length `2`, for `5 + 5`.
+    language: python
+    entrypoint: best_cut
+    starter: |
+      def best_cut(prices):
+          pass
+    solution: |
+      def best_cut(prices):
+          n = len(prices)
+          dp = [0] * (n + 1)
+          for length in range(1, n + 1):
+              for k in range(1, length + 1):
+                  dp[length] = max(dp[length], dp[length - k] + prices[k - 1])
+          return dp[n]
+    tests:
+      - input: "[1, 5, 8, 9]"
+        expected: "10"
+      - input: "[1, 5, 8, 9, 10, 17, 17, 20]"
+        expected: "22"
+      - input: "[3, 5, 8, 9, 10, 17, 17, 20]"
+        expected: "24"
+      - input: "[2]"
+        expected: "2"
+      - input: "[]"
+        expected: "0"
+    hints:
+      - "`dp[length]` = the most a rod of that length makes."
+      - "The last piece has some length `k` from `1` to `length`: it earns `prices[k - 1]`, plus the best for what's left."
+      - "Leaving it whole is the case `k = length`."
+    walkthrough:
+      call: result = best_cut([1, 5, 8, 9, 10, 17, 17, 20])
+      visualise:
+        - variable: dp
+          as: array
+          pointers: [length]
+        - variable: prices
+          as: array
+      explanation: |
+        `dp` fills to `[0, 1, 5, 8, 10, 13, 17, 18, 22]`. For the whole rod, cutting a `2` (`5`) and a `6` (`17`) gives `22`,
+        more than selling it whole for `20`.
