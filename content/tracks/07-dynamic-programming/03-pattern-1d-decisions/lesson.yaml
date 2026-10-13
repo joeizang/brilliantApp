@@ -1,0 +1,497 @@
+id: lesson.pattern-1d-decisions
+title: "Pattern: 1-D decisions"
+concepts:
+  - id: concept.dp1d-choices
+    title: At each position, the answer is the best of a few choices, each built from an earlier answer
+  - id: concept.dp1d-greedy
+    title: A greedy rule can fail where comparing every choice does not
+  - id: concept.dp1d-state
+    title: The state says exactly what dp[i] means, including what is allowed at i
+reviewItems:
+  - id: review.dp1d.predict-rob
+    concept: concept.dp1d-choices
+    step: step.dp1d.predict-rob
+  - id: review.dp1d.greedy
+    concept: concept.dp1d-greedy
+    step: step.dp1d.check-greedy
+  - id: review.dp1d.predict-climb
+    concept: concept.dp1d-choices
+    step: step.dp1d.predict-climb
+  - id: review.dp1d.state
+    concept: concept.dp1d-state
+    step: step.dp1d.check-state
+  - id: review.dp1d.which-problem
+    concept: concept.dp1d-choices
+    step: step.dp1d.check-which-problem
+    kind: pattern
+  - id: review.dp1d.cue
+    concept: concept.dp1d-state
+    step: step.dp1d.check-cue
+    kind: pattern
+  - id: review.dp1d.not-dp
+    concept: concept.dp1d-greedy
+    step: step.dp1d.check-not-dp
+    kind: pattern
+patterns:
+  - id: pattern.dp-1d-decisions
+    title: At each position, take the best of a few choices built from the answers just before
+steps:
+  - id: step.dp1d.idea
+    type: explain
+    title: Rob, or don't
+    body: |
+      Houses stand in a row, each with some money. You can't take from two houses **next to each other**. What's the most you
+      can take?
+
+      At each house there are two choices:
+
+      - **skip** it: the best is whatever you had from the houses before it;
+      - **take** it: you get its money, but the house before is off limits, so add the best from the houses two back.
+
+      So with `dp[i]` = the most from the **first `i` houses**:
+
+      `dp[i] = max(dp[i - 1], dp[i - 2] + nums[i - 1])`, with `dp[0] = 0` and `dp[1] = nums[0]`.
+
+      This is the shape of the whole pattern: walk along, and at each position take the **best of a few choices**, each built
+      from an answer you already have.
+    comparison:
+      csharp: |
+        static long Rob(int[] nums)
+        {
+            if (nums.Length == 0) return 0;
+            var dp = new long[nums.Length + 1];
+            dp[1] = nums[0];
+            for (int i = 2; i <= nums.Length; i++)
+                dp[i] = Math.Max(dp[i - 1], dp[i - 2] + nums[i - 1]);
+            return dp[nums.Length];
+        }
+      python: |
+        def rob(nums):
+            if not nums:
+                return 0
+            dp = [0] * (len(nums) + 1)
+            dp[1] = nums[0]
+            for i in range(2, len(nums) + 1):
+                dp[i] = max(dp[i - 1], dp[i - 2] + nums[i - 1])
+            return dp[len(nums)]
+  - id: step.dp1d.trace-rob
+    type: trace
+    title: Filling the robber's table
+    body: |
+      `dp[i]` is the best from the first `i` houses, so house `nums[i - 1]` is the one being decided. At `i = 4` (the house with
+      `3`), taking gives `7 + 3 = 10`, less than the `11` from skipping, so `dp[4]` stays `11`.
+    code: |
+      nums = [2, 7, 9, 3, 1]
+      dp = [0] * (len(nums) + 1)
+      dp[1] = nums[0]
+      for i in range(2, len(nums) + 1):
+          dp[i] = max(dp[i - 1], dp[i - 2] + nums[i - 1])
+      best = dp[len(nums)]
+    visualise:
+      - variable: dp
+        as: array
+        pointers: [i]
+      - variable: nums
+        as: array
+  - id: step.dp1d.predict-rob
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      What does this print?
+    code: |
+      nums = [2, 7, 9, 3, 1]
+      dp = [0] * (len(nums) + 1)
+      dp[1] = nums[0]
+      for i in range(2, len(nums) + 1):
+          dp[i] = max(dp[i - 1], dp[i - 2] + nums[i - 1])
+      print(dp)
+    accepted:
+      - "[0, 2, 7, 11, 11, 12]"
+    mistakes:
+      - answers:
+          - "[0, 2, 7, 11, 10, 12]"
+        feedback: "At `i = 4`, taking the `3` gives `dp[2] + 3 = 10`, but skipping keeps `dp[3] = 11`. `dp[4]` is the larger: `11`."
+      - answers:
+          - "[0, 2, 9, 11, 11, 12]"
+        feedback: "`dp[2]` is the best from `2, 7`: take one of them, so `7`. You can't take both."
+      - answers:
+          - "[2, 7, 11, 11, 12]"
+        feedback: "`dp` has `len(nums) + 1` cells, starting with `dp[0] = 0` for no houses."
+    hints:
+      - "`dp[2] = max(2, 0 + 7)`, `dp[3] = max(7, 2 + 9)`, and so on."
+  - id: step.dp1d.check-greedy
+    type: choice
+    title: Why not a simple rule?
+    prompt: |
+      For `nums = [2, 1, 1, 2]`, someone takes every other house: `2 + 1` or `1 + 2`, so `3`. What does the DP find?
+    options:
+      - text: "`4`, from the first and last houses, which aren't next to each other."
+        correct: true
+        feedback: "Right. The best choice can skip two in a row. The DP doesn't guess a rule; it compares both choices at every house."
+      - text: "`3`: every other house is always best."
+        correct: false
+        feedback: "Houses `0` and `3` aren't neighbours, and give `4`. Skipping two in a row is sometimes right."
+      - text: "`6`: all of them."
+        correct: false
+        feedback: "Neighbouring houses can't both be taken."
+      - text: "`2`: the largest house."
+        correct: false
+        feedback: "You can take several houses, as long as no two are next to each other."
+    hints:
+      - "Are houses `0` and `3` neighbours?"
+  - id: step.dp1d.climb
+    type: explain
+    title: The cheapest climb
+    body: |
+      A second shape of the same pattern. Step `i` of a staircase costs `cost[i]` to stand on. You start on step `0` or step
+      `1`, climb 1 or 2 steps at a time, and finish once you step past the top. What's the cheapest climb?
+
+      `dp[i]` = the cheapest way to **stand on** step `i`. You got there from `i - 1` or `i - 2`:
+
+      `dp[i] = cost[i] + min(dp[i - 1], dp[i - 2])`, with `dp[0] = cost[0]` and `dp[1] = cost[1]`.
+
+      You can leave the staircase from either of the last two steps, so the answer is `min(dp[n - 1], dp[n - 2])`.
+
+      Same pattern, with `min` instead of `max`: one position at a time, the best of the ways in.
+  - id: step.dp1d.predict-climb
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      What does this print?
+    code: |
+      cost = [10, 15, 20]
+      n = len(cost)
+      dp = [0] * n
+      for i in range(n):
+          dp[i] = cost[i] + (min(dp[i - 1], dp[i - 2]) if i >= 2 else 0)
+      print(dp, min(dp[n - 1], dp[n - 2]))
+    accepted:
+      - "[10, 15, 30] 15"
+    mistakes:
+      - answers:
+          - "[10, 15, 30] 30"
+        feedback: "You can leave from either of the last two steps. From step `1` (cost `15`) a 2-step jump goes past the top."
+      - answers:
+          - "[10, 25, 30] 25"
+        feedback: "You may start on step `1`, so `dp[1]` is just `cost[1] = 15`."
+      - answers:
+          - "[10, 15, 35] 15"
+        feedback: "`dp[2]` is `20 + min(15, 10)`: from step `0`, which is cheaper."
+    hints:
+      - "`dp[0]` and `dp[1]` are just their costs. `dp[2] = 20 + min(dp[1], dp[0])`."
+  - id: step.dp1d.check-state
+    type: choice
+    title: Say what dp[i] means
+    prompt: |
+      In the robber's table, what does `dp[i]` mean?
+    options:
+      - text: "The most money from the first `i` houses, whether or not house `i - 1` is taken."
+        correct: true
+        feedback: "Right. That's why `dp[i - 1]` covers skipping: it already allows anything among the first `i - 1`."
+      - text: "The money taken if house `i - 1` is robbed."
+        correct: false
+        feedback: "Then skipping would have no cell to come from. The state allows both choices at the last house."
+      - text: "The money in house `i`."
+        correct: false
+        feedback: "That's `nums[i]`, the input. `dp` holds best answers to smaller problems."
+      - text: "The number of houses robbed so far."
+        correct: false
+        feedback: "The question is about money, so the state should be about money."
+    hints:
+      - "The recurrence's `dp[i - 1]` stands for skipping. What must it allow, for that to be right?"
+  - id: step.dp1d.pattern
+    type: explain
+    title: Spotting it
+    body: |
+      The cue: **a sequence where each item brings a decision** (take or skip, start here or continue, step 1 or 2), and the
+      decisions interact only with **a few neighbours**. You want the best total, or the number of ways.
+
+      The recipe from last lesson:
+
+      1. **State**: `dp[i]` = the best answer for the first `i` items (or ending at, or standing on, item `i`). Say it in words.
+      2. **Choices**: list what can happen at item `i`, and which earlier cell each choice reads.
+      3. **Base**: the first one or two cells.
+      4. **Order**: left to right.
+      5. **Answer**: the last cell, or the best of the last few.
+
+      The table only ever reads one or two cells back, so it shrinks to two variables, as with the stairs.
+  - id: step.dp1d.check-which-problem
+    type: choice
+    title: Which problem?
+    prompt: |
+      Which of these fits the 1-D decisions pattern?
+    options:
+      - text: "A painter is paid for each fence post they paint, but can't paint two posts in a row. Maximise the pay."
+        correct: true
+        feedback: "Right. That's the robber in disguise: at each post, paint (and skip the one before) or don't."
+      - text: "Paint every post, at the cheapest of three colours each, with no rule about neighbours."
+        correct: false
+        feedback: "With no interaction, each post's cheapest colour is chosen on its own: just sum the minimums."
+      - text: "Count the posts taller than 2 metres."
+        correct: false
+        feedback: "A loop with a counter: no decisions interact."
+      - text: "Find the tallest post."
+        correct: false
+        feedback: "`max()`."
+    hints:
+      - "Where does one choice limit the next?"
+  - id: step.dp1d.check-cue
+    type: choice
+    title: Read the cue
+    prompt: |
+      *"Given a list of numbers (some negative), find the largest sum of a non-empty run of consecutive numbers."* What's a
+      good state?
+    options:
+      - text: "`best_here` = the largest sum of a run **ending at** `i`: either `nums[i]` alone, or `best_here` before plus `nums[i]`."
+        correct: true
+        feedback: "Right. Fixing where the run ends gives just two choices: extend or start fresh. The answer is the best `best_here` seen."
+      - text: "`dp[i]` = the sum of the first `i` numbers."
+        correct: false
+        feedback: "That's a prefix sum. It doesn't choose where the run starts or ends."
+      - text: "`dp[i]` = the largest number among the first `i`."
+        correct: false
+        feedback: "That ignores runs entirely: `[2, -1, 3]` has a run summing to `4`."
+      - text: "Try every start and end: no state needed."
+        correct: false
+        feedback: "Correct but O(n²) or worse. Ending the state at `i` gets it to O(n)."
+    hints:
+      - "If the run must end at `i`, what are the only two options?"
+  - id: step.dp1d.check-not-dp
+    type: choice
+    title: Do you need DP?
+    prompt: |
+      *"Pick any houses you like (neighbours allowed) to get the most money; amounts can be negative."* What's best?
+    options:
+      - text: "Sum the positive amounts: nothing links one choice to another."
+        correct: true
+        feedback: "Right. Without the neighbour rule, every house is decided on its own. DP earns its place when choices interact."
+      - text: "The robber's DP."
+        correct: false
+        feedback: "It would give a wrong answer: it forbids neighbours, which this version allows."
+      - text: "Memoised recursion over every subset."
+        correct: false
+        feedback: "There's nothing to search: each house is worth taking exactly when its amount is positive."
+      - text: "Sort and take the biggest half."
+        correct: false
+        feedback: "Take every positive one, however many that is."
+    hints:
+      - "Does taking one house change anything about the others?"
+  - id: step.dp1d.fill-rob
+    type: fill-blank
+    title: Rob in O(1) space
+    pattern: pattern.dp-1d-decisions
+    patternCue: "\"No two neighbours, most money\": at each house, the best of skipping it or taking it plus the best two back."
+    prompt: |
+      Fill in the blanks so `rob(nums)` returns the most money from houses in a row with no two neighbours taken. It keeps
+      `prev` (the best two houses back) and `cur` (the best up to the last house).
+    template: |
+      def rob(nums):
+          prev, cur = 0, 0
+          for x in nums:
+              prev, cur = {{new-prev}}, {{new-cur}}
+          return cur
+    blanks:
+      - id: new-prev
+        accepted:
+          - "cur"
+        mistakes:
+          - answers:
+              - "prev"
+            feedback: "Moving one house along, the old `cur` becomes the best two back."
+      - id: new-cur
+        accepted:
+          - "max(cur, prev + x)"
+          - "max(prev + x, cur)"
+        mistakes:
+          - answers:
+              - "cur + x"
+            feedback: "That takes this house next to the last one taken. Taking it must build on `prev`."
+          - answers:
+              - "prev + x"
+            feedback: "That always takes the house. Compare it with skipping, `cur`."
+          - answers:
+              - "max(prev, cur + x)"
+            feedback: "Swapped: skipping keeps `cur`, and taking adds `x` to `prev`."
+    hints:
+      - "Skip this house: keep `cur`. Take it: `prev + x`."
+      - "The tuple assignment uses the old `prev` and `cur` on the right."
+  - id: step.dp1d.order-climb
+    type: parsons
+    title: The cheapest climb
+    pattern: pattern.dp-1d-decisions
+    patternCue: "\"The cheapest way up, 1 or 2 steps at a time\": each step's cost plus the cheaper of the two ways in."
+    prompt: |
+      Arrange the lines into `min_climb(cost)`: step `i` costs `cost[i]` to stand on, you may start on step `0` or `1`, you
+      climb 1 or 2 at a time, and you finish past the top (`len(cost) >= 2`).
+    solution: |
+      def min_climb(cost):
+          a, b = 0, 0
+          for c in cost:
+              a, b = b, c + min(a, b)
+          return min(a, b)
+    hints:
+      - "`a` and `b` are the cheapest ways to stand on the two steps before `c`."
+      - "At the end, you can leave from either of the last two."
+  - id: step.dp1d.write-circle
+    type: write-code
+    largeScreenPreferred: true
+    title: Houses in a circle
+    pattern: pattern.dp-1d-decisions
+    patternCue: "\"No two neighbours, and the first and last are neighbours\": run the row version twice, once without each end."
+    prompt: |
+      The houses now stand in a **circle**: the first and last are neighbours too. Write `rob_circle(nums)` (at least one
+      house) that returns the most money with no two neighbours taken.
+
+      `rob_circle([2, 3, 2])` is `3`: the two `2`s are neighbours now.
+    language: python
+    entrypoint: rob_circle
+    starter: |
+      def rob_circle(nums):
+          pass
+    solution: |
+      def rob_circle(nums):
+          def rob(houses):
+              prev, cur = 0, 0
+              for x in houses:
+                  prev, cur = cur, max(cur, prev + x)
+              return cur
+
+          if len(nums) == 1:
+              return nums[0]
+          return max(rob(nums[1:]), rob(nums[:-1]))
+    tests:
+      - input: "[2, 3, 2]"
+        expected: "3"
+      - input: "[1, 2, 3, 1]"
+        expected: "4"
+      - input: "[5]"
+        expected: "5"
+      - input: "[1, 2, 3]"
+        expected: "3"
+      - input: "[200, 3, 140, 20, 10]"
+        expected: "340"
+    hints:
+      - "You can't take both the first and the last house. So at least one of them is skipped."
+      - "Solve the row without the first house, and the row without the last, and take the better."
+      - "One house alone is its own answer."
+    walkthrough:
+      call: result = rob_circle([200, 3, 140, 20, 10])
+      visualise:
+        - variable: houses
+          as: array
+      explanation: |
+        Without the first house, the best of `[3, 140, 20, 10]` is `150`. Without the last, the best of `[200, 3, 140, 20]` is
+        `340`. The answer is `340`.
+  - id: step.dp1d.write-earn
+    type: write-code
+    largeScreenPreferred: true
+    title: Delete and earn
+    pattern: pattern.dp-1d-decisions
+    patternCue: "\"Taking a value rules out its neighbours\": total each value's points, then it's the robber over values."
+    prompt: |
+      You may take any value `v` from `nums` and earn `v` for **every** copy of it, but then every `v - 1` and `v + 1` is lost.
+      Write `delete_and_earn(nums)` (positive whole numbers, possibly empty) that returns the most you can earn.
+
+      `delete_and_earn([2, 2, 3, 3, 3, 4])` is `9`: take the `3`s (losing the `2`s and the `4`).
+    language: python
+    entrypoint: delete_and_earn
+    starter: |
+      def delete_and_earn(nums):
+          pass
+    solution: |
+      def delete_and_earn(nums):
+          if not nums:
+              return 0
+          points = [0] * (max(nums) + 1)
+          for x in nums:
+              points[x] += x
+          prev, cur = 0, 0
+          for p in points:
+              prev, cur = cur, max(cur, prev + p)
+          return cur
+    tests:
+      - input: "[2, 2, 3, 3, 3, 4]"
+        expected: "9"
+      - input: "[3, 4, 2]"
+        expected: "6"
+      - input: "[]"
+        expected: "0"
+      - input: "[1]"
+        expected: "1"
+      - input: "[1, 1, 1, 2, 4, 5, 5, 5, 6]"
+        expected: "18"
+    hints:
+      - "Taking `v` once, take all its copies: they earn and cost nothing more. So total the points for each value."
+      - "`points[v]` = `v` times how often `v` appears. Neighbouring values can't both be taken."
+      - "That's the robber's problem on `points`."
+    walkthrough:
+      call: result = delete_and_earn([2, 2, 3, 3, 3, 4])
+      visualise:
+        - variable: points
+          as: array
+      explanation: |
+        `points` is `[0, 0, 4, 9, 4]`. Robbing it: take `9` (value `3`), or `4 + 4` (values `2` and `4`). `9` wins.
+    phoneAlternative:
+      id: step.dp1d.write-earn.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `delete_and_earn(nums)`: total each value's points, then take the best set of values with no two consecutive.
+        Arrange the lines instead of typing them.
+      solution: |
+        def delete_and_earn(nums):
+            if not nums:
+                return 0
+            points = [0] * (max(nums) + 1)
+            for x in nums:
+                points[x] += x
+            prev, cur = 0, 0
+            for p in points:
+                prev, cur = cur, max(cur, prev + p)
+            return cur
+      hints:
+        - "`points` turns the problem into houses in a row."
+  - id: step.dp1d.write-run
+    type: write-code
+    largeScreenPreferred: true
+    title: The best run
+    pattern: pattern.dp-1d-decisions
+    patternCue: "\"The largest sum of a consecutive run\": the best run ending here either extends the last one or starts fresh."
+    prompt: |
+      Write `best_run(nums)` that returns the largest sum of a non-empty run of consecutive numbers in `nums` (at least one
+      number, some may be negative), in O(n).
+
+      `best_run([-2, 1, -3, 4, -1, 2, 1, -5, 4])` is `6`, from `[4, -1, 2, 1]`.
+    language: python
+    entrypoint: best_run
+    starter: |
+      def best_run(nums):
+          pass
+    solution: |
+      def best_run(nums):
+          here = best = nums[0]
+          for x in nums[1:]:
+              here = max(x, here + x)
+              best = max(best, here)
+          return best
+    tests:
+      - input: "[-2, 1, -3, 4, -1, 2, 1, -5, 4]"
+        expected: "6"
+      - input: "[-3, -1, -2]"
+        expected: "-1"
+      - input: "[5]"
+        expected: "5"
+      - input: "[5, 4, -1, 7, 8]"
+        expected: "23"
+    hints:
+      - "Keep `here`: the best sum of a run ending at the current number."
+      - "A run ending at `x` either is `x` alone, or extends the best run ending just before: `max(x, here + x)`."
+      - "The answer is the largest `here` ever seen. Start both at `nums[0]` so an all-negative list works."
+    walkthrough:
+      call: result = best_run([-2, 1, -3, 4, -1, 2, 1, -5, 4])
+      visualise:
+        - variable: nums
+          as: array
+      explanation: |
+        `here` goes `-2, 1, -2, 4, 3, 5, 6, 1, 5`: at `4` it starts fresh, since `-2 + 4` is less than `4` alone. The largest is
+        `6`.

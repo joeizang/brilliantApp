@@ -1,0 +1,456 @@
+id: lesson.tabulation
+title: Tabulation, bottom-up
+concepts:
+  - id: concept.tab-table
+    title: A table filled from the smallest subproblem up replaces the recursion
+  - id: concept.tab-order
+    title: Fill the table in an order where everything a cell needs is already there
+  - id: concept.tab-space
+    title: Keep only the cells the next ones need
+reviewItems:
+  - id: review.tab.predict-table
+    concept: concept.tab-table
+    step: step.tab.predict-table
+  - id: review.tab.base
+    concept: concept.tab-table
+    step: step.tab.check-base
+  - id: review.tab.order
+    concept: concept.tab-order
+    step: step.tab.check-order
+  - id: review.tab.predict-bug
+    concept: concept.tab-space
+    step: step.tab.predict-bug
+  - id: review.tab.memo-or-table
+    concept: concept.tab-table
+    step: step.tab.check-memo-or-table
+  - id: review.tab.which-problem
+    concept: concept.tab-table
+    step: step.tab.check-which-problem
+    kind: pattern
+  - id: review.tab.cue
+    concept: concept.tab-order
+    step: step.tab.check-cue
+    kind: pattern
+patterns:
+  - id: pattern.tabulation
+    title: Fill a table from the smallest subproblems up, then read the answer from it
+steps:
+  - id: step.tab.idea
+    type: explain
+    title: Turn the recursion around
+    body: |
+      You climb `n` stairs, taking 1 or 2 at a time. In how many ways? Your last move was either 1 stair (from stair `n - 1`)
+      or 2 (from stair `n - 2`), so
+
+      `ways(n) = ways(n - 1) + ways(n - 2)`, with `ways(0) = 1` (standing still is one way) and `ways(1) = 1`.
+
+      Last lesson would memoise that, recursing down from `n`. But look at the order in which the memo fills: `ways(0)`,
+      `ways(1)`, `ways(2)`, and so on **up**. So skip the recursion and fill it in that order yourself, in a list:
+
+      - `dp[i]` = the number of ways to reach stair `i`.
+      - `dp[0] = 1`, then for `i` from `1` to `n`: `dp[i] = dp[i - 1] + dp[i - 2]` (the second only when `i >= 2`).
+      - The answer is `dp[n]`.
+
+      This is **tabulation**, or **bottom-up** DP. The same O(n) as the memo, with no recursion: no recursion limit, and no
+      cost per call.
+    comparison:
+      csharp: |
+        static long Ways(int n)
+        {
+            var dp = new long[n + 1];
+            dp[0] = 1;
+            for (int i = 1; i <= n; i++)
+                dp[i] = dp[i - 1] + (i >= 2 ? dp[i - 2] : 0);
+            return dp[n];
+        }
+      python: |
+        def ways(n):
+            dp = [0] * (n + 1)
+            dp[0] = 1
+            for i in range(1, n + 1):
+                dp[i] = dp[i - 1] + (dp[i - 2] if i >= 2 else 0)
+            return dp[n]
+  - id: step.tab.trace-table
+    type: trace
+    title: Filling the table
+    body: |
+      Watch `dp` fill from the left. Every cell is the sum of the two before it, and both are always filled by the time `i`
+      gets there.
+    code: |
+      n = 5
+      dp = [0] * (n + 1)
+      dp[0] = 1
+      for i in range(1, n + 1):
+          dp[i] = dp[i - 1] + (dp[i - 2] if i >= 2 else 0)
+      answer = dp[n]
+    visualise:
+      - variable: dp
+        as: array
+        pointers: [i]
+  - id: step.tab.predict-table
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      What does this print?
+    code: |
+      n = 5
+      dp = [0] * (n + 1)
+      dp[0] = 1
+      for i in range(1, n + 1):
+          dp[i] = dp[i - 1] + (dp[i - 2] if i >= 2 else 0)
+      print(dp)
+    accepted:
+      - "[1, 1, 2, 3, 5, 8]"
+    mistakes:
+      - answers:
+          - "[0, 1, 1, 2, 3, 5]"
+        feedback: "That's Fibonacci from `0`. Here `dp[0]` is `1`, so everything moves along one: `[1, 1, 2, 3, 5, 8]`."
+      - answers:
+          - "[1, 1, 2, 3, 5]"
+        feedback: "The list has `n + 1 = 6` cells, `dp[0]` to `dp[5]`."
+      - answers:
+          - "[1, 2, 3, 5, 8, 13]"
+        feedback: "`dp[1]` is only `dp[0]`, since `i >= 2` is false: `1`."
+    hints:
+      - "`dp[1] = dp[0]`, then each cell is the sum of the two before."
+  - id: step.tab.check-base
+    type: choice
+    title: Why is dp[0] one?
+    prompt: |
+      Why does the table start with `dp[0] = 1`, not `0`?
+    options:
+      - text: "There is exactly one way to climb zero stairs: do nothing. And it makes `dp[2] = dp[1] + dp[0]` come out as `2`."
+        correct: true
+        feedback: "Right. The base case has to be the true answer for the smallest problem, and the rest is built from it. With `dp[0] = 0`, every cell stays `0`, since each is built from the ones before, but `1+1` and `2` are two ways to climb two stairs."
+      - text: "Python lists can't start with `0`."
+        correct: false
+        feedback: "They can. The `1` is the answer to the smallest problem, not a technical need."
+      - text: "To avoid dividing by zero."
+        correct: false
+        feedback: "Nothing divides here. The `1` counts the one way to climb nothing."
+      - text: "It doesn't matter: the answer for `n` comes out the same."
+        correct: false
+        feedback: "Every cell is built from `dp[0]` and `dp[1]`. Change `dp[0]` and every answer from `dp[2]` on changes."
+    hints:
+      - "Work out `dp[2]` both ways and compare with counting by hand."
+  - id: step.tab.recipe
+    type: explain
+    title: The recipe
+    body: |
+      Every DP in this track is built from the same five decisions:
+
+      1. **State**: what does `dp[i]` mean, in words? (*The number of ways to reach stair `i`.*)
+      2. **Recurrence**: how is a state built from smaller ones? (*`dp[i - 1] + dp[i - 2]`, the two possible last moves.*)
+      3. **Base cases**: the smallest states, answered directly. (*`dp[0] = 1`.*)
+      4. **Order**: fill the table so every state a cell needs is filled **before** it. (*Left to right.*)
+      5. **Answer**: which cell holds it? (*`dp[n]`.*)
+
+      The order is often left to right, but not always: if `dp[i]` were built from `dp[i + 1]`, you would fill right to left.
+      Write the state down in words first. Most DP bugs come from a `dp[i]` whose meaning was never pinned down.
+  - id: step.tab.check-order
+    type: choice
+    title: Which way round?
+    prompt: |
+      A table is defined by `dp[i] = cost[i] + min(dp[i + 1], dp[i + 2])`, with `dp[n] = dp[n + 1] = 0`. In which order should
+      you fill it?
+    options:
+      - text: "From `i = n - 1` down to `0`, since each cell needs the two after it."
+        correct: true
+        feedback: "Right. `for i in range(n - 1, -1, -1)`: when you reach `i`, `dp[i + 1]` and `dp[i + 2]` are done."
+      - text: "From `0` up to `n - 1`, as always."
+        correct: false
+        feedback: "At `i = 0` you'd read `dp[1]` and `dp[2]`, which haven't been filled yet. The order follows the dependencies."
+      - text: "Any order: the values settle eventually."
+        correct: false
+        feedback: "Each cell is written once. If what it reads isn't ready, it's wrong for good."
+      - text: "It can't be tabulated; it needs recursion."
+        correct: false
+        feedback: "Any recurrence whose cells depend on each other in one direction can be filled bottom-up. This one just goes right to left."
+    hints:
+      - "Which cells does `dp[i]` read? Those must be filled first."
+  - id: step.tab.space
+    type: explain
+    title: Keep only what you need
+    body: |
+      `dp[i]` reads only `dp[i - 1]` and `dp[i - 2]`. Once you're past them, the older cells are never read again. So keep two
+      variables instead of a list: O(1) space instead of O(n).
+
+      ```python
+      def ways(n):
+          prev, cur = 1, 1          # ways(0), ways(1)
+          for _ in range(n - 1):
+              prev, cur = cur, prev + cur
+          return cur
+      ```
+
+      The tuple assignment matters: the right side is worked out in full, **with the old values**, before either name changes.
+      Written as two lines, `prev = cur` then `cur = prev + cur`, the second line sees the new `prev`, and the answers go wrong.
+      In C#, keep a temporary, or use tuple swap: `(prev, cur) = (cur, prev + cur);`.
+
+      Do the full table first; shrink it only once it works. And you can't shrink it if you need the table afterwards, for
+      instance to rebuild which choices led to the answer.
+    comparison:
+      csharp: |
+        static long Ways(int n)
+        {
+            long prev = 1, cur = 1;
+            for (int i = 0; i < n - 1; i++)
+                (prev, cur) = (cur, prev + cur);
+            return cur;
+        }
+      python: |
+        def ways(n):
+            prev, cur = 1, 1
+            for _ in range(n - 1):
+                prev, cur = cur, prev + cur
+            return cur
+  - id: step.tab.predict-bug
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      This splits the tuple assignment into two lines. What does it print?
+    code: |
+      prev, cur = 1, 1
+      seen = []
+      for _ in range(4):
+          prev = cur
+          cur = prev + cur
+          seen.append(cur)
+      print(*seen)
+    accepted:
+      - "2 4 8 16"
+    mistakes:
+      - answers:
+          - "2 3 5 8"
+        feedback: "That's what `prev, cur = cur, prev + cur` gives. Here `prev = cur` runs first, so `cur = prev + cur` adds `cur` to itself."
+      - answers:
+          - "1 2 4 8"
+        feedback: "The first `cur` is `1 + 1 = 2`: `prev` becomes `1`, then `cur` is `1 + 1`."
+    hints:
+      - "After `prev = cur`, both names hold the same number. What is `prev + cur` then?"
+  - id: step.tab.check-memo-or-table
+    type: choice
+    title: Memo or table?
+    prompt: |
+      Which is a real reason to prefer the table over `@functools.cache`?
+    options:
+      - text: "`ways(100000)` with the memo goes 100000 calls deep and raises `RecursionError`; the table is a loop."
+        correct: true
+        feedback: "Right. The table also avoids the cost of each call. The memo's strength is different: it only works out the states it actually needs."
+      - text: "The table has a better Big-O."
+        correct: false
+        feedback: "Both work out each state once: O(n) here. The difference is the recursion and the constant factor."
+      - text: "The memo gives wrong answers for big `n`."
+        correct: false
+        feedback: "Its answers are right, if it can finish. The risk is the depth of the recursion."
+      - text: "Tables work for every problem, memos only for some."
+        correct: false
+        feedback: "It's nearer the other way round: the memo doesn't need you to work out a fill order, and it skips states nobody asks for."
+    hints:
+      - "What happens to the call stack when the memoised function first runs on a big `n`?"
+  - id: step.tab.check-which-problem
+    type: choice
+    title: Which problem?
+    prompt: |
+      Which of these is the best fit for a bottom-up table?
+    options:
+      - text: "The number of ways to make a staircase of `n` stairs with steps of 1, 2 or 3, for `n` up to a million."
+        correct: true
+        feedback: "Right. `dp[i]` needs `dp[i - 1]`, `dp[i - 2]` and `dp[i - 3]`: fill left to right. A memo would hit the recursion limit."
+      - text: "The largest number in a list of a million."
+        correct: false
+        feedback: "`max()`: one pass, no subproblems."
+      - text: "Whether a word is a palindrome."
+        correct: false
+        feedback: "Two pointers from the ends (Track 2): nothing is built from smaller answers."
+      - text: "Print the numbers from 1 to `n`."
+        correct: false
+        feedback: "A loop, with nothing to store."
+    hints:
+      - "Which answer is built from the answers just before it?"
+  - id: step.tab.check-cue
+    type: choice
+    title: Read the cue
+    prompt: |
+      *"Tiles are 1 × 1 and 1 × 2. How many ways can you tile a 1 × n strip?"* What are the state and the recurrence?
+    options:
+      - text: "`dp[i]` = ways to tile length `i`; the last tile is a 1 or a 2, so `dp[i] = dp[i - 1] + dp[i - 2]`."
+        correct: true
+        feedback: "Right. Exactly the stairs problem in disguise, `dp[0] = 1`. Deciding on the **last** piece is what splits the problem."
+      - text: "`dp[i]` = ways to tile length `i`; `dp[i] = 2 * dp[i - 1]`."
+        correct: false
+        feedback: "That counts every cell as a choice of two, but a 1 × 2 tile covers two cells. Split on the last tile instead."
+      - text: "`dp[i]` = the number of tiles used; `dp[i] = dp[i - 1] + 1`."
+        correct: false
+        feedback: "The question counts tilings, not tiles. The state should mean what the question asks."
+      - text: "No DP: try every tiling with backtracking."
+        correct: false
+        feedback: "That works for small `n`, but there are Fibonacci-many tilings. Counting them needs only the counts for shorter strips."
+    hints:
+      - "What can the last tile be?"
+  - id: step.tab.fill-steps
+    type: fill-blank
+    title: Steps of any size
+    pattern: pattern.tabulation
+    patternCue: "\"Ways to reach stair n with these step sizes\": `dp[i]` adds up the ways to every stair one step below."
+    prompt: |
+      `count_ways(n, steps)` returns the number of ways to climb `n` stairs when each move is one of the sizes in `steps` (distinct
+      positive numbers). The order of moves counts: `1 + 2` and `2 + 1` are different. Fill in the blanks.
+    template: |
+      def count_ways(n, steps):
+          dp = [0] * (n + 1)
+          dp[0] = {{base}}
+          for i in range(1, n + 1):
+              for s in steps:
+                  if s <= i:
+                      dp[i] += {{from}}
+          return dp[n]
+    blanks:
+      - id: base
+        accepted:
+          - "1"
+        mistakes:
+          - answers:
+              - "0"
+            feedback: "Then every cell stays `0`. There is one way to climb nothing."
+      - id: from
+        accepted:
+          - "dp[i - s]"
+          - "dp[i-s]"
+        mistakes:
+          - answers:
+              - "dp[i - 1]"
+              - "dp[i-1]"
+            feedback: "A move of size `s` comes from stair `i - s`, not always `i - 1`."
+          - answers:
+              - "1"
+            feedback: "That counts the step sizes that fit, not the ways. Add the ways to reach the stair the move starts from."
+          - answers:
+              - "dp[s]"
+            feedback: "The move ends at `i`, so it starts at `i - s`."
+    hints:
+      - "One way to stand at the bottom."
+      - "If the last move is size `s`, you were on stair `i - s`."
+  - id: step.tab.order-trib
+    type: parsons
+    title: Tribonacci in O(1) space
+    pattern: pattern.tabulation
+    patternCue: "\"Each value from the three before\": a table, then just three variables."
+    prompt: |
+      The Tribonacci numbers start `0, 1, 1`, and each after that is the sum of the three before. Arrange the lines into
+      `trib(n)` (for `n >= 0`), which keeps only three numbers.
+    solution: |
+      def trib(n):
+          a, b, c = 0, 1, 1
+          for _ in range(n):
+              a, b, c = b, c, a + b + c
+          return a
+    hints:
+      - "`a`, `b`, `c` are three numbers in a row, starting at `trib(0)`."
+      - "Each round moves them all along by one."
+  - id: step.tab.write-strings
+    type: write-code
+    largeScreenPreferred: true
+    title: No two ones in a row
+    pattern: pattern.tabulation
+    patternCue: "\"Count the strings, building them one character at a time\": keep a count for each way a string can end."
+    prompt: |
+      Write `no_adjacent(n)` that returns how many strings of `n` characters, each `0` or `1`, have no two `1`s next to each
+      other. `no_adjacent(3)` is `5`: `000`, `001`, `010`, `100`, `101`. (`no_adjacent(0)` is `1`: the empty string.)
+
+      Build them one character at a time, keeping two counts: those ending in `0` and those ending in `1`.
+    language: python
+    entrypoint: no_adjacent
+    starter: |
+      def no_adjacent(n):
+          pass
+    solution: |
+      def no_adjacent(n):
+          if n == 0:
+              return 1
+          end0, end1 = 1, 1
+          for _ in range(n - 1):
+              end0, end1 = end0 + end1, end0
+          return end0 + end1
+    tests:
+      - input: "3"
+        expected: "5"
+      - input: "0"
+        expected: "1"
+      - input: "1"
+        expected: "2"
+      - input: "2"
+        expected: "3"
+      - input: "5"
+        expected: "13"
+      - input: "10"
+        expected: "144"
+    hints:
+      - "Length 1: one string ends in `0`, one in `1`."
+      - "A `0` can follow anything. A `1` can follow only a `0`."
+      - "So the new `end0` is `end0 + end1`, and the new `end1` is the old `end0`."
+    phoneAlternative:
+      id: step.tab.write-strings.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `no_adjacent(n)`: the number of `0`/`1` strings of length `n` with no two `1`s together, keeping counts of those
+        ending in `0` and in `1`. Arrange the lines instead of typing them.
+      solution: |
+        def no_adjacent(n):
+            if n == 0:
+                return 1
+            end0, end1 = 1, 1
+            for _ in range(n - 1):
+                end0, end1 = end0 + end1, end0
+            return end0 + end1
+      hints:
+        - "A `1` can only follow a string ending in `0`."
+  - id: step.tab.write-pascal
+    type: write-code
+    largeScreenPreferred: true
+    title: A row of Pascal's triangle
+    pattern: pattern.tabulation
+    patternCue: "\"Each row from the one above\": keep one row and update it in place, right to left."
+    prompt: |
+      Each row of Pascal's triangle starts and ends with `1`, and every other entry is the sum of the two above it:
+      `[1]`, `[1, 1]`, `[1, 2, 1]`, `[1, 3, 3, 1]`, ... Write `pascal_row(n)` that returns row `n` (row `0` is `[1]`), using
+      **one** list of `n + 1` numbers that you update row by row.
+
+      Update each row from **right to left**: then `row[j] += row[j - 1]` still reads the old `row[j - 1]`.
+    language: python
+    entrypoint: pascal_row
+    starter: |
+      def pascal_row(n):
+          pass
+    solution: |
+      def pascal_row(n):
+          row = [1] * (n + 1)
+          for i in range(2, n + 1):
+              for j in range(i - 1, 0, -1):
+                  row[j] += row[j - 1]
+          return row
+    tests:
+      - input: "4"
+        expected: "[1, 4, 6, 4, 1]"
+      - input: "0"
+        expected: "[1]"
+      - input: "1"
+        expected: "[1, 1]"
+      - input: "2"
+        expected: "[1, 2, 1]"
+      - input: "6"
+        expected: "[1, 6, 15, 20, 15, 6, 1]"
+    hints:
+      - "Start with all `1`s. Row `i` only changes the entries `1` to `i - 1`."
+      - "For row `i`, go `j` from `i - 1` down to `1`, adding `row[j - 1]`."
+      - "Left to right would add a value already updated for this row."
+    walkthrough:
+      call: result = pascal_row(4)
+      visualise:
+        - variable: row
+          as: array
+          pointers: [j]
+      explanation: |
+        Row 2 changes `row[1]` to `2`. Row 3 goes right to left: `row[2]` becomes `1 + 2 = 3`, then `row[1]` becomes `2 + 1 = 3`.
+        Row 4: `4`, `6`, `4`. Each `row[j - 1]` it reads is still the previous row's.

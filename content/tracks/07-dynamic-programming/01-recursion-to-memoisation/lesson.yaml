@@ -1,0 +1,546 @@
+id: lesson.recursion-to-memoisation
+title: From recursion to memoisation
+concepts:
+  - id: concept.memo-overlap
+    title: Plain recursion solves the same subproblems again and again
+  - id: concept.memo-cache
+    title: A memo stores each subproblem's answer the first time, so later calls look it up
+  - id: concept.memo-functools
+    title: "@functools.cache memoises a function for you, if its arguments are hashable"
+reviewItems:
+  - id: review.memo.predict-calls
+    concept: concept.memo-overlap
+    step: step.memo.predict-calls
+  - id: review.memo.why-slow
+    concept: concept.memo-overlap
+    step: step.memo.check-why-slow
+  - id: review.memo.predict-memo
+    concept: concept.memo-cache
+    step: step.memo.predict-memo
+  - id: review.memo.hashable
+    concept: concept.memo-functools
+    step: step.memo.check-hashable
+  - id: review.memo.when
+    concept: concept.memo-overlap
+    step: step.memo.check-when
+    kind: pattern
+  - id: review.memo.which-problem
+    concept: concept.memo-overlap
+    step: step.memo.check-which-problem
+    kind: pattern
+  - id: review.memo.cue
+    concept: concept.memo-cache
+    step: step.memo.check-cue
+    kind: pattern
+patterns:
+  - id: pattern.memoisation
+    title: Recurse on smaller subproblems, caching each answer the first time
+steps:
+  - id: step.memo.idea
+    type: explain
+    title: The same question, asked again and again
+    body: |
+      This track is about **dynamic programming** (DP): solving a problem from the answers to smaller versions of itself,
+      where the same smaller versions come up many times. It starts where Track 4 left off, with recursion.
+
+      The Fibonacci numbers go `0, 1, 1, 2, 3, 5, 8, ...`: each is the sum of the two before. As a recursive function that's
+      two lines. But look at what `fib(5)` does: it calls `fib(4)` and `fib(3)`, and `fib(4)` calls `fib(3)` **again**. Each
+      call makes two more, so the calls double at every level: about `1.6ⁿ` calls for `fib(n)`. `fib(30)` makes over **2.6
+      million** calls to find one number.
+
+      The same in C#: the code is short, and the time is exponential.
+    comparison:
+      csharp: |
+        static long Fib(int n)
+        {
+            if (n < 2) return n;
+            return Fib(n - 1) + Fib(n - 2);
+        }
+
+        Console.WriteLine(Fib(30));   // 832040, after 2.6 million calls
+      python: |
+        def fib(n):
+            if n < 2:
+                return n
+            return fib(n - 1) + fib(n - 2)
+
+
+        print(fib(30))   # 832040, after 2.6 million calls
+  - id: step.memo.trace-plain
+    type: trace
+    title: fib(4) without a memo
+    body: |
+      Watch the call stack. `fib(n=2)` runs twice, and `fib(n=1)` three times: each time from scratch, because nothing
+      remembers the answer.
+    code: |
+      def fib(n):
+          if n < 2:
+              return n
+          return fib(n - 1) + fib(n - 2)
+
+
+      result = fib(4)
+    visualise:
+      - as: call_stack
+  - id: step.memo.predict-calls
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      This counts the calls. What does it print?
+    code: |
+      calls = 0
+
+
+      def fib(n):
+          global calls
+          calls += 1
+          if n < 2:
+              return n
+          return fib(n - 1) + fib(n - 2)
+
+
+      print(fib(6), calls)
+    accepted:
+      - "8 25"
+    mistakes:
+      - answers:
+          - "8 7"
+          - "8 6"
+        feedback: "That would be one call per value of `n`. But `fib(6)` calls `fib(5)` and `fib(4)`, and `fib(5)` calls `fib(4)` again, and so on: the calls are `1 + calls(5) + calls(4)`."
+      - answers:
+          - "8 64"
+          - "8 32"
+        feedback: "Close in spirit, but the tree isn't full: the `fib(n - 2)` side is shallower. Count it as `calls(n) = 1 + calls(n-1) + calls(n-2)`, with `calls(0) = calls(1) = 1`."
+      - answers:
+          - "13 25"
+        feedback: "`fib(6)` is `8`: `0, 1, 1, 2, 3, 5, 8`."
+    hints:
+      - "`calls(0) = calls(1) = 1`, and `calls(n) = 1 + calls(n - 1) + calls(n - 2)`."
+      - "That gives `1, 1, 3, 5, 9, 15, 25`."
+  - id: step.memo.check-why-slow
+    type: choice
+    title: Where the time goes
+    prompt: |
+      Why does the plain recursive `fib` take exponential time?
+    options:
+      - text: "It solves the same subproblems again and again: `fib(n - 2)` is computed inside `fib(n - 1)` and once more on its own."
+        correct: true
+        feedback: "Right. There are only `n + 1` different questions, `fib(0)` to `fib(n)`, but the calls ask them millions of times."
+      - text: "Recursion is slow in Python."
+        correct: false
+        feedback: "Each call costs a little, but the real problem is how many there are. C# makes the same 2.6 million calls for `Fib(30)`."
+      - text: "Adding big numbers is slow."
+        correct: false
+        feedback: "`fib(30)` is only `832040`. The numbers are small; there are just too many calls."
+      - text: "The recursion goes `n` levels deep."
+        correct: false
+        feedback: "The depth is only `n`, so the stack is small. It's the width, two calls from every call, that explodes."
+    hints:
+      - "How many **different** values of `n` do the calls see?"
+  - id: step.memo.memo
+    type: explain
+    title: Remember the answers
+    body: |
+      There are only `n + 1` different questions. So the first time you work one out, **store it**; every later time, look
+      it up. That store is a **memo**, usually a dict from the arguments to the answer.
+
+      1. If `n` is in the memo, return the stored answer.
+      2. Otherwise work it out as before, store it, and return it.
+
+      Now each `fib(k)` is worked out once. Every other call finds it in the memo straight away, so `fib(n)` makes about
+      `2n` calls instead of `1.6ⁿ`: **O(n)**. This is called **memoisation**, or **top-down** DP: you start from the big
+      question and recurse down, caching as you go.
+    comparison:
+      csharp: |
+        var memo = new Dictionary<int, long>();
+
+        long Fib(int n)
+        {
+            if (n < 2) return n;
+            if (memo.TryGetValue(n, out var known)) return known;
+            long result = Fib(n - 1) + Fib(n - 2);
+            memo[n] = result;
+            return result;
+        }
+      python: |
+        def fib(n, memo):
+            if n < 2:
+                return n
+            if n in memo:
+                return memo[n]
+            memo[n] = fib(n - 1, memo) + fib(n - 2, memo)
+            return memo[n]
+
+
+        print(fib(30, {}))   # 832040, after 59 calls
+  - id: step.memo.trace-memo
+    type: trace
+    title: fib(5) with a memo
+    body: |
+      The first trip down the left side fills the memo: `2`, then `3`, `4` and `5`. Each `fib(n - 2)` call after that finds its
+      answer already stored and returns at once, without calling anything.
+    code: |
+      def fib(n, memo):
+          if n < 2:
+              return n
+          if n in memo:
+              return memo[n]
+          memo[n] = fib(n - 1, memo) + fib(n - 2, memo)
+          return memo[n]
+
+
+      memo = {}
+      result = fib(5, memo)
+    visualise:
+      - as: call_stack
+      - variable: memo
+        as: dict
+  - id: step.memo.predict-memo
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      This version checks the memo first and stores every answer, base cases included. What does it print?
+    code: |
+      calls = 0
+
+
+      def fib(n, memo):
+          global calls
+          calls += 1
+          if n in memo:
+              return memo[n]
+          result = n if n < 2 else fib(n - 1, memo) + fib(n - 2, memo)
+          memo[n] = result
+          return result
+
+
+      memo = {}
+      print(fib(6, memo), calls, len(memo))
+    accepted:
+      - "8 11 7"
+    mistakes:
+      - answers:
+          - "8 25 7"
+        feedback: "That's without a memo. Here, every `fib(n - 2)` call after the first trip down finds its answer stored."
+      - answers:
+          - "8 7 7"
+          - "8 6 7"
+        feedback: "Each of `fib(6)` to `fib(2)` also makes a `fib(n - 2)` call, and those calls count, even though they return at once from the memo."
+      - answers:
+          - "8 11 6"
+        feedback: "The base cases are stored too: `0` to `6` is seven keys."
+    hints:
+      - "The left side goes `6, 5, 4, 3, 2, 1, 0`: seven calls that each compute."
+      - "Then `fib(6)` to `fib(3)` each make one more call that finds its answer in the memo: four more."
+  - id: step.memo.cache
+    type: explain
+    title: "@functools.cache"
+    body: |
+      Python can write the memo for you. Put `@functools.cache` above a function, and each call's arguments become a key in a
+      hidden dict. The first call with those arguments runs the body; later calls return the stored result.
+
+      ```python
+      import functools
+
+
+      @functools.cache
+      def fib(n):
+          if n < 2:
+              return n
+          return fib(n - 1) + fib(n - 2)
+      ```
+
+      Two things to know:
+
+      - **The arguments must be hashable**, like dict keys: numbers, strings, tuples. A list argument raises `TypeError`. Pass a
+        tuple, or an index into a list the function can see.
+      - **The recursion is still recursion.** Asking for `fib(5000)` straight away goes 5000 calls deep, past Python's limit of
+        about 1000, and raises `RecursionError`. The next lesson fills a table bottom-up instead, which has no such limit.
+
+      C# has nothing built in. You write the `Dictionary` yourself, as on the last step.
+  - id: step.memo.check-hashable
+    type: choice
+    title: A list argument
+    prompt: |
+      ```python
+      @functools.cache
+      def best(prices, i):
+          ...
+
+      best([3, 1, 4], 0)
+      ```
+
+      What happens?
+    options:
+      - text: "`TypeError: unhashable type: 'list'`, because the cache uses the arguments as a dict key."
+        correct: true
+        feedback: "Right. Pass `tuple(prices)`, or let `best` take only `i` and read `prices` from the enclosing function."
+      - text: "It works, but the cache never finds a match."
+        correct: false
+        feedback: "It doesn't get that far. Making the key fails on the very first call."
+      - text: "It works, and the cache compares lists by value."
+        correct: false
+        feedback: "A list can change, so it can't be a dict key at all."
+      - text: "The cache copies the list into a tuple for you."
+        correct: false
+        feedback: "It doesn't convert anything. You have to pass something hashable yourself."
+    hints:
+      - "Could `[3, 1, 4]` be a dict key?"
+  - id: step.memo.check-when
+    type: choice
+    title: When does a memo help?
+    prompt: |
+      Which recursive function gets **faster** with `@functools.cache`, for a single call?
+    options:
+      - text: "`ways(n)`, which returns `ways(n - 1) + ways(n - 2) + ways(n - 3)`."
+        correct: true
+        feedback: "Right. Its calls overlap, like `fib`'s: `ways(n - 2)` is reached from `ways(n - 1)` and directly. The memo cuts it from exponential to O(n)."
+      - text: "`fact(n)`, which returns `n * fact(n - 1)`."
+        correct: false
+        feedback: "Each `fact(k)` is called exactly once already. With nothing asked twice, the memo only adds work."
+      - text: "`total(nums, i)`, which returns `nums[i] + total(nums, i + 1)`."
+        correct: false
+        feedback: "One call per index, none repeated, and `nums` is a list, so the cache would raise `TypeError` anyway."
+      - text: "`depth(node)` on a binary tree, which returns `1 + max(depth(node.left), depth(node.right))`."
+        correct: false
+        feedback: "Each node is visited once. A tree's subtrees don't overlap, so there is nothing to reuse."
+    hints:
+      - "A memo only pays off when the same subproblem is asked more than once."
+  - id: step.memo.check-which-problem
+    type: choice
+    title: Which problem?
+    prompt: |
+      Which of these is the best fit for recursion with a memo?
+    options:
+      - text: "The number of ways to climb `n` stairs taking 1 or 2 at a time."
+        correct: true
+        feedback: "Right. The ways for `n` are the ways for `n - 1` plus the ways for `n - 2`, and those overlap: a memo makes it O(n)."
+      - text: "Print every subset of a list."
+        correct: false
+        feedback: "There are `2ⁿ` subsets to print, and no two branches build the same one. That's backtracking (Track 4)."
+      - text: "The sum of a list."
+        correct: false
+        feedback: "That's a loop, or `sum()`. No subproblem comes up twice."
+      - text: "Find a value in a sorted list."
+        correct: false
+        feedback: "That's binary search: each step throws half away, and nothing is revisited."
+    hints:
+      - "Which answer is built from smaller answers that overlap?"
+  - id: step.memo.check-cue
+    type: choice
+    title: Read the cue
+    prompt: |
+      *"A frog at stone `0` jumps 1 or 2 stones forward each time; jumping from stone `i` to `j` costs
+      `abs(h[i] - h[j])`. What's the cheapest way to the last stone?"* What's the plan?
+    options:
+      - text: "`cost(i)` = cheapest from stone `i` to the end: the smaller of jumping 1 or 2, plus `cost` from there, memoised on `i`."
+        correct: true
+        feedback: "Right. `cost(i + 1)` and `cost(i + 2)` are both reached from many places, so the memo matters: O(n) instead of exponential."
+      - text: "Greedy: always jump to the closer height."
+        correct: false
+        feedback: "A cheap jump now can land on a stone from which every jump is expensive. You need every option's full cost."
+      - text: "Try every path with backtracking, no memo."
+        correct: false
+        feedback: "Correct, but exponential: the same `cost(i)` is worked out once per path that reaches stone `i`."
+      - text: "Binary search on the cost."
+        correct: false
+        feedback: "There's no yes/no question here that flips once. Each stone's best cost comes from the next two."
+    hints:
+      - "What does the cheapest from stone `i` depend on?"
+  - id: step.memo.fill-trib
+    type: fill-blank
+    title: Tribonacci
+    pattern: pattern.memoisation
+    patternCue: "\"Each value is the sum of the three before\": the calls overlap, so store each answer in a memo."
+    prompt: |
+      The Tribonacci numbers start `0, 1, 1`, and each after that is the sum of the three before: `2, 4, 7, 13, ...`. Fill
+      in the blanks so `trib(n, memo)` runs in O(n).
+    template: |
+      def trib(n, memo):
+          if n < 3:
+              return [0, 1, 1][n]
+          if {{seen}}:
+              return memo[n]
+          memo[n] = trib(n - 1, memo) + trib(n - 2, memo) + trib(n - 3, memo)
+          return {{answer}}
+    blanks:
+      - id: seen
+        accepted:
+          - "n in memo"
+        mistakes:
+          - answers:
+              - "memo[n]"
+            feedback: "`memo[n]` raises `KeyError` when `n` isn't stored yet. Ask whether the key is there: `n in memo`."
+          - answers:
+              - "n not in memo"
+            feedback: "That returns `memo[n]` exactly when it isn't there. Return early when it **is** stored."
+      - id: answer
+        accepted:
+          - "memo[n]"
+        mistakes:
+          - answers:
+              - "memo"
+            feedback: "That returns the whole dict. Return this call's answer, `memo[n]`."
+          - answers:
+              - "trib(n, memo)"
+            feedback: "That calls itself again. It would find `memo[n]` and return it, but the answer is right there: `memo[n]`."
+    hints:
+      - "First check whether this `n` is already in the memo."
+      - "After storing it, return what you stored."
+  - id: step.memo.order-steps
+    type: parsons
+    title: Down to one
+    pattern: pattern.memoisation
+    patternCue: "\"The fewest steps, trying each move\": each choice leads to a smaller number reached many ways, so cache it."
+    prompt: |
+      From a whole number `n >= 1`, each step either subtracts 1, halves it (if even) or divides it by 3 (if divisible).
+      Arrange the lines into `fewest_steps(n)`, which returns the fewest steps down to `1`. `fewest_steps(10)` is `3`:
+      `10 → 9 → 3 → 1`.
+    solution: |
+      import functools
+
+
+      @functools.cache
+      def fewest_steps(n):
+          if n == 1:
+              return 0
+          best = fewest_steps(n - 1)
+          if n % 2 == 0:
+              best = min(best, fewest_steps(n // 2))
+          if n % 3 == 0:
+              best = min(best, fewest_steps(n // 3))
+          return best + 1
+    hints:
+      - "The base case is `n == 1`: no steps left."
+      - "Subtracting 1 is always allowed, so start `best` there and improve it with the others."
+  - id: step.memo.write-choose
+    type: write-code
+    largeScreenPreferred: true
+    title: n choose k
+    pattern: pattern.memoisation
+    patternCue: "\"C(n, k) = C(n-1, k-1) + C(n-1, k)\": two overlapping calls, so memoise on `(n, k)`."
+    prompt: |
+      `choose(n, k)` is the number of ways to pick `k` items from `n` (`0 <= k <= n`). Pascal's rule says: either the first item
+      is picked, leaving `k - 1` to pick from the other `n - 1`, or it isn't, leaving `k` to pick from `n - 1`. And there is
+      exactly one way to pick none, or all. Write `choose(n, k)` using that rule, with a memo, so that `choose(30, 15)` is fast.
+
+      `choose(5, 2)` is `10`.
+    language: python
+    entrypoint: choose
+    starter: |
+      import functools
+
+
+      def choose(n, k):
+          pass
+    solution: |
+      import functools
+
+
+      @functools.cache
+      def choose(n, k):
+          if k == 0 or k == n:
+              return 1
+          return choose(n - 1, k - 1) + choose(n - 1, k)
+    tests:
+      - input: "5, 2"
+        expected: "10"
+      - input: "10, 3"
+        expected: "120"
+      - input: "0, 0"
+        expected: "1"
+      - input: "4, 4"
+        expected: "1"
+      - input: "30, 15"
+        expected: "155117520"
+    hints:
+      - "Base cases: `k == 0` or `k == n` give `1`."
+      - "Otherwise return `choose(n - 1, k - 1) + choose(n - 1, k)`."
+      - "Add `@functools.cache` above the function, or keep a dict keyed by `(n, k)`."
+    walkthrough:
+      call: result = choose(4, 2)
+      visualise:
+        - as: call_stack
+      explanation: |
+        `choose(4, 2)` asks `choose(3, 1)` and `choose(3, 2)`. Both of those ask `choose(2, 1)`: the second time it comes from the
+        cache. Without the cache `choose(30, 15)` makes over 300 million calls; with it, a few hundred.
+  - id: step.memo.write-collatz
+    type: write-code
+    largeScreenPreferred: true
+    title: The longest Collatz chain
+    pattern: pattern.memoisation
+    patternCue: "\"Chain lengths from many starts, sharing their tails\": remember each number's length once worked out."
+    prompt: |
+      From a number `n`, the Collatz chain goes to `n // 2` if `n` is even, and to `3 * n + 1` if it's odd, until it reaches
+      `1`. The chain from `6` is `6, 3, 10, 5, 16, 8, 4, 2, 1`: length `9`. Write `longest_start(limit)` that returns the start
+      below `limit` (`limit >= 2`) with the longest chain; if several tie, the smallest.
+
+      Chains share their tails (`6`'s chain contains `3`'s whole chain), so store each number's length the first time you
+      work it out. `longest_start(10)` is `9`, whose chain has length `20`.
+    language: python
+    entrypoint: longest_start
+    starter: |
+      def longest_start(limit):
+          pass
+    solution: |
+      def longest_start(limit):
+          memo = {1: 1}
+
+          def length(n):
+              if n not in memo:
+                  nxt = n // 2 if n % 2 == 0 else 3 * n + 1
+                  memo[n] = 1 + length(nxt)
+              return memo[n]
+
+          best = 1
+          for start in range(2, limit):
+              if length(start) > length(best):
+                  best = start
+          return best
+    tests:
+      - input: "10"
+        expected: "9"
+      - input: "2"
+        expected: "1"
+      - input: "100"
+        expected: "97"
+      - input: "1000"
+        expected: "871"
+      - input: "10000"
+        expected: "6171"
+    hints:
+      - "Keep a dict from a number to its chain length, starting with `{1: 1}`."
+      - "`length(n)` is `1 + length(next)`, worked out only if `n` isn't stored yet."
+      - "Then loop over the starts, keeping the one with the longest chain (`>` keeps the smallest on a tie)."
+    walkthrough:
+      call: result = longest_start(7)
+      visualise:
+        - variable: memo
+          as: dict
+      explanation: |
+        `length(2)` stores `2`. `length(3)` goes `3, 10, 5, 16, 8, 4`, stops at `2`, which is stored, and fills in the rest on the
+        way back. `4`, `5` and `6` are then mostly lookups. `6` has the longest chain, `9`.
+    phoneAlternative:
+      id: step.memo.write-collatz.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `longest_start(limit)`: the start below `limit` with the longest Collatz chain (the smallest on a tie), storing
+        each number's chain length in a memo. Arrange the lines instead of typing them.
+      solution: |
+        def longest_start(limit):
+            memo = {1: 1}
+
+            def length(n):
+                if n not in memo:
+                    nxt = n // 2 if n % 2 == 0 else 3 * n + 1
+                    memo[n] = 1 + length(nxt)
+                return memo[n]
+
+            best = 1
+            for start in range(2, limit):
+                if length(start) > length(best):
+                    best = start
+            return best
+      hints:
+        - "`length` fills the memo on the way back from a number it already knows."
