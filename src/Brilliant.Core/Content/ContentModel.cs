@@ -231,8 +231,8 @@ public sealed record PackManifest(string PackId, string Version, int FormatVersi
 /// a string, list or tuple labelling the rows and columns, from row or column <see cref="LabelOffset"/> on (so <c>dp[i][j]</c> over
 /// <c>a[i - 1]</c> and <c>b[j - 1]</c> takes 1); <see cref="Highlight"/> names a list or set of (row, col) pairs, or a grid of
 /// True/False flags, shading the cells it marks. For a graph, <see cref="Pointers"/> name variables holding a node (a value, as the dict's
-/// keys are); <see cref="Directed"/> draws its edges as arrows; with <see cref="Weights"/> a neighbour given as a (node, weight) pair (or a
-/// dict's key and value) is that node with that weight; <see cref="Edge"/> names the variables holding the ends of the edge being explored,
+/// keys are); <see cref="Directed"/> draws its edges as arrows; a dict of neighbours is weighted by its values,
+/// and with <see cref="Weights"/> a neighbour given as a (node, weight) pair is that node with that weight; <see cref="Edge"/> names the variables holding the ends of the edge being explored,
 /// which is emphasised; <see cref="Visited"/> names a list, set or dict of the nodes visited and <see cref="Frontier"/> a list or deque of
 /// those waiting (a queue or a stack), each marking its nodes.
 /// </summary>

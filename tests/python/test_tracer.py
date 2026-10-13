@@ -573,6 +573,10 @@ class Graphs(unittest.TestCase):
         graph = self.final("g = {'A': [('B', 4)], 'B': {'C': 2.5}, 'C': ['A']}\nend = 1\n", weights=True)
         self.assertEqual(self.edges(graph), [("A", "B", "4"), ("B", "C", "2.5"), ("C", "A", None)])
 
+    def test_a_dict_of_neighbours_is_weighted_without_the_flag(self):
+        graph = self.final("g = {'A': {'B': 7}, 'B': {}, 'C': [('A', 1)]}\nend = 1\n")
+        self.assertEqual(self.edges(graph), [("A", "B", "7"), ("C", "(\'A\', 1)", None)])
+
     def test_nodes_are_told_apart_by_value_as_keys_are(self):
         self.assertEqual(self.labels(self.final("g = {1: [1.0, True]}\nend = 1\n")), ["1"])
 

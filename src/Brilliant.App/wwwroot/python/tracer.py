@@ -74,8 +74,8 @@ not given, or is none of those.
 
 A watch entry {"variable": "graph", "as": "graph", "weights": false, "pointers": ["node", "nb"], "visited": "seen", "frontier": "queue"}
 records a graph in "graphs" while the variable holds a dict (a defaultdict too) mapping each node to its neighbours: a list, tuple, deque,
-set or dict of them (a set's in sorted order). With "weights", a neighbour given as a (node, weight) pair, or a dict's key with its
-value, is that node with that weight; without it, a pair is a node itself (a grid square, say). Nodes are told apart by value, as dict
+set or dict of them (a set's in sorted order). A dict of neighbours is weighted already, its values the weights. With "weights", a
+neighbour given as a (node, weight) pair is that node with that weight; without it, a pair is a node itself (a grid square, say). Nodes are told apart by value, as dict
 keys are, and a node's "id" is the same at every step of the run. The nodes are the keys, in order, then the neighbours that aren't keys,
 in the order met, at most MAX_GRAPH_NODES ("more" counts the rest; at most MAX_WALK keys and neighbours are looked at). A node's "label"
 is a string as it is, anything else its repr. "edges" go from a key to each of its neighbours, both recorded, at most MAX_GRAPH_EDGES of
@@ -462,9 +462,9 @@ def _in_order(members):
 
 
 def _neighbours(value, weights):
-    """(neighbour, weight or _MISSING) for each neighbour a node's entry lists, or nothing when it lists none."""
+    """(neighbour, weight or _MISSING) for each neighbour a node's entry lists, or nothing when it lists none; a dict's values are weights."""
     if isinstance(value, dict):
-        return ((k, v if weights else _MISSING) for k, v in value.items())
+        return iter(value.items())
     if isinstance(value, (set, frozenset)):
         value = _in_order(value)
     elif not isinstance(value, (list, tuple, collections.deque)):
