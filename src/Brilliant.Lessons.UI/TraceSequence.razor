@@ -4,7 +4,7 @@
 @using Brilliant.Core.Python
 
 <figure class="sequence @View.Kind mx-0 my-4 rounded-md border border-hairline bg-surface-raised px-4 pt-2 pb-4" data-variable="@View.Variable" data-kind="@View.Kind">
-    <figcaption class="sequence-name mb-1 text-[.9rem] text-fg-secondary"><code>@View.Variable</code> <span class="sequence-kind ml-[.4rem] text-[.8rem]">@View.Kind</span></figcaption>
+    <figcaption class="sequence-name mb-1 text-[.9rem] text-fg-secondary [overflow-wrap:anywhere]"><code>@View.Variable</code> <span class="sequence-kind ml-[.4rem] text-[.8rem]">@View.Kind</span></figcaption>
     <div class="sequence-scroll @(IsStack ? "max-h-[28rem] overflow-y-auto" : "") overflow-x-auto">
         @* The drawing is laid out in user units and sized in rem (16 units to 1rem), and its text is sized in the same units, so the boxes and
            the words in them grow together with the app's text size and a recorded value always fits its cell. *@

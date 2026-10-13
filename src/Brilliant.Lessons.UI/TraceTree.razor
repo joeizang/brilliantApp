@@ -1,0 +1,239 @@
+@* A binary tree in the Trace Player: each node a circle with its value, a level of the tree to a row, and each node in a column of
+   its own in in-order, so everything left of a node is in its left subtree. A node keeps its element (by identity) wherever it goes,
+   so when a node is inserted the others slide aside and it grows in; an edge whose ends moved draws itself in again. A link to a node
+   drawn elsewhere (two parents, or a cycle) is dashed; one to a node past the ones recorded is a stub. Nodes only a pointer reaches
+   (a detached subtree) stand to the right, dashed. The nodes a visited list or set marks are shaded, numbered for a list. Pointers
+   stand under the node they hold. *@
+@using Brilliant.Core.Python
+
+<figure class="tree mx-0 my-4 rounded-md border border-hairline bg-surface-raised px-4 pt-2 pb-4" data-variable="@View.Variable" data-kind="tree">
+    <figcaption class="tree-name mb-1 text-[.9rem] text-fg-secondary [overflow-wrap:anywhere]"><code>@View.Variable</code> <span class="tree-kind ml-[.4rem] text-[.8rem]">binary tree</span></figcaption>
+    <div class="tree-scroll overflow-x-auto">
+        @* Laid out in user units and sized in rem (16 units to 1rem), with the text in the same units, as the other drawings are. *@
+        <svg class="tree-svg block max-w-none overflow-visible" role="img" aria-label="@Describe()" style="@Size" viewBox="@OriginX 0 @Width @Height">
+            @if (View.Nodes.Count == 0)
+            {
+                <g class="tree-none" transform="translate(@Pad @Top)">
+                    <text class="fill-fg-secondary font-mono" font-size="@U(ValueTextMax)" x="@NodeR" y="@NodeR" text-anchor="middle" dominant-baseline="central">None</text>
+                </g>
+            }
+
+            @* The edges first, so the nodes sit on top of them. An edge is keyed by where its ends are, so one whose ends moved is a new
+               element and draws itself in. *@
+            @foreach (var node in View.Nodes)
+            {
+                foreach (var (child, link, side) in new[] { (node.Left, node.LeftLink, "left"), (node.Right, node.RightLink, "right") })
+                {
+                    if (link == TreeLink.None) continue;
+                    var (x1, y1) = Centre(node);
+                    if (link == TreeLink.More)
+                    {
+                        var dx = side == "left" ? -StubX : StubX;
+                        <g class="edge more" data-from="@node.Id" data-side="@side" @key="@($"more-{node.Id}-{side}-{x1}-{y1}")">
+                            <path class="stroke-fg-secondary stroke-2 fill-none [stroke-dasharray:2_4] animate-link-in" pathLength="1" d="@($"M{U(x1)} {U(y1)} L{U(x1 + dx)} {U(y1 + StubY)}")" />
+                            <text class="fill-fg-secondary font-mono" font-size="@U(SmallText)" x="@U(x1 + dx)" y="@U(y1 + StubY + SmallText)" text-anchor="middle" dominant-baseline="central">…</text>
+                        </g>
+                        continue;
+                    }
+                    if (child is not { } id || !_byId.TryGetValue(id, out var to)) continue;
+                    var (x2, y2) = Centre(to);
+                    var elsewhere = link == TreeLink.Elsewhere;
+                    <g class="@(elsewhere ? "edge elsewhere" : "edge")" data-from="@node.Id" data-to="@id" data-side="@side" @key="@($"edge-{node.Id}-{side}-{id}-{x1}-{y1}-{x2}-{y2}")">
+                        <path class="@(elsewhere ? "stroke-fg-secondary [stroke-dasharray:4_4]" : "stroke-border") stroke-2 fill-none animate-link-in" pathLength="1"
+                              d="@Edge(x1, y1, x2, y2, elsewhere)" />
+                    </g>
+                }
+            }
+
+            @foreach (var node in View.Nodes)
+            {
+                var (x, y) = Centre(node);
+                var detached = node.Tree > 0;
+                <g class="@NodeClass(node, detached) transition-transform duration-450 ease-app" data-id="@node.Id" data-depth="@node.Depth" data-column="@node.Column"
+                   style="@At(x, y)" @key="@($"node-{node.Id}")">
+                    <title>@(node.Value ?? "?")</title>
+                    <g class="node-body origin-center [transform-box:fill-box] @(node.Added ? "animate-cell-in" : "")">
+                        <circle class="node-circle stroke-2 @(node.Visited ? "fill-accent-tint stroke-accent" : "fill-surface stroke-border") @(detached ? "[stroke-dasharray:4_3]" : "") @(node.Changed ? "animate-cell-flash" : "")"
+                                r="@NodeR" @key="@(node.Changed ? $"value-{Step}" : "value")" />
+                        <text class="node-value fill-fg font-mono" font-size="@U(ValueText(node.Value))" text-anchor="middle" dominant-baseline="central">@Clip(node.Value ?? "?")</text>
+                    </g>
+                    @if (node.Order is { } order)
+                    {
+                        <g class="visit-order" transform="translate(@(NodeR - 4) @(-NodeR + 4))" @key="@(node.JustVisited ? $"order-{Step}" : "order")">
+                            <g class="origin-center [transform-box:fill-box] @(node.JustVisited ? "animate-pop" : "")">
+                                <circle class="fill-accent" r="@BadgeR" />
+                                <text class="fill-on-accent font-semibold" font-size="@U(BadgeText(order))" text-anchor="middle" dominant-baseline="central">@order</text>
+                            </g>
+                        </g>
+                    }
+                    else if (node.JustVisited)
+                    {
+                        <g class="visit-mark" @key="@($"mark-{Step}")">
+                            <circle class="fill-none stroke-accent stroke-2 origin-center [transform-box:fill-box] animate-pop" r="@(NodeR + 4)" />
+                        </g>
+                    }
+                </g>
+            }
+
+            @foreach (var (pointer, x, y, row) in _spots)
+            {
+                <g class="@(pointer.Moved ? "pointer moved" : "pointer") transition-transform duration-450 ease-app" data-name="@pointer.Name" data-node="@pointer.Node" data-row="@row"
+                   style="@At(x, y + NodeR + 2 + row * LabelH)" @key="@($"pointer-{pointer.Name}")">
+                    @if (row == 0)
+                    {
+                        <path class="pointer-arrow fill-accent" d="M0 0 L-5 7 L5 7 Z" />
+                    }
+                    <text class="pointer-label fill-accent font-mono font-semibold" font-size="@U(PointerText)" y="@(TickH + LabelH / 2)" text-anchor="middle" dominant-baseline="central">@pointer.Name</text>
+                </g>
+            }
+        </svg>
+    </div>
+    @foreach (var note in Notes())
+    {
+        <p class="tree-note mt-2 mb-0 text-[.9rem] text-fg-secondary">@note</p>
+    }
+</figure>
+
+@code {
+    [Parameter, EditorRequired] public TreeView View { get; set; } = default!;
+
+    /// <summary>The player's step number. What changed is keyed by it, so it is a fresh element and replays its animation.</summary>
+    [Parameter, EditorRequired] public int Step { get; set; }
+
+    // A node is a circle NodeR across the middle, in a column ColW wide, a level LevelH below its parent; a detached tree stands
+    // TreeGap clear of the one before. Pointers' names stand under the node, LabelH a name, TickH below the arrow.
+    private const int NodeR = 18, ColW = 46, LevelH = 66, TreeGap = 26, Pad = 8, Top = 12, LabelH = 18, TickH = 8, BadgeR = 9, StubX = 14, StubY = 30;
+
+    // Text sizes in user units (16 is 1rem). A monospace character is about .6 of its size wide.
+    private const double SmallText = 12.8, PointerText = 14.4, ValueTextMax = 15.2, MonoW = .6;
+
+    private Dictionary<int, TreeNodeView> _byId = [];
+    private int _firstTree;   // 1 when the root is None and only detached trees are drawn, so the first stands at the left edge
+    private List<(NodePointer Pointer, double X, double Y, int Row)> _spots = [];
+
+    protected override void OnParametersSet()
+    {
+        _byId = View.Nodes.ToDictionary(n => n.Id);
+        _firstTree = View.Nodes.Count == 0 ? 0 : View.Nodes.Min(n => n.Tree);
+        // A pointer stands under the node it holds, under the names of the pointers before it on that node. The variable itself, on
+        // an empty tree, stands under None.
+        _spots = [];
+        var rows = new Dictionary<int, int>();
+        foreach (var pointer in View.Pointers)
+        {
+            if (pointer.Node is { } id && _byId.TryGetValue(id, out var node))
+            {
+                var row = rows.TryGetValue(id, out var r) ? r : 0;
+                rows[id] = row + 1;
+                var (x, y) = Centre(node);
+                _spots.Add((pointer, x, y, row));
+            }
+            else if (pointer.Node is null && View.Nodes.Count == 0 && pointer.Name == View.Variable)
+                _spots.Add((pointer, Pad + NodeR, Top + NodeR, 0));
+        }
+    }
+
+    private (double X, double Y) Centre(TreeNodeView node) =>
+        (Pad + (node.Tree - _firstTree) * TreeGap + node.Column * ColW + ColW / 2.0, Top + node.Depth * LevelH + NodeR);
+
+    private double LabelHalf(string name) => Math.Max(10, name.Length * PointerText * MonoW) / 2;
+
+    private double Right => View.Nodes.Select(n => Centre(n).X + ColW / 2.0)
+        .Concat(_spots.Select(s => s.X + LabelHalf(s.Pointer.Name)))
+        .Append(View.Nodes.Count == 0 ? Pad + 2 * NodeR + 8 : 0)
+        .Max();
+
+    private double Bottom => View.Nodes.Select(n => Centre(n).Y + NodeR + (n.LeftLink == TreeLink.More || n.RightLink == TreeLink.More ? StubY + SmallText : 0))
+        .Concat(_spots.Select(s => s.Y + NodeR + 2 + s.Row * LabelH + TickH + LabelH))
+        .Append(Top + 2.0 * NodeR)
+        .Max();
+
+    /// <summary>Where the drawing starts: left of 0 when a pointer on a leftmost node has a name wider than its column.</summary>
+    private int OriginX => _spots.Count == 0 ? 0
+        : Math.Min(0, (int)Math.Floor(_spots.Min(s => s.X - LabelHalf(s.Pointer.Name))) - Pad / 2);
+
+    private int Width => (int)Math.Ceiling(Right) + Pad - OriginX;
+    private int Height => (int)Math.Ceiling(Bottom) + Pad / 2;
+
+    private string Size => $"width: {U(Width / 16.0)}rem; height: {U(Height / 16.0)}rem";
+
+    // Numbers written into the drawing in invariant form: "12.8", never a culture's "12,8".
+    private static string U(double value) => value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    // Placed with CSS (not the transform attribute) so that moving to a new place can be a transition.
+    private static string At(double x, double y) => $"transform: translate({U(x)}px, {U(y)}px)";
+
+    /// <summary>
+    /// An edge from a node's centre to its child's (the circles hide the ends). A link to a node drawn elsewhere bows out to one side so
+    /// that it doesn't run along the tree's own edges.
+    /// </summary>
+    private static string Edge(double x1, double y1, double x2, double y2, bool elsewhere)
+    {
+        if (!elsewhere) return $"M{U(x1)} {U(y1)} L{U(x2)} {U(y2)}";
+        var (mx, my) = ((x1 + x2) / 2, (y1 + y2) / 2);
+        var (dx, dy) = (x2 - x1, y2 - y1);
+        var length = Math.Max(1, Math.Sqrt(dx * dx + dy * dy));
+        var bow = Math.Min(40, length / 3);
+        return $"M{U(x1)} {U(y1)} Q{U(Math.Round(mx - dy / length * bow, 1))} {U(Math.Round(my + dx / length * bow, 1))} {U(x2)} {U(y2)}";
+    }
+
+    private static string NodeClass(TreeNodeView node, bool detached) =>
+        "node" + (detached ? " detached" : "") + (node.Changed ? " changed" : "") + (node.Added ? " added" : "")
+        + (node.Visited ? " visited" : "") + (node.JustVisited ? " just-visited" : "");
+
+    private static string Clip(string text) => text.Length <= 4 ? text : text[..3] + "…";
+
+    // A long value is set a little smaller so that all of its (at most 4) characters fit inside the circle.
+    private static double ValueText(string? text) => Math.Min(ValueTextMax, Math.Round((2 * NodeR - 8) / (Clip(text ?? "?").Length * MonoW), 1));
+    private static double BadgeText(int order) => order < 10 ? 11.2 : order < 100 ? 9.6 : 8;
+
+    private List<string> Notes()
+    {
+        var notes = new List<string>();
+        if (View.Nodes.Any(n => n.Tree > 0))
+            notes.Add($"The dashed nodes can't be reached from {View.Variable}; only a pointer holds them.");
+        if (View.More > 0)
+            notes.Add($"+{View.More} more {(View.More == 1 ? "node" : "nodes")} not shown.");
+        var atNone = View.Pointers.Where(p => p.Node is null && !(p.Name == View.Variable && View.Nodes.Count == 0)).Select(p => p.Name).ToList();
+        if (atNone.Count > 0)
+            notes.Add($"{string.Join(", ", atNone)} {(atNone.Count == 1 ? "is" : "are")} None.");
+        var unseen = View.Pointers.Where(p => p.Node is { } id && !_byId.ContainsKey(id)).Select(p => p.Name).ToList();
+        if (unseen.Count > 0)
+            notes.Add($"{string.Join(", ", unseen)} {(unseen.Count == 1 ? "is" : "are")} on a node past the ones shown.");
+        if (View.Visited is { } visited)
+        {
+            notes.Add(visited.Ordered
+                ? $"Shaded: the nodes in {visited.Variable}, numbered in its order."
+                : $"Shaded: the nodes in {visited.Variable}.");
+            if (visited.Unmatched > 0)
+                notes.Add($"{visited.Unmatched} {(visited.Unmatched == 1 ? "member" : "members")} of {visited.Variable} match no node shown.");
+        }
+        return notes;
+    }
+
+    private string Describe()
+    {
+        if (View.Nodes.Count == 0) return $"{View.Variable}, a binary tree: empty (None)";
+        string Value(int? id) => id is { } i && _byId.TryGetValue(i, out var n) ? n.Value ?? "?" : "?";
+        string Children(TreeNodeView node)
+        {
+            string Side(string side, int? id, TreeLink link) => link switch
+            {
+                TreeLink.Child or TreeLink.Elsewhere => $"{side} {Value(id)}",
+                TreeLink.More => $"{side} not shown",
+                _ => "",
+            };
+            var parts = new[] { Side("left", node.Left, node.LeftLink), Side("right", node.Right, node.RightLink) }.Where(p => p != "").ToList();
+            var text = (node.Value ?? "?") + (parts.Count > 0 ? $" ({string.Join(", ", parts)})" : "");
+            return text + (node.Order is { } order ? $", visited {order}" : node.Visited ? ", visited" : "");
+        }
+        var levels = View.Nodes.Where(n => n.Tree == 0).GroupBy(n => n.Depth).OrderBy(g => g.Key)
+            .Select(g => $"level {g.Key}: " + string.Join(", ", g.OrderBy(n => n.Column).Select(Children)));
+        var text = $"{View.Variable}, a binary tree" + (levels.Any() ? ", " + string.Join("; ", levels) : ": None");
+        var detached = View.Nodes.Where(n => n.Tree > 0).OrderBy(n => n.Tree).ThenBy(n => n.Depth).ThenBy(n => n.Column).Select(Children).ToList();
+        if (detached.Count > 0) text += "; not reachable from it: " + string.Join(", ", detached);
+        var pointers = View.Pointers.Where(p => p.Name != View.Variable)
+            .Select(p => p.Node is { } id ? $"{p.Name} at the node holding {Value(id)}" : $"{p.Name} at None").ToList();
+        return text + (pointers.Count > 0 ? "; " + string.Join(", ", pointers) : "");
+    }
+}

@@ -1,9 +1,9 @@
-# Trace Player: arrays, stacks, queues, dicts, sets, linked lists and the call stack, stepping and playback
+# Trace Player: arrays, stacks, queues, dicts, sets, linked lists, binary trees and the call stack, stepping and playback
 
 PRD stories 24, 25 and 27 ([#23](https://github.com/joeizang/brilliantApp/issues/23)) and 26, 28, 29 and 65 ([#24](https://github.com/joeizang/brilliantApp/issues/24)).
 A *trace* step runs a small example once, records every line it executes, and lets the learner walk through it: the code with the current
 line highlighted, the watched lists drawn as cells with named pointers that slide as they move, the watched dicts and sets drawn as
-tables whose rows appear, flash and fade, linked lists drawn as nodes joined by arrows that redraw as they are rewired, the call stack with each value handed back to its caller, and the local variables with what just changed marked. It steps by button or arrow key and
+tables whose rows appear, flash and fade, linked lists drawn as nodes joined by arrows that redraw as they are rewired, binary trees drawn level by level with the nodes a walk has visited numbered, the call stack with each value handed back to its caller, and the local variables with what just changed marked. It steps by button or arrow key and
 plays by itself at 0.5×, 1× or 2×.
 
 ```
@@ -43,7 +43,7 @@ offline and takes a few milliseconds once Pyodide has started). `content validat
       as: set
 ```
 
-`as` is `array`, `stack`, `queue`, `dict`, `set`, `linked_list` or `call_stack`. A pointer on a dict or set is any variable, of any type, whose value is a key: the row with that key
+`as` is `array`, `stack`, `queue`, `dict`, `set`, `linked_list`, `tree` or `call_stack`. A pointer on a dict or set is any variable, of any type, whose value is a key: the row with that key
 is marked with the pointer's name, and when no row has that key the player says *Looking up `word` finds no such key.*
 
 `body` and `code` are required, and there must be at least one visual. A trace step takes no `hints` and can't be a review item.
@@ -58,6 +58,10 @@ The validator rejects, with the file and step in the message:
 - on a linked list: `next` or `value` on any other kind, or not a Python attribute name; the list's own variable listed as a pointer (it is
   already drawn on the first node); a `variable` that never holds a node; nodes that have no `value` attribute to show (the message says to
   set `value`); and a pointer that never holds a node of the list.
+- on a tree: `left` or `right` on any other kind, not attribute names, or both the same attribute (`value` is an option of a linked list
+  or a tree only); the tree's own variable listed as a pointer or as `visited`; `visited` on any other kind, or not an identifier; a
+  `variable` that never holds a node; nodes with no `value` attribute; a pointer that never holds a node of the tree; and a `visited`
+  variable that is never a list or set, or never marks a node.
 - on the call stack: a `variable` or `pointers` (it has neither), a second `call_stack`, `functions` on any other kind, a function name
   that isn't an identifier or is listed twice, code that never calls a function of its own (or none of those listed), and a listed
   function that is never called.
@@ -141,6 +145,56 @@ The validator rejects, with the file and step in the message:
   that was rewired draws itself in, in the accent colour, and a value that changed flashes. A new node grows in.
 - At most 30 nodes are drawn; the rest of the list is *+N more*. A pointer on a node past them is named under the list.
 
+### Binary trees
+
+```yaml
+- id: step.trees.inorder
+  type: trace
+  title: Walking a tree in order
+  body: |
+    Left subtree, the node, right subtree. Watch the numbers: that is the order the walk visits them in.
+  code: |
+    class Node:
+        def __init__(self, val, left=None, right=None):
+            self.val = val
+            self.left = left
+            self.right = right
+
+    root = Node(4, Node(2, Node(1), Node(3)), Node(6, Node(5), Node(7)))
+    order = []
+    stack, node = [], root
+    while stack or node:
+        while node:
+            stack.append(node)
+            node = node.left
+        node = stack.pop()
+        order.append(node.val)
+        node = node.right
+  visualise:
+    - variable: root        # holds the root node, or None
+      as: tree
+      left: left            # the attribute holding the left child (the default)
+      right: right          # the attribute holding the right child (the default)
+      value: val            # the attribute shown in the node (the default)
+      pointers: [node]      # variables that hold a node of the tree, named under it
+      visited: order        # a list or set: the nodes it holds (or holds the values of) are shaded
+```
+
+- A **node** is any object with both the `left` and `right` attributes (a `SimpleNamespace` or a `@dataclass` will do). A child that is
+  `None`, or anything that isn't a node, is not drawn.
+- The tree is laid out in layers, one row per depth, and in order across: each node has a column of its own, so a left child is always
+  left of its parent and a right child right of it, and the drawing is the same for the same tree every time. The tree's variable and
+  `pointers` are named under the node they hold; one holding `None` is listed in a note (*node is None.*).
+- `visited` marks nodes by identity (the list holds the nodes) or else by value (it holds their values). A **list** (or tuple or deque)
+  numbers them in its order, a badge on each node; a **set** shades them without numbers. A node newly visited pops its badge. Members that
+  match no node shown are counted in a note.
+- Nodes only a pointer reaches are **detached**: drawn dashed, as a tree of their own to the right. A link to a node already drawn (two
+  parents sharing a child, or a cycle) is a dashed bow to that node; nothing is drawn twice.
+- A node is the same element for as long as it is the same object, so it slides when the tree changes shape; an inserted node grows in,
+  its edge draws itself in, and a value that changed flashes.
+- At most 31 nodes are drawn (five full levels), taken level by level; the rest are *+N more*, and a link to one of them is a short dashed
+  stub. A long tree scrolls sideways.
+
 ### The call stack
 
 ```yaml
@@ -192,6 +246,15 @@ a call not shown). A call left by an exception gets no return frame. Python repo
 recorder looks at the instruction the frame stopped on: a real return is on `RETURN_VALUE` (or `RETURN_CONST`), an exception leaving is on
 whatever raised or re-raised. A `line` event is no sign the exception was caught, since a `finally` runs lines while it passes through;
 a `return` inside that `finally` does replace the exception, and is recorded as a return. At most 12 calls are kept, the innermost, and `more` counts the rest.
+
+A tree is recorded as `{root, nodes, more, pointers, visited}`, with the watch entry `{"variable", "as": "tree", "left", "right", "value",
+"pointers", "visited"}`. Node ids work as a linked list's. `nodes` are `{id, value, left, right}`, walked breadth first from the root and
+then from each pointer, skipping any node already met, so a shared child or a cycle is recorded once. At most 31 are kept and `more`
+counts the rest (walking no further than 1000). `visited` is null unless the named variable is a list, tuple, deque, set or frozenset;
+then it is `{ordered, nodes: [{id, order}], unmatched}`. Each of its first 100 members marks the node it *is*, or failing that, nodes
+whose value equals it (an `__eq__` that raises is no match); in a list a member marks only the first such node not yet marked, so
+`[1, 1]` numbers two nodes holding 1. `order` is the member's place in the list (null for a set), and `unmatched` counts the members that
+mark nothing, plus those past the first 100.
 
 A linked list is recorded as `{head, nodes, more, pointers}`. Every node gets an id the first time it is met and keeps it for the whole run
 (the recorder holds on to the object, so its id can't be reused by a new one); `head` and each pointer are a node id or null for None. `nodes` are
@@ -252,6 +315,13 @@ being "new" isn't a change the learner caused.
   `Changed` is a node whose value differs, `Relinked` one whose link now holds a different node, and `Added` a node the step before didn't
   have. `Pointers` are the variable itself (on the head) and then the recorded pointers, each `Moved` when it holds a different node (or
   None) than before.
+- **Trees** (`TreeView`): `Nodes` are `TreeNodeView`s with their place, `Column` (an in-order count across the drawing) and `Depth`,
+  and `Tree`, which tree they belong to (0 is the one from the root and only that one: when the root is None, a subtree a pointer holds
+  is still detached, numbered from 1). The layout claims nodes by a
+  breadth-first walk from the root, then from the first recorded node not yet claimed; a link is `Child` (drawn as an edge), `Elsewhere`
+  (a node already claimed: a shared child or a cycle), `More` (a node not recorded) or `None`. Compared by id with the step before:
+  `Added` a node it didn't have, `Changed` one whose value differs, and `JustVisited` one newly marked or renumbered. `Pointers` are the
+  variable itself (on the root) and the recorded pointers, each `Moved` when it holds a different node.
 - **The call stack** (`CallStackView`): `Frames` are the calls under way as `CallFrameView`s (`Label` is `fact(n=3)`). A frame is
   `Pushed` when its id is bigger than any the step before had, and `Received` is the value handed back to it since the step before (by
   `returned.to`). `Gone` are the calls the step before had that this one hasn't (ghosts for one step; when the stack is cut off, only
@@ -263,7 +333,7 @@ being "new" isn't a change the learner caused.
 
 - `TracePlayer.razor`: a read-only `CodeEditor` (new `ReadOnly` parameter) with the current line highlighted through the existing
   `HighlightLineAsync`; Previous, Play/Pause and Next; *Step n of m*; the speed buttons; one `TraceSequence` per watched stack or queue; one SVG per watched array; one `TraceTable` per
-  watched dict or set (after the lists, whatever order the lesson names them in); one `TraceLinkedList` per watched linked list; a `TraceCallStack` above them all when the call stack is watched; a *Variables* table; and, on the last step only,
+  watched dict or set (after the lists, whatever order the lesson names them in); one `TraceLinkedList` per watched linked list; one `TraceTree` per watched tree; a `TraceCallStack` above them all when the call stack is watched; a *Variables* table; and, on the last step only,
   what the run printed, the error that ended it, or a note that it was cut short (`TraceEnding.razor`).
 - **Animation is CSS.** A pointer is a `<g>` positioned with `style="transform: translate(…)"` and keyed by variable and name, so Blazor
   patches the same element and the browser transitions it from the old cell to the new one. A changed cell is keyed by step too, so it is
@@ -286,6 +356,12 @@ being "new" isn't a change the learner caused.
   a CSS transform, the arrow to the next node part of it. A rewired arrow is keyed by step and has `pathLength="1"`, so `animate-link-in`
   draws it from its node to the next; its head pops. Pointer names on one node take rows above it where they clear their neighbours', and a
   name wider than the first node moves the drawing's left edge rather than being cut off. A long list scrolls sideways.
+- A tree (`TraceTree.razor`) is an SVG in a sideways scroll box, its sizes in rem. Each node is a `<g>` keyed by its id and placed with a
+  CSS transform, so it slides; an added node grows in (`animate-cell-in`), a changed value flashes (`animate-cell-flash`, keyed by step)
+  and a new visit badge pops (`animate-pop`). An edge is keyed by its two ends' places and has `pathLength="1"`, so a new or moved edge
+  draws itself in (`animate-link-in`). Visited nodes are filled with the accent tint; pointer names stack in rows under their node, and a name wider than the leftmost
+  node's column moves the drawing's left edge rather than being cut off. The
+  SVG's label reads the tree level by level for a screen reader.
 - The call stack (`TraceCallStack.razor`) is a column of frames drawn bottom up, in user units sized in rem, as wide as its longest call
   and returned value, scrolling sideways (and up and down, at most 30rem) on a phone. Each frame is a `<g>` keyed by its id and placed with
   a CSS transform; a new call grows in (`animate-cell-in`), a gone one rises away (`animate-cell-out`), the *running* marker slides to the
@@ -329,10 +405,10 @@ by the last rung of the hint ladder, see [hints.md](hints.md).
 
 ## Not in this slice
 
-Per-variable speed or scrubbing, drawing nested structures (a list of lists, a dict of lists, a node whose value is a node), doubly linked
+Per-variable speed or scrubbing, trees with more than two children (a general tree or a graph), drawing nested structures (a list of lists, a dict of lists, a node whose value is a node), doubly linked
 lists (a `prev` arrow), and reading a trace aloud.
 `Visual.As` is a string and the model builds one `ArrayView` per `array`, `stack` or `queue` visual, one `TableView` per `dict` or `set`
-visual, one `LinkedListView` per `linked_list` visual and one `CallStackView` for the `call_stack`, so another kind slots in beside them.
+visual, one `LinkedListView` per `linked_list` visual, one `TreeView` per `tree` visual and one `CallStackView` for the `call_stack`, so another kind slots in beside them.
 
 ## Tests
 
@@ -341,7 +417,7 @@ visual, one `LinkedListView` per `linked_list` visual and one `CallStackView` fo
 `tests/Brilliant.Lessons.UI.Tests/TracePlayerTests.cs`, `TraceStepViewTests.cs` and `WalkthroughRungTests.cs` (rendering, stepping, playback on a manual clock, shortcuts,
 line highlight, lesson wiring), `tests/js/shortcuts.test.mjs` (key classification) and `ShortcutTests.cs` (the page listener's mapping).
 bUnit can't observe a CSS transition or element reuse, so the sliding, flashing, the ghost row's fade and the stack and queue cells
-growing in and rising away, a linked list's nodes sliding and arrows drawing in, and the call stack's frames growing in and values popping up, are checked by looking at the running app.
+growing in and rising away, a linked list's nodes sliding and arrows drawing in, a tree's nodes sliding, edges drawing in and visit badges popping, and the call stack's frames growing in and values popping up, are checked by looking at the running app.
 
 Known limit: the recorder keeps only the first 20 rows, so a pointer on a later row is shown as nothing (neither marked nor a miss) beside
 *+N more*.

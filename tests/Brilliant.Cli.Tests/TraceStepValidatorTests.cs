@@ -112,9 +112,9 @@ public sealed class TraceStepValidatorTests : IDisposable
     [Fact]
     public void Only_the_kinds_the_player_knows_can_be_drawn()
     {
-        var m = Errors(Head + Body + Code + "    visualise:\n      - variable: nums\n        as: tree\n");
+        var m = Errors(Head + Body + Code + "    visualise:\n      - variable: nums\n        as: graph\n");
 
-        Assert.Contains(m, x => x.Contains("visualise[0]") && x.Contains("unsupported") && x.Contains("'tree'") && x.Contains("array, stack, queue, dict, set"));
+        Assert.Contains(m, x => x.Contains("visualise[0]") && x.Contains("unsupported") && x.Contains("'graph'") && x.Contains("array, stack, queue, dict, set"));
     }
 
     [Fact]
@@ -155,7 +155,8 @@ public sealed class TraceStepValidatorTests : IDisposable
     private sealed class VisualComparer : IEqualityComparer<Visual>
     {
         public bool Equals(Visual? a, Visual? b) =>
-            a!.Variable == b!.Variable && a.As == b.As && a.Pointers.SequenceEqual(b.Pointers) && (a.Next, a.Value) == (b.Next, b.Value);
+            a!.Variable == b!.Variable && a.As == b.As && a.Pointers.SequenceEqual(b.Pointers) && (a.Next, a.Value) == (b.Next, b.Value)
+            && (a.Left, a.Right, a.Visited) == (b.Left, b.Right, b.Visited);
         public int GetHashCode(Visual v) => v.Variable.GetHashCode();
     }
 
@@ -510,7 +511,8 @@ public sealed class TraceStepValidatorTests : IDisposable
     {
         var m = Errors(Head + Body + Code + $"    visualise:\n      - variable: nums\n        as: stack\n        {option}\n");
 
-        Assert.Contains(m, x => x.Contains("visualise[0]") && x.Contains($"'{option[..option.IndexOf(':')]}'") && x.Contains("linked_list only"));
+        Assert.Contains(m, x => x.Contains("visualise[0]") && x.Contains($"'{option[..option.IndexOf(':')]}'") && x.Contains("linked_list")
+            && x.Contains("only, not of 'stack'"));
     }
 
     [Fact]
@@ -590,6 +592,133 @@ public sealed class TraceStepValidatorTests : IDisposable
         var m = Errors(Head + Body + Reverse + ListVisual + "        next: link\n", new CPythonRunner());
 
         Assert.Contains(m, x => x.Contains("'head'") && x.Contains("never holds a node"));
+    }
+
+    // ---- Trees ----
+
+    private const string TreeVisual = "    visualise:\n      - variable: root\n        as: tree\n";
+
+    /// <summary>
+    /// A trace in which root holds node 1 with a left child 2, with each named pointer holding a node (or None, for a null id), and the
+    /// visited variable a list marking the given nodes (null: not a list or set).
+    /// </summary>
+    private static TraceResult TreeTrace(int? root = 1, string? value = "1", int[]? visited = null, params (string Name, int? Node)[] pointers)
+    {
+        var tree = new TrackedTree(root, root is null ? [] : [new TreeNode(1, value, 2, null), new TreeNode(2, value, null, null)], 0,
+            pointers.ToDictionary(p => p.Name, p => p.Node),
+            visited is null ? null : new TreeVisited(true, visited.Select((id, i) => new VisitedNode(id, i + 1)).ToList(), 0));
+        TraceFrame F(int? line) => new(line is null ? "return" : "line", line, "<module>", [], new Dictionary<string, TrackedArray>(),
+            Trees: new Dictionary<string, TrackedTree> { ["root"] = tree });
+        return new(TraceStatus.Ok, [F(1), F(null)], "", null, null, null);
+    }
+
+    [Fact]
+    public void A_tree_loads_with_its_options_and_defaults()
+    {
+        WriteLesson(Header + Head + Body + Code + TreeVisual + "        right: hi\n        visited: order\n        pointers: [node]\n");
+        var outPath = Path.Combine(_root, "out", "p.zip");
+
+        var report = ContentPacker.Pack(_root, outPath, new FakeRunner((_, _) => TreeTrace(1, "1", [2], ("node", 2))));
+
+        Assert.True(report.IsValid, string.Join("\n", report.Errors));
+        var step = Assert.IsType<TraceStep>(ContentPackFormat.Load(outPath).Get<Lesson>("lesson.one").Steps[0]);
+        Assert.Equal(new Visual("root", Visual.Tree, ["node"], Right: "hi", Visited: "order"), step.Visuals[0], new VisualComparer());
+        Assert.Equal(("left", "val"), (step.Visuals[0].Left, step.Visuals[0].Value));
+    }
+
+    [Theory]
+    [InlineData("left: lo", "tree only")]
+    [InlineData("right: hi", "tree only")]
+    [InlineData("visited: order", "tree only")]
+    public void Left_right_and_visited_are_options_of_a_tree_only(string option, string says)
+    {
+        var m = Errors(Head + Body + Code + $"    visualise:\n      - variable: nums\n        as: array\n        {option}\n");
+
+        Assert.Contains(m, x => x.Contains("visualise[0]") && x.Contains($"'{option[..option.IndexOf(':')]}'") && x.Contains(says) && x.Contains("not of 'array'"));
+    }
+
+    [Fact]
+    public void Next_is_not_an_option_of_a_tree_but_value_is()
+    {
+        var m = Errors(Head + Body + Code + TreeVisual + "        next: link\n        value: key\n", new FakeRunner((_, _) => TreeTrace()));
+
+        Assert.Contains(m, x => x.Contains("'next'") && x.Contains("not of 'tree'"));
+        Assert.DoesNotContain(m, x => x.Contains("'value'"));
+    }
+
+    [Fact]
+    public void Tree_options_must_be_names_and_left_and_right_must_differ()
+    {
+        var m = Errors(Head + Body + Code + TreeVisual + "        left: 'l r'\n        visited: 9v\n", new FakeRunner((_, _) => TreeTrace()));
+        Assert.Contains(m, x => x.Contains("left 'l r'") && x.Contains("not a valid Python attribute"));
+        Assert.Contains(m, x => x.Contains("visited '9v'") && x.Contains("not a valid Python name"));
+
+        var same = Errors(Head + Body + Code + TreeVisual + "        left: right\n", new FakeRunner((_, _) => TreeTrace()));
+        Assert.Contains(same, x => x.Contains("'left' and 'right' name the same attribute"));
+    }
+
+    [Fact]
+    public void A_tree_does_not_list_its_own_variable_as_a_pointer_or_as_visited()
+    {
+        var m = Errors(Head + Body + Code + TreeVisual + "        pointers: [root]\n        visited: root\n", new FakeRunner((_, _) => TreeTrace()));
+
+        Assert.Contains(m, x => x.Contains("pointer 'root'") && x.Contains("own variable"));
+        Assert.Contains(m, x => x.Contains("visited 'root'") && x.Contains("own variable"));
+    }
+
+    [Fact]
+    public void A_tree_whose_variable_never_holds_a_node_is_reported()
+    {
+        var m = Errors(Head + Body + Code + TreeVisual + "        left: lo\n", new FakeRunner((_, _) => TreeTrace(root: null)));
+
+        Assert.Contains(m, x => x.Contains("'root'") && x.Contains("never holds a tree node") && x.Contains("'lo' and 'right'"));
+    }
+
+    [Fact]
+    public void Tree_nodes_without_the_value_attribute_are_reported()
+    {
+        var m = Errors(Head + Body + Code + TreeVisual + "        value: key\n", new FakeRunner((_, _) => TreeTrace(value: null)));
+
+        Assert.Contains(m, x => x.Contains("no attribute 'key'") && x.Contains("set 'value'"));
+    }
+
+    [Fact]
+    public void A_tree_pointer_that_never_holds_a_node_is_reported()
+    {
+        var m = Errors(Head + Body + Code + TreeVisual + "        pointers: [node, gone]\n", new FakeRunner((_, _) => TreeTrace(1, "1", null, ("node", 2), ("gone", null))));
+
+        Assert.Contains(m, x => x.Contains("pointer 'gone'") && x.Contains("never holds a node of the tree"));
+        Assert.DoesNotContain(m, x => x.Contains("pointer 'node'"));
+    }
+
+    [Fact]
+    public void A_visited_variable_that_is_never_a_list_or_set_or_never_marks_a_node_is_reported()
+    {
+        var never = Errors(Head + Body + Code + TreeVisual + "        visited: order\n", new FakeRunner((_, _) => TreeTrace(visited: null)));
+        Assert.Contains(never, x => x.Contains("visited 'order'") && x.Contains("never a list or set"));
+
+        var empty = Errors(Head + Body + Code + TreeVisual + "        visited: order\n", new FakeRunner((_, _) => TreeTrace(visited: [])));
+        Assert.Contains(empty, x => x.Contains("visited 'order'") && x.Contains("marks no node"));
+    }
+
+    private const string Bst = "    code: |\n      class TreeNode:\n          def __init__(self, val, left=None, right=None):\n"
+        + "              self.val = val\n              self.left = left\n              self.right = right\n"
+        + "      root = TreeNode(4, TreeNode(2, TreeNode(1), TreeNode(3)), TreeNode(6))\n"
+        + "      order = []\n      def walk(node):\n          if node:\n              walk(node.left)\n              order.append(node.val)\n              walk(node.right)\n"
+        + "      walk(root)\n";
+
+    [Fact]
+    public void Real_cpython_traces_an_in_order_walk_of_a_tree()
+    {
+        Assert.Empty(Errors(Head + Body + Bst + TreeVisual + "        visited: order\n", new CPythonRunner()));
+    }
+
+    [Fact]
+    public void Real_cpython_reports_a_tree_variable_that_is_never_a_node()
+    {
+        var m = Errors(Head + Body + Bst + TreeVisual + "        left: lo\n", new CPythonRunner());
+
+        Assert.Contains(m, x => x.Contains("'root'") && x.Contains("never holds a tree node"));
     }
 
     // ---- Call stack ----

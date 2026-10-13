@@ -368,6 +368,106 @@ class LinkedLists(unittest.TestCase):
         self.assertEqual(len(last["lists"]["head"]["nodes"]), 1)
 
 
+class Trees(unittest.TestCase):
+    NODE = ("class T:\n    def __init__(self, val, left=None, right=None):\n"
+            "        self.val = val\n        self.left = left\n        self.right = right\n")
+    SMALL = "root = T(4, T(2, T(1), T(3)), T(6, None, T(7)))\n"
+
+    def trees(self, code, pointers=(), **options):
+        entry = dict({"variable": "root", "as": "tree", "pointers": list(pointers)}, **options)
+        return trace(self.NODE + code, [entry])
+
+    def final(self, code, pointers=(), **options):
+        return self.trees(code, pointers, **options)["frames"][-1]["trees"]["root"]
+
+    def shape(self, recorded):
+        ids = {n["id"]: n["value"] for n in recorded["nodes"]}
+        return [(n["value"], ids.get(n["left"]), ids.get(n["right"])) for n in recorded["nodes"]]
+
+    def test_records_the_nodes_level_by_level_with_their_children(self):
+        tree = self.final(self.SMALL)
+        self.assertEqual(self.shape(tree), [("4", "2", "6"), ("2", "1", "3"), ("6", None, "7"),
+                                            ("1", None, None), ("3", None, None), ("7", None, None)])
+        self.assertEqual(tree["root"], tree["nodes"][0]["id"])
+        self.assertEqual((tree["more"], tree["pointers"], tree["visited"]), (0, {}, None))
+
+    def test_a_node_keeps_its_id_from_step_to_step(self):
+        r = self.trees(self.SMALL + "root.left.val = 20\nroot.right.left = T(5)\n")
+        recorded = [f["trees"]["root"] for f in r["frames"] if "root" in f["trees"]]
+        before, after = recorded[0], recorded[-1]
+        ids = lambda t: {n["value"]: n["id"] for n in t["nodes"]}
+        self.assertEqual(ids(before)["4"], ids(after)["4"])
+        self.assertEqual(ids(before)["2"], ids(after)["20"])
+        self.assertIn(("6", "5", "7"), self.shape(after))
+
+    def test_none_is_an_empty_tree_and_anything_else_is_not_recorded(self):
+        r = self.trees("root = None\nroot = 5\nroot = T(1)\n")
+        recorded = [f["trees"].get("root") for f in r["frames"] if f["function"] == "<module>"][-3:]
+        self.assertEqual(recorded[0], {"root": None, "nodes": [], "more": 0, "pointers": {}, "visited": None})
+        self.assertIsNone(recorded[1])
+        self.assertEqual(recorded[2]["nodes"][0]["value"], "1")
+
+    def test_custom_attribute_names(self):
+        code = ("from dataclasses import dataclass\n@dataclass\nclass N:\n    key: int\n    lo: object = None\n    hi: object = None\n"
+                "root = N(2, N(1), N(3))\n")
+        tree = trace(code, [{"variable": "root", "as": "tree", "left": "lo", "right": "hi", "value": "key"}])["frames"][-1]["trees"]["root"]
+        self.assertEqual(self.shape(tree), [("2", "1", "3"), ("1", None, None), ("3", None, None)])
+
+    def test_pointers_hold_nodes_and_a_detached_subtree_comes_after_the_tree(self):
+        tree = self.final(self.SMALL + "node = root.left\nloose = T(9, T(8))\nnothing = None\n", ["node", "loose", "nothing", "missing"])
+        values = {n["id"]: n["value"] for n in tree["nodes"]}
+        self.assertEqual(values[tree["pointers"]["node"]], "2")
+        self.assertEqual(values[tree["pointers"]["loose"]], "9")
+        self.assertIsNone(tree["pointers"]["nothing"])
+        self.assertNotIn("missing", tree["pointers"])
+        self.assertEqual([n["value"] for n in tree["nodes"]][-2:], ["9", "8"])
+
+    def test_a_shared_node_or_a_cycle_is_recorded_once(self):
+        tree = self.final("leaf = T(1)\nroot = T(2, leaf, leaf)\nroot.left.left = root\n")
+        self.assertEqual([n["value"] for n in tree["nodes"]], ["2", "1"])
+        self.assertEqual(tree["nodes"][1]["left"], tree["nodes"][0]["id"])
+
+    def test_at_most_31_nodes_are_recorded_the_top_levels_first(self):
+        # Nodes without an __init__ of their own, so building 63 of them stays well inside the step limit.
+        code = ("from types import SimpleNamespace as N\nnodes = [N(val=i, left=None, right=None) for i in range(63)]\n"
+                "for i in range(31): nodes[i].left, nodes[i].right = nodes[2 * i + 1], nodes[2 * i + 2]\nroot = nodes[0]\n")
+        tree = self.final(code)
+        self.assertEqual([n["value"] for n in tree["nodes"]], [str(i) for i in range(31)])
+        self.assertEqual(tree["more"], 32)
+
+    def test_a_visited_list_marks_nodes_in_order_by_value_or_by_node(self):
+        code = self.SMALL + "order = [1, 2, 99]\norder.append(root)\n"
+        tree = self.final(code, visited="order")
+        values = {n["id"]: n["value"] for n in tree["nodes"]}
+        self.assertTrue(tree["visited"]["ordered"])
+        self.assertEqual([(values[v["id"]], v["order"]) for v in tree["visited"]["nodes"]], [("4", 4), ("2", 2), ("1", 1)])
+        self.assertEqual(tree["visited"]["unmatched"], 1)
+
+    def test_a_repeated_value_in_a_list_marks_the_next_node_with_it(self):
+        tree = self.final("root = T(5, T(5), T(5))\norder = [5, 5]\n", visited="order")
+        self.assertEqual([v["order"] for v in tree["visited"]["nodes"]], [1, 2])
+
+    def test_a_visited_set_marks_every_match_with_no_order(self):
+        tree = self.final("root = T(5, T(5), T(1))\nseen = {5}\n", visited="seen")
+        self.assertEqual(tree["visited"], {"ordered": False, "nodes": [{"id": tree["nodes"][0]["id"], "order": None},
+                                                                       {"id": tree["nodes"][1]["id"], "order": None}], "unmatched": 0})
+
+    def test_a_visited_variable_that_is_not_a_list_or_set_marks_nothing(self):
+        r = self.trees(self.SMALL + "order = 3\n", visited="order")
+        self.assertTrue(all(f["trees"]["root"]["visited"] is None for f in r["frames"] if "root" in f["trees"]))
+
+    def test_only_the_first_members_of_a_long_visited_list_are_matched(self):
+        tree = self.final("root = T(1)\norder = list(range(500)) + [1]\n", visited="order")
+        self.assertEqual(tree["visited"]["nodes"], [{"id": tree["root"], "order": 2}])
+        self.assertEqual(tree["visited"]["unmatched"], 500)
+
+    def test_values_whose_equality_raises_mark_nothing(self):
+        code = ("class E:\n    def __eq__(self, other): raise ValueError\n    __hash__ = object.__hash__\n"
+                "root = T(E())\norder = [1]\n")
+        tree = self.final(code, visited="order")
+        self.assertEqual(tree["visited"], {"ordered": True, "nodes": [], "unmatched": 1})
+
+
 class CallStacks(unittest.TestCase):
     FACT = "def fact(n):\n    if n <= 1:\n        return 1\n    return n * fact(n - 1)\n\nresult = fact(3)\n"
     WATCH = [{"as": "call_stack"}]
