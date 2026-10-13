@@ -1,0 +1,571 @@
+id: lesson.pattern-grid-flood-fill
+title: "Pattern: grids as graphs"
+concepts:
+  - id: concept.grid-cells-nodes
+    title: Each cell is a node; its neighbours are the cells up, down, left and right
+  - id: concept.grid-bounds
+    title: Check a neighbour is on the grid before indexing it
+  - id: concept.grid-flood-fill
+    title: A loop over every cell starts a flood at each unseen region, counting them
+  - id: concept.grid-bfs-moves
+    title: A BFS over cells gives the fewest moves
+reviewItems:
+  - id: review.grid.predict-wrap
+    concept: concept.grid-bounds
+    step: step.grid.predict-wrap
+  - id: review.grid.bounds
+    concept: concept.grid-bounds
+    step: step.grid.check-bounds
+  - id: review.grid.predict-islands
+    concept: concept.grid-flood-fill
+    step: step.grid.predict-islands
+  - id: review.grid.diagonal
+    concept: concept.grid-cells-nodes
+    step: step.grid.check-diagonal
+  - id: review.grid.which-problem
+    concept: concept.grid-flood-fill
+    step: step.grid.check-which-problem
+    kind: pattern
+  - id: review.grid.maze
+    concept: concept.grid-bfs-moves
+    step: step.grid.check-maze
+    kind: pattern
+patterns:
+  - id: pattern.grid-flood-fill
+    title: Flood out from a cell to its four neighbours
+steps:
+  - id: step.grid.idea
+    type: explain
+    title: A grid is a graph you don't build
+    body: |
+      A map of land and water, a maze, a picture: many problems hand you a **grid**, a list of rows. It's a graph in disguise.
+      Each cell `(r, c)` is a node, and its neighbours are the cells **up, down, left and right**:
+      `(r - 1, c)`, `(r + 1, c)`, `(r, c - 1)`, `(r, c + 1)`.
+
+      You never build an adjacency dict. Loop over four **direction** pairs and add each to the cell, then keep only the
+      neighbours that are **on the grid** (`0 <= nr < rows` and `0 <= nc < cols`) and that the problem lets you step onto (land,
+      not water; open, not wall).
+
+      Everything from DFS and BFS carries over. A `seen` set holds `(r, c)` pairs (or you overwrite the cell, if you may change
+      the grid). A DFS from one cell **floods** the whole region it belongs to: that's the "paint bucket" in a drawing program.
+      A grid of `R` rows and `C` columns has `R × C` nodes and at most four edges each, so a flood is O(R × C).
+    comparison:
+      csharp: |
+        int[][] dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+        foreach (var d in dirs)
+        {
+            int nr = r + d[0], nc = c + d[1];
+            if (nr >= 0 && nr < rows && nc >= 0 && nc < cols
+                && grid[nr][nc] == '1')
+            {
+                // (nr, nc) is a neighbour on land
+            }
+        }
+      python: |
+        for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nr, nc = r + dr, c + dc
+            if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == "1":
+                ...  # (nr, nc) is a neighbour on land
+  - id: step.grid.trace-flood
+    type: trace
+    title: Flooding one island
+    body: |
+      A stack-based DFS from the top-left cell. Shaded cells are in `seen`; `r,c` marks the cell just popped and `nr,nc` the
+      neighbour being looked at, which can be off the grid for a moment before the bounds check turns it away. The flood stops
+      at water (`0`) and never reaches the `1` in the bottom-right corner: that's a different island.
+    code: |
+      grid = ["110", "100", "001"]
+      rows, cols = len(grid), len(grid[0])
+      seen = {(0, 0)}
+      stack = [(0, 0)]
+      r = c = nr = nc = None
+      while stack:
+          r, c = stack.pop()
+          for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+              nr, nc = r + dr, c + dc
+              if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == "1" and (nr, nc) not in seen:
+                  seen.add((nr, nc))
+                  stack.append((nr, nc))
+    visualise:
+      - variable: grid
+        as: grid
+        cells: [[r, c], [nr, nc]]
+        highlight: seen
+      - variable: stack
+        as: stack
+  - id: step.grid.predict-wrap
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      What does this print?
+    code: |
+      grid = ["ab", "cd"]
+      r, c = 0, 0
+      print(grid[r - 1][c])
+    accepted:
+      - "c"
+    mistakes:
+      - answers:
+          - "IndexError"
+          - "Error"
+          - "an error"
+        feedback: "Python lets a negative index count from the end: `grid[-1]` is the last row, `\"cd\"`. No error, just a wrong neighbour."
+      - answers:
+          - "a"
+        feedback: "`r - 1` is `-1`, and `grid[-1]` is the **last** row, `\"cd\"`, whose first character is `c`."
+      - answers:
+          - "d"
+        feedback: "`grid[-1]` is `\"cd\"`, and the column is still `0`, so it's `c`."
+    hints:
+      - "What is `r - 1` here, and what does a negative index do in Python?"
+  - id: step.grid.check-bounds
+    type: choice
+    title: Check before you look
+    prompt: |
+      Someone checks `if nr < rows and nc < cols and grid[nr][nc] == "1":`. What goes wrong?
+    options:
+      - text: "A neighbour above the top row or left of the first column has a `-1`, which wraps to the far side and joins cells that aren't next to each other."
+        correct: true
+        feedback: "Right. Too big an index raises an `IndexError`; too small one silently wraps. Check `0 <=` as well: `0 <= nr < rows and 0 <= nc < cols`."
+      - text: "Nothing: Python raises an `IndexError` for `-1`."
+        correct: false
+        feedback: "`-1` is a valid index in Python, the last item. That's why the bug is quiet."
+      - text: "It misses the cells on the bottom row."
+        correct: false
+        feedback: "`nr < rows` lets the bottom row (`rows - 1`) through. The trouble is the other end."
+      - text: "The check must come after `grid[nr][nc] == \"1\"`."
+        correct: false
+        feedback: "The other way round: `and` stops at the first false part, so the bounds checks must come first, or the indexing runs on cells off the grid."
+    hints:
+      - "What is `grid[-1]`?"
+  - id: step.grid.islands
+    type: explain
+    title: Counting regions
+    body: |
+      One flood covers one region. To **count** regions (islands on a map, rooms in a floor plan, blobs in a picture), loop over
+      every cell, and whenever you find land that no flood has reached yet, that's a new region: add one, and flood it so that
+      none of its cells starts another count.
+
+      ```python
+      for r in range(rows):
+          for c in range(cols):
+              if grid[r][c] == "1" and (r, c) not in seen:
+                  count += 1
+                  flood(r, c)   # marks the whole island seen
+      ```
+
+      It's the same as counting the pieces of any graph (the "start from every node" DFS of lesson 2), with the cells as nodes.
+      Each cell is flooded at most once, so the whole thing is still O(R × C).
+
+      Flood with a DFS or a BFS, whichever you like: both reach the whole region. When the question asks for the **fewest
+      moves** from one cell to another, though, it has to be BFS, just as in the last lesson.
+  - id: step.grid.trace-islands
+    type: trace
+    title: Count, then flood
+    body: |
+      The outer loops walk every cell, `r,c`. Land that isn't shaded yet is a new island: `count` goes up and the flood shades
+      it all, cell by cell at `i,j`. Land that's already shaded is skipped.
+    code: |
+      grid = ["1100", "0001", "1011"]
+      rows, cols = len(grid), len(grid[0])
+      seen = set()
+      count = 0
+      i = j = None
+      for r in range(rows):
+          for c in range(cols):
+              if grid[r][c] == "1" and (r, c) not in seen:
+                  count += 1
+                  seen.add((r, c))
+                  stack = [(r, c)]
+                  while stack:
+                      i, j = stack.pop()
+                      for ni, nj in ((i + 1, j), (i - 1, j), (i, j + 1), (i, j - 1)):
+                          if 0 <= ni < rows and 0 <= nj < cols and grid[ni][nj] == "1" and (ni, nj) not in seen:
+                              seen.add((ni, nj))
+                              stack.append((ni, nj))
+    visualise:
+      - variable: grid
+        as: grid
+        cells: [[r, c], [i, j]]
+        highlight: seen
+  - id: step.grid.predict-islands
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      How many islands does this count? Land is `1`, and land joins only up, down, left and right.
+    code: |
+      grid = ["110", "010", "101"]
+      rows, cols = len(grid), len(grid[0])
+      seen = set()
+      count = 0
+      for r in range(rows):
+          for c in range(cols):
+              if grid[r][c] == "1" and (r, c) not in seen:
+                  count += 1
+                  seen.add((r, c))
+                  stack = [(r, c)]
+                  while stack:
+                      i, j = stack.pop()
+                      for ni, nj in ((i + 1, j), (i - 1, j), (i, j + 1), (i, j - 1)):
+                          if 0 <= ni < rows and 0 <= nj < cols and grid[ni][nj] == "1" and (ni, nj) not in seen:
+                              seen.add((ni, nj))
+                              stack.append((ni, nj))
+      print(count)
+    accepted:
+      - "3"
+    mistakes:
+      - answers:
+          - "1"
+          - "2"
+        feedback: "That joins land that only touches at a corner. The middle `1` and the bottom corners touch diagonally, which doesn't count here."
+      - answers:
+          - "5"
+        feedback: "That counts land cells. The top three join up (`(0, 0)`, `(0, 1)`, `(1, 1)`), so they're one island."
+    hints:
+      - "Find the land cells, then join those that share a side."
+  - id: step.grid.check-diagonal
+    type: choice
+    title: When corners count
+    prompt: |
+      A new problem says land joins in **all eight** directions, corners included. What changes?
+    options:
+      - text: "The list of directions: add `(1, 1)`, `(1, -1)`, `(-1, 1)` and `(-1, -1)`."
+        correct: true
+        feedback: "Right. The flood and the counting loop stay as they are; only a cell's neighbours change."
+      - text: "Switch from DFS to BFS."
+        correct: false
+        feedback: "Both reach every cell joined to the start. What's joined is set by the directions, not by the search."
+      - text: "Nothing: the four directions already reach diagonal cells in one step."
+        correct: false
+        feedback: "Two steps, through a cell in between, and that cell may be water. Diagonal land needs its own direction."
+      - text: "Count each island's corners separately."
+        correct: false
+        feedback: "No extra counting: a diagonal neighbour is just another neighbour."
+    hints:
+      - "Which part of the code decides what a cell's neighbours are?"
+  - id: step.grid.check-which-problem
+    type: choice
+    title: Which one is a flood fill?
+    prompt: |
+      Which of these is the best fit for flooding out from cells of a grid?
+    options:
+      - text: "How many separate rooms a floor plan has, given as a grid of walls and floor."
+        correct: true
+        feedback: "Right. Each floor cell is a node; loop over the cells and flood each new room, counting them."
+      - text: "The largest number in each row of a grid."
+        correct: false
+        feedback: "Each row on its own is a plain loop: no cell needs its neighbours."
+      - text: "Rotating a square grid by 90 degrees."
+        correct: false
+        feedback: "That moves cells by a formula (`(r, c)` to `(c, n - 1 - r)`); nothing spreads from cell to cell."
+      - text: "The cheapest route across a grid where each cell has a different cost to enter."
+        correct: false
+        feedback: "Different costs per step means Dijkstra's algorithm with a heap (Track 6), not a flood."
+    hints:
+      - "Which question is about cells joined to each other?"
+  - id: step.grid.check-maze
+    type: choice
+    title: Out of the maze
+    prompt: |
+      A maze is a grid of open cells and walls. You want the **fewest moves** from the top-left to the bottom-right. Which
+      search?
+    options:
+      - text: "A BFS from the top-left, recording each cell's distance; the answer is the bottom-right's distance."
+        correct: true
+        feedback: "Right. Every move costs the same, so the cell graph is unweighted, and BFS reaches each cell first along the fewest moves."
+      - text: "A DFS from the top-left, stopping when it reaches the bottom-right."
+        correct: false
+        feedback: "A DFS finds *a* way out, but it can wander a long route first. Fewest moves needs BFS."
+      - text: "Count the regions, and the answer is the number of regions."
+        correct: false
+        feedback: "That says how many separate open areas there are, not how far apart two cells are."
+      - text: "`(rows - 1) + (cols - 1)`, the number of moves on an empty grid."
+        correct: false
+        feedback: "Walls can force a detour, so the answer can be more, or `-1` if there's no way through."
+    hints:
+      - "Each move costs the same. Which search finds the fewest edges?"
+  - id: step.grid.fill-neighbours
+    type: fill-blank
+    title: Neighbours on the grid
+    pattern: pattern.grid-flood-fill
+    patternCue: "\"Cells joined up, down, left and right\": four directions, kept only when they land on the grid."
+    prompt: |
+      Fill in the blanks so that `neighbours(grid, r, c)` returns the cells next to `(r, c)` (up, down, left and right) that
+      are on the grid, as `(row, col)` pairs.
+    template: |
+      def neighbours(grid, r, c):
+          rows, cols = len(grid), len(grid[0])
+          out = []
+          for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+              nr, nc = r + dr, c + dc
+              if {{row-ok}} and 0 <= nc < cols:
+                  out.append({{cell}})
+          return out
+    blanks:
+      - id: row-ok
+        accepted:
+          - "0 <= nr < rows"
+          - "0 <= nr and nr < rows"
+          - "nr >= 0 and nr < rows"
+        mistakes:
+          - answers:
+              - "nr < rows"
+            feedback: "Above the top row `nr` is `-1`, which is less than `rows`, so it gets through. Check `0 <= nr` too."
+          - answers:
+              - "0 <= nr <= rows"
+            feedback: "Rows go from `0` to `rows - 1`: `nr == rows` is one past the bottom. Use `<`."
+      - id: cell
+        accepted:
+          - "(nr, nc)"
+        mistakes:
+          - answers:
+              - "(r, c)"
+            feedback: "`(r, c)` is the cell itself. Its neighbour is `(nr, nc)`."
+          - answers:
+              - "grid[nr][nc]"
+            feedback: "That's what's in the neighbour, not where it is. Return the pair `(nr, nc)`."
+    hints:
+      - "A row is on the grid when it's at least `0` and less than `rows`."
+      - "Append the neighbour's position."
+  - id: step.grid.order-fill
+    type: parsons
+    title: The paint bucket
+    pattern: pattern.grid-flood-fill
+    patternCue: "\"Repaint the area joined to this pixel\": flood out to four neighbours, repainting as you go."
+    prompt: |
+      Arrange the lines into `fill(image, r, c, old, new)`, a recursive paint bucket. `image` is a list of lists of colours.
+      Starting at `(r, c)`, repaint every cell of colour `old` joined to it (up, down, left and right) with `new`. `old` and
+      `new` are different, so a repainted cell is never visited again.
+    solution: |
+      def fill(image, r, c, old, new):
+          if not (0 <= r < len(image) and 0 <= c < len(image[0])):
+              return
+          if image[r][c] != old:
+              return
+          image[r][c] = new
+          for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+              fill(image, r + dr, c + dc, old, new)
+    hints:
+      - "Base cases first: off the grid, or not the colour being replaced. The bounds check comes before any indexing."
+      - "Repaint the cell before recursing: the new colour is what stops the flood coming back to it."
+  - id: step.grid.write-islands
+    type: write-code
+    largeScreenPreferred: true
+    title: Number of islands
+    pattern: pattern.grid-flood-fill
+    patternCue: "\"How many separate islands\": loop over every cell and flood each piece of land not yet seen."
+    prompt: |
+      `grid` is a list of strings of `"1"` (land) and `"0"` (water), with at least one row and one column. Land joins land up,
+      down, left and right. Write `num_islands(grid)` that returns how many islands there are.
+
+      `num_islands(["1100", "0001", "1011"])` is `3`.
+    language: python
+    entrypoint: num_islands
+    starter: |
+      def num_islands(grid):
+          pass
+    solution: |
+      def num_islands(grid):
+          rows, cols = len(grid), len(grid[0])
+          seen = set()
+          count = 0
+          for r in range(rows):
+              for c in range(cols):
+                  if grid[r][c] == "1" and (r, c) not in seen:
+                      count += 1
+                      seen.add((r, c))
+                      stack = [(r, c)]
+                      while stack:
+                          i, j = stack.pop()
+                          for ni, nj in ((i + 1, j), (i - 1, j), (i, j + 1), (i, j - 1)):
+                              if 0 <= ni < rows and 0 <= nj < cols and grid[ni][nj] == "1" and (ni, nj) not in seen:
+                                  seen.add((ni, nj))
+                                  stack.append((ni, nj))
+          return count
+    tests:
+      - input: "['1100', '0001', '1011']"
+        expected: "3"
+      - input: "['0']"
+        expected: "0"
+      - input: "['1']"
+        expected: "1"
+      - input: "['11110', '11010', '11000', '00000']"
+        expected: "1"
+      - input: "['101', '010', '101']"
+        expected: "5"
+      - input: "['111', '101', '111']"
+        expected: "1"
+    hints:
+      - "Loop over every cell. Land you haven't seen is a new island."
+      - "When you find one, add one to the count and flood the island, marking its cells seen."
+      - "The flood is a DFS with a stack of `(row, col)` pairs, checking bounds before indexing."
+    walkthrough:
+      call: "result = num_islands(['1100', '0001', '1011'])"
+      visualise:
+        - variable: grid
+          as: grid
+          cells: [[r, c], [i, j]]
+          highlight: seen
+      explanation: |
+        `(0, 0)` starts island 1, and its flood shades `(0, 1)` too. `(1, 3)` starts island 2, which spreads down to `(2, 3)`
+        and left to `(2, 2)`. `(2, 0)` is cut off by water on every side, so it's island 3.
+    phoneAlternative:
+      id: step.grid.write-islands.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `num_islands(grid)`, which counts the islands of `"1"`s joined up, down, left and right. Arrange the lines
+        instead of typing them.
+      solution: |
+        def num_islands(grid):
+            rows, cols = len(grid), len(grid[0])
+            seen = set()
+            count = 0
+            for r in range(rows):
+                for c in range(cols):
+                    if grid[r][c] == "1" and (r, c) not in seen:
+                        count += 1
+                        seen.add((r, c))
+                        stack = [(r, c)]
+                        while stack:
+                            i, j = stack.pop()
+                            for ni, nj in ((i + 1, j), (i - 1, j), (i, j + 1), (i, j - 1)):
+                                if 0 <= ni < rows and 0 <= nj < cols and grid[ni][nj] == "1" and (ni, nj) not in seen:
+                                    seen.add((ni, nj))
+                                    stack.append((ni, nj))
+            return count
+      hints:
+        - "The outer loops find unseen land; the stack floods it."
+        - "Count when the flood starts, not for each cell it reaches."
+  - id: step.grid.write-area
+    type: write-code
+    largeScreenPreferred: true
+    title: The biggest island
+    pattern: pattern.grid-flood-fill
+    patternCue: "\"The size of the largest region\": flood each new region, counting its cells, and keep the biggest."
+    prompt: |
+      `grid` is a list of lists of `0` (water) and `1` (land), with at least one row and one column. Land joins up, down, left
+      and right. Write `max_area(grid)` that returns the number of cells in the **largest** island, or `0` if there's no land.
+
+      `max_area([[1, 1, 0], [0, 1, 0], [0, 0, 1]])` is `3`.
+    language: python
+    entrypoint: max_area
+    starter: |
+      def max_area(grid):
+          pass
+    solution: |
+      def max_area(grid):
+          rows, cols = len(grid), len(grid[0])
+          seen = set()
+          best = 0
+          for r in range(rows):
+              for c in range(cols):
+                  if grid[r][c] == 1 and (r, c) not in seen:
+                      seen.add((r, c))
+                      stack = [(r, c)]
+                      area = 0
+                      while stack:
+                          i, j = stack.pop()
+                          area += 1
+                          for ni, nj in ((i + 1, j), (i - 1, j), (i, j + 1), (i, j - 1)):
+                              if 0 <= ni < rows and 0 <= nj < cols and grid[ni][nj] == 1 and (ni, nj) not in seen:
+                                  seen.add((ni, nj))
+                                  stack.append((ni, nj))
+                      best = max(best, area)
+          return best
+    tests:
+      - input: "[[1, 1, 0], [0, 1, 0], [0, 0, 1]]"
+        expected: "3"
+      - input: "[[0, 0], [0, 0]]"
+        expected: "0"
+      - input: "[[1]]"
+        expected: "1"
+      - input: "[[1, 0, 1, 1], [1, 0, 0, 1], [0, 0, 1, 1]]"
+        expected: "5"
+      - input: "[[1, 0, 1], [0, 1, 0], [1, 0, 1]]"
+        expected: "1"
+    hints:
+      - "This is the island count, but instead of counting islands, measure each one."
+      - "Count the cells a flood pops: that's the island's area."
+      - "Keep the biggest area seen so far."
+    walkthrough:
+      call: "result = max_area([[1, 0, 1, 1], [1, 0, 0, 1], [0, 0, 1, 1]])"
+      visualise:
+        - variable: grid
+          as: grid
+          cells: [[r, c], [i, j]]
+          highlight: seen
+      explanation: |
+        The flood from `(0, 0)` pops two cells, so `best` is 2. The flood from `(0, 2)` follows the right-hand edge down and
+        round to `(2, 2)`, popping five cells, and `best` becomes 5. Every other land cell is already shaded.
+  - id: step.grid.write-maze
+    type: write-code
+    largeScreenPreferred: true
+    title: Through the maze
+    pattern: pattern.graph-bfs
+    patternCue: "\"The fewest moves through a maze\": each open cell is a node, so BFS from the start cell."
+    prompt: |
+      `maze` is a list of strings of `"."` (open) and `"#"` (wall). Moving up, down, left or right onto an open cell is one
+      move. Write `escape(maze)` that returns the fewest moves from the top-left cell to the bottom-right cell, or `-1` if
+      there's no way through (or either corner is a wall). From a one-cell open maze, it's `0` moves.
+
+      `escape(["..#", "#..", "#.."])` is `4`.
+
+      The `deque` import is in the starter; keep it.
+    language: python
+    entrypoint: escape
+    starter: |
+      from collections import deque
+
+
+      def escape(maze):
+          pass
+    solution: |
+      from collections import deque
+
+
+      def escape(maze):
+          rows, cols = len(maze), len(maze[0])
+          if maze[0][0] == "#" or maze[rows - 1][cols - 1] == "#":
+              return -1
+          dist = {(0, 0): 0}
+          queue = deque([(0, 0)])
+          while queue:
+              r, c = queue.popleft()
+              if (r, c) == (rows - 1, cols - 1):
+                  return dist[(r, c)]
+              for nr, nc in ((r + 1, c), (r - 1, c), (r, c + 1), (r, c - 1)):
+                  if 0 <= nr < rows and 0 <= nc < cols and maze[nr][nc] == "." and (nr, nc) not in dist:
+                      dist[(nr, nc)] = dist[(r, c)] + 1
+                      queue.append((nr, nc))
+          return -1
+    tests:
+      - input: "['..#', '#..', '#..']"
+        expected: "4"
+      - input: "['.']"
+        expected: "0"
+      - input: "['.#', '#.']"
+        expected: "-1"
+      - input: "['#.', '..']"
+        expected: "-1"
+      - input: "['....', '###.', '....', '.###', '....']"
+        expected: "13"
+      - input: "['...', '...', '...']"
+        expected: "4"
+    hints:
+      - "Each open cell is a node, and each move an edge of the same cost: BFS from `(0, 0)`."
+      - "Record each cell's distance as it joins the queue, checking bounds and walls first."
+      - "Return the distance when the bottom-right cell is popped; `-1` if the queue runs dry."
+    walkthrough:
+      call: "result = escape(['..#', '#..', '#..'])"
+      visualise:
+        - variable: maze
+          as: grid
+          cells: [[r, c], [nr, nc]]
+        - variable: dist
+          as: dict
+        - variable: queue
+          as: queue
+      explanation: |
+        The BFS spreads from the top-left a ring at a time: `(0, 1)` at 1 move, `(1, 1)` at 2, then `(1, 2)` and `(2, 1)` at 3,
+        and the bottom-right at 4. Only open cells ever get a distance; the walls are never entered.

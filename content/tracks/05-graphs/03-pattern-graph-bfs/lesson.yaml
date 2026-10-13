@@ -1,0 +1,608 @@
+id: lesson.pattern-graph-bfs
+title: "Pattern: BFS and shortest paths"
+concepts:
+  - id: concept.graph-bfs-distance
+    title: BFS reaches nodes in order of distance, so the first time is the shortest
+  - id: concept.graph-bfs-mark-on-enqueue
+    title: Record a node's distance when it joins the queue
+  - id: concept.graph-bfs-parent
+    title: A parent dict rebuilds the path, walking back from the target
+  - id: concept.graph-bfs-unweighted
+    title: BFS finds the fewest edges; with weights it needs Dijkstra
+reviewItems:
+  - id: review.graph-bfs.predict-dist
+    concept: concept.graph-bfs-distance
+    step: step.graph-bfs.predict-dist
+  - id: review.graph-bfs.why-shortest
+    concept: concept.graph-bfs-distance
+    step: step.graph-bfs.check-why-shortest
+  - id: review.graph-bfs.mark-on-enqueue
+    concept: concept.graph-bfs-mark-on-enqueue
+    step: step.graph-bfs.check-mark-on-enqueue
+  - id: review.graph-bfs.predict-path
+    concept: concept.graph-bfs-parent
+    step: step.graph-bfs.predict-path
+  - id: review.graph-bfs.which-problem
+    concept: concept.graph-bfs-distance
+    step: step.graph-bfs.check-which-problem
+    kind: pattern
+  - id: review.graph-bfs.weighted
+    concept: concept.graph-bfs-unweighted
+    step: step.graph-bfs.check-weighted
+    kind: pattern
+patterns:
+  - id: pattern.graph-bfs
+    title: Spread out one step at a time for the fewest steps
+steps:
+  - id: step.graph-bfs.idea
+    type: explain
+    title: Ripples from the start
+    body: |
+      Swap the DFS's stack for a **queue** and the walk changes shape. Instead of diving down one path, it spreads out like a
+      ripple: first the start, then every node **one** edge away, then every node **two** edges away, and so on. That's a
+      **breadth-first search** (BFS), the same walk as the level-order tree BFS of Track 4, plus a record of what's been reached.
+
+      Because nodes leave the queue in order of how far they are from the start, the **first** time BFS reaches a node is along
+      a path with the **fewest edges**. So a BFS that keeps a `dist` dict finds the shortest distance to every node it reaches,
+      in O(V + E). The dict does the job of `seen` too: a node is reached once it has a distance.
+
+      In C# it's a `Queue<T>` and a `Dictionary<T, int>`; in Python a `deque` and a dict.
+    comparison:
+      csharp: |
+        var dist = new Dictionary<string, int> { [start] = 0 };
+        var queue = new Queue<string>();
+        queue.Enqueue(start);
+        while (queue.Count > 0)
+        {
+            var node = queue.Dequeue();
+            foreach (var nb in g[node])
+                if (!dist.ContainsKey(nb))
+                {
+                    dist[nb] = dist[node] + 1;
+                    queue.Enqueue(nb);
+                }
+        }
+      python: |
+        from collections import deque
+
+        dist = {start: 0}
+        queue = deque([start])
+        while queue:
+            node = queue.popleft()
+            for nb in g[node]:
+                if nb not in dist:
+                    dist[nb] = dist[node] + 1
+                    queue.append(nb)
+  - id: step.graph-bfs.trace-dist
+    type: trace
+    title: One ring at a time
+    body: |
+      Shaded nodes have a distance in `dist`; ringed nodes wait in the queue, `1` leaving next. `B` and `C` (distance 1) both
+      join before anything at distance 2, so the queue always holds at most two distances, the nearer first. `D` can be reached
+      from `B` and from `C`, but only the first edge to reach it counts: when `C` looks at `D`, it already has a distance.
+    code: |
+      from collections import deque
+
+      g = {"A": ["B", "C"], "B": ["D"], "C": ["D", "E"], "D": ["F"], "E": ["F"], "F": []}
+      dist = {"A": 0}
+      queue = deque(["A"])
+      node = nb = None
+      while queue:
+          node = queue.popleft()
+          for nb in g[node]:
+              if nb not in dist:
+                  dist[nb] = dist[node] + 1
+                  queue.append(nb)
+    visualise:
+      - variable: g
+        as: graph
+        directed: true
+        edge: [node, nb]
+        visited: dist
+        frontier: queue
+      - variable: dist
+        as: dict
+        pointers: [nb]
+  - id: step.graph-bfs.predict-dist
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      An undirected graph: `0` is joined to `1` and `3`, and the other edges are `1`–`2`, `2`–`3` and `3`–`4`. What does the BFS
+      print?
+    code: |
+      from collections import deque
+
+      g = {0: [1, 3], 1: [0, 2], 2: [1, 3], 3: [0, 2, 4], 4: [3]}
+      dist = {0: 0}
+      queue = deque([0])
+      while queue:
+          node = queue.popleft()
+          for nb in g[node]:
+              if nb not in dist:
+                  dist[nb] = dist[node] + 1
+                  queue.append(nb)
+      print(dist[2], dist[4])
+    accepted:
+      - "2 2"
+    mistakes:
+      - answers:
+          - "3 4"
+        feedback: "That follows the path `0 → 1 → 2 → 3 → 4`, as a DFS might. BFS reaches `3` straight from `0`, so `3` is at distance 1 and `4` at 2."
+      - answers:
+          - "2 4"
+        feedback: "`4` hangs off `3`, and `3` is one edge from `0`: `0 → 3 → 4` is two edges."
+      - answers:
+          - "2 3"
+        feedback: "`4`'s only neighbour is `3`, which is at distance 1 (it's a neighbour of `0`), so `4` is at distance 2."
+    hints:
+      - "Which nodes are one edge from `0`? Those get distance 1."
+      - "Then which new nodes are one edge from those?"
+  - id: step.graph-bfs.check-why-shortest
+    type: choice
+    title: Why is the first time the shortest?
+    prompt: |
+      Why does BFS give each node its **shortest** distance the first time it reaches it?
+    options:
+      - text: "Nodes leave the queue in order of distance, so a node is first reached from the nearest node that touches it."
+        correct: true
+        feedback: "Right. Every distance-`d` node is dequeued before any distance-`d + 1` node, so any path found later is at least as long."
+      - text: "BFS tries every path and keeps the shortest."
+        correct: false
+        feedback: "It never revisits a node, so it never compares paths. It's the order in which nodes are reached that makes the first path the shortest."
+      - text: "BFS always takes the neighbour with the smallest label first."
+        correct: false
+        feedback: "It takes neighbours in the order the lists give them. The labels don't matter; the queue's order does."
+      - text: "It doesn't: BFS finds *a* path, and DFS finds the shortest."
+        correct: false
+        feedback: "It's the other way round. A DFS can dive down a long path to a node first; BFS goes out one edge at a time."
+    hints:
+      - "In what order do nodes come off the queue?"
+  - id: step.graph-bfs.check-mark-on-enqueue
+    type: choice
+    title: Mark it when it joins
+    prompt: |
+      Someone sets `dist[nb]` when `nb` joins the queue, but checks `if nb not in queue` instead of `if nb not in dist`. What is
+      wrong?
+    options:
+      - text: "A node already dequeued isn't in the queue, so it's added again with a bigger distance, and the walk can loop for ever."
+        correct: true
+        feedback: "Right. Being reached is permanent; being in the queue is not. Check `dist` (or `seen`), which remembers every node ever reached. `in` on a deque is O(n) too."
+      - text: "Nothing: a node in `dist` is always in the queue."
+        correct: false
+        feedback: "A node stays in `dist` after it leaves the queue. Once it's gone, `nb not in queue` is true again, and it's re-added."
+      - text: "It finds longer distances but still stops."
+        correct: false
+        feedback: "On a cycle, nodes keep coming back into the queue with ever bigger distances, so it may never stop."
+      - text: "It is faster, because the queue is smaller than `dist`."
+        correct: false
+        feedback: "`in` on a deque walks it, O(n), while `in` on a dict is O(1). And it gives wrong answers."
+    hints:
+      - "After a node is popped, is it still in the queue? Is it still in `dist`?"
+  - id: step.graph-bfs.paths
+    type: explain
+    title: The path itself, and graphs you never build
+    body: |
+      `dist` says how far; to get the **path**, record each node's **parent**, the node it was first reached from:
+
+      ```python
+      parent = {start: None}
+      ...
+                  if nb not in parent:
+                      parent[nb] = node
+                      queue.append(nb)
+      ```
+
+      Then walk back from the target, `target`, `parent[target]`, ... until `None`, and reverse what you collected. You can
+      also **stop early**: once the target is reached, its distance won't improve.
+
+      Often the graph isn't given at all. In a puzzle ("change one letter at a time", "turn one wheel of a lock") each **state**
+      is a node and each legal move an edge. Work out a state's neighbours when you pop it, instead of building a dict first;
+      the BFS is the same.
+
+      BFS finds the fewest **edges**. If edges have different **costs** (road lengths, ticket prices), the fewest edges may not
+      be the cheapest route. That needs **Dijkstra's algorithm**, which swaps the queue for a heap (Track 6).
+  - id: step.graph-bfs.trace-parent
+    type: trace
+    title: Following the parents home
+    body: |
+      The BFS records each node's parent. When it ends, the loop at the bottom walks back from `F` along the parents, `F`, `D`,
+      `B`, `A`, and reverses the list. The pointers mark the start and where the walk back has got to.
+    code: |
+      from collections import deque
+
+      g = {"A": ["B", "C"], "B": ["D"], "C": ["E"], "D": ["F"], "E": ["F"], "F": []}
+      start, target = "A", "F"
+      parent = {start: None}
+      queue = deque([start])
+      while queue:
+          node = queue.popleft()
+          for nb in g[node]:
+              if nb not in parent:
+                  parent[nb] = node
+                  queue.append(nb)
+      path = []
+      at = target
+      while at is not None:
+          path.append(at)
+          at = parent[at]
+      path.reverse()
+    visualise:
+      - variable: g
+        as: graph
+        directed: true
+        visited: parent
+        pointers: [start, at]
+      - variable: parent
+        as: dict
+        pointers: [at]
+      - variable: path
+        as: array
+  - id: step.graph-bfs.predict-path
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      A BFS has filled in `parent`. What path does the walk back print?
+    code: |
+      parent = {"S": None, "A": "S", "B": "S", "C": "A", "D": "B", "T": "C"}
+      path = []
+      at = "T"
+      while at is not None:
+          path.append(at)
+          at = parent[at]
+      print(path[::-1])
+    accepted:
+      - "['S', 'A', 'C', 'T']"
+    mistakes:
+      - answers:
+          - "['T', 'C', 'A', 'S']"
+        feedback: "That's the walk back as collected. `path[::-1]` reverses it, so it reads from the start."
+      - answers:
+          - "['S', 'B', 'D', 'T']"
+        feedback: "`T`'s parent is `C`, not `D`: follow the dict from `T`, one parent at a time."
+      - answers:
+          - "['S', 'A', 'B', 'C', 'D', 'T']"
+        feedback: "Only the nodes on the chain of parents from `T` are on the path: `T`, `C`, `A`, `S`."
+    hints:
+      - "Start at `T` and look up its parent, then that node's parent, until `None`."
+  - id: step.graph-bfs.check-which-problem
+    type: choice
+    title: Which one is a BFS?
+    prompt: |
+      Which of these is the best fit for a BFS over a graph?
+    options:
+      - text: "The fewest moves a knight needs to get from one square of a chessboard to another."
+        correct: true
+        feedback: "Right. Squares are nodes, knight moves are edges, every move counts as one: the fewest moves is a BFS distance."
+      - text: "Whether a set of course prerequisites contains a cycle."
+        correct: false
+        feedback: "That's about the order of a directed graph, not distances: a topological sort (later in this track) answers it."
+      - text: "Every path from one node to another, listed."
+        correct: false
+        feedback: "Listing every path needs a DFS that explores, then backs out (backtracking). BFS reaches each node once, along one path."
+      - text: "The cheapest flight route, where tickets cost different amounts."
+        correct: false
+        feedback: "With different costs per edge, the fewest flights may not be the cheapest. That's Dijkstra's algorithm, not BFS."
+    hints:
+      - "Which question asks for the fewest steps, each step costing the same?"
+  - id: step.graph-bfs.check-weighted
+    type: choice
+    title: When BFS is wrong
+    prompt: |
+      Roads: `A`–`B` is 10 km, `A`–`C` is 1 km and `C`–`B` is 1 km. A BFS from `A` sets `dist[B] = 1`, reached straight from
+      `A`. Why is that the wrong answer to "the shortest drive from `A` to `B`"?
+    options:
+      - text: "BFS counts edges, not kilometres: the one-edge road is 10 km, the two-edge route through `C` is 2 km."
+        correct: true
+        feedback: "Right. BFS is only shortest when every edge costs the same. With lengths, use Dijkstra's algorithm (a heap, Track 6)."
+      - text: "The BFS has a bug: `B` should have been reached through `C`."
+        correct: false
+        feedback: "The BFS is doing its job: `B` is one edge from `A`. Fewest edges just isn't the question when roads have lengths."
+      - text: "BFS can't be used on undirected graphs."
+        correct: false
+        feedback: "BFS works on both. The trouble here is that the edges have different lengths."
+      - text: "It's right: 1 edge is shorter than 2."
+        correct: false
+        feedback: "Shorter in edges, but the question asks about kilometres: 10 km against 1 + 1 km."
+    hints:
+      - "What does BFS count?"
+  - id: step.graph-bfs.fill-dist
+    type: fill-blank
+    title: The fewest steps
+    pattern: pattern.graph-bfs
+    patternCue: "\"The fewest steps from A to B\": a queue from the start, recording each node's distance as it joins."
+    prompt: |
+      Fill in the blanks so that `steps(g, start, target)` returns the fewest edges on a path from `start` to `target`, or `-1`
+      if there is none. Every node is a key of `g`.
+    template: |
+      from collections import deque
+
+
+      def steps(g, start, target):
+          dist = {start: 0}
+          queue = deque([start])
+          while queue:
+              node = queue.{{take}}()
+              if node == target:
+                  return dist[node]
+              for nb in g[node]:
+                  if nb not in dist:
+                      dist[nb] = {{distance}}
+                      queue.append(nb)
+          return -1
+    blanks:
+      - id: take
+        accepted:
+          - "popleft"
+        mistakes:
+          - answers:
+              - "pop"
+            feedback: "`pop` takes the newest node, which makes this a DFS. The distances it records may then be too long."
+      - id: distance
+        accepted:
+          - "dist[node] + 1"
+          - "1 + dist[node]"
+        mistakes:
+          - answers:
+              - "dist[nb] + 1"
+            feedback: "`nb` has no distance yet; that's what this line gives it. It's one more than the node it was reached from."
+          - answers:
+              - "1"
+            feedback: "Every neighbour would get 1, however far out it is. It's one more than its parent's distance."
+    hints:
+      - "A queue takes from the front."
+      - "A neighbour is one edge further than the node it was reached from."
+  - id: step.graph-bfs.order-path
+    type: parsons
+    title: Walk back along the parents
+    pattern: pattern.graph-bfs
+    patternCue: "\"Give the shortest path itself\": record each node's parent in the BFS, then walk back from the target."
+    prompt: |
+      Arrange the lines into `path_to(parent, target)`. `parent` maps each node a BFS reached to the node it came from (the start
+      maps to `None`), and `target` is a key of it. Return the path from the start to `target` as a list.
+    solution: |
+      def path_to(parent, target):
+          path = []
+          node = target
+          while node is not None:
+              path.append(node)
+              node = parent[node]
+          path.reverse()
+          return path
+    hints:
+      - "Start at the target and step to each node's parent until you reach `None`."
+      - "That collects the path backwards: reverse it at the end."
+  - id: step.graph-bfs.write-shortest
+    type: write-code
+    largeScreenPreferred: true
+    title: The shortest route
+    pattern: pattern.graph-bfs
+    patternCue: "\"The route with the fewest stops\": BFS with a parent dict, then walk back from the target."
+    prompt: |
+      Write `shortest_path(g, start, target)` that returns a path from `start` to `target` with the fewest edges, as a list of
+      nodes, or `[]` if `target` can't be reached. `g` is directed and every node is a key. From `start` to itself the path is
+      `[start]`. (In the tests the shortest path is always unique.)
+
+      With `g = {"A": ["B", "C"], "B": ["D"], "C": ["E"], "D": ["E"], "E": []}`, `shortest_path(g, "A", "E")` is
+      `["A", "C", "E"]`.
+
+      The `deque` import is in the starter; keep it.
+    language: python
+    entrypoint: shortest_path
+    starter: |
+      from collections import deque
+
+
+      def shortest_path(g, start, target):
+          pass
+    solution: |
+      from collections import deque
+
+
+      def shortest_path(g, start, target):
+          parent = {start: None}
+          queue = deque([start])
+          while queue:
+              node = queue.popleft()
+              if node == target:
+                  path = []
+                  while node is not None:
+                      path.append(node)
+                      node = parent[node]
+                  return path[::-1]
+              for nb in g[node]:
+                  if nb not in parent:
+                      parent[nb] = node
+                      queue.append(nb)
+          return []
+    tests:
+      - input: "{'A': ['B', 'C'], 'B': ['D'], 'C': ['E'], 'D': ['E'], 'E': []}, 'A', 'E'"
+        expected: "['A', 'C', 'E']"
+      - input: "{'A': []}, 'A', 'A'"
+        expected: "['A']"
+      - input: "{'A': ['B'], 'B': [], 'C': ['A']}, 'A', 'C'"
+        expected: "[]"
+      - input: "{1: [2, 5], 2: [3], 3: [4], 4: [6], 5: [6], 6: []}, 1, 6"
+        expected: "[1, 5, 6]"
+      - input: "{0: [1], 1: [2], 2: [0, 3], 3: []}, 0, 3"
+        expected: "[0, 1, 2, 3]"
+    hints:
+      - "Run a BFS from `start` that records each node's parent instead of its distance."
+      - "When you pop the target, walk back along the parents to `None`, then reverse."
+      - "If the queue runs dry first, the target can't be reached."
+    walkthrough:
+      call: "result = shortest_path({1: [2, 5], 2: [3], 3: [4], 4: [6], 5: [6], 6: []}, 1, 6)"
+      visualise:
+        - variable: g
+          as: graph
+          directed: true
+          edge: [node, nb]
+          visited: parent
+          frontier: queue
+      explanation: |
+        From `1`, both `2` and `5` join the queue. `5` reaches `6` on the next ring, long before the walk along `2`, `3`, `4`
+        gets there, so `6`'s parent is `5`. Popping `6` stops the search, and the walk back gives `6`, `5`, `1`, reversed.
+    phoneAlternative:
+      id: step.graph-bfs.write-shortest.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `shortest_path(g, start, target)`, which returns a path with the fewest edges, or `[]`. Arrange the lines instead
+        of typing them.
+      solution: |
+        def shortest_path(g, start, target):
+            parent = {start: None}
+            queue = deque([start])
+            while queue:
+                node = queue.popleft()
+                if node == target:
+                    path = []
+                    while node is not None:
+                        path.append(node)
+                        node = parent[node]
+                    return path[::-1]
+                for nb in g[node]:
+                    if nb not in parent:
+                        parent[nb] = node
+                        queue.append(nb)
+            return []
+      hints:
+        - "The BFS records parents, not distances."
+        - "When the target is popped, walk back and reverse."
+  - id: step.graph-bfs.write-friends
+    type: write-code
+    largeScreenPreferred: true
+    title: Friends of friends
+    pattern: pattern.graph-bfs
+    patternCue: "\"Everyone within k steps\": BFS from the person, stopping at distance k."
+    prompt: |
+      `g` is an undirected friendship graph (each friendship is in both lists, every person is a key). Write
+      `within(g, person, k)` that returns a sorted list of everyone **at most `k` friendships away** from `person`, not counting
+      `person` themselves. `k` is at least `0`.
+
+      With `g = {"ann": ["bob"], "bob": ["ann", "cat"], "cat": ["bob", "dan"], "dan": ["cat"]}`, `within(g, "ann", 2)` is
+      `["bob", "cat"]`.
+    language: python
+    entrypoint: within
+    starter: |
+      from collections import deque
+
+
+      def within(g, person, k):
+          pass
+    solution: |
+      from collections import deque
+
+
+      def within(g, person, k):
+          dist = {person: 0}
+          queue = deque([person])
+          while queue:
+              node = queue.popleft()
+              if dist[node] == k:
+                  continue
+              for nb in g[node]:
+                  if nb not in dist:
+                      dist[nb] = dist[node] + 1
+                      queue.append(nb)
+          return sorted(p for p in dist if p != person)
+    tests:
+      - input: "{'ann': ['bob'], 'bob': ['ann', 'cat'], 'cat': ['bob', 'dan'], 'dan': ['cat']}, 'ann', 2"
+        expected: "['bob', 'cat']"
+      - input: "{'ann': ['bob'], 'bob': ['ann']}, 'ann', 0"
+        expected: "[]"
+      - input: "{1: [2, 3], 2: [1, 4], 3: [1, 4], 4: [2, 3, 5], 5: [4]}, 1, 1"
+        expected: "[2, 3]"
+      - input: "{1: [2, 3], 2: [1, 4], 3: [1, 4], 4: [2, 3, 5], 5: [4]}, 1, 2"
+        expected: "[2, 3, 4]"
+      - input: "{1: [2], 2: [1], 3: []}, 1, 5"
+        expected: "[2]"
+    hints:
+      - "A BFS from `person` gives everyone their distance."
+      - "Don't explore from anyone already `k` away: their friends would be `k + 1` away."
+      - "Return everyone with a distance, except `person`, sorted."
+    walkthrough:
+      call: "result = within({1: [2, 3], 2: [1, 4], 3: [1, 4], 4: [2, 3, 5], 5: [4]}, 1, 2)"
+      visualise:
+        - variable: g
+          as: graph
+          edge: [node, nb]
+          visited: dist
+          frontier: queue
+      explanation: |
+        `2` and `3` are one friendship away and `4` is two. When `4` is popped its distance is already `k`, so its friend `5`
+        is never added. Everyone with a distance except `1` itself is the answer: `[2, 3, 4]`.
+  - id: step.graph-bfs.write-ladder
+    type: write-code
+    largeScreenPreferred: true
+    title: Word ladder
+    pattern: pattern.graph-bfs
+    patternCue: "\"The fewest one-letter changes\": each word is a node and each change an edge, so BFS over words."
+    prompt: |
+      Change `begin` into `end` one letter at a time. `begin` needn't be in the list `words`, but every word after it, `end`
+      included, must be. Write `ladder(begin, end, words)` that returns how many words the shortest such sequence has,
+      **counting both `begin` and `end`**, or `0` if there is none (so `0` whenever `end` isn't in `words`, even if it equals
+      `begin`). All words have the same length.
+
+      `ladder("hit", "cog", ["hot", "dot", "dog", "lot", "log", "cog"])` is `5`: `hit → hot → dot → dog → cog`.
+
+      You don't need to build a graph first: a word's neighbours are the words in the list that differ from it in exactly one
+      position.
+    language: python
+    entrypoint: ladder
+    starter: |
+      from collections import deque
+
+
+      def ladder(begin, end, words):
+          pass
+    solution: |
+      from collections import deque
+
+
+      def ladder(begin, end, words):
+          def one_apart(a, b):
+              return sum(x != y for x, y in zip(a, b)) == 1
+
+          if end not in words:
+              return 0
+          dist = {begin: 1}
+          queue = deque([begin])
+          while queue:
+              word = queue.popleft()
+              if word == end:
+                  return dist[word]
+              for nb in words:
+                  if nb not in dist and one_apart(word, nb):
+                      dist[nb] = dist[word] + 1
+                      queue.append(nb)
+          return 0
+    tests:
+      - input: "'hit', 'cog', ['hot', 'dot', 'dog', 'lot', 'log', 'cog']"
+        expected: "5"
+      - input: "'hit', 'cog', ['hot', 'dot', 'dog', 'lot', 'log']"
+        expected: "0"
+      - input: "'a', 'c', ['a', 'b', 'c']"
+        expected: "2"
+      - input: "'cat', 'cot', ['cot']"
+        expected: "2"
+      - input: "'hit', 'hit', []"
+        expected: "0"
+      - input: "'hit', 'hit', ['hit']"
+        expected: "1"
+      - input: "'cold', 'warm', ['cord', 'card', 'ward', 'wold', 'word', 'worm', 'wore', 'warm']"
+        expected: "5"
+    hints:
+      - "Each word is a node. Two words are neighbours when they differ in exactly one position."
+      - "If `end` isn't in `words`, no sequence is allowed. Otherwise BFS from `begin`, with `begin` at distance 1, since the count includes it."
+      - "Return the distance when `end` is popped; `0` if the queue runs dry."
+    walkthrough:
+      call: "result = ladder('hit', 'cog', ['hot', 'dot', 'dog', 'lot', 'log', 'cog'])"
+      visualise:
+        - variable: dist
+          as: dict
+          pointers: [word, nb]
+        - variable: queue
+          as: queue
+      explanation: |
+        `hit` has one neighbour in the list, `hot` (2 words). `hot` leads to `dot` and `lot` (3), they lead to `dog` and `log`
+        (4), and `dog` leads to `cog` (5). When `cog` is popped, its count is the answer.
