@@ -105,6 +105,11 @@
         <TraceTree View="tree" Step="Current.Index" @key="tree.Variable" />
     }
 
+    @foreach (var heap in Current.Heaps)
+    {
+        <TraceHeap View="heap" Step="Current.Index" @key="heap.Variable" />
+    }
+
     @foreach (var grid in Current.Grids)
     {
         <TraceGrid View="grid" Step="Current.Index" @key="grid.Variable" />

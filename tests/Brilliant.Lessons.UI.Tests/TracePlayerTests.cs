@@ -974,6 +974,129 @@ public class TracePlayerTests : ShortcutContext
         Assert.True(int.Parse(viewBox[0]) < 0);
     }
 
+    // ---- Heaps ----
+
+    private static TraceFrame HeapFrame(int line, string[] cells, int? i = null, int more = 0) =>
+        new("line", line, "<module>", i is { } n ? [new TraceLocal("i", "int", n.ToString())] : [], new Dictionary<string, TrackedArray>(),
+            Heaps: new Dictionary<string, TrackedHeap> { ["heap"] = new("list", cells, more) });
+
+    private IRenderedComponent<TracePlayer> Heaps(Visual visual, params TraceFrame[] frames) => Start(RunOf(frames), [visual], out _);
+
+    private static readonly Visual HeapVisual = new("heap", Visual.Heap, ["i"]);
+
+    private static AngleSharp.Dom.IElement HeapCell(IRenderedComponent<TracePlayer> cut, int id) => cut.Find($"figure.heap g.cell[data-id='{id}']");
+    private static AngleSharp.Dom.IElement HeapNode(IRenderedComponent<TracePlayer> cut, int id) => cut.Find($"figure.heap g.node[data-id='{id}']");
+
+    [Fact]
+    public void A_heap_draws_its_cells_in_a_row_and_as_the_tree_they_stand_for()
+    {
+        var cut = Heaps(HeapVisual, HeapFrame(1, ["1", "3", "2", "7"]));
+
+        Assert.Equal(["1", "3", "2", "7"], cut.FindAll("figure.heap g.cell .cell-text").Select(t => t.TextContent));
+        Assert.Equal(["0", "1", "2", "3"], cut.FindAll("figure.heap .cell-index").Select(t => t.TextContent));
+        Assert.Equal(["1", "3", "2", "7"], cut.FindAll("figure.heap g.node .node-value").Select(t => t.TextContent));
+        // Cell 0 is the root; 1 and 2 a level down, 1 left of 2; 3 under 1, the child at 2 * 1 + 1.
+        var (root, left, right, leaf) = (Place(HeapNode(cut, 0)), Place(HeapNode(cut, 1)), Place(HeapNode(cut, 2)), Place(HeapNode(cut, 3)));
+        Assert.True(root.Y < left.Y && left.Y == right.Y && right.Y < leaf.Y);
+        Assert.True(left.X < root.X && root.X < right.X && leaf.X < left.X);
+        Assert.True(Place(HeapCell(cut, 0)).Y < root.Y);   // the row is above the tree
+        Assert.Equal([("0", "1"), ("0", "2"), ("1", "3")],
+            cut.FindAll("figure.heap g.edge").Select(e => (e.GetAttribute("data-from")!, e.GetAttribute("data-to")!)));
+        Assert.Equal("min-heap", cut.Find(".heap-kind").TextContent);
+        Assert.Contains("heap, a min-heap: 1, 3, 2, 7; as a tree, root 1, 1 over 3 and 2, 3 over 7", cut.Find("figure.heap svg").GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public void Max_labels_a_max_heap()
+    {
+        var cut = Heaps(HeapVisual with { Max = true }, HeapFrame(1, ["9", "4"]));
+
+        Assert.Equal("max-heap", cut.Find(".heap-kind").TextContent);
+    }
+
+    [Fact]
+    public void A_swap_slides_both_values_in_the_row_and_in_the_tree()
+    {
+        var cut = Heaps(HeapVisual, HeapFrame(1, ["5", "1", "2"]), HeapFrame(2, ["1", "5", "2"]));
+        var (cell5, node5) = (Place(HeapCell(cut, 0)), Place(HeapNode(cut, 0)));
+        var (cell1, node1) = (Place(HeapCell(cut, 1)), Place(HeapNode(cut, 1)));
+
+        cut.Find("button.next").Click();
+
+        // Each value keeps its element and moves to the other's place, so the transition slides it.
+        Assert.Equal((cell1, node1), (Place(HeapCell(cut, 0)), Place(HeapNode(cut, 0))));
+        Assert.Equal((cell5, node5), (Place(HeapCell(cut, 1)), Place(HeapNode(cut, 1))));
+        foreach (var moved in new[] { HeapCell(cut, 0), HeapNode(cut, 0), HeapCell(cut, 1), HeapNode(cut, 1) })
+        {
+            Assert.Contains("moved", moved.ClassList);
+            Assert.Contains("transition-transform", moved.ClassList);
+        }
+        Assert.DoesNotContain("moved", HeapNode(cut, 2).ClassList);
+    }
+
+    [Fact]
+    public void A_push_grows_in_and_a_pop_fades_from_where_it_was()
+    {
+        var cut = Heaps(HeapVisual, HeapFrame(1, ["2", "5"]), HeapFrame(2, ["1", "5", "2"]), HeapFrame(3, ["2", "5"]));
+        cut.Find("button.next").Click();
+
+        Assert.NotNull(HeapCell(cut, 2).QuerySelector(".cell-body.animate-cell-in"));
+        Assert.NotNull(HeapNode(cut, 2).QuerySelector(".node-body.animate-cell-in"));
+
+        cut.Find("button.next").Click();
+
+        var ghosts = cut.FindAll("figure.heap g.gone");
+        Assert.Equal(2, ghosts.Count);   // in the row and in the tree
+        Assert.All(ghosts, g => Assert.Equal("0", g.GetAttribute("data-index")));
+        Assert.All(ghosts, g => Assert.Equal("true", g.GetAttribute("aria-hidden")));
+        Assert.NotNull(ghosts[0].QuerySelector(".animate-cell-out"));
+        Assert.Contains("1 left the heap.", cut.FindAll(".heap-note").Select(n => n.TextContent));
+    }
+
+    [Fact]
+    public void A_value_written_over_another_flashes_in_both_views()
+    {
+        var cut = Heaps(HeapVisual, HeapFrame(1, ["1", "5"]), HeapFrame(2, ["9", "5"]));
+        cut.Find("button.next").Click();
+
+        Assert.NotNull(HeapCell(cut, 0).QuerySelector(".cell-box.animate-cell-flash"));
+        Assert.NotNull(HeapNode(cut, 0).QuerySelector(".node-circle.animate-cell-flash"));
+        Assert.Null(HeapNode(cut, 1).QuerySelector(".animate-cell-flash"));
+    }
+
+    [Fact]
+    public void A_pointer_stands_under_its_cell_and_under_its_node()
+    {
+        var cut = Heaps(HeapVisual, HeapFrame(1, ["1", "5", "2"], i: 2), HeapFrame(2, ["1", "5", "2"], i: 7));
+
+        var onCell = cut.Find("figure.heap g.pointer.on-cell[data-name='i']");
+        var onNode = cut.Find("figure.heap g.pointer.on-node[data-name='i']");
+        Assert.Equal(Place(HeapCell(cut, 2)).X + 22, Place(onCell).X);
+        Assert.Equal(Place(HeapNode(cut, 2)).X, Place(onNode).X);
+        Assert.True(Place(onNode).Y > Place(HeapNode(cut, 2)).Y);
+        Assert.Contains("i at index 2", cut.Find("figure.heap svg").GetAttribute("aria-label"));
+
+        cut.Find("button.next").Click();
+
+        Assert.Empty(cut.FindAll("figure.heap g.pointer"));
+        Assert.Contains("i is not on a cell right now.", cut.FindAll(".heap-note").Select(n => n.TextContent));
+    }
+
+    [Fact]
+    public void An_empty_heap_is_an_empty_slot_and_cut_off_cells_are_counted()
+    {
+        var empty = Heaps(HeapVisual, HeapFrame(1, []));
+        Assert.Equal("empty", empty.Find("g.heap-empty").TextContent.Trim());
+        Assert.Contains("heap, a min-heap: empty", empty.Find("figure.heap svg").GetAttribute("aria-label"));
+
+        var big = Heaps(HeapVisual, HeapFrame(1, Enumerable.Range(0, 31).Select(n => n.ToString()).ToArray(), more: 4));
+        Assert.Equal(31, big.FindAll("figure.heap g.node").Count);
+        Assert.Equal("+4 more", big.Find("figure.heap g.cell.more").TextContent.Trim());
+        Assert.Contains("+4 more cells not shown, in the row or the tree.", big.FindAll(".heap-note").Select(n => n.TextContent));
+        Assert.Contains("overflow-x-auto", big.Find(".heap-scroll").ClassList);
+        Assert.Matches(@"width: [\d.]+rem; height: [\d.]+rem", big.Find("figure.heap svg").GetAttribute("style"));
+    }
+
     // ---- Trees ----
 
     private static readonly IReadOnlyList<Visual> RootVisual = [new Visual("root", Visual.Tree, ["node"], Visited: "order")];
