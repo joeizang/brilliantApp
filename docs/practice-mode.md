@@ -72,8 +72,9 @@ the step or its phone alternative, is a **warning**: `brilliant validate`, `pack
 | `pattern.bst-ordering` (Let the BST order pick the side) | Track 4 lesson 6 | its 5 problems; lesson 9 `lca` (fill) |
 | `pattern.top-down-state` (Carry what the path knows down as arguments) | Track 4 lesson 7 | its 5 problems; lesson 9 `max_ancestor_diff` |
 | `pattern.backtracking` (Choose, explore, unchoose) | Track 4 lesson 8 | its 5 problems |
+| `pattern.graph-dfs` (Dive along the edges, marking nodes seen) | Track 5 lesson 2 | its 5 problems |
 
-Left untagged: every problem in Track 1 lessons 1–6 (Python and Big-O drills), Track 2 lesson 6's `count_subarrays` (its prompt says
+Left untagged: every problem in Track 1 lessons 1–6 (Python and Big-O drills), Track 5 lesson 1's graph-building drills, Track 2 lesson 6's `count_subarrays` (its prompt says
 "prefix sums and a dict" on purpose, to teach when a window fails) and `count_palindromes` (expand-around-centre, not one of the eight).
 The remove-duplicates prompt said "using a reader and a writer"; it now says "without building a second list".
 
