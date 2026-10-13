@@ -327,21 +327,22 @@ steps:
     type: choice
     title: Which walk?
     prompt: |
-      You write each node's value to a file so that the tree can be rebuilt later by reading the values back and inserting each
-      one under the nodes already rebuilt. Which walk fits?
+      You save a tree to a file by walking it and writing each node's value, and `None` for each missing child, so the shape
+      is saved too: `Node(1, Node(2))` and `Node(1, None, Node(2))` write different files. To rebuild it, you read the file from
+      the start and attach each node under its parent **as soon as it is read**. Which walk should write the file?
     options:
       - text: "Pre-order: every node is written before anything under it, so its parent always exists when it's read back."
         correct: true
-        feedback: "Right. Pre-order puts each parent ahead of its children, so the rebuild never meets a child before its parent."
+        feedback: "Right. Pre-order puts each parent ahead of its children, and the `None`s say where each subtree ends: `1 2 None None None` and `1 None 2 None None` rebuild the two different trees."
       - text: "Post-order: the leaves are written first."
         correct: false
-        feedback: "Then the root comes last. Reading back, every child would arrive before the parent it belongs under."
+        feedback: "Then the root comes last. Reading from the start, every child would arrive before the parent it belongs under."
       - text: "In-order: it keeps the values in left-to-right order."
         correct: false
-        feedback: "In-order writes a left child before its parent, so the rebuild would meet a child with nowhere to put it."
-      - text: "It doesn't matter, as long as every node is written once."
+        feedback: "In-order writes a left child before its parent, so the rebuild would meet a child with nowhere to attach it."
+      - text: "It doesn't matter, as long as every node and every `None` is written once."
         correct: false
-        feedback: "The order matters here: a node can only be rebuilt under a parent that already exists."
+        feedback: "The order matters here: a node can only be attached under a parent that has already been read."
     hints:
       - "When a value is read back, what must already be rebuilt?"
   - id: step.tree-dfs.fill-preorder
