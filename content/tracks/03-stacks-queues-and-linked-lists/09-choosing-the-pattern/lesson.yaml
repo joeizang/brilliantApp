@@ -1,0 +1,650 @@
+id: lesson.choosing-list-patterns
+title: "Choosing the pattern: stacks, queues and lists"
+concepts:
+  - id: concept.pick-list-pattern
+    title: Reading the clues for stacks, queues and lists
+  - id: concept.combine-list-patterns
+    title: Combining list patterns in one solution
+reviewItems:
+  - id: review.choose-lists.which-stack
+    concept: concept.pick-list-pattern
+    step: step.choose-lists.check-stack-or-deque
+    kind: pattern
+  - id: review.choose-lists.which-list
+    concept: concept.pick-list-pattern
+    step: step.choose-lists.check-list-problem
+    kind: pattern
+  - id: review.choose-lists.unsorted
+    concept: concept.pick-list-pattern
+    step: step.choose-lists.check-not-a-list-pattern
+    kind: pattern
+  - id: review.choose-lists.reorder
+    concept: concept.combine-list-patterns
+    step: step.choose-lists.predict-reorder
+  - id: review.choose-lists.gap
+    concept: concept.combine-list-patterns
+    step: step.choose-lists.predict-gap
+  - id: review.choose-lists.why-dummy
+    concept: concept.combine-list-patterns
+    step: step.choose-lists.check-why-dummy
+steps:
+  - id: step.choose-lists.clues
+    type: explain
+    title: Read the question first
+    body: |
+      This track added seven patterns. As in Track 2, the question usually names its own: look for the **clue**.
+
+      | If the question says... | Reach for |
+      | --- | --- |
+      | brackets, nesting, *undo*, the most recent unmatched thing | **matching with a stack** |
+      | *next greater*, *next warmer*, *how many days until* | **monotonic stack** |
+      | the **max or min** of every window of size `k` | **a deque for the window** |
+      | remove or insert where the **head itself** may change | **a dummy head** |
+      | *reverse*, *in place*, work **from the end** of a list | **`prev`, `cur`, `nxt`** |
+      | the **middle**, a **cycle**, the **`k`th from the end** | **fast and slow pointers** |
+      | **two sorted** lists into one; *sort a linked list* | **merge with a tail** |
+
+      Harder problems **combine** them. A dummy shows up whenever the head might go; fast and slow find the middle, so the
+      second half can be reversed; merge sort is fast and slow, then a cut, then a merge. Two warnings carry over from earlier
+      tracks: if a problem only needs *have I seen this before?*, a `set` or `dict` is simpler (Track 1); and if the values are in a
+      plain Python list, you don't need any linked-list pattern at all.
+  - id: step.choose-lists.check-stack-or-deque
+    type: choice
+    title: Stack or deque?
+    prompt: |
+      *Given a list of daily prices and a number `k`, return the highest price in every run of `k` days in a row.* Which
+      pattern fits?
+    options:
+      - text: "A deque for the window: indices of falling prices, dropping from the front once they leave the window."
+        correct: true
+        feedback: "Right. *The max of every window of size `k`* is the cue. The front of the deque is always the window's max."
+      - text: "A monotonic stack, popping smaller prices."
+        correct: false
+        feedback: "Close: the deque keeps the same falling order. But a stack can't drop the *oldest* index when it leaves the window; a deque can, from the front."
+      - text: "Matching with a stack."
+        correct: false
+        feedback: "Nothing here opens and closes. *Every window of `k` in a row* is a window problem."
+      - text: "Fast and slow pointers."
+        correct: false
+        feedback: "Those are for linked lists: middles, cycles, the `k`th from the end. This is a window over a Python list."
+    hints:
+      - "The window has a fixed size `k`, and old days must leave it from the front."
+  - id: step.choose-lists.check-list-problem
+    type: choice
+    title: Which list pattern?
+    prompt: |
+      *Remove the `n`th node from the end of a linked list, in one pass, and return the head.* Which patterns fit?
+    options:
+      - text: "Fast and slow pointers a gap of `n` apart, starting from a dummy in front of the head."
+        correct: true
+        feedback: "Right. The gap finds the `n`th from the end in one pass. Starting from a dummy, `slow` stops on the node *before* it, and removing the head is no special case."
+      - text: "Reverse the list, remove the `n`th node, reverse it back."
+        correct: false
+        feedback: "That works, but it's three passes. *One pass* and *from the end* is the cue for two pointers a fixed gap apart."
+      - text: "Merge with a tail."
+        correct: false
+        feedback: "There's only one list and nothing to merge. *From the end* points to a gap between two pointers."
+      - text: "A monotonic stack of the node values."
+        correct: false
+        feedback: "Nothing is being compared by size. *The `n`th from the end* is a gap between two pointers."
+    hints:
+      - "*From the end*, in *one pass*: which pattern keeps two pointers a fixed distance apart?"
+      - "If `n` is the length of the list, which node goes?"
+  - id: step.choose-lists.check-not-a-list-pattern
+    type: choice
+    title: Is it a list pattern at all?
+    prompt: |
+      *A linked list of order numbers is in no particular order. Return `True` if any order number appears twice.* Which fits
+      best?
+    options:
+      - text: "Walk the list once, keeping a `set` of the values seen so far."
+        correct: true
+        feedback: "Right. *Seen this before?* is a set lookup, from Track 1. That the values are in a linked list doesn't change it."
+      - text: "Fast and slow pointers, to find where the list repeats."
+        correct: false
+        feedback: "Fast and slow find a repeated *node*, a cycle. Two different nodes holding the same value aren't a cycle."
+      - text: "Sort the list with merge sort, then compare neighbours."
+        correct: false
+        feedback: "That works, in `O(n log n)`. A set does it in one `O(n)` pass, and the question doesn't ask for `O(1)` memory."
+      - text: "Reverse the list and compare it with the original."
+        correct: false
+        feedback: "That checks for a palindrome, not a repeated value."
+    hints:
+      - "Is the question about the *shape* of the list, or just its values?"
+  - id: step.choose-lists.combine
+    type: explain
+    title: Three patterns in one
+    body: |
+      *Reorder `1 → 2 → 3 → 4 → 5` into `1 → 5 → 2 → 4 → 3`*: first, last, second, second to last... in place.
+
+      Taking from the end of a list you can only walk forwards is the cue to **reverse**. But only the second half needs it:
+
+      1. **Fast and slow** find the middle. Stop `slow` on the *first* middle (`while fast.next and fast.next.next`) and cut
+         after it, so the first half is never shorter.
+      2. **Reverse** the second half with `prev`, `cur`, `nxt`: `4 → 5` becomes `5 → 4`.
+      3. **Weave** the two halves together: one node from each in turn, saving both `next`s before relinking.
+
+      Each step is a pattern you know; the skill is seeing which ones the problem needs.
+    comparison:
+      csharp: |
+        // 3. weave: first = head, second = reversed second half
+        while (second != null)
+        {
+            var n1 = first!.Next;
+            var n2 = second.Next;
+            first.Next = second;
+            second.Next = n1;
+            first = n1;
+            second = n2;
+        }
+      python: |
+        # 3. weave: first = head, second = reversed second half
+        while second:
+            n1 = first.next
+            n2 = second.next
+            first.next = second
+            second.next = n1
+            first = n1
+            second = n2
+  - id: step.choose-lists.trace-reorder
+    type: trace
+    title: Reordering 1 → 2 → 3 → 4 → 5
+    body: |
+      Watch the three stages: `slow` and `fast` stop with `slow` on `3`; the cut leaves `4 → 5` detached below, and reversing it
+      gives `5 → 4`; then `first` and `second` weave `5` in after `1` and `4` in after `2`.
+    code: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      head = Node(1, Node(2, Node(3, Node(4, Node(5)))))
+      slow = head
+      fast = head
+      while fast.next and fast.next.next:
+          slow = slow.next
+          fast = fast.next.next
+      cur = slow.next
+      slow.next = None
+      prev = None
+      while cur:
+          nxt = cur.next
+          cur.next = prev
+          prev = cur
+          cur = nxt
+      first = head
+      second = prev
+      while second:
+          n1 = first.next
+          n2 = second.next
+          first.next = second
+          second.next = n1
+          first = n1
+          second = n2
+    visualise:
+      - variable: head
+        as: linked_list
+        pointers: [slow, fast, prev, cur, first, second]
+  - id: step.choose-lists.predict-reorder
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      The same reorder on four nodes. What does it print?
+    code: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def to_list(head):
+          values = []
+          while head:
+              values.append(head.val)
+              head = head.next
+          return values
+
+
+      head = Node(1, Node(2, Node(3, Node(4))))
+      slow = head
+      fast = head
+      while fast.next and fast.next.next:
+          slow = slow.next
+          fast = fast.next.next
+      cur = slow.next
+      slow.next = None
+      prev = None
+      while cur:
+          nxt = cur.next
+          cur.next = prev
+          prev = cur
+          cur = nxt
+      first = head
+      second = prev
+      while second:
+          n1 = first.next
+          n2 = second.next
+          first.next = second
+          second.next = n1
+          first = n1
+          second = n2
+      print(to_list(head))
+    accepted:
+      - "[1, 4, 2, 3]"
+    mistakes:
+      - answers:
+          - "[4, 3, 2, 1]"
+        feedback: "Only the second half, `3 → 4`, is reversed, and then it's woven into the first: first, last, second, second to last."
+      - answers:
+          - "[1, 3, 2, 4]"
+        feedback: "`slow` stops on `2`, so the halves are `1 → 2` and `3 → 4`. Reversed, the second is `4 → 3`, and weaving gives `1, 4, 2, 3`."
+      - answers:
+          - "[1, 2, 3, 4]"
+        feedback: "The weave relinks the nodes: `4` is put after `1`, and `3` after `2`."
+    hints:
+      - "With `while fast.next and fast.next.next`, where does `slow` stop on four nodes?"
+      - "The halves are `1 → 2` and, reversed, `4 → 3`. Take one from each in turn."
+  - id: step.choose-lists.check-why-dummy
+    type: choice
+    title: Why the dummy?
+    prompt: |
+      To remove the `n`th node from the end, `slow` and `fast` start on a dummy placed in front of `head`, and the function
+      returns `dummy.next`. Which case would break without the dummy?
+    options:
+      - text: "When `n` is the length of the list, so the node to remove is the head and there is no node before it."
+        correct: true
+        feedback: "Right. Removing means relinking the node *before* the target. The dummy is the node before the head."
+      - text: "When `n` is `1` and the list has at least two nodes, so the node to remove is the last one."
+        correct: false
+        feedback: "With at least two nodes, the last node has a node before it, so `slow.next = slow.next.next` removes it fine. Only the head has none. (In a one-node list the last node is the head, and that's the first option's case.)"
+      - text: "When the list has an even number of nodes."
+        correct: false
+        feedback: "The gap version doesn't care about even or odd. The trouble is removing the head."
+      - text: "It never breaks; the dummy only makes the code shorter."
+        correct: false
+        feedback: "Without it, removing the head needs its own `if`, since there's no node before the head to relink."
+    hints:
+      - "Removing a node means changing the `next` of the node before it. Which node has none?"
+  - id: step.choose-lists.predict-gap
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      This `remove_nth` should remove the 2nd node from the end, the `4`, but one line is wrong. What does it print?
+    code: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def to_list(head):
+          values = []
+          while head:
+              values.append(head.val)
+              head = head.next
+          return values
+
+
+      def remove_nth(head, n):
+          dummy = Node(0, head)
+          slow = dummy
+          fast = dummy
+          for _ in range(n):
+              fast = fast.next
+          while fast:
+              slow = slow.next
+              fast = fast.next
+          slow.next = slow.next.next
+          return dummy.next
+
+
+      print(to_list(remove_nth(Node(1, Node(2, Node(3, Node(4, Node(5))))), 2)))
+    accepted:
+      - "[1, 2, 3, 4]"
+    mistakes:
+      - answers:
+          - "[1, 2, 3, 5]"
+        feedback: "That's what it should print. With `while fast:` the loop runs once more, so `slow` stops *on* `4` instead of before it, and the node after it, `5`, is removed."
+      - answers:
+          - "[1, 2, 4, 5]"
+        feedback: "`slow` moves once for each move of `fast` after the head start: four moves, from the dummy to `4`."
+    hints:
+      - "`fast` starts on `2` after the head start. How many moves until it is `None`?"
+      - "`slow` moves as many times, from the dummy. Which node is after it?"
+  - id: step.choose-lists.fill-remove-nth
+    type: fill-blank
+    title: Complete remove_nth
+    pattern: pattern.fast-slow-pointers
+    patternCue: "\"Remove the `n`th node from the end, in one pass\": two pointers `n` apart from a dummy, so `slow` stops on the node before the one to remove."
+    prompt: |
+      Fill in the blanks so that `remove_nth(head, n)` removes the `n`th node from the end (the list has at least `n` nodes) and
+      returns the head.
+    template: |
+      def remove_nth(head, n):
+          dummy = Node(0, head)
+          slow = dummy
+          fast = dummy
+          for _ in range(n):
+              fast = fast.next
+          while {{guard}}:
+              slow = slow.next
+              fast = fast.next
+          slow.next = {{skip}}
+          return {{result}}
+    blanks:
+      - id: guard
+        accepted:
+          - "fast.next"
+          - "fast.next is not None"
+        mistakes:
+          - answers:
+              - "fast"
+            feedback: "Then `slow` goes one node too far and stops *on* the node to remove. Stop when `fast` is on the last node."
+      - id: skip
+        accepted:
+          - "slow.next.next"
+        mistakes:
+          - answers:
+              - "None"
+            feedback: "That cuts off everything after `slow`. Skip only one node: `slow.next.next`."
+      - id: result
+        accepted:
+          - "dummy.next"
+        mistakes:
+          - answers:
+              - "head"
+            feedback: "If the head was removed, `head` still refers to it. `dummy.next` is the head after the removal."
+    hints:
+      - "`slow` must stop on the node *before* the one to remove."
+      - "Removing is skipping: `slow.next` becomes the node after next."
+      - "Return what follows the dummy."
+  - id: step.choose-lists.order-next-larger
+    type: parsons
+    title: Next larger node
+    pattern: pattern.monotonic-stack
+    patternCue: "\"For each node, the next larger value\": a *next greater* question, so a stack of indices still waiting for a larger value."
+    prompt: |
+      Arrange the lines into `next_larger(head)`, which returns a Python list with, for each node in order, the value of the
+      first later node that is strictly larger, or `0` if there is none.
+    solution: |
+      def next_larger(head):
+          values = []
+          while head:
+              values.append(head.val)
+              head = head.next
+          answer = [0] * len(values)
+          stack = []
+          for i, v in enumerate(values):
+              while stack and values[stack[-1]] < v:
+                  answer[stack.pop()] = v
+              stack.append(i)
+          return answer
+    hints:
+      - "Copy the values into a Python list first, so you can index them."
+      - "Then it's the monotonic stack: pop every waiting index whose value is smaller than `v`, and record `v` as its answer."
+  - id: step.choose-lists.write-remove-nth
+    type: write-code
+    largeScreenPreferred: true
+    title: Remove the nth from the end
+    pattern: pattern.fast-slow-pointers
+    patternCue: "\"Remove the `n`th node from the end, in one pass\": a gap of `n` between two pointers, from a dummy in case the head goes."
+    compare: linked_list
+    prompt: |
+      Write `remove_nth(head, n)` that removes the `n`th node from the end of the list (`n = 1` is the last node) in one pass and
+      returns the head. The list has at least `n` nodes, and `n` is at least 1.
+
+      `Node` and `build` are in the starter; keep them.
+    language: python
+    entrypoint: remove_nth
+    starter: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def remove_nth(head, n):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def remove_nth(head, n):
+          dummy = Node(0, head)
+          slow = dummy
+          fast = dummy
+          for _ in range(n):
+              fast = fast.next
+          while fast.next:
+              slow = slow.next
+              fast = fast.next
+          slow.next = slow.next.next
+          return dummy.next
+    tests:
+      - input: "build([1, 2, 3, 4, 5]), 2"
+        expected: "[1, 2, 3, 5]"
+      - input: "build([1, 2, 3, 4, 5]), 5"
+        expected: "[2, 3, 4, 5]"
+      - input: "build([1, 2, 3, 4, 5]), 1"
+        expected: "[1, 2, 3, 4]"
+      - input: "build([7]), 1"
+        expected: "[]"
+    hints:
+      - "Put a dummy in front of `head`, and start `slow` and `fast` on it."
+      - "Move `fast` `n` nodes ahead, then move both while `fast.next` exists: `slow` stops before the node to remove."
+      - "`slow.next = slow.next.next`, and return `dummy.next`."
+    walkthrough:
+      call: result = remove_nth(build([1, 2, 3, 4, 5]), 5)
+      visualise:
+        - variable: dummy
+          as: linked_list
+          pointers: [slow, fast]
+      explanation: |
+        `n` is the length, so the head goes. `fast` moves five nodes to `5`, the last, and `fast.next` is `None` straight away,
+        so `slow` never leaves the dummy. Skipping `dummy.next` removes `1`, and `dummy.next` is now `2`.
+    phoneAlternative:
+      id: step.choose-lists.write-remove-nth.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `remove_nth(head, n)`, which removes the `n`th node from the end in one pass and returns the head. The list has at
+        least `n` nodes. Arrange the lines instead of typing them.
+      solution: |
+        def remove_nth(head, n):
+            dummy = Node(0, head)
+            slow = dummy
+            fast = dummy
+            for _ in range(n):
+                fast = fast.next
+            while fast.next:
+                slow = slow.next
+                fast = fast.next
+            slow.next = slow.next.next
+            return dummy.next
+      hints:
+        - "Both pointers start on a dummy; `fast` gets a head start of `n`."
+        - "`slow` stops on the node before the one to remove."
+  - id: step.choose-lists.write-reorder
+    type: write-code
+    largeScreenPreferred: true
+    title: Reorder a list
+    pattern: pattern.reverse-linked-list
+    patternCue: "\"First, last, second, second to last...\", in place: taking from the end means reversing the second half, found with fast and slow, then weaving the halves."
+    compare: linked_list
+    prompt: |
+      Write `reorder(head)` that relinks the list in place into first, last, second, second to last, and so on, and returns the
+      head: `1 → 2 → 3 → 4 → 5` becomes `1 → 5 → 2 → 4 → 3`. Don't create new nodes or copy the values into a Python list.
+      `head` may be `None`.
+
+      `Node` and `build` are in the starter; keep them.
+    language: python
+    entrypoint: reorder
+    starter: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def reorder(head):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def reorder(head):
+          if head is None:
+              return None
+          slow = head
+          fast = head
+          while fast.next and fast.next.next:
+              slow = slow.next
+              fast = fast.next.next
+          cur = slow.next
+          slow.next = None
+          prev = None
+          while cur:
+              nxt = cur.next
+              cur.next = prev
+              prev = cur
+              cur = nxt
+          first = head
+          second = prev
+          while second:
+              n1 = first.next
+              n2 = second.next
+              first.next = second
+              second.next = n1
+              first = n1
+              second = n2
+          return head
+    tests:
+      - input: "build([1, 2, 3, 4, 5])"
+        expected: "[1, 5, 2, 4, 3]"
+      - input: "build([1, 2, 3, 4])"
+        expected: "[1, 4, 2, 3]"
+      - input: "build([1, 2])"
+        expected: "[1, 2]"
+      - input: "build([9])"
+        expected: "[9]"
+      - input: "None"
+        expected: "[]"
+    hints:
+      - "Find the first middle with `while fast.next and fast.next.next`, then cut after `slow`."
+      - "Reverse the second half with `prev`, `cur` and `nxt`."
+      - "Weave: save `first.next` and `second.next`, put `second` after `first`, and the old `first.next` after `second`."
+    walkthrough:
+      call: result = reorder(build([1, 2, 3, 4, 5, 6]))
+      visualise:
+        - variable: head
+          as: linked_list
+          pointers: [slow, fast, prev, cur, first, second]
+      explanation: |
+        `slow` stops on `3`, the first middle, and the cut leaves `1 → 2 → 3` and `4 → 5 → 6`. Reversed, the second half is
+        `6 → 5 → 4`. Weaving puts `6` after `1`, `5` after `2` and `4` after `3`: `1 → 6 → 2 → 5 → 3 → 4`.
+  - id: step.choose-lists.write-next-larger
+    type: write-code
+    largeScreenPreferred: true
+    title: Next larger node
+    pattern: pattern.monotonic-stack
+    patternCue: "\"For each node, the value of the next larger node\": a *next greater* question, whatever holds the values."
+    prompt: |
+      Write `next_larger(head)` that returns a Python list with one entry per node, in order: the value of the first later node
+      that is strictly larger, or `0` if there is none. For `2 → 7 → 4 → 3 → 5` it returns `[7, 0, 5, 5, 0]`. `head` may be
+      `None`. Aim for `O(n)` time.
+
+      `Node` and `build` are in the starter; keep them.
+    language: python
+    entrypoint: next_larger
+    starter: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def next_larger(head):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+
+      def next_larger(head):
+          values = []
+          while head:
+              values.append(head.val)
+              head = head.next
+          answer = [0] * len(values)
+          stack = []
+          for i, v in enumerate(values):
+              while stack and values[stack[-1]] < v:
+                  answer[stack.pop()] = v
+              stack.append(i)
+          return answer
+    tests:
+      - input: "build([2, 7, 4, 3, 5])"
+        expected: "[7, 0, 5, 5, 0]"
+      - input: "build([2, 1, 5])"
+        expected: "[5, 5, 0]"
+      - input: "build([3, 3, 3])"
+        expected: "[0, 0, 0]"
+      - input: "build([4])"
+        expected: "[0]"
+      - input: "None"
+        expected: "[]"
+    hints:
+      - "Walk the list once into a Python list of values, so you can index them."
+      - "Keep a stack of indices still waiting for a larger value."
+      - "For each value, pop every waiting index whose value is smaller and record the new value as its answer, then push the new index."
