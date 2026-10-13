@@ -1,0 +1,621 @@
+id: lesson.pattern-binary-search
+title: "Pattern: binary search on a sorted array"
+concepts:
+  - id: concept.binary-search-halving
+    title: Each comparison throws away half of what is left, so the search is O(log n)
+  - id: concept.binary-search-invariant
+    title: Keep the target inside lo..hi, and stop when that range is empty
+  - id: concept.binary-search-off-by-one
+    title: "Off-by-one discipline: lo <= hi with mid + 1 and mid - 1"
+reviewItems:
+  - id: review.binary-search.predict-mids
+    concept: concept.binary-search-invariant
+    step: step.binary-search.predict-mids
+  - id: review.binary-search.how-many
+    concept: concept.binary-search-halving
+    step: step.binary-search.check-how-many
+  - id: review.binary-search.unsorted
+    concept: concept.binary-search-halving
+    step: step.binary-search.check-unsorted
+  - id: review.binary-search.predict-strict
+    concept: concept.binary-search-off-by-one
+    step: step.binary-search.predict-strict
+  - id: review.binary-search.lo-equals-mid
+    concept: concept.binary-search-off-by-one
+    step: step.binary-search.check-lo-equals-mid
+  - id: review.binary-search.which-problem
+    concept: concept.binary-search-halving
+    step: step.binary-search.check-which-problem
+    kind: pattern
+  - id: review.binary-search.sort-first
+    concept: concept.binary-search-halving
+    step: step.binary-search.check-sort-first
+    kind: pattern
+  - id: review.binary-search.matrix
+    concept: concept.binary-search-invariant
+    step: step.binary-search.check-matrix
+    kind: pattern
+patterns:
+  - id: pattern.binary-search
+    title: Halve a sorted range, keeping the target inside it
+steps:
+  - id: step.binary-search.idea
+    type: explain
+    title: Guess the middle
+    body: |
+      *I'm thinking of a number from 1 to 100.* The fast way to find it is to guess 50: whether the answer is *higher* or
+      *lower*, half the numbers are gone. Guess the middle of what is left, and in at most 7 guesses you have it.
+
+      A **sorted** list works the same way. Look at the middle item. If it's the target, you're done. If it's smaller, the
+      target can only be to its right, because everything to its left is smaller still. If it's bigger, the target can only
+      be to its left. Either way, one comparison throws away half the list.
+
+      Two indexes mark the part still in play: `lo` and `hi`, both **inclusive**. The search is over when the target is found,
+      or when `lo` passes `hi` and nothing is left. Halving `n` items until one is left takes about log₂ n steps: **O(log n)**,
+      so a million items need about 20 comparisons where a scan needs up to a million.
+
+      C# has `Array.BinarySearch` and `List<T>.BinarySearch`, but the loop is worth writing by hand: almost every binary-search
+      problem changes it a little.
+    comparison:
+      csharp: |
+        int Search(int[] nums, int target)
+        {
+            int lo = 0, hi = nums.Length - 1;
+            while (lo <= hi)
+            {
+                int mid = lo + (hi - lo) / 2;
+                if (nums[mid] == target) return mid;
+                if (nums[mid] < target) lo = mid + 1;
+                else hi = mid - 1;
+            }
+            return -1;
+        }
+      python: |
+        def search(nums, target):
+            lo, hi = 0, len(nums) - 1
+            while lo <= hi:
+                mid = (lo + hi) // 2
+                if nums[mid] == target:
+                    return mid
+                if nums[mid] < target:
+                    lo = mid + 1
+                else:
+                    hi = mid - 1
+            return -1
+  - id: step.binary-search.trace-found
+    type: trace
+    title: Halving down to the target
+    body: |
+      `lo` and `hi` mark the part of the list the target could still be in; `mid` is the middle of it. Each step compares
+      `nums[mid]` with `23` and moves one end past `mid`: the half it throws away can't hold the target. Ten items take three
+      looks.
+    code: |
+      nums = [2, 5, 8, 12, 16, 23, 38, 56, 72, 91]
+      target = 23
+      lo, hi = 0, len(nums) - 1
+      found = -1
+      while lo <= hi:
+          mid = (lo + hi) // 2
+          if nums[mid] == target:
+              found = mid
+              break
+          if nums[mid] < target:
+              lo = mid + 1
+          else:
+              hi = mid - 1
+    visualise:
+      - variable: nums
+        as: array
+        pointers: [lo, mid, hi]
+  - id: step.binary-search.trace-missing
+    type: trace
+    title: When the target isn't there
+    body: |
+      Now the target is `40`, which the list doesn't hold. The range shrinks just the same, until `lo` steps past `hi`. Look
+      where they end: `hi` on `38`, the last item smaller than `40`, and `lo` on `56`, the first item bigger. If `40` were
+      inserted, it would go at `lo`. The next lesson uses that.
+    code: |
+      nums = [2, 5, 8, 12, 16, 23, 38, 56, 72, 91]
+      target = 40
+      lo, hi = 0, len(nums) - 1
+      found = -1
+      while lo <= hi:
+          mid = (lo + hi) // 2
+          if nums[mid] == target:
+              found = mid
+              break
+          if nums[mid] < target:
+              lo = mid + 1
+          else:
+              hi = mid - 1
+    visualise:
+      - variable: nums
+        as: array
+        pointers: [lo, mid, hi]
+  - id: step.binary-search.predict-mids
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      This search prints every `mid` it looks at, then what it returns. What does it print?
+    code: |
+      nums = [1, 3, 5, 7, 9, 11, 13, 15]
+      target = 4
+      lo, hi = 0, len(nums) - 1
+      result = -1
+      while lo <= hi:
+          mid = (lo + hi) // 2
+          print(mid, end=" ")
+          if nums[mid] == target:
+              result = mid
+              break
+          if nums[mid] < target:
+              lo = mid + 1
+          else:
+              hi = mid - 1
+      print(result)
+    accepted:
+      - "3 1 2 -1"
+    mistakes:
+      - answers:
+          - "4 2 1 -1"
+          - "4 1 2 -1"
+        feedback: "`(0 + 7) // 2` is `3`: `//` rounds down, so with an even number of items `mid` is the left one of the two middles."
+      - answers:
+          - "3 1 -1"
+        feedback: "After `mid = 1`, `nums[1]` is `3`, smaller than `4`, so `lo` becomes `2`. With `lo = hi = 2` there is still one item to look at."
+      - answers:
+          - "3 1 2 2"
+          - "3 1 2 1"
+        feedback: "`4` isn't in the list: the search only sets `result` when `nums[mid] == target`, so it returns `-1`."
+    hints:
+      - "Write `lo` and `hi` after each step. They start at `0` and `7`."
+      - "The loop runs while `lo <= hi`, so a range of one item is still searched."
+  - id: step.binary-search.check-how-many
+    type: choice
+    title: How many looks?
+    prompt: |
+      A sorted list holds 1,000,000 numbers. About how many times does binary search look at an item, at most, to find a number
+      or report that it isn't there?
+    options:
+      - text: "About 20"
+        correct: true
+        feedback: "Right. Each look halves what is left, and 2²⁰ is about a million, so 20 halvings bring it down to one item."
+      - text: "About 1,000"
+        correct: false
+        feedback: "That's the square root of a million. Binary search halves the range each time, which is much faster: log₂ of a million is about 20."
+      - text: "About 500,000"
+        correct: false
+        feedback: "That's how many a linear scan looks at on average. Binary search throws away half the list with each look."
+      - text: "Exactly 1"
+        correct: false
+        feedback: "Only when the target happens to be in the middle. In the worst case it keeps halving until one item is left."
+    hints:
+      - "How many times can you halve 1,000,000 before one item is left? 2¹⁰ is 1,024."
+  - id: step.binary-search.check-unsorted
+    type: choice
+    title: Sorted, or nothing
+    prompt: |
+      Someone runs the binary search on `[9, 2, 7, 4, 1]`, looking for `9`. What happens?
+    options:
+      - text: "It returns `-1`: the middle item is `7`, `9` is bigger, so it searches only to the right and never sees index `0`."
+        correct: true
+        feedback: "Right. Throwing away the left half is only safe because, in a sorted list, everything there is smaller. Here it isn't."
+      - text: "It returns `0`, after looking at every item."
+        correct: false
+        feedback: "Binary search never looks at every item: that's the point of it. It trusts the order and throws half away each time."
+      - text: "Python raises an error because the list isn't sorted."
+        correct: false
+        feedback: "Nothing checks the order (checking would take O(n), the cost binary search exists to avoid). It runs and gives a wrong answer."
+      - text: "It sorts the list first."
+        correct: false
+        feedback: "The search doesn't change the list. Sorting it is up to you, and costs O(n log n)."
+    hints:
+      - "Follow it by hand: `mid` starts at index `2`."
+  - id: step.binary-search.invariant
+    type: explain
+    title: The invariant, and two off-by-ones
+    body: |
+      Binary search is short, and easy to get wrong by one. The way to get it right is to say what the loop keeps true:
+
+      > If the target is in the list, it is somewhere in `nums[lo..hi]`, both ends included.
+
+      Each line follows from that:
+
+      - **`lo, hi = 0, len(nums) - 1`**: at the start the target could be anywhere, and `len(nums) - 1` is the last index.
+      - **`while lo <= hi`**: the range `lo..hi` holds `hi - lo + 1` items. When `lo == hi` that's one item, still to check.
+        Only when `lo > hi` is it empty, and the target isn't there.
+      - **`lo = mid + 1` and `hi = mid - 1`**: `nums[mid]` has just been checked and isn't the target, so it leaves the range
+        too. This also means the range shrinks on **every** step, so the loop always ends.
+
+      Change one of them on its own and the search breaks: `while lo < hi` skips the last one-item range, and `lo = mid` can
+      leave the range the same size for ever. The next two questions show each.
+
+      Python's ints never overflow, so `(lo + hi) // 2` is safe. In C#, `lo + hi` can pass `int.MaxValue` on a huge array, so
+      the habit there is `lo + (hi - lo) / 2`.
+  - id: step.binary-search.predict-strict
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      This search uses `while lo < hi` instead of `while lo <= hi`. What does it print?
+    code: |
+      def search(nums, target):
+          lo, hi = 0, len(nums) - 1
+          while lo < hi:
+              mid = (lo + hi) // 2
+              if nums[mid] == target:
+                  return mid
+              if nums[mid] < target:
+                  lo = mid + 1
+              else:
+                  hi = mid - 1
+          return -1
+
+
+      print(search([1, 3, 5, 7], 7), search([1, 3, 5, 7], 3))
+    accepted:
+      - "-1 1"
+    mistakes:
+      - answers:
+          - "3 1"
+        feedback: "Follow `7`: `mid` is `1`, then `2`, and then `lo = hi = 3`. The loop stops there, because `3 < 3` is false, and `nums[3]` is never checked."
+      - answers:
+          - "-1 -1"
+        feedback: "`3` is at index `1`, which is the very first `mid`: it's found before the range gets down to one item."
+    hints:
+      - "Write `lo` and `hi` after each step for the first call."
+      - "When `lo == hi`, does the loop run once more?"
+  - id: step.binary-search.check-lo-equals-mid
+    type: choice
+    title: Forgetting the + 1
+    prompt: |
+      Someone writes `lo = mid` instead of `lo = mid + 1`, and keeps `while lo <= hi`. They search `[1, 3]` for `5`. What
+      happens?
+    options:
+      - text: "It never stops: `mid` is `0`, `1 < 5`, and `lo = mid` leaves `lo` at `0`, so the range is `0..1` every time round."
+        correct: true
+        feedback: "Right. The range has to shrink on every step. `mid + 1` makes sure it does, because `nums[mid]` is already ruled out."
+      - text: "It returns `-1` after two steps."
+        correct: false
+        feedback: "It never gets to a second step: with `lo = 0, hi = 1`, `mid` is `0`, and `lo = mid` sets `lo` to `0` again."
+      - text: "It returns `1`, the last index."
+        correct: false
+        feedback: "It only returns an index when `nums[mid] == target`, and `5` isn't in the list."
+      - text: "It works, just a little slower."
+        correct: false
+        feedback: "It's not a matter of speed: when `mid == lo`, `lo = mid` changes nothing, so the loop spins on the same range for ever."
+    hints:
+      - "With `lo = 0, hi = 1`, `mid` is `0`. What is `lo` after `lo = mid`?"
+  - id: step.binary-search.check-which-problem
+    type: choice
+    title: Which one is a binary search?
+    prompt: |
+      Which of these is the best fit for binary search?
+    options:
+      - text: "A phone book's names are sorted. Is \"Okafor\" in it?"
+        correct: true
+        feedback: "Right. Sorted data and \"is it there?\": look in the middle and throw half away, O(log n)."
+      - text: "A list of exam scores, in the order the papers were marked. Did anyone score 100?"
+        correct: false
+        feedback: "The scores aren't sorted, so the middle tells you nothing about either half. Scan it, O(n), or put the scores in a set."
+      - text: "Two numbers in an unsorted list add up to 10. Which ones?"
+        correct: false
+        feedback: "That's a hash-map lookup (Track 1): remember what you have seen and look up `10 - x`, in one pass."
+      - text: "Count how many times each word appears in a text."
+        correct: false
+        feedback: "That's counting with a dict. There's nothing sorted to search."
+    hints:
+      - "Binary search needs order to throw half away. Which data is sorted?"
+  - id: step.binary-search.check-sort-first
+    type: choice
+    title: Sort it first?
+    prompt: |
+      An unsorted list holds `n` numbers. You will be asked **one** question: is `x` in it? Which is cheapest?
+    options:
+      - text: "Scan it once: O(n)."
+        correct: true
+        feedback: "Right. Sorting costs O(n log n), more than a scan, before the search even starts. Sorting pays off when many searches share it."
+      - text: "Sort it, then binary search: O(log n)."
+        correct: false
+        feedback: "The search is O(log n), but the sort before it is O(n log n). For one question that's dearer than a scan."
+      - text: "Binary search it as it is."
+        correct: false
+        feedback: "On an unsorted list binary search can throw away the half the number is in, and answer wrongly."
+      - text: "Put it in a set, then look `x` up: O(1)."
+        correct: false
+        feedback: "The lookup is O(1), but building the set is O(n) on its own, and uses O(n) memory. A scan does the same work with none."
+    hints:
+      - "Count the work before the search, too."
+  - id: step.binary-search.check-matrix
+    type: choice
+    title: A sorted grid
+    prompt: |
+      A grid of `r` rows and `c` columns is sorted so that each row is in order and each row starts after the one above it ends,
+      like `[[1, 3, 5], [7, 9, 11], [13, 15, 17]]`. How do you find a number fastest?
+    options:
+      - text: "Treat it as one sorted list of `r * c` items: index `i` is row `i // c`, column `i % c`. Binary search that: O(log(r·c))."
+        correct: true
+        feedback: "Right. Read row by row, the grid is one sorted list. You never build it; you turn each index into a row and a column."
+      - text: "Scan every cell: O(r·c)."
+        correct: false
+        feedback: "That ignores the order. Read row by row the grid is fully sorted, so binary search applies."
+      - text: "Binary search each row in turn: O(r log c)."
+        correct: false
+        feedback: "That works, but it ignores that the rows are in order too. One search over all `r * c` cells is O(log(r·c))."
+      - text: "Binary search can't work on two dimensions."
+        correct: false
+        feedback: "It needs an order, not a flat list. A row-by-row order gives each cell a single index, and that's enough."
+    hints:
+      - "Read the grid row by row. Is the result sorted?"
+  - id: step.binary-search.fill-search
+    type: fill-blank
+    title: The search, from memory
+    pattern: pattern.binary-search
+    patternCue: "\"Is it in this sorted list, and where?\": look in the middle, keep the half it can be in."
+    prompt: |
+      Fill in the blanks so that `search(nums, target)` returns the index of `target` in the sorted list `nums`, or `-1`.
+    template: |
+      def search(nums, target):
+          lo, hi = 0, len(nums) - 1
+          while {{cond}}:
+              mid = (lo + hi) // 2
+              if nums[mid] == target:
+                  return mid
+              if nums[mid] < target:
+                  {{right}}
+              else:
+                  hi = mid - 1
+          return -1
+    blanks:
+      - id: cond
+        accepted:
+          - "lo <= hi"
+          - "hi >= lo"
+        mistakes:
+          - answers:
+              - "lo < hi"
+              - "hi > lo"
+            feedback: "When `lo == hi` one item is still in the range. With `<` it is never checked."
+          - answers:
+              - "lo != hi"
+            feedback: "When `lo == hi` there's still an item to check, and when `lo` jumps past `hi` the loop wouldn't stop. Keep going while the range isn't empty: `lo <= hi`."
+      - id: right
+        accepted:
+          - "lo = mid + 1"
+          - "lo = 1 + mid"
+        mistakes:
+          - answers:
+              - "lo = mid"
+            feedback: "`nums[mid]` is already ruled out. When `lo == mid`, `lo = mid` changes nothing and the loop never ends."
+          - answers:
+              - "hi = mid + 1"
+              - "hi = mid - 1"
+            feedback: "`nums[mid]` is smaller than the target, so the target is to the right: it's `lo` that moves."
+    hints:
+      - "The range `lo..hi` includes both ends. When is it empty?"
+      - "`nums[mid]` is too small, so it and everything left of it can go."
+  - id: step.binary-search.order-contains
+    type: parsons
+    title: Is it there?
+    pattern: pattern.binary-search
+    patternCue: "\"Is it in this sorted list?\": halve the range until it's found or empty."
+    prompt: |
+      Arrange the lines into `contains(nums, target)`, which returns whether the sorted list `nums` holds `target`.
+    solution: |
+      def contains(nums, target):
+          lo, hi = 0, len(nums) - 1
+          while lo <= hi:
+              mid = (lo + hi) // 2
+              if nums[mid] == target:
+                  return True
+              if nums[mid] < target:
+                  lo = mid + 1
+              else:
+                  hi = mid - 1
+          return False
+    hints:
+      - "The range starts as the whole list, both ends included."
+      - "Too small: move `lo` past `mid`. Too big: move `hi` before it."
+  - id: step.binary-search.write-search
+    type: write-code
+    largeScreenPreferred: true
+    title: Binary search
+    pattern: pattern.binary-search
+    patternCue: "\"Find it in a sorted list\": lo and hi around the part it can be in, mid in between."
+    prompt: |
+      Write `search(nums, target)` that returns the index of `target` in `nums`, a list sorted from smallest to largest with
+      no repeats, or `-1` if it isn't there. Don't use `index`, `in` or `bisect`: look at O(log n) items.
+
+      `search([-1, 0, 3, 5, 9, 12], 9)` is `4`, and `search([-1, 0, 3, 5, 9, 12], 2)` is `-1`.
+    language: python
+    entrypoint: search
+    starter: |
+      def search(nums, target):
+          pass
+    solution: |
+      def search(nums, target):
+          lo, hi = 0, len(nums) - 1
+          while lo <= hi:
+              mid = (lo + hi) // 2
+              if nums[mid] == target:
+                  return mid
+              if nums[mid] < target:
+                  lo = mid + 1
+              else:
+                  hi = mid - 1
+          return -1
+    tests:
+      - input: "[-1, 0, 3, 5, 9, 12], 9"
+        expected: "4"
+      - input: "[-1, 0, 3, 5, 9, 12], 2"
+        expected: "-1"
+      - input: "[5], 5"
+        expected: "0"
+      - input: "[], 1"
+        expected: "-1"
+      - input: "[1, 3, 5, 7], 7"
+        expected: "3"
+      - input: "[1, 3, 5, 7], 1"
+        expected: "0"
+      - input: "[1, 3, 5, 7], 8"
+        expected: "-1"
+    hints:
+      - "Start with `lo = 0` and `hi = len(nums) - 1`, the whole list."
+      - "Keep going while `lo <= hi`. Compare `nums[mid]` with the target and move one end past `mid`."
+    walkthrough:
+      call: result = search([-1, 0, 3, 5, 9, 12], 2)
+      visualise:
+        - variable: nums
+          as: array
+          pointers: [lo, mid, hi]
+      explanation: |
+        `mid` is `2`, and `3` is bigger than `2`, so `hi` moves to `1`. Then `mid` is `0`: `-1` is smaller, so `lo` moves to
+        `1`. At `mid = 1`, `0` is smaller again, so `lo` becomes `2`, past `hi`. The range is empty: `-1`.
+  - id: step.binary-search.write-matrix
+    type: write-code
+    largeScreenPreferred: true
+    title: Search a sorted grid
+    pattern: pattern.binary-search
+    patternCue: "\"A grid sorted row after row\": one binary search over r * c indexes, each turned into a row and a column."
+    prompt: |
+      `grid` has `r` rows of `c` numbers each (at least one of each). Each row is sorted, and each row's first number is bigger
+      than the last number of the row above. Write `search_grid(grid, target)` that returns whether `target` is in the grid,
+      looking at O(log(r·c)) cells. Don't build a flattened list: that alone is O(r·c).
+
+      `search_grid([[1, 3, 5, 7], [10, 11, 16, 20], [23, 30, 34, 60]], 16)` is `True`.
+    language: python
+    entrypoint: search_grid
+    starter: |
+      def search_grid(grid, target):
+          pass
+    solution: |
+      def search_grid(grid, target):
+          rows, cols = len(grid), len(grid[0])
+          lo, hi = 0, rows * cols - 1
+          while lo <= hi:
+              mid = (lo + hi) // 2
+              value = grid[mid // cols][mid % cols]
+              if value == target:
+                  return True
+              if value < target:
+                  lo = mid + 1
+              else:
+                  hi = mid - 1
+          return False
+    tests:
+      - input: "[[1, 3, 5, 7], [10, 11, 16, 20], [23, 30, 34, 60]], 16"
+        expected: "True"
+      - input: "[[1, 3, 5, 7], [10, 11, 16, 20], [23, 30, 34, 60]], 13"
+        expected: "False"
+      - input: "[[1]], 1"
+        expected: "True"
+      - input: "[[1]], 2"
+        expected: "False"
+      - input: "[[1, 3, 5, 7], [10, 11, 16, 20], [23, 30, 34, 60]], 60"
+        expected: "True"
+      - input: "[[1], [3], [5]], 3"
+        expected: "True"
+      - input: "[[1, 2, 3]], 0"
+        expected: "False"
+    hints:
+      - "Number the cells row by row: there are `rows * cols` of them, from `0` to `rows * cols - 1`."
+      - "Cell number `i` is in row `i // cols` and column `i % cols`."
+    walkthrough:
+      call: result = search_grid([[1, 3, 5, 7], [10, 11, 16, 20], [23, 30, 34, 60]], 16)
+      visualise:
+        - variable: grid
+          as: grid
+      explanation: |
+        There are 12 cells, `0` to `11`. `mid = 5` is row `1`, column `1`: `11`, too small, so `lo = 6`. `mid = 8` is row `2`,
+        column `0`: `23`, too big, so `hi = 7`. `mid = 6` is row `1`, column `2`: `16`. Found.
+    phoneAlternative:
+      id: step.binary-search.write-matrix.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `search_grid(grid, target)`, which binary searches a grid sorted row after row. Arrange the lines instead of
+        typing them.
+      solution: |
+        def search_grid(grid, target):
+            rows, cols = len(grid), len(grid[0])
+            lo, hi = 0, rows * cols - 1
+            while lo <= hi:
+                mid = (lo + hi) // 2
+                value = grid[mid // cols][mid % cols]
+                if value == target:
+                    return True
+                if value < target:
+                    lo = mid + 1
+                else:
+                    hi = mid - 1
+            return False
+      hints:
+        - "The range is the cell numbers, `0` to `rows * cols - 1`."
+        - "Turn `mid` into a row with `//` and a column with `%`."
+  - id: step.binary-search.write-rotated
+    type: write-code
+    largeScreenPreferred: true
+    title: A sorted list, turned
+    pattern: pattern.binary-search
+    patternCue: "\"Sorted, then rotated\": one half around mid is always in order; keep it if the target is inside it."
+    prompt: |
+      A sorted list of distinct numbers was **rotated**: some items from the front were moved, in order, to the back, so
+      `[0, 1, 2, 4, 5, 6, 7]` might now be `[4, 5, 6, 7, 0, 1, 2]`. Write `search_rotated(nums, target)` that returns the index
+      of `target`, or `-1`, looking at O(log n) items.
+
+      The trick: whatever `mid` is, at least one of `nums[lo..mid]` and `nums[mid..hi]` is in order, and when
+      `nums[lo] <= nums[mid]` it's the left one. If the target is inside the sorted half, keep that half; otherwise keep the
+      other.
+    language: python
+    entrypoint: search_rotated
+    starter: |
+      def search_rotated(nums, target):
+          pass
+    solution: |
+      def search_rotated(nums, target):
+          lo, hi = 0, len(nums) - 1
+          while lo <= hi:
+              mid = (lo + hi) // 2
+              if nums[mid] == target:
+                  return mid
+              if nums[lo] <= nums[mid]:
+                  if nums[lo] <= target < nums[mid]:
+                      hi = mid - 1
+                  else:
+                      lo = mid + 1
+              else:
+                  if nums[mid] < target <= nums[hi]:
+                      lo = mid + 1
+                  else:
+                      hi = mid - 1
+          return -1
+    tests:
+      - input: "[4, 5, 6, 7, 0, 1, 2], 0"
+        expected: "4"
+      - input: "[4, 5, 6, 7, 0, 1, 2], 3"
+        expected: "-1"
+      - input: "[1], 0"
+        expected: "-1"
+      - input: "[1], 1"
+        expected: "0"
+      - input: "[3, 1], 1"
+        expected: "1"
+      - input: "[5, 1, 3], 5"
+        expected: "0"
+      - input: "[1, 2, 3, 4, 5], 4"
+        expected: "3"
+      - input: "[6, 7, 1, 2, 3, 4, 5], 7"
+        expected: "1"
+    hints:
+      - "Check `nums[mid]` first, as always."
+      - "If `nums[lo] <= nums[mid]`, the left half is sorted: the target is in it exactly when `nums[lo] <= target < nums[mid]`."
+      - "Otherwise the right half is sorted: the target is in it when `nums[mid] < target <= nums[hi]`."
+    walkthrough:
+      call: result = search_rotated([4, 5, 6, 7, 0, 1, 2], 0)
+      visualise:
+        - variable: nums
+          as: array
+          pointers: [lo, mid, hi]
+      explanation: |
+        `mid` is `3`, holding `7`. `4 <= 7`, so the left half `4, 5, 6, 7` is sorted, and `0` isn't in it: `lo = 4`. Now `mid`
+        is `5`, holding `1`. `nums[4]` is `0`, `0 <= 1`, so the left half `0, 1` is sorted and holds `0`: `hi = 4`. At `mid = 4`
+        is `0`.
