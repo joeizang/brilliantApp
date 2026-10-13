@@ -50,7 +50,7 @@
         var width = 2 * Pad + shown * CellW;
         var height = CellTop + CellH + (rows == 0 ? Pad : PointerGap + rows * RowH + Pad / 2);
         <figure class="array mx-0 my-4 rounded-md border border-hairline bg-surface-raised px-4 pt-2 pb-4" @key="array.Variable">
-            <figcaption class="array-name mb-1 text-[.9rem] text-fg-secondary"><code>@array.Variable</code></figcaption>
+            <figcaption class="array-name mb-1 text-[.9rem] text-fg-secondary [overflow-wrap:anywhere]"><code>@array.Variable</code></figcaption>
             <div class="array-scroll overflow-x-auto">
                 <svg class="array-svg block max-w-none overflow-visible" role="img" aria-label="@Describe(array)" width="@width" height="@height" viewBox="0 0 @width @height">
                     @for (var i = 0; i < array.Cells.Count; i++)

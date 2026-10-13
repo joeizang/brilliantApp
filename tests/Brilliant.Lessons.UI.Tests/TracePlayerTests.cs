@@ -1127,6 +1127,17 @@ public class TracePlayerTests : ShortcutContext
         Assert.True(box[0] + box[2] >= 31 + halfName, "and still reaches its right edge");
     }
 
+    [Fact]
+    public void A_long_variable_name_in_the_caption_wraps_instead_of_widening_the_page()
+    {
+        // bUnit can't measure; the page width at 375px with 32px text was checked in a browser. This keeps the rule that does it.
+        var cut = Render<TraceTree>(p => p
+            .Add(c => c.View, new TreeView("long_root_pointer_name", [], 0, [new NodePointer("long_root_pointer_name", null, false)], null))
+            .Add(c => c.Step, 0));
+
+        Assert.Contains("[overflow-wrap:anywhere]", cut.Find("figure.tree figcaption").ClassName);
+    }
+
     // ---- The call stack ----
 
     private static readonly IReadOnlyList<Visual> StackVisual = [new Visual("", Visual.CallStack, [])];
