@@ -121,7 +121,7 @@ steps:
     options:
       - text: "There is exactly one way to climb zero stairs: do nothing. And it makes `dp[2] = dp[1] + dp[0]` come out as `2`."
         correct: true
-        feedback: "Right. The base case has to be the true answer for the smallest problem, and the rest is built from it. With `dp[0] = 0`, `dp[2]` would be `1`, but `1+1` and `2` are two ways."
+        feedback: "Right. The base case has to be the true answer for the smallest problem, and the rest is built from it. With `dp[0] = 0`, every cell stays `0`, since each is built from the ones before, but `1+1` and `2` are two ways to climb two stairs."
       - text: "Python lists can't start with `0`."
         correct: false
         feedback: "They can. The `1` is the answer to the smallest problem, not a technical need."
@@ -294,8 +294,8 @@ steps:
     pattern: pattern.tabulation
     patternCue: "\"Ways to reach stair n with these step sizes\": `dp[i]` adds up the ways to every stair one step below."
     prompt: |
-      `count_ways(n, steps)` returns the number of ways to climb `n` stairs when each move is one of the sizes in `steps` (all
-      positive). The order of moves counts: `1 + 2` and `2 + 1` are different. Fill in the blanks.
+      `count_ways(n, steps)` returns the number of ways to climb `n` stairs when each move is one of the sizes in `steps` (distinct
+      positive numbers). The order of moves counts: `1 + 2` and `2 + 1` are different. Fill in the blanks.
     template: |
       def count_ways(n, steps):
           dp = [0] * (n + 1)
