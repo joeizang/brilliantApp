@@ -207,8 +207,9 @@ steps:
 
       - **Python** allows about **1,000** frames by default (`sys.getrecursionlimit()`). Past that it raises
         `RecursionError: maximum recursion depth exceeded`. It is an ordinary exception, so `try`/`except` can catch it.
-      - **C#** limits the stack by memory (1 MB per thread by default), so it often goes deeper. But when it runs out it throws
-        a `StackOverflowException`, which **can't be caught**: the process ends.
+      - **C#** has no count of calls. .NET runs out only when the thread's native stack is full, and its size depends on the
+        runtime, the operating system and any override, so it often goes deeper. But when it runs out it throws a
+        `StackOverflowException`, which **can't be caught**: the process ends.
 
       Neither language turns a recursive call at the end of a function into a loop for you (Python never does, and C# doesn't
       promise to). So the question is **how deep the recursion goes**, not how much work it does:
