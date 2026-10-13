@@ -974,6 +974,155 @@ public class TracePlayerTests : ShortcutContext
         Assert.True(int.Parse(viewBox[0]) < 0);
     }
 
+    // ---- The call stack ----
+
+    private static readonly IReadOnlyList<Visual> StackVisual = [new Visual("", Visual.CallStack, [])];
+
+    private static RecordedCall Call(int id, int n, string? returning = null) => new(id, "fact", [new CallArg("n", n.ToString())], returning);
+
+    private static TraceFrame CallFrame(string ev, int? line, TrackedCalls calls) =>
+        new(ev, line, calls.Frames.Count > 0 ? "fact" : "<module>", [], new Dictionary<string, TrackedArray>(), Calls: calls);
+
+    // fact(2) from the module: it calls fact(1), which returns 1 to it, and it returns 2 to the module.
+    private static readonly TraceResult FactRun = RunOf(
+        CallFrame("line", 4, new([], 0, null)),
+        CallFrame("line", 2, new([Call(1, 2)], 0, null)),
+        CallFrame("line", 2, new([Call(1, 2), Call(2, 1)], 0, null)),
+        CallFrame("return", 3, new([Call(1, 2), Call(2, 1, "1")], 0, null)),
+        CallFrame("line", 3, new([Call(1, 2)], 0, new("fact", "1", 1))),
+        CallFrame("return", 3, new([Call(1, 2, "2")], 0, null)),
+        CallFrame("return", null, new([], 0, new("fact", "2", null))));
+
+    private IRenderedComponent<TracePlayer> FactAt(int step)
+    {
+        var cut = Start(FactRun, StackVisual, out _);
+        for (var n = 1; n < step; n++) cut.Find("button.next").Click();
+        return cut;
+    }
+
+    private static AngleSharp.Dom.IElement CallOf(IRenderedComponent<TracePlayer> cut, int id) => cut.Find($"figure.call-stack g.call[data-id='{id}']");
+
+    [Fact]
+    public void Before_any_call_the_stack_is_the_module_alone()
+    {
+        var cut = FactAt(1);
+
+        Assert.Empty(cut.FindAll("figure.call-stack g.call"));
+        Assert.Equal("module", cut.Find("figure.call-stack g.call-base").TextContent.Trim());
+        Assert.Empty(cut.FindAll("figure.call-stack .running-marker"));
+        Assert.Contains("no calls under way", cut.Find("figure.call-stack svg").GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public void Calls_stack_up_with_the_running_one_on_top_and_marked()
+    {
+        var cut = FactAt(3);
+
+        var calls = cut.FindAll("figure.call-stack g.call");
+        Assert.Equal(["fact(n=2)", "fact(n=1)"], calls.Select(c => c.QuerySelector(".frame-label")!.TextContent));
+        Assert.True(Place(CallOf(cut, 2)).Y < Place(CallOf(cut, 1)).Y);   // the newer call is drawn above
+        Assert.Contains("running", CallOf(cut, 2).ClassList);
+        Assert.DoesNotContain("running", CallOf(cut, 1).ClassList);
+        Assert.Contains("stroke-accent", CallOf(cut, 2).QuerySelector(".frame-box")!.ClassName);
+        Assert.Equal("2", cut.Find("figure.call-stack .running-marker").GetAttribute("data-id"));
+        Assert.Contains("fact(n=2); fact(n=1) (running)", cut.Find("figure.call-stack svg").GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public void A_new_call_grows_in_and_the_calls_under_it_keep_their_place()
+    {
+        var cut = FactAt(2);
+        var before = Place(CallOf(cut, 1));
+        Assert.Contains("animate-cell-in", CallOf(cut, 1).QuerySelector(".frame-body")!.ClassName);
+
+        cut.Find("button.next").Click();
+
+        Assert.Contains("animate-cell-in", CallOf(cut, 2).QuerySelector(".frame-body")!.ClassName);
+        Assert.DoesNotContain("animate-cell-in", CallOf(cut, 1).QuerySelector(".frame-body")!.ClassName);
+        Assert.Contains("transition-transform", CallOf(cut, 1).ClassName);
+        Assert.Equal(before.X, Place(CallOf(cut, 1)).X);
+    }
+
+    [Fact]
+    public void A_returning_call_says_what_it_returns()
+    {
+        var cut = FactAt(4);
+
+        Assert.Equal("returns 1", CallOf(cut, 2).QuerySelector(".returning")!.TextContent.Trim());
+        Assert.Contains("returning", CallOf(cut, 2).ClassList);
+        Assert.Null(CallOf(cut, 1).QuerySelector(".returning"));
+        Assert.Contains("fact(n=1) (running), returning 1", cut.Find("figure.call-stack svg").GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public void The_value_returned_pops_up_on_the_caller_while_the_returned_call_leaves()
+    {
+        var cut = FactAt(5);
+
+        var received = CallOf(cut, 1).QuerySelector("g.received")!;
+        Assert.Equal("← 1", received.TextContent.Trim());
+        Assert.Equal("fact", received.GetAttribute("data-from"));
+        Assert.Contains("animate-pop", received.InnerHtml);
+        var gone = cut.Find("figure.call-stack g.call.gone");
+        Assert.Equal("2", gone.GetAttribute("data-id"));
+        Assert.Contains("animate-cell-out", gone.QuerySelector(".frame-body")!.ClassName);
+        Assert.True(Place(gone).Y < Place(CallOf(cut, 1)).Y);   // it rises away above the stack
+        Assert.Equal("fact(n=1) returned 1 to fact(n=2).", cut.Find(".call-note").TextContent);
+        Assert.Contains("got 1 back from fact", cut.Find("figure.call-stack svg").GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public void The_last_value_goes_back_to_the_module()
+    {
+        var cut = FactAt(7);
+
+        Assert.Empty(cut.FindAll("figure.call-stack g.call:not(.gone)"));
+        Assert.Equal("← 2", cut.Find("figure.call-stack g.call-base g.received").TextContent.Trim());
+        Assert.Equal("fact(n=2) returned 2 to the module.", cut.Find(".call-note").TextContent);
+        Assert.Contains("fact returned 2 to the module", cut.Find("figure.call-stack svg").GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public void Calls_beyond_those_shown_are_counted_in_place_of_the_module()
+    {
+        var frames = Enumerable.Range(4, 12).Select(id => Call(id, 20 - id)).ToList();
+        var cut = Start(RunOf(CallFrame("line", 2, new(frames, 3, null))), StackVisual, out _);
+
+        Assert.Equal(12, cut.FindAll("figure.call-stack g.call").Count);
+        Assert.Equal("+3 more calls below", cut.Find("figure.call-stack g.call-base").TextContent.Trim());
+        Assert.Contains("(3 more below)", cut.Find("figure.call-stack svg").GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public void A_call_left_by_an_exception_is_said_to_end_without_returning()
+    {
+        var cut = Start(RunOf(
+            CallFrame("line", 2, new([Call(1, 2)], 0, null)),
+            CallFrame("line", 5, new([], 0, null))), StackVisual, out _);
+        cut.Find("button.next").Click();
+
+        Assert.Equal("fact(n=2) ended without returning (an exception).", cut.Find(".call-note").TextContent);
+    }
+
+    [Fact]
+    public void The_drawing_is_sized_in_rem_and_scrolls_sideways_when_it_is_wide()
+    {
+        var cut = FactAt(3);
+
+        Assert.Matches(@"^width: [\d.]+rem; height: [\d.]+rem$", cut.Find("figure.call-stack svg").GetAttribute("style"));
+        Assert.Contains("overflow-auto", cut.Find(".call-stack-scroll").ClassName);
+    }
+
+    [Fact]
+    public void The_call_stack_is_drawn_alongside_the_other_visuals()
+    {
+        var frame = Frame(2, 0, "3", "1", "2") with { Calls = new([Call(1, 2)], 0, null) };
+        var cut = Start(RunOf(frame), [.. Visuals, new Visual("", Visual.CallStack, [])], out _);
+
+        Assert.Single(cut.FindAll("figure.call-stack"));
+        Assert.Equal(3, cut.FindAll("g.cell").Count);
+    }
+
     // ---- Playback ----
 
     private static string Position(IRenderedComponent<TracePlayer> cut) => cut.Find(".position").TextContent;
