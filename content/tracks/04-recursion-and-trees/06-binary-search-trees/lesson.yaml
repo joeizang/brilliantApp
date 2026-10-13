@@ -1,0 +1,652 @@
+id: lesson.binary-search-trees
+title: Binary search trees
+concepts:
+  - id: concept.bst-property
+    title: Left subtree smaller, right subtree larger, at every node
+  - id: concept.bst-height-cost
+    title: Search and insert cost the tree's height
+  - id: concept.bst-bounds
+    title: Validate with bounds carried down the tree
+reviewItems:
+  - id: review.bst.predict-path
+    concept: concept.bst-property
+    step: step.bst.predict-path
+  - id: review.bst.predict-heights
+    concept: concept.bst-height-cost
+    step: step.bst.predict-heights
+  - id: review.bst.children-only
+    concept: concept.bst-bounds
+    step: step.bst.check-children-only
+  - id: review.bst.which-problem
+    concept: concept.bst-property
+    step: step.bst.check-which-problem
+    kind: pattern
+  - id: review.bst.skip-subtree
+    concept: concept.bst-property
+    step: step.bst.check-skip-subtree
+    kind: pattern
+patterns:
+  - id: pattern.bst-ordering
+    title: Let the BST order pick the side
+steps:
+  - id: step.bst.property
+    type: explain
+    title: A tree that is sorted
+    body: |
+      A **binary search tree** (BST) keeps one rule at **every** node: every value in its left subtree is smaller than the
+      node's value, and every value in its right subtree is larger. (In this lesson the values are all different.)
+
+      Two things follow:
+
+      - **Search** never needs both sides. Compare the target with the node: smaller goes left, larger goes right, equal is
+        found. Each step goes one level down, so a search costs the tree's **height**.
+      - An **in-order** walk (lesson 3) visits the values **sorted**: everything smaller, then the node, then everything larger.
+
+      C#'s `SortedSet<T>` and `SortedDictionary<TKey, TValue>` are BSTs that keep themselves balanced (red-black trees), so
+      their height stays about `log n`. Python's standard library has no such tree: `dict` and `set` are hash tables with no
+      order to search by. The usual stand-ins are a sorted list with the `bisect` module (fast search, O(n) insert), or the
+      third-party `sortedcontainers` package.
+    comparison:
+      csharp: |
+        var set = new SortedSet<int> { 8, 3, 10, 1, 6 };
+        set.Contains(6);                 // O(log n): walks down the tree
+        set.Min;                         // 1
+        set.GetViewBetween(3, 8);        // { 3, 6, 8 }
+      python: |
+        import bisect
+
+        values = [1, 3, 6, 8, 10]        # kept sorted
+        i = bisect.bisect_left(values, 6)
+        i < len(values) and values[i] == 6   # True, O(log n)
+        bisect.insort(values, 7)         # O(n): shifts the items after it
+  - id: step.bst.trace-search
+    type: trace
+    title: One side at every node
+    body: |
+      Searching for `7`: it is smaller than `8`, so go left; larger than `3`, go right; larger than `6`, go right, and there it
+      is. Four nodes looked at, out of nine. The numbered nodes are the path.
+    code: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      root = Node(8,
+                  Node(3, Node(1), Node(6, Node(4), Node(7))),
+                  Node(10, None, Node(14, Node(13))))
+      target = 7
+      path = []
+      node = root
+      while node is not None and node.val != target:
+          path.append(node.val)
+          if target < node.val:
+              node = node.left
+          else:
+              node = node.right
+      if node is not None:
+          path.append(node.val)
+    visualise:
+      - variable: root
+        as: tree
+        pointers: [node]
+        visited: path
+  - id: step.bst.predict-path
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      Same tree, but now the target, `5`, isn't in it. What does this print?
+    code: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+
+      #          8
+      #        /   \
+      #       3     10
+      #      / \      \
+      #     1   6      14
+      #        / \     /
+      #       4   7   13
+      root = Node(8,
+                  Node(3, Node(1), Node(6, Node(4), Node(7))),
+                  Node(10, None, Node(14, Node(13))))
+      target = 5
+      path = []
+      node = root
+      while node is not None and node.val != target:
+          path.append(node.val)
+          node = node.left if target < node.val else node.right
+      print(path, node is not None)
+    accepted:
+      - "[8, 3, 6, 4] False"
+    mistakes:
+      - answers:
+          - "[8, 3, 6] False"
+        feedback: "`5` is smaller than `6`, so the search goes on to `6`'s left child, `4`, and records it before moving to `4`'s empty right side."
+      - answers:
+          - "[8, 3, 1] False"
+        feedback: "`5` is *larger* than `3`, so the search goes right from `3`, to `6`."
+      - answers:
+          - "[8, 3, 6, 4, 7] False"
+        feedback: "A search goes down one path only. From `4` it goes right (`5` is larger), and `4` has no right child, so it stops."
+    hints:
+      - "Compare `5` with each node: smaller goes left, larger goes right."
+      - "The loop stops when `node` becomes `None`. Which node's empty side does it fall off?"
+  - id: step.bst.insert
+    type: explain
+    title: Insert where the search falls off
+    body: |
+      A new value goes exactly where a search for it would fall off the tree: the empty child it reaches. The recursive version
+      **returns the root of the subtree** after the insert, and each parent stores what comes back:
+
+      ```python
+      def insert(node, val):
+          if node is None:
+              return Node(val)            # the empty spot: the new node is this subtree's root
+          if val < node.val:
+              node.left = insert(node.left, val)
+          else:
+              node.right = insert(node.right, val)
+          return node                     # unchanged above the new node
+      ```
+
+      Returning the subtree's root means the empty tree needs no special case: `root = insert(root, 5)` works on `None` too.
+
+      Both search and insert cost the **height**. Values that arrive in random order build a tree about `log n` tall. Values
+      that arrive **sorted** build a chain, every node a right child, as tall as it is long, and then each search is O(n).
+      That is why `SortedSet` rebalances itself.
+  - id: step.bst.trace-insert
+    type: trace
+    title: Inserting 5
+    body: |
+      `insert` follows the search path for `5`: right of `3`, left of `6`, right of `4`, which is empty. That call returns a
+      new node, `4` stores it as its right child, and every call above returns its own node unchanged.
+    code: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def insert(node, val):
+          if node is None:
+              return Node(val)
+          if val < node.val:
+              node.left = insert(node.left, val)
+          else:
+              node.right = insert(node.right, val)
+          return node
+
+
+      root = Node(3, Node(1), Node(6, Node(4), Node(7)))
+      root = insert(root, 5)
+    visualise:
+      - as: call_stack
+        functions: [insert]
+      - variable: root
+        as: tree
+        pointers: [node]
+  - id: step.bst.predict-heights
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      The same seven values, inserted in two different orders. What does this print?
+    code: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+
+      def insert(node, val):
+          if node is None:
+              return Node(val)
+          if val < node.val:
+              node.left = insert(node.left, val)
+          else:
+              node.right = insert(node.right, val)
+          return node
+
+
+      def height(node):
+          if node is None:
+              return 0
+          return 1 + max(height(node.left), height(node.right))
+
+
+      a = None
+      for v in [1, 2, 3, 4, 5, 6, 7]:
+          a = insert(a, v)
+      b = None
+      for v in [4, 2, 6, 1, 3, 5, 7]:
+          b = insert(b, v)
+      print(height(a), height(b))
+    accepted:
+      - "7 3"
+    mistakes:
+      - answers:
+          - "3 3"
+        feedback: "Sorted values each go right of the one before, so `a` is a chain seven nodes tall."
+      - answers:
+          - "7 7"
+        feedback: "In `b`, `4` comes first and the rest split evenly under it: `2` and `6`, then the four leaves. Three levels."
+      - answers:
+          - "1 3"
+        feedback: "`a` is one long chain, not one node: each new value hangs off the right of the previous one."
+    hints:
+      - "Where does `2` go when `1` is the root? And `3`?"
+      - "In `b`, which values end up on the second level?"
+  - id: step.bst.check-children-only
+    type: choice
+    title: Is it a BST?
+    prompt: |
+      At every node of this tree, the left child is smaller and the right child is larger. Is it a binary search tree?
+
+      ```python
+      #      5
+      #     / \
+      #    3   8
+      #     \
+      #      6
+      root = Node(5, Node(3, None, Node(6)), Node(8))
+      ```
+    options:
+      - text: "No: `6` is in `5`'s left subtree, so it must be smaller than `5`."
+        correct: true
+        feedback: "Right. The rule covers whole subtrees, not just children. A search for `6` would go right from `5` and never find it."
+      - text: "Yes: every child is on the correct side of its parent."
+        correct: false
+        feedback: "That is the trap. `6` is right of `3`, which is fine for `3`, but it is also under `5`'s left side, where everything must be below `5`."
+      - text: "No: `3` has no left child."
+        correct: false
+        feedback: "Missing children are fine. The problem is `6`, which is larger than `5` but in `5`'s left subtree."
+      - text: "Yes: an in-order walk gives `3, 6, 5, 8`."
+        correct: false
+        feedback: "An in-order walk of a BST is sorted, and `3, 6, 5, 8` isn't. That shows it is *not* a BST."
+    hints:
+      - "Which side of `5` is `6` on? What does the rule say about that whole side?"
+  - id: step.bst.bounds
+    type: explain
+    title: Carry the bounds down
+    body: |
+      Checking each node against its children isn't enough, as `6` under `3` under `5` showed. Each node has to fit **every**
+      ancestor, and that is easy to carry down the walk as two bounds:
+
+      - the root may hold anything: `low` is `-inf`, `high` is `inf`
+      - going **left** from a node, its value becomes the new `high`: everything down there must be below it
+      - going **right**, its value becomes the new `low`
+
+      A node is fine if `low < node.val < high` and both its subtrees are fine with the tightened bounds. That is O(n), one
+      visit per node. Python's `float("inf")` compares with any number, which saves a special case for the root. In C# you'd
+      use `long.MinValue` and `long.MaxValue`, or a nullable `int?`, so that `int.MinValue` itself can be a value.
+    comparison:
+      csharp: |
+        static bool Check(Node? node, long low, long high)
+        {
+            if (node == null) return true;
+            if (node.Val <= low || node.Val >= high) return false;
+            return Check(node.Left, low, node.Val)
+                && Check(node.Right, node.Val, high);
+        }
+
+        bool ok = Check(root, long.MinValue, long.MaxValue);
+      python: |
+        def check(node, low, high):
+            if node is None:
+                return True
+            if not low < node.val < high:
+                return False
+            return (check(node.left, low, node.val)
+                    and check(node.right, node.val, high))
+
+
+        ok = check(root, float("-inf"), float("inf"))
+  - id: step.bst.check-which-problem
+    type: choice
+    title: Which one uses the order?
+    prompt: |
+      Which of these problems gets faster than O(n) by using the BST order, on a balanced BST?
+    options:
+      - text: "The smallest value in the tree that is greater than `x`."
+        correct: true
+        feedback: "Right. At each node, the order tells you which side the answer can be on, so one path down, about `log n` nodes, is enough."
+      - text: "The number of leaves."
+        correct: false
+        feedback: "Leaves are on both sides of every node, so you must visit them all: O(n), BST or not."
+      - text: "The tree's height."
+        correct: false
+        feedback: "The height depends on every path, so it needs every node. The values' order doesn't help."
+      - text: "The sum of all the values."
+        correct: false
+        feedback: "Every value counts, so every node is visited. The order tells you nothing you can skip."
+    hints:
+      - "Which question can be answered by going down one side at each node?"
+  - id: step.bst.check-skip-subtree
+    type: choice
+    title: What can you skip?
+    prompt: |
+      You want the sum of the values between `lo` and `hi` (inclusive) in a BST. At a node whose value is **less than `lo`**,
+      what can you skip?
+    options:
+      - text: "Its left subtree: every value there is smaller still, so none can be in the range."
+        correct: true
+        feedback: "Right. Only the right subtree can hold values of `lo` or more. The order lets you prune the left side completely."
+      - text: "Its right subtree: the values are too large."
+        correct: false
+        feedback: "The right subtree is *larger* than the node, and the node is below `lo`, so values in range can only be on the right."
+      - text: "Both subtrees: the node is out of range, so its whole subtree is."
+        correct: false
+        feedback: "The right subtree may have values of `lo` or more. Only the smaller side is certainly out."
+      - text: "Nothing: every node must be checked."
+        correct: false
+        feedback: "That works, but it ignores the order. Everything left of a node below `lo` is below `lo` too."
+    hints:
+      - "Everything in the left subtree is smaller than the node. The node is already below `lo`."
+  - id: step.bst.fill-search
+    type: fill-blank
+    title: Search a BST
+    pattern: pattern.bst-ordering
+    patternCue: "\"Is the value in the BST\": compare at each node and go down one side only, O(height)."
+    prompt: |
+      Fill in the blanks so that `contains(node, target)` returns whether `target` is in the BST.
+    template: |
+      def contains(node, target):
+          if node is None:
+              return {{empty}}
+          if target == node.val:
+              return True
+          if target < node.val:
+              return contains({{smaller}}, target)
+          return contains({{larger}}, target)
+    blanks:
+      - id: empty
+        accepted:
+          - "False"
+        mistakes:
+          - answers:
+              - "True"
+            feedback: "Falling off the tree means the target isn't there: every place it could be has been ruled out."
+          - answers:
+              - "None"
+            feedback: "`None` is falsy, but the function returns a `bool` everywhere else. Return `False`."
+      - id: smaller
+        accepted:
+          - "node.left"
+        mistakes:
+          - answers:
+              - "node.right"
+            feedback: "A smaller target can only be in the left subtree, where every value is below the node's."
+      - id: larger
+        accepted:
+          - "node.right"
+        mistakes:
+          - answers:
+              - "node.left"
+            feedback: "A larger target can only be in the right subtree."
+    hints:
+      - "What does it mean to reach an empty subtree?"
+      - "Smaller values live on the left, larger on the right."
+  - id: step.bst.order-insert
+    type: parsons
+    title: Insert into a BST
+    pattern: pattern.bst-ordering
+    patternCue: "\"Add a value and keep it a BST\": follow the search path to the empty spot, returning each subtree's root."
+    prompt: |
+      Arrange the lines into `insert(node, val)`, which adds `val` to the BST and returns the subtree's root. The values are
+      all different.
+    solution: |
+      def insert(node, val):
+          if node is None:
+              return Node(val)
+          if val < node.val:
+              node.left = insert(node.left, val)
+          else:
+              node.right = insert(node.right, val)
+          return node
+    hints:
+      - "The empty spot becomes the new node."
+      - "Each parent stores what the call on its child returns, then returns itself."
+  - id: step.bst.write-is-bst
+    type: write-code
+    largeScreenPreferred: true
+    title: Is it a BST?
+    pattern: pattern.bst-ordering
+    patternCue: "\"Is this a valid BST\": every node must sit inside bounds set by all its ancestors; carry low and high down."
+    prompt: |
+      Write `is_bst(root)` that returns whether the tree is a binary search tree: at every node, all values in the left
+      subtree are smaller and all values in the right subtree are larger. Equal values are not allowed. The empty tree is a
+      BST.
+
+      `Node` is in the starter; keep it.
+    language: python
+    entrypoint: is_bst
+    starter: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def is_bst(root):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def is_bst(root):
+          def check(node, low, high):
+              if node is None:
+                  return True
+              if not low < node.val < high:
+                  return False
+              return check(node.left, low, node.val) and check(node.right, node.val, high)
+
+          return check(root, float("-inf"), float("inf"))
+    tests:
+      - input: "Node(5, Node(3, Node(1), Node(4)), Node(8))"
+        expected: "True"
+      - input: "None"
+        expected: "True"
+      - input: "Node(5, Node(3, None, Node(6)), Node(8))"
+        expected: "False"
+      - input: "Node(5, Node(3), Node(8, Node(4)))"
+        expected: "False"
+      - input: "Node(5, Node(5))"
+        expected: "False"
+      - input: "Node(-10, None, Node(0, Node(-5), Node(20, Node(10))))"
+        expected: "True"
+    hints:
+      - "Checking a node against its children misses tests 3 and 4: a grandchild can break an ancestor's rule."
+      - "Carry `low` and `high` down: left of a node, its value is the new `high`; right of it, the new `low`."
+      - "Start with `float(\"-inf\")` and `float(\"inf\")`, and test `low < node.val < high`."
+    walkthrough:
+      call: result = is_bst(Node(5, Node(3, None, Node(6)), Node(8)))
+      visualise:
+        - as: call_stack
+          functions: [is_bst, check]
+      explanation: |
+        The root `5` is within `(-inf, inf)`. Going left, the bounds become `(-inf, 5)`, and `3` fits. Going right from `3`,
+        they become `(3, 5)`, and `6` doesn't fit: that call returns `False`, and `and` stops the rest.
+    phoneAlternative:
+      id: step.bst.write-is-bst.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `is_bst(root)`, which checks every node against bounds carried down from its ancestors. Arrange the lines
+        instead of typing them.
+      solution: |
+        def is_bst(root):
+            def check(node, low, high):
+                if node is None:
+                    return True
+                if not low < node.val < high:
+                    return False
+                return check(node.left, low, node.val) and check(node.right, node.val, high)
+
+            return check(root, float("-inf"), float("inf"))
+      hints:
+        - "Going left, the node's value is the new upper bound."
+  - id: step.bst.write-floor
+    type: write-code
+    largeScreenPreferred: true
+    title: The floor of x
+    pattern: pattern.bst-ordering
+    patternCue: "\"The largest value at most x\": one path down; a node at most x is a candidate, and anything better is to its right."
+    prompt: |
+      Write `floor_value(root, x)` that returns the largest value in the BST that is **less than or equal to** `x`, or `None` if
+      every value is larger. Go down one path; don't visit the whole tree.
+
+      `Node` is in the starter; keep it.
+    language: python
+    entrypoint: floor_value
+    starter: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def floor_value(root, x):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def floor_value(root, x):
+          best = None
+          node = root
+          while node is not None:
+              if node.val == x:
+                  return x
+              if node.val < x:
+                  best = node.val
+                  node = node.right
+              else:
+                  node = node.left
+          return best
+    tests:
+      - input: "Node(8, Node(3, Node(1), Node(6, Node(4), Node(7))), Node(10, None, Node(14))), 5"
+        expected: "4"
+      - input: "Node(8, Node(3, Node(1), Node(6, Node(4), Node(7))), Node(10, None, Node(14))), 6"
+        expected: "6"
+      - input: "Node(8, Node(3, Node(1), Node(6, Node(4), Node(7))), Node(10, None, Node(14))), 0"
+        expected: "None"
+      - input: "Node(8, Node(3, Node(1), Node(6, Node(4), Node(7))), Node(10, None, Node(14))), 100"
+        expected: "14"
+      - input: "Node(8, Node(3, Node(1), Node(6, Node(4), Node(7))), Node(10, None, Node(14))), 9"
+        expected: "8"
+      - input: "None, 3"
+        expected: "None"
+    hints:
+      - "A node larger than `x` can't be the answer, and neither can anything to its right: go left."
+      - "A node at most `x` is a candidate. Remember it, then go right to look for a larger one that still fits."
+      - "When you fall off the tree, the last candidate remembered is the answer."
+    walkthrough:
+      call: result = floor_value(Node(8, Node(3, Node(1), Node(6, Node(4), Node(7))), Node(10, None, Node(14))), 5)
+      visualise: []
+      explanation: |
+        `8` is too large: go left. `3` fits, so `best` is `3`, and go right for something larger. `6` is too large: go left.
+        `4` fits and beats `3`, so `best` is `4`; its right side is empty, so the answer is `4`.
+  - id: step.bst.write-range-sum
+    type: write-code
+    largeScreenPreferred: true
+    title: Sum a range
+    pattern: pattern.bst-ordering
+    patternCue: "\"Values between lo and hi\": skip a node's left side when it is below lo, and its right side when it is above hi."
+    prompt: |
+      Write `range_sum(node, lo, hi)` that returns the sum of the values in the BST that are between `lo` and `hi`, inclusive.
+      Skip any subtree that can't hold a value in the range.
+
+      `Node` is in the starter; keep it.
+    language: python
+    entrypoint: range_sum
+    starter: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def range_sum(node, lo, hi):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def range_sum(node, lo, hi):
+          if node is None:
+              return 0
+          if node.val < lo:
+              return range_sum(node.right, lo, hi)
+          if node.val > hi:
+              return range_sum(node.left, lo, hi)
+          return node.val + range_sum(node.left, lo, hi) + range_sum(node.right, lo, hi)
+    tests:
+      - input: "Node(10, Node(5, Node(3), Node(7)), Node(15, None, Node(18))), 7, 15"
+        expected: "32"
+      - input: "None, 1, 10"
+        expected: "0"
+      - input: "Node(10, Node(5, Node(3), Node(7)), Node(15, None, Node(18))), 0, 100"
+        expected: "58"
+      - input: "Node(10, Node(5, Node(3), Node(7)), Node(15, None, Node(18))), 11, 14"
+        expected: "0"
+      - input: "Node(10, Node(5, Node(3), Node(7)), Node(15, None, Node(18))), 3, 3"
+        expected: "3"
+    hints:
+      - "A node below `lo` contributes nothing, and neither does its left side: only its right subtree is worth a call."
+      - "A node above `hi`: only its left subtree."
+      - "A node in range adds its value plus both subtrees' sums."
+    walkthrough:
+      call: result = range_sum(Node(10, Node(5, Node(3), Node(7)), Node(15, None, Node(18))), 7, 15)
+      visualise:
+        - as: call_stack
+          functions: [range_sum]
+      explanation: |
+        `10` is in range: add it and ask both sides. `5` is below `7`, so only its right side is asked: `7` is in range. `3` is
+        never visited. `15` is in range, and `18` is above it, so its empty left side gives `0`. `10 + 7 + 15` is `32`.

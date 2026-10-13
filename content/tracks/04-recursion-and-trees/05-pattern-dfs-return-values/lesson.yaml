@@ -1,0 +1,627 @@
+id: lesson.dfs-return-values
+title: "Pattern: DFS that returns values"
+concepts:
+  - id: concept.combine-children
+    title: A node's answer is built from its children's answers
+  - id: concept.return-one-track-another
+    title: Return what the parent needs, record the answer on the side
+  - id: concept.sentinel-early-exit
+    title: A sentinel return value stops the work early
+reviewItems:
+  - id: review.dfs-values.predict-heights
+    concept: concept.combine-children
+    step: step.dfs-values.predict-heights
+  - id: review.dfs-values.base-value
+    concept: concept.combine-children
+    step: step.dfs-values.check-base-value
+  - id: review.dfs-values.nonlocal
+    concept: concept.return-one-track-another
+    step: step.dfs-values.check-nonlocal
+  - id: review.dfs-values.which-problem
+    concept: concept.combine-children
+    step: step.dfs-values.check-which-problem
+    kind: pattern
+  - id: review.dfs-values.naive-balanced
+    concept: concept.sentinel-early-exit
+    step: step.dfs-values.check-naive-balanced
+    kind: pattern
+patterns:
+  - id: pattern.dfs-return-values
+    title: Combine the children's answers
+steps:
+  - id: step.dfs-values.idea
+    type: explain
+    title: Ask the children, then answer
+    body: |
+      In lesson 3 the walk *collected* nodes into a list. Many tree questions are better answered by a walk that **returns**
+      something. The **height** of a tree, the number of nodes on its longest path down from the root, is the clearest case:
+
+      - the empty tree has height `0` (the base case)
+      - any other tree is one taller than its taller subtree: `1 + max(height(left), height(right))`
+
+      Trust the two calls, as in lesson 2: each returns the right height for its subtree, and the node only has to **combine**
+      them. That is post-order: both children answer before the node does. The same shape gives the number of nodes
+      (`1 + left + right`), the sum of the values, the largest value, whether a value is anywhere in the tree, and much more.
+    comparison:
+      csharp: |
+        static int Height(Node? node) =>
+            node == null ? 0 : 1 + Math.Max(Height(node.Left), Height(node.Right));
+      python: |
+        def height(node):
+            if node is None:
+                return 0
+            return 1 + max(height(node.left), height(node.right))
+  - id: step.dfs-values.trace-height
+    type: trace
+    title: Heights come back up
+    body: |
+      Watch the values handed back on the call stack. Every `None` child returns `0`. A leaf returns `1 + max(0, 0)`, which is
+      `1`. `2` gets `1` from `4` and `0` from its missing right child, so it returns `2`, and the root returns `1 + max(2, 1)`.
+    code: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      root = Node(1, Node(2, Node(4)), Node(3))
+
+
+      def height(node):
+          if node is None:
+              return 0
+          left = height(node.left)
+          right = height(node.right)
+          return 1 + max(left, right)
+
+
+      result = height(root)
+    visualise:
+      - as: call_stack
+        functions: [height]
+      - variable: root
+        as: tree
+        pointers: [node]
+  - id: step.dfs-values.predict-heights
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      This `height` prints each node's height just before it returns. What does it print?
+    code: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+
+      def height(node):
+          if node is None:
+              return 0
+          h = 1 + max(height(node.left), height(node.right))
+          print(f"{node.val}:{h}", end=" ")
+          return h
+
+
+      root = Node(1, Node(2, None, Node(5, Node(6))), Node(3))
+      height(root)
+    accepted:
+      - "6:1 5:2 2:3 3:1 1:4"
+    mistakes:
+      - answers:
+          - "1:4 2:3 5:2 6:1 3:1"
+        feedback: "A node can't print until both its calls have returned, so the root prints last, not first. This is post-order."
+      - answers:
+          - "6:1 5:2 2:3 3:1 1:3"
+        feedback: "`2`'s subtree is three nodes tall (`2`, `5`, `6`), so the root is one taller: `4`."
+      - answers:
+          - "6:1 5:2 3:1 2:3 1:4"
+        feedback: "`2` finishes its whole subtree, and prints, before the root's second call starts on `3`."
+    hints:
+      - "Draw the tree: `2` has only a right child `5`, and `5` has only a left child `6`."
+      - "A node prints after both its children, so the deepest node prints first."
+  - id: step.dfs-values.check-base-value
+    type: choice
+    title: What does None return?
+    prompt: |
+      Someone writes `height` with `return 1` for the empty tree instead of `return 0`. What does `height(Node(7))` return now?
+    options:
+      - text: "`2`: the leaf adds one to what its `None` children return, and they now return `1`."
+        correct: true
+        feedback: "Right. The base case's value flows into every answer above it. The empty tree has no nodes, so its height is `0`."
+      - text: "`1`, as before: a leaf is still one node tall."
+        correct: false
+        feedback: "The leaf returns `1 + max(height(None), height(None))`, and each of those now returns `1`."
+      - text: "It raises an error, because `None` has no height."
+        correct: false
+        feedback: "The base case catches `None` before anything reads `node.left`, so there is no error, just a wrong number."
+      - text: "`0`: the extra one cancels out."
+        correct: false
+        feedback: "Nothing subtracts it again. Every `None` adds one to the leaf above it, and the leaf passes that on."
+    hints:
+      - "Work out `height(None)` first, then the leaf."
+  - id: step.dfs-values.two-values
+    type: explain
+    title: Return one thing, record another
+    body: |
+      The **diameter** of a tree is the number of edges on its longest path between any two nodes. The path doesn't have to
+      pass through the root. At a node, the longest path that bends through it goes down its left side and down its right:
+      `height(left) + height(right)` edges.
+
+      So each node knows a candidate answer, but its **parent** doesn't want the diameter: it wants the node's **height**, to
+      build its own candidate. The fix is to **return** what the parent needs (the height) and **record** the answer on the
+      side (the best diameter seen so far) in a variable outside the walk.
+
+      In Python an inner function can read the outer function's variables, but to *assign* one it must say `nonlocal`.
+      Without it, `best = …` makes a new local variable, and reading `best` first raises `UnboundLocalError`. C# lambdas and
+      local functions can assign captured variables freely.
+    comparison:
+      csharp: |
+        static int Diameter(Node? root)
+        {
+            int best = 0;
+            int Height(Node? node)
+            {
+                if (node == null) return 0;
+                int l = Height(node.Left), r = Height(node.Right);
+                best = Math.Max(best, l + r);   // captured: no keyword needed
+                return 1 + Math.Max(l, r);
+            }
+            Height(root);
+            return best;
+        }
+      python: |
+        def diameter(root):
+            best = 0
+
+            def height(node):
+                nonlocal best                   # needed to assign best
+                if node is None:
+                    return 0
+                l, r = height(node.left), height(node.right)
+                best = max(best, l + r)
+                return 1 + max(l, r)
+
+            height(root)
+            return best
+  - id: step.dfs-values.trace-diameter
+    type: trace
+    title: The best path, on the side
+    body: |
+      Each call returns its height, and `best` remembers the longest bend seen. At `2`, the left side is `1` deep and the right
+      side `2`, so the path `4`, `2`, `5`, `6` has `3` edges. At the root it's only `3 + 1`, which is `4`: the path `6`, `5`, `2`,
+      `1`, `3`.
+    code: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def diameter(root):
+          best = 0
+
+          def height(node):
+              nonlocal best
+              if node is None:
+                  return 0
+              left = height(node.left)
+              right = height(node.right)
+              best = max(best, left + right)
+              return 1 + max(left, right)
+
+          height(root)
+          return best
+
+
+      root = Node(1, Node(2, Node(4), Node(5, Node(6))), Node(3))
+      result = diameter(root)
+    visualise:
+      - as: call_stack
+        functions: [diameter, height]
+      - variable: root
+        as: tree
+        pointers: [node]
+  - id: step.dfs-values.check-nonlocal
+    type: choice
+    title: Forgetting nonlocal
+    prompt: |
+      This leaves out `nonlocal best`. What happens when `diameter(Node(1, Node(2)))` runs?
+
+      ```python
+      def diameter(root):
+          best = 0
+
+          def height(node):
+              if node is None:
+                  return 0
+              l, r = height(node.left), height(node.right)
+              best = max(best, l + r)
+              return 1 + max(l, r)
+
+          height(root)
+          return best
+      ```
+    options:
+      - text: "`UnboundLocalError`: the assignment makes `best` local to `height`, so `max(best, …)` reads it before it has a value."
+        correct: true
+        feedback: "Right. Python decides a name is local if the function assigns it anywhere. `nonlocal best` says it belongs to `diameter`."
+      - text: "It returns `1`, the right answer."
+        correct: false
+        feedback: "It never gets that far. Because `height` assigns `best`, every `best` in `height` is local, and the read on the right fails."
+      - text: "It returns `0`, because `height` changes its own copy of `best`."
+        correct: false
+        feedback: "Close, but it fails before that: the local `best` is read by `max(best, l + r)` before anything is assigned to it."
+      - text: "`NameError: name 'best' is not defined`."
+        correct: false
+        feedback: "The error is the more specific `UnboundLocalError`: the name is known, as a local, but has no value yet."
+    hints:
+      - "When a function assigns a name, which scope does Python put that name in?"
+  - id: step.dfs-values.sentinel
+    type: explain
+    title: A value that means "stop"
+    body: |
+      A tree is **height-balanced** if, at every node, the heights of the two subtrees differ by at most one. The obvious code
+      calls `height` on both children of **every** node, and each `height` call walks the whole subtree again. On a tree like a
+      long chain that is O(n²).
+
+      Do it in one walk instead: return the height, but return `-1` when the subtree is already **unbalanced**. A height is
+      never negative, so `-1` can't be mistaken for one. A node that gets `-1` from either child returns `-1` straight away,
+      without checking anything else, and the answer is `walk(root) != -1`.
+
+      A **sentinel** like this is how a returned value carries two things at once. You could return a tuple
+      `(balanced, height)` instead; the sentinel is shorter and stops early.
+  - id: step.dfs-values.check-which-problem
+    type: choice
+    title: Which one combines the children?
+    prompt: |
+      Which of these is a natural fit for a DFS where each node combines the values its children return?
+    options:
+      - text: "For each node, the number of nodes in its subtree."
+        correct: true
+        feedback: "Right. A subtree's size is `1 + left size + right size`: each node needs both children's answers first."
+      - text: "The values on each level, top to bottom."
+        correct: false
+        feedback: "Levels are BFS territory: a queue with one pass per level."
+      - text: "The value of the node visited third in pre-order."
+        correct: false
+        feedback: "That is a walk with a counter. Nothing needs to come back up from the children."
+      - text: "The leftmost value on the bottom level."
+        correct: false
+        feedback: "\"Bottom level\" is about levels: a level-order BFS finds it most directly."
+    hints:
+      - "Which answer for a node is built from the same answer for its two subtrees?"
+  - id: step.dfs-values.check-naive-balanced
+    type: choice
+    title: Why the sentinel?
+    prompt: |
+      This checks balance by calling `height` at every node. Why does the lesson return `-1` from one walk instead?
+
+      ```python
+      def is_balanced(node):
+          if node is None:
+              return True
+          if abs(height(node.left) - height(node.right)) > 1:
+              return False
+          return is_balanced(node.left) and is_balanced(node.right)
+      ```
+    options:
+      - text: "Every node's `height` call walks its whole subtree again, so the work can be O(n²). One walk returning height or `-1` is O(n)."
+        correct: true
+        feedback: "Right. Combining children's answers on the way up computes each height once, and `-1` ends the walk as soon as it fails."
+      - text: "This version gives the wrong answer for some trees."
+        correct: false
+        feedback: "It is correct, just slow: it checks every node, recomputing the heights below each one."
+      - text: "This version always hits the recursion limit."
+        correct: false
+        feedback: "Its depth is still the tree's height. The problem is the repeated work, not the depth."
+      - text: "`abs` is slow in Python."
+        correct: false
+        feedback: "`abs` is O(1). The cost is in the `height` calls, which walk whole subtrees, once per ancestor."
+    hints:
+      - "How many times is the bottom node's height worked out?"
+  - id: step.dfs-values.fill-size
+    type: fill-blank
+    title: Count the nodes
+    pattern: pattern.dfs-return-values
+    patternCue: "\"How many nodes\": the empty tree has none, and any other tree has one more than its two subtrees together."
+    prompt: |
+      Fill in the blanks so that `size(node)` returns the number of nodes in the tree.
+    template: |
+      def size(node):
+          if node is None:
+              return {{base}}
+          return {{combine}}
+    blanks:
+      - id: base
+        accepted:
+          - "0"
+        mistakes:
+          - answers:
+              - "1"
+            feedback: "The empty tree has no nodes, and every `None` would add one: a leaf would count as `3`."
+      - id: combine
+        accepted:
+          - "1 + size(node.left) + size(node.right)"
+          - "size(node.left) + size(node.right) + 1"
+          - "1+size(node.left)+size(node.right)"
+          - "size(node.left) + 1 + size(node.right)"
+        mistakes:
+          - answers:
+              - "1 + max(size(node.left), size(node.right))"
+            feedback: "That is the height: the longer side only. A size counts the nodes on both sides."
+          - answers:
+              - "size(node.left) + size(node.right)"
+            feedback: "That leaves out the node itself, so every tree counts as `0`."
+    hints:
+      - "How many nodes does the empty tree have?"
+      - "The node itself, plus everything on its left, plus everything on its right."
+  - id: step.dfs-values.order-balanced
+    type: parsons
+    title: Balanced in one walk
+    pattern: pattern.dfs-return-values
+    patternCue: "\"Every node's subtrees differ in height by at most one\": return the height, or -1 as soon as a subtree is unbalanced."
+    prompt: |
+      Arrange the lines into `walk(node)`, which returns the height of the tree, or `-1` if any part of it is unbalanced.
+    solution: |
+      def walk(node):
+          if node is None:
+              return 0
+          left = walk(node.left)
+          if left == -1:
+              return -1
+          right = walk(node.right)
+          if right == -1 or abs(left - right) > 1:
+              return -1
+          return 1 + max(left, right)
+    hints:
+      - "Check the left answer before you walk the right side: `-1` means stop."
+      - "A node is unbalanced if a child is, or if the two heights differ by more than one."
+  - id: step.dfs-values.write-diameter
+    type: write-code
+    largeScreenPreferred: true
+    title: The diameter of a tree
+    pattern: pattern.dfs-return-values
+    patternCue: "\"The longest path between any two nodes\": return each subtree's height up the tree, and record left + right at every node on the side."
+    prompt: |
+      Write `diameter(root)` that returns the number of **edges** on the longest path between any two nodes of the tree. The
+      path doesn't have to pass through the root. A single node, or the empty tree, has diameter `0`.
+
+      `Node` is in the starter; keep it.
+    language: python
+    entrypoint: diameter
+    starter: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def diameter(root):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def diameter(root):
+          best = 0
+
+          def height(node):
+              nonlocal best
+              if node is None:
+                  return 0
+              left = height(node.left)
+              right = height(node.right)
+              best = max(best, left + right)
+              return 1 + max(left, right)
+
+          height(root)
+          return best
+    tests:
+      - input: "Node(1, Node(2, Node(4), Node(5)), Node(3))"
+        expected: "3"
+      - input: "None"
+        expected: "0"
+      - input: "Node(1)"
+        expected: "0"
+      - input: "Node(1, Node(2))"
+        expected: "1"
+      - input: "Node(1, Node(2, Node(3, Node(4), None), Node(5, None, Node(6, None, Node(7)))))"
+        expected: "5"
+      - input: "Node(1, Node(2, Node(3, Node(4))), Node(5, None, Node(6)))"
+        expected: "5"
+    hints:
+      - "The longest path that bends at a node has `height(left) + height(right)` edges."
+      - "Return the height from the walk, and keep the best `left + right` in a variable outside it (`nonlocal`)."
+      - "Test 5's longest path doesn't touch the root: the answer is found at a node lower down."
+    walkthrough:
+      call: result = diameter(Node(1, Node(2, Node(4), Node(5)), Node(3)))
+      visualise:
+        - as: call_stack
+          functions: [diameter, height]
+      explanation: |
+        The leaves `4` and `5` return height `1`. At `2`, `1 + 1` is a path of `2` edges, and `2` returns height `2`. `3`
+        returns `1`. At the root, `2 + 1` is `3` edges, the path `4`, `2`, `1`, `3`, which is the best seen.
+    phoneAlternative:
+      id: step.dfs-values.write-diameter.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `diameter(root)`, which returns the number of edges on the tree's longest path. Arrange the lines instead of
+        typing them.
+      solution: |
+        def diameter(root):
+            best = 0
+
+            def height(node):
+                nonlocal best
+                if node is None:
+                    return 0
+                left = height(node.left)
+                right = height(node.right)
+                best = max(best, left + right)
+                return 1 + max(left, right)
+
+            height(root)
+            return best
+      hints:
+        - "The inner function returns heights and updates `best` on the way."
+        - "`nonlocal` comes before the inner function assigns `best`."
+  - id: step.dfs-values.write-balanced
+    type: write-code
+    largeScreenPreferred: true
+    title: Is it balanced?
+    pattern: pattern.dfs-return-values
+    patternCue: "\"Balanced at every node\": one post-order walk returning the height, with -1 meaning a subtree already failed."
+    prompt: |
+      Write `is_balanced(root)` that returns whether the tree is height-balanced: at **every** node, the heights of the left
+      and right subtrees differ by at most one. The empty tree is balanced. Walk the tree once.
+
+      `Node` is in the starter; keep it.
+    language: python
+    entrypoint: is_balanced
+    starter: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def is_balanced(root):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def is_balanced(root):
+          def walk(node):
+              if node is None:
+                  return 0
+              left = walk(node.left)
+              if left == -1:
+                  return -1
+              right = walk(node.right)
+              if right == -1 or abs(left - right) > 1:
+                  return -1
+              return 1 + max(left, right)
+
+          return walk(root) != -1
+    tests:
+      - input: "Node(1, Node(2, Node(4)), Node(3))"
+        expected: "True"
+      - input: "None"
+        expected: "True"
+      - input: "Node(1, Node(2, Node(3)))"
+        expected: "False"
+      - input: "Node(1, Node(2, Node(3, Node(4)), None), Node(5, None, Node(6, None, Node(7))))"
+        expected: "False"
+      - input: "Node(1, Node(2, Node(4, Node(8)), Node(5)), Node(3, Node(6), Node(7)))"
+        expected: "True"
+      - input: "Node(1, Node(2, Node(4, Node(8))), Node(3, Node(6), Node(7)))"
+        expected: "False"
+    hints:
+      - "Return a height from an inner function, and `-1` for \"unbalanced somewhere below\"."
+      - "A node returns `-1` if either child did, or if the two heights differ by more than one."
+      - "Test 4 has the same height on both sides of the root, but its children are unbalanced."
+    walkthrough:
+      call: result = is_balanced(Node(1, Node(2, Node(3)), Node(4)))
+      visualise:
+        - as: call_stack
+          functions: [is_balanced, walk]
+      explanation: |
+        `3` returns height `1`, and `2` gets `1` and `0`, so it is fine and returns `2`. `4` returns `1`. At the root the sides
+        are `2` and `1`, one apart, so the root returns `3`, not `-1`, and the tree is balanced.
+  - id: step.dfs-values.write-same-tree
+    type: write-code
+    largeScreenPreferred: true
+    title: The same tree?
+    pattern: pattern.dfs-return-values
+    patternCue: "\"Are two trees the same\": the roots match and both pairs of subtrees are the same, each pair answered by a recursive call."
+    prompt: |
+      Write `same_tree(a, b)` that returns whether two trees have the same shape and the same value at every node.
+
+      `Node` is in the starter; keep it.
+    language: python
+    entrypoint: same_tree
+    starter: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def same_tree(a, b):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def same_tree(a, b):
+          if a is None or b is None:
+              return a is b
+          return a.val == b.val and same_tree(a.left, b.left) and same_tree(a.right, b.right)
+    tests:
+      - input: "Node(1, Node(2), Node(3)), Node(1, Node(2), Node(3))"
+        expected: "True"
+      - input: "None, None"
+        expected: "True"
+      - input: "Node(1), None"
+        expected: "False"
+      - input: "Node(1, Node(2)), Node(1, None, Node(2))"
+        expected: "False"
+      - input: "Node(1, Node(2), Node(3)), Node(1, Node(2), Node(4))"
+        expected: "False"
+      - input: "Node(1, Node(2, Node(4))), Node(1, Node(2, Node(4)))"
+        expected: "True"
+    hints:
+      - "If either tree is empty, they are the same only if both are."
+      - "Otherwise the values must match, and so must the left subtrees and the right subtrees."
+    walkthrough:
+      call: result = same_tree(Node(1, Node(2)), Node(1, None, Node(2)))
+      visualise:
+        - as: call_stack
+          functions: [same_tree]
+      explanation: |
+        The roots both hold `1`, so the call compares the left subtrees: `Node(2)` against `None`. One is empty and the other
+        isn't, so that call returns `False`, and `and` stops without comparing the right subtrees.
