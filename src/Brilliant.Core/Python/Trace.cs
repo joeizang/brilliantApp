@@ -43,6 +43,28 @@ public sealed record ListNode(int Id, string? Value, int? Next);
 /// </summary>
 public sealed record TrackedList(int? Head, IReadOnlyList<ListNode> Nodes, int More, IReadOnlyDictionary<string, int?> Pointers);
 
+/// <summary>A binary tree node as recorded: its id (its identity, the same at every step), the repr of its value (null when it has none), and the ids of its children (null: None).</summary>
+public sealed record TreeNode(int Id, string? Value, int? Left, int? Right);
+
+/// <summary>A node the visited list or set marks: its id, and for a list its place in it (1 for the first), null for a set.</summary>
+public sealed record VisitedNode(int Id, int? Order);
+
+/// <summary>
+/// The nodes a tree's visited list or set marks, as recorded: a member marks the node it is, or else the nodes whose value equals it
+/// (in a list, the first such node no earlier member marked). <see cref="Unmatched"/> counts the members that marked none.
+/// </summary>
+public sealed record TreeVisited(bool Ordered, IReadOnlyList<VisitedNode> Nodes, int Unmatched);
+
+/// <summary>
+/// A watched binary tree as recorded at one step. <see cref="Root"/> is the id of the node the variable holds, null when it holds None.
+/// <see cref="Nodes"/> are the nodes reached from the root level by level, then those reached only from a pointer (a detached subtree);
+/// a child id not among them is a node beyond the ones recorded, and <see cref="More"/> counts those. <see cref="Pointers"/> maps each
+/// pointer that holds a node to its id, or to null when it holds None. <see cref="Visited"/> is null when no visited list or set is drawn
+/// (or its variable holds neither).
+/// </summary>
+public sealed record TrackedTree(int? Root, IReadOnlyList<TreeNode> Nodes, int More, IReadOnlyDictionary<string, int?> Pointers,
+    TreeVisited? Visited = null);
+
 /// <summary>An argument of a call, as it was when the call was made: its name and the repr of its value, clipped.</summary>
 public sealed record CallArg(string Name, string Repr);
 
@@ -74,7 +96,8 @@ public sealed record TraceFrame(
     IReadOnlyDictionary<string, TrackedArray> Tracked,
     IReadOnlyDictionary<string, TrackedTable>? Tables = null,
     IReadOnlyDictionary<string, TrackedList>? Lists = null,
-    TrackedCalls? Calls = null);
+    TrackedCalls? Calls = null,
+    IReadOnlyDictionary<string, TrackedTree>? Trees = null);
 
 /// <summary>What the Python tracer (wwwroot/python/tracer.py) recorded.</summary>
 public sealed record TraceResult(
@@ -100,7 +123,8 @@ public static class TraceResultJson
     /// <summary>
     /// The variables the tracer should record: a sequence, dict or set by its name, a linked list as an object that also says how to
     /// follow it and which pointers to look up: <c>["nums",{"variable":"head","as":"linked_list","next":"next","value":"val","pointers":["curr"]}]</c>;
-    /// the call stack as an object with the functions it keeps (none: all): <c>{"as":"call_stack","functions":["fact"]}</c>.
+    /// a tree likewise: <c>{"variable":"root","as":"tree","left":"left","right":"right","value":"val","pointers":[],"visited":"order"}</c>
+    /// (<c>visited</c> null when none is drawn); the call stack as an object with the functions it keeps (none: all): <c>{"as":"call_stack","functions":["fact"]}</c>.
     /// </summary>
     public static string SerializeWatch(IEnumerable<Visual> visuals)
     {
@@ -114,6 +138,11 @@ public static class TraceResultJson
                 Visual.LinkedList => new JsonObject
                 {
                     ["variable"] = v.Variable, ["as"] = v.As, ["next"] = v.Next, ["value"] = v.Value, ["pointers"] = Names(v.Pointers),
+                },
+                Visual.Tree => new JsonObject
+                {
+                    ["variable"] = v.Variable, ["as"] = v.As, ["left"] = v.Left, ["right"] = v.Right, ["value"] = v.Value,
+                    ["pointers"] = Names(v.Pointers), ["visited"] = v.Visited,
                 },
                 Visual.CallStack => new JsonObject { ["as"] = v.As, ["functions"] = Names(v.Functions) },
                 _ => JsonValue.Create(v.Variable),
@@ -195,6 +224,38 @@ public sealed record LinkedListView(string Variable, IReadOnlyList<ChainView> Ch
 }
 
 /// <summary>
+/// Where a tree node's link goes: nowhere (None), to a child drawn under it, to a node drawn elsewhere (a node with two parents, or a
+/// cycle back up the tree), or to a node beyond the ones recorded.
+/// </summary>
+public enum TreeLink { None, Child, Elsewhere, More }
+
+/// <summary>
+/// A tree node, placed: <see cref="Column"/> is its place left to right (the order an in-order walk meets it, counted across all the
+/// trees drawn), <see cref="Depth"/> its level (0: a root) and <see cref="Tree"/> which tree it is in (0: the variable's; the others
+/// are detached, reached only from a pointer). <see cref="Left"/> and <see cref="Right"/> are its children's ids (null: None), and
+/// <see cref="LeftLink"/> and <see cref="RightLink"/> say how each is drawn. <see cref="Changed"/>: its value differs from the step
+/// before; <see cref="Added"/>: it wasn't drawn the step before. <see cref="Order"/> is its place in the visited list (null: not
+/// visited, or visited by a set, when <see cref="Visited"/> says so); <see cref="JustVisited"/>: it was marked since the step before.
+/// </summary>
+public sealed record TreeNodeView(int Id, string? Value, int Tree, int Column, int Depth, int? Left, int? Right, TreeLink LeftLink, TreeLink RightLink,
+    bool Changed = false, bool Added = false, bool Visited = false, int? Order = null, bool JustVisited = false);
+
+/// <summary>
+/// A binary tree drawn level by level: each node in its own column, in in-order, so a node's left subtree is all to its left and its
+/// right subtree to its right. <see cref="Pointers"/> starts with the variable itself, on the root. <see cref="More"/> counts the nodes
+/// beyond the ones recorded. <see cref="Visited"/> is null when no visited list or set is drawn; otherwise it says whether it is a list
+/// (numbered) and how many of its members marked no node.
+/// </summary>
+public sealed record TreeView(string Variable, IReadOnlyList<TreeNodeView> Nodes, int More, IReadOnlyList<NodePointer> Pointers, TreeVisitedView? Visited)
+{
+    public int Columns => Nodes.Count == 0 ? 0 : Nodes.Max(n => n.Column) + 1;
+    public int Levels => Nodes.Count == 0 ? 0 : Nodes.Max(n => n.Depth) + 1;
+}
+
+/// <summary>A tree's visited list or set: its variable, whether it is ordered (a list), and how many of its members marked no node drawn.</summary>
+public sealed record TreeVisitedView(string Variable, bool Ordered, int Unmatched);
+
+/// <summary>
 /// A frame of the call stack: one call, with its arguments as they were passed. <see cref="Pushed"/>: the call began since the step before.
 /// <see cref="Returning"/>: the value it is returning on this step. <see cref="Received"/>: a value a call it made handed back to it since
 /// the step before (shown for that one step).
@@ -220,9 +281,10 @@ public sealed record CallStackView(IReadOnlyList<CallFrameView> Frames, int More
 public sealed record TraceState(
     int Index, int? Line, string Function, bool IsFinal,
     IReadOnlyList<LocalView> Locals, IReadOnlyList<ArrayView> Arrays, IReadOnlyList<TableView> Tables,
-    IReadOnlyList<LinkedListView>? Lists = null, CallStackView? Calls = null)
+    IReadOnlyList<LinkedListView>? Lists = null, CallStackView? Calls = null, IReadOnlyList<TreeView>? Trees = null)
 {
     public IReadOnlyList<LinkedListView> Lists { get; init; } = Lists ?? [];
+    public IReadOnlyList<TreeView> Trees { get; init; } = Trees ?? [];
 }
 
 /// <summary>
@@ -238,6 +300,7 @@ public static class TraceModel
         var arrayVisuals = visuals.Where(v => Visual.Sequences.Contains(v.As)).ToList();
         var tableVisuals = visuals.Where(v => v.As is Visual.Dict or Visual.Set).ToList();
         var listVisuals = visuals.Where(v => v.As == Visual.LinkedList).ToList();
+        var treeVisuals = visuals.Where(v => v.As == Visual.Tree).ToList();
         var drawsCalls = visuals.Any(v => v.As == Visual.CallStack);
         var states = new List<TraceState>(result.Frames.Count);
         TraceFrame? previousFrame = null;
@@ -247,7 +310,7 @@ public static class TraceModel
             var comparable = previous is not null && previousFrame!.Function == frame.Function ? previous : null;
             var state = new TraceState(index, frame.Line, frame.Function, frame.Line is null,
                 Locals(frame, comparable), Arrays(frame, arrayVisuals, comparable), Tables(frame, tableVisuals, comparable),
-                Lists(frame, listVisuals, comparable), drawsCalls ? Calls(frame, previous) : null);
+                Lists(frame, listVisuals, comparable), drawsCalls ? Calls(frame, previous) : null, Trees(frame, treeVisuals, comparable));
             states.Add(state);
             previousFrame = frame;
             previous = state;
@@ -496,5 +559,96 @@ public static class TraceModel
         foreach (var node in tracked.Nodes)
             if (!row.ContainsKey(node.Id)) chains.Add(Follow(node.Id));
         return chains;
+    }
+
+    private static IReadOnlyList<TreeView> Trees(TraceFrame frame, List<Visual> visuals, TraceState? previous)
+    {
+        var views = new List<TreeView>();
+        foreach (var visual in visuals)
+        {
+            if (frame.Trees is null || !frame.Trees.TryGetValue(visual.Variable, out var tracked)) continue;
+            var before = previous?.Trees.FirstOrDefault(t => t.Variable == visual.Variable);
+            var was = before?.Nodes.ToDictionary(n => n.Id);
+            var marks = new Dictionary<int, int?>();
+            foreach (var mark in tracked.Visited?.Nodes ?? []) marks.TryAdd(mark.Id, mark.Order);
+
+            var nodes = Layout(tracked).Select(node =>
+            {
+                var visited = marks.TryGetValue(node.Id, out var order);
+                node = node with { Visited = visited, Order = order };
+                if (was is null) return node;
+                if (!was.TryGetValue(node.Id, out var old)) return node with { Added = true, JustVisited = visited };
+                return node with { Changed = old.Value != node.Value, JustVisited = visited && (!old.Visited || old.Order != order) };
+            }).ToList();
+
+            var pointers = new List<NodePointer>();
+            void Point(string name, int? node)
+            {
+                var moved = before is not null && before.Pointers.FirstOrDefault(p => p.Name == name) is var old && (old is null || old.Node != node);
+                pointers.Add(new NodePointer(name, node, moved));
+            }
+            Point(visual.Variable, tracked.Root);
+            foreach (var name in visual.Pointers)
+                if (tracked.Pointers.TryGetValue(name, out var node)) Point(name, node);
+
+            var visitedView = tracked.Visited is { } v && visual.Visited is { } list ? new TreeVisitedView(list, v.Ordered, v.Unmatched) : null;
+            views.Add(new TreeView(visual.Variable, nodes, tracked.More, pointers, visitedView));
+        }
+        return views;
+    }
+
+    /// <summary>
+    /// Places the recorded nodes: the tree from the root, then one from each node no tree has taken yet (the recorder lists a detached
+    /// subtree's root first). A tree takes its nodes level by level, so a node two parents share (or one a link cycles back to) is
+    /// drawn under the first parent met, and the other link points to it elsewhere. Within a tree the columns follow an in-order walk;
+    /// the trees follow one another left to right.
+    /// </summary>
+    internal static IReadOnlyList<TreeNodeView> Layout(TrackedTree tracked)
+    {
+        var byId = new Dictionary<int, TreeNode>();
+        foreach (var node in tracked.Nodes) byId.TryAdd(node.Id, node);
+        var taken = new Dictionary<int, int>();   // node id -> its depth
+        var placed = new List<TreeNodeView>();
+        var column = 0;
+
+        TreeLink Take(int? child, int depth, Queue<int> level)
+        {
+            if (child is not { } id) return TreeLink.None;
+            if (!byId.ContainsKey(id)) return TreeLink.More;
+            if (taken.ContainsKey(id)) return TreeLink.Elsewhere;
+            taken[id] = depth;
+            level.Enqueue(id);
+            return TreeLink.Child;
+        }
+
+        void Grow(int root)
+        {
+            var links = new Dictionary<int, (TreeLink Left, TreeLink Right)>();
+            var level = new Queue<int>();
+            taken[root] = 0;
+            level.Enqueue(root);
+            while (level.TryDequeue(out var id))
+            {
+                var node = byId[id];
+                var left = Take(node.Left, taken[id] + 1, level);
+                links[id] = (left, Take(node.Right, taken[id] + 1, level));
+            }
+
+            var tree = placed.Count == 0 ? 0 : placed[^1].Tree + 1;
+            void InOrder(int id)
+            {
+                var node = byId[id];
+                var (left, right) = links[id];
+                if (left == TreeLink.Child) InOrder(node.Left!.Value);
+                placed.Add(new TreeNodeView(id, node.Value, tree, column++, taken[id], node.Left, node.Right, left, right));
+                if (right == TreeLink.Child) InOrder(node.Right!.Value);
+            }
+            InOrder(root);
+        }
+
+        if (tracked.Root is { } start && byId.ContainsKey(start)) Grow(start);
+        foreach (var node in tracked.Nodes)
+            if (!taken.ContainsKey(node.Id)) Grow(node.Id);
+        return placed;
     }
 }

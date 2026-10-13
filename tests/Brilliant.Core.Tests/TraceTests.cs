@@ -1188,4 +1188,193 @@ public class TraceTests
         Assert.Single(state.Tables);
         Assert.Single(state.Calls!.Frames);
     }
+
+    // ---- Trees ----
+
+    private static readonly Visual Root = new("root", Visual.Tree, ["node"]);
+    private static readonly Visual Walked = Root with { Visited = "order" };
+
+    private static TrackedTree Tree(int? root, (int Id, string Value, int? Left, int? Right)[] nodes, int more = 0,
+        TreeVisited? visited = null, params (string Name, int? Node)[] pointers) =>
+        new(root, nodes.Select(n => new TreeNode(n.Id, n.Value, n.Left, n.Right)).ToList(), more,
+            pointers.ToDictionary(p => p.Name, p => p.Node), visited);
+
+    private static TraceFrame TreeFrame(int? line, TrackedTree tree, string function = "<module>") =>
+        new(line is null ? "return" : "line", line, function, [], new Dictionary<string, TrackedArray>(),
+            Trees: new Dictionary<string, TrackedTree> { ["root"] = tree });
+
+    private static TreeView TreeAt(IReadOnlyList<TraceState> states, int step) => Assert.Single(states[step].Trees);
+
+    // 4 -> (2 -> 1, 3), (6 -> -, 7), level by level as the recorder lists it.
+    private static readonly (int, string, int?, int?)[] Small =
+        [(4, "4", 2, 6), (2, "2", 1, 3), (6, "6", null, 7), (1, "1", null, null), (3, "3", null, null), (7, "7", null, null)];
+
+    [Fact]
+    public void The_watch_list_sends_a_tree_with_its_options_pointers_and_visited_list()
+    {
+        var watch = TraceResultJson.SerializeWatch([new Visual("root", Visual.Tree, ["node"], Value: "key", Left: "lo", Right: "hi", Visited: "order"),
+            new Visual("t", Visual.Tree, [])]);
+
+        Assert.Equal("""[{"variable":"root","as":"tree","left":"lo","right":"hi","value":"key","pointers":["node"],"visited":"order"},""" +
+            """{"variable":"t","as":"tree","left":"left","right":"right","value":"val","pointers":[],"visited":null}]""", watch);
+    }
+
+    [Fact]
+    public void Trees_in_the_tracer_json_parse_with_their_nodes_pointers_and_visited_marks()
+    {
+        var json = """
+            {"status": "ok", "frames": [{"event": "line", "line": 1, "function": "<module>", "locals": [], "tracked": {},
+              "trees": {"root": {"root": 0, "more": 3, "nodes": [{"id": 0, "value": "5", "left": 1, "right": null}, {"id": 1, "value": null, "left": null, "right": null}],
+                                 "pointers": {"node": 1, "gone": null}, "visited": {"ordered": true, "nodes": [{"id": 1, "order": 1}], "unmatched": 2}}}}],
+             "stdout": "", "message": null, "traceback": null, "errorLine": null}
+            """;
+
+        var tree = Assert.Single(TraceResultJson.Parse(json).Frames).Trees!["root"];
+
+        Assert.Equal((0, 3), (tree.Root, tree.More));
+        Assert.Equal([new TreeNode(0, "5", 1, null), new TreeNode(1, null, null, null)], tree.Nodes);
+        Assert.Equal(1, tree.Pointers["node"]);
+        Assert.Null(tree.Pointers["gone"]);
+        Assert.Equal((true, 2), (tree.Visited!.Ordered, tree.Visited.Unmatched));
+        Assert.Equal([new VisitedNode(1, 1)], tree.Visited.Nodes);
+    }
+
+    [Fact]
+    public void A_trace_recorded_before_trees_existed_has_none()
+    {
+        var states = Build(Run(Frame(1)), Root);
+        Assert.Empty(states[0].Trees);
+    }
+
+    [Fact]
+    public void A_tree_is_laid_out_in_order_left_to_right_with_each_level_below_the_last()
+    {
+        var view = TreeAt(Build(Run(TreeFrame(1, Tree(4, Small))), Root), 0);
+
+        Assert.Equal([1, 2, 3, 4, 6, 7], view.Nodes.Select(n => n.Id));
+        Assert.Equal([0, 1, 2, 3, 4, 5], view.Nodes.Select(n => n.Column));
+        Assert.Equal([2, 1, 2, 0, 1, 2], view.Nodes.Select(n => n.Depth));
+        Assert.Equal((6, 3), (view.Columns, view.Levels));
+        var six = view.Nodes.Single(n => n.Id == 6);
+        Assert.Equal((TreeLink.None, TreeLink.Child, (int?)7), (six.LeftLink, six.RightLink, six.Right));
+        Assert.All(view.Nodes, n => Assert.Equal(0, n.Tree));
+        Assert.Equal([new NodePointer("root", 4, false)], view.Pointers);
+        Assert.Null(view.Visited);
+    }
+
+    [Fact]
+    public void An_empty_tree_has_no_nodes_and_its_variable_is_at_none()
+    {
+        var view = TreeAt(Build(Run(TreeFrame(1, Tree(null, []))), Root), 0);
+
+        Assert.Empty(view.Nodes);
+        Assert.Equal((0, 0), (view.Columns, view.Levels));
+        Assert.Equal([new NodePointer("root", null, false)], view.Pointers);
+    }
+
+    [Fact]
+    public void A_child_beyond_the_recorded_nodes_is_a_link_to_more()
+    {
+        var view = TreeAt(Build(Run(TreeFrame(1, Tree(1, [(1, "a", 2, 9), (2, "b", null, null)], more: 5))), Root), 0);
+
+        var root = view.Nodes.Single(n => n.Id == 1);
+        Assert.Equal((TreeLink.Child, TreeLink.More), (root.LeftLink, root.RightLink));
+        Assert.Equal(5, view.More);
+    }
+
+    [Fact]
+    public void A_shared_node_is_drawn_once_under_its_first_parent_and_a_cycle_points_back()
+    {
+        // 1 -> (2, 3); 3's left is 2 as well; 2's right is the root.
+        var view = TreeAt(Build(Run(TreeFrame(1, Tree(1, [(1, "a", 2, 3), (2, "b", null, 1), (3, "c", 2, null)]))), Root), 0);
+
+        Assert.Equal([2, 1, 3], view.Nodes.Select(n => n.Id));
+        Assert.Equal(TreeLink.Elsewhere, view.Nodes.Single(n => n.Id == 3).LeftLink);
+        Assert.Equal(TreeLink.Elsewhere, view.Nodes.Single(n => n.Id == 2).RightLink);
+    }
+
+    [Fact]
+    public void A_detached_subtree_from_a_pointer_is_drawn_to_the_right_as_a_tree_of_its_own()
+    {
+        var tree = Tree(1, [(1, "a", null, null), (8, "x", 9, null), (9, "y", null, null)], 0, null, ("node", 8));
+        var view = TreeAt(Build(Run(TreeFrame(1, tree)), Root), 0);
+
+        Assert.Equal([(1, 0, 0, 0), (9, 1, 1, 1), (8, 1, 2, 0)], view.Nodes.Select(n => (n.Id, n.Tree, n.Column, n.Depth)));
+        Assert.Equal([new NodePointer("root", 1, false), new NodePointer("node", 8, false)], view.Pointers);
+    }
+
+    [Fact]
+    public void A_pointer_the_recorder_left_out_is_not_drawn_and_one_at_none_is()
+    {
+        var view = TreeAt(Build(Run(TreeFrame(1, Tree(1, [(1, "a", null, null)], 0, null, ("node", null)))),
+            new Visual("root", Visual.Tree, ["node", "other"])), 0);
+
+        Assert.Equal(["root", "node"], view.Pointers.Select(p => p.Name));
+        Assert.Null(view.Pointers[1].Node);
+    }
+
+    [Fact]
+    public void An_inserted_node_is_added_a_changed_value_is_marked_and_a_moved_pointer_is_moved()
+    {
+        var states = Build(Run(
+            TreeFrame(1, Tree(4, [(4, "4", 2, null), (2, "2", null, null)], 0, null, ("node", 4))),
+            TreeFrame(2, Tree(4, [(4, "40", 2, 5), (2, "2", null, null), (5, "5", null, null)], 0, null, ("node", 5)))), Root);
+
+        Assert.All(TreeAt(states, 0).Nodes, n => Assert.False(n.Added || n.Changed));
+        var view = TreeAt(states, 1);
+        Assert.Equal([(2, false, false), (4, false, true), (5, true, false)], view.Nodes.Select(n => (n.Id, n.Added, n.Changed)));
+        Assert.Equal([false, true], view.Pointers.Select(p => p.Moved));
+    }
+
+    [Fact]
+    public void A_tree_is_not_compared_across_functions()
+    {
+        var states = Build(Run(
+            TreeFrame(1, Tree(4, [(4, "4", null, null)])),
+            TreeFrame(2, Tree(4, [(4, "5", null, 6), (6, "6", null, null)]), function: "insert")), Root);
+
+        Assert.All(TreeAt(states, 1).Nodes, n => Assert.False(n.Added || n.Changed));
+    }
+
+    [Fact]
+    public void A_visited_list_numbers_its_nodes_and_marks_the_newly_visited_one()
+    {
+        TreeVisited Marks(params (int Id, int Order)[] marks) => new(true, marks.Select(m => new VisitedNode(m.Id, m.Order)).ToList(), 0);
+        var states = Build(Run(
+            TreeFrame(1, Tree(4, Small, visited: Marks((1, 1)))),
+            TreeFrame(2, Tree(4, Small, visited: Marks((1, 1), (2, 2))))), Walked);
+
+        var view = TreeAt(states, 1);
+        Assert.Equal(new TreeVisitedView("order", true, 0), view.Visited);
+        Assert.Equal([(1, true, (int?)1, false), (2, true, 2, true), (3, false, null, false)],
+            view.Nodes.Take(3).Select(n => (n.Id, n.Visited, n.Order, n.JustVisited)));
+    }
+
+    [Fact]
+    public void A_visited_set_marks_its_nodes_with_no_numbers()
+    {
+        var visited = new TreeVisited(false, [new VisitedNode(4, null)], 3);
+        var view = TreeAt(Build(Run(TreeFrame(1, Tree(4, Small, visited: visited))), Root with { Visited = "seen" }), 0);
+
+        Assert.Equal(new TreeVisitedView("seen", false, 3), view.Visited);
+        var root = view.Nodes.Single(n => n.Id == 4);
+        Assert.Equal((true, (int?)null), (root.Visited, root.Order));
+        Assert.Single(view.Nodes, n => n.Visited);
+    }
+
+    [Fact]
+    public void A_tree_visual_survives_a_pack_round_trip_with_its_options()
+    {
+        var step = new TraceStep("step.t", "Walk", "Watch.", "root = None\n",
+            [new Visual("root", Visual.Tree, ["node"], Value: "key", Left: "lo", Right: "hi", Visited: "order")]);
+        using var ms = new MemoryStream();
+        ContentPackFormat.Write(ms, new PackManifest("pack.t", "1.0.0", ContentPackFormat.CurrentFormatVersion),
+            [new Track("track.a", "A", ["lesson.one"])], [new Lesson("lesson.one", "One", "track.a", [step])]);
+        ms.Position = 0;
+
+        var visual = Assert.IsType<TraceStep>(ContentPackFormat.Load(ms).Get<Lesson>("lesson.one").Steps[0]).Visuals.Single();
+
+        Assert.Equal(("lo", "hi", "key", "order"), (visual.Left, visual.Right, visual.Value, visual.Visited));
+        Assert.Equal(["node"], visual.Pointers);
+    }
 }
