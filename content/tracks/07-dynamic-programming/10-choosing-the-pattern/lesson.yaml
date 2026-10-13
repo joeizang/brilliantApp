@@ -1,0 +1,528 @@
+id: lesson.choosing-dp-patterns
+title: "Choosing the pattern: dynamic programming"
+concepts:
+  - id: concept.pick-dp-pattern
+    title: Reading the clues for each dynamic-programming pattern, and for problems that need none
+  - id: concept.choose-dp-state
+    title: The state holds everything the next decision needs to know about the past
+reviewItems:
+  - id: review.choose-dp.stones
+    concept: concept.pick-dp-pattern
+    step: step.choose-dp.check-stones
+    kind: pattern
+  - id: review.choose-dp.squares
+    concept: concept.pick-dp-pattern
+    step: step.choose-dp.check-squares
+    kind: pattern
+  - id: review.choose-dp.both-words
+    concept: concept.pick-dp-pattern
+    step: step.choose-dp.check-both-words
+    kind: pattern
+  - id: review.choose-dp.projects
+    concept: concept.pick-dp-pattern
+    step: step.choose-dp.check-projects
+    kind: pattern
+  - id: review.choose-dp.boxes
+    concept: concept.pick-dp-pattern
+    step: step.choose-dp.check-boxes
+    kind: pattern
+  - id: review.choose-dp.not-dp
+    concept: concept.pick-dp-pattern
+    step: step.choose-dp.check-not-dp
+    kind: pattern
+  - id: review.choose-dp.predict-paint
+    concept: concept.choose-dp-state
+    step: step.choose-dp.predict-paint
+  - id: review.choose-dp.why-colour
+    concept: concept.choose-dp-state
+    step: step.choose-dp.check-why-colour
+steps:
+  - id: step.choose-dp.clues
+    type: explain
+    title: Is it DP, and which kind?
+    body: |
+      A problem is a DP problem when it asks for the **best**, the **number of ways**, or **whether it's possible**, and the
+      answer is built from **choices**, each of which leaves a **smaller version** of the same problem. If two choice orders lead
+      to the same smaller problem, a cache or table pays off.
+
+      Then look for the clue:
+
+      | If the question says... | Reach for |
+      | --- | --- |
+      | walk along a line, at each step pick from a few moves (take or skip, one step or two) | **1-D decisions** |
+      | make an amount from pieces you can use **as often as you like** | **unbounded choices** |
+      | split a **string** into valid pieces | **DP over prefixes** |
+      | move through a **grid**, only right and down | **grid DP** |
+      | **two** strings or lists, matched, aligned or edited | **two sequences** |
+      | items used **at most once**, with a target or capacity | **0/1 knapsack** |
+      | the longest (or best) chain where each item **beats the one before** | **increasing subsequence** |
+
+      And one warning: when a single pass that remembers one thing (the best so far, the smallest so far) can't go wrong,
+      that's not DP. You don't need a table.
+  - id: step.choose-dp.check-stones
+    type: choice
+    title: The frog
+    prompt: |
+      *Stones stand in a row with heights `h`. A frog starts on stone `0` and jumps one or two stones forward each time; a jump
+      costs the difference in height. What's the cheapest way to reach the last stone?* Which pattern fits?
+    options:
+      - text: "1-D decisions: the cost to reach stone `i` is the cheaper of arriving from `i - 1` or `i - 2`."
+        correct: true
+        feedback: "Right. Two moves per stone, each from an answer just before: `dp[i] = min(dp[i-1] + |h[i]-h[i-1]|, dp[i-2] + |h[i]-h[i-2]|)`."
+      - text: "Grid DP."
+        correct: false
+        feedback: "The stones are in a line, not a grid. One index is enough."
+      - text: "0/1 knapsack."
+        correct: false
+        feedback: "There's no capacity, and the frog doesn't choose a set of stones: it moves forward through them."
+      - text: "Always jump to whichever of the next two stones is closer in height."
+        correct: false
+        feedback: "Greedy fails. A cheap hop now can land on a stone where every next jump is expensive."
+    hints:
+      - "How many ways are there to arrive on stone `i`?"
+  - id: step.choose-dp.check-squares
+    type: choice
+    title: Squares that add up
+    prompt: |
+      *What's the fewest perfect squares (`1`, `4`, `9`, ...) that add up to `n`? `12` is `4 + 4 + 4`, so `3`.* Which pattern
+      fits?
+    options:
+      - text: "Unbounded choices: the squares are coins, used as often as you like, and you want the fewest."
+        correct: true
+        feedback: "Right. It's fewest coins with the squares up to `n` as the coins: `dp[a] = min(dp[a - k*k] + 1)`."
+      - text: "0/1 knapsack, since each square is an item."
+        correct: false
+        feedback: "`4` is used three times in `12`, so squares can repeat. That's unbounded."
+      - text: "Take the largest square that fits, then repeat."
+        correct: false
+        feedback: "For `12` that's `9 + 1 + 1 + 1`, four squares, where `4 + 4 + 4` is three."
+      - text: "Increasing subsequence."
+        correct: false
+        feedback: "Nothing has to beat the item before it. It's an amount made from pieces."
+    hints:
+      - "Can the same square be used twice?"
+  - id: step.choose-dp.check-both-words
+    type: choice
+    title: Holding both words
+    prompt: |
+      *Find the length of the shortest string that has both `a` and `b` as subsequences.* For `"abac"` and `"cab"` it's
+      `"cabac"`, length `5`. Which pattern fits?
+    options:
+      - text: "Two sequences: the shared letters only need to appear once, so it's `len(a) + len(b) - LCS(a, b)`."
+        correct: true
+        feedback: "Right. The longest common subsequence is the most letters the two can share; everything else is written once each."
+      - text: "DP over prefixes of one string."
+        correct: false
+        feedback: "There are two strings, and the answer depends on how they line up. That needs both indexes."
+      - text: "Concatenate them: `a + b`."
+        correct: false
+        feedback: "That works but isn't shortest: `\"abaccab\"` is 7 letters, where 5 will do."
+      - text: "0/1 knapsack over the letters."
+        correct: false
+        feedback: "No target or capacity, and the letters must keep their order."
+    hints:
+      - "Which letters can the two words share?"
+  - id: step.choose-dp.check-projects
+    type: choice
+    title: Choosing projects
+    prompt: |
+      *Each project has a cost and a profit. With a budget of `B`, and each project done at most once, what's the most profit?*
+      Which pattern fits?
+    options:
+      - text: "0/1 knapsack: cost is the weight, profit the value, and the budget the capacity."
+        correct: true
+        feedback: "Right. Take or skip each project, with the budget counting down in one row."
+      - text: "Unbounded choices."
+        correct: false
+        feedback: "Each project is done at most once. Unbounded would let you repeat the best one."
+      - text: "Sort by profit per cost and take them in order."
+        correct: false
+        feedback: "Greedy by ratio fails for whole items: it can leave budget unused that a different pair would fill."
+      - text: "Increasing subsequence."
+        correct: false
+        feedback: "There's no order the chosen projects must follow."
+    hints:
+      - "Items once each, plus a capacity: which lesson was that?"
+  - id: step.choose-dp.check-boxes
+    type: choice
+    title: The tallest tower
+    prompt: |
+      *Each box has a width, a depth and a height. A box can go on another only if it's strictly smaller in width and in
+      depth, and boxes can't be turned. How tall can a stack get?* Which pattern fits?
+    options:
+      - text: "Increasing subsequence: sort the boxes, then for each find the tallest stack ending on it from smaller earlier boxes."
+        correct: true
+        feedback: "Right. Each box must beat the one on top of it, a chain. Here `dp[i]` is a height sum, not a count."
+      - text: "0/1 knapsack, with height as the value."
+        correct: false
+        feedback: "There's no capacity: what limits the stack is that each box must fit on the next."
+      - text: "Grid DP over width and depth."
+        correct: false
+        feedback: "A grid would need a cell per width and depth, and the moves aren't right and down."
+      - text: "Sort by width and stack them all."
+        correct: false
+        feedback: "Sorting by width doesn't make the depths fit. Some boxes must be left out."
+    hints:
+      - "Each box has to beat the one before it. Which pattern is a chain like that?"
+  - id: step.choose-dp.check-not-dp
+    type: choice
+    title: Do you need a table?
+    prompt: |
+      *Given each day's share price, buy once and sell once later. What's the most profit?* What's simplest?
+    options:
+      - text: "One pass: keep the lowest price so far, and the best of `price - lowest` at each day."
+        correct: true
+        feedback: "Right. The only thing the past has to tell you is its lowest price. That's one variable, not a table."
+      - text: "Two sequences, comparing the prices with themselves."
+        correct: false
+        feedback: "There's only one list, and an O(n²) table to find one number."
+      - text: "1-D decisions with buy, hold and sell states for every day."
+        correct: false
+        feedback: "That handles many trades. With one buy and one sell, the lowest price so far is all you need."
+      - text: "Sort the prices and subtract the smallest from the largest."
+        correct: false
+        feedback: "Sorting forgets the days. You can't sell before you buy."
+    hints:
+      - "To sell today, what's the only thing about the past that matters?"
+  - id: step.choose-dp.state-idea
+    type: explain
+    title: Choosing the state
+    body: |
+      Often the hard part is deciding what `dp[...]` means. Ask: **to make the next decision, what do I need to know about the
+      decisions so far?** That goes into the state, and nothing else.
+
+      *A row of houses, each to be painted red, green or blue, where neighbours can't share a colour. `costs[i][c]` is the cost
+      of painting house `i` colour `c`. What's the cheapest?*
+
+      "The cheapest for the first `i` houses" isn't enough: to paint house `i`, you must know the colour of house `i - 1`. So
+      add it to the state. Let `dp[i][c]` be the cheapest for the first `i + 1` houses **with house `i` painted `c`**:
+
+      `dp[i][c] = costs[i][c] + min(dp[i - 1][d] for every d != c)`
+
+      The answer is `min(dp[-1])`, since the last house may be any colour.
+    comparison:
+      csharp: |
+        static long CheapestPaint(int[][] costs)
+        {
+            if (costs.Length == 0) return 0;
+            var dp = new long[costs.Length, 3];
+            for (int c = 0; c < 3; c++) dp[0, c] = costs[0][c];
+            for (int i = 1; i < costs.Length; i++)
+                for (int c = 0; c < 3; c++)
+                {
+                    long best = long.MaxValue;
+                    for (int d = 0; d < 3; d++)
+                        if (d != c) best = Math.Min(best, dp[i - 1, d]);
+                    dp[i, c] = costs[i][c] + best;
+                }
+            int last = costs.Length - 1;
+            return Math.Min(dp[last, 0], Math.Min(dp[last, 1], dp[last, 2]));
+        }
+      python: |
+        def cheapest_paint(costs):
+            if not costs:
+                return 0
+            dp = [row[:] for row in costs]
+            for i in range(1, len(costs)):
+                for c in range(3):
+                    dp[i][c] = costs[i][c] + min(dp[i - 1][d] for d in range(3) if d != c)
+            return min(dp[-1])
+  - id: step.choose-dp.trace-paint
+    type: trace
+    title: One column per colour
+    body: |
+      Each row is a house and each column a colour. A cell adds that house's cost to the cheapest cell in the row above, in a
+      **different** column. The last row's smallest cell is `10`: green, blue, green for `2 + 5 + 3`.
+    code: |
+      costs = [[17, 2, 17], [16, 16, 5], [14, 3, 19]]
+      colours = ["red", "green", "blue"]
+      dp = [row[:] for row in costs]
+      for i in range(1, len(costs)):
+          for c in range(3):
+              dp[i][c] = costs[i][c] + min(dp[i - 1][d] for d in range(3) if d != c)
+      cheapest = min(dp[-1])
+    visualise:
+      - variable: dp
+        as: grid
+        cells: [[i, c]]
+        colLabels: colours
+  - id: step.choose-dp.predict-paint
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      What does this print?
+    code: |
+      costs = [[1, 5, 3], [2, 9, 4]]
+      dp = [row[:] for row in costs]
+      for i in range(1, len(costs)):
+          for c in range(3):
+              dp[i][c] = costs[i][c] + min(dp[i - 1][d] for d in range(3) if d != c)
+      print(dp[-1])
+    accepted:
+      - "[5, 10, 5]"
+    mistakes:
+      - answers:
+          - "[3, 10, 5]"
+        feedback: "Red can't follow red. The cheapest of green and blue above is `3`, so red costs `2 + 3 = 5`."
+      - answers:
+          - "[3, 6, 5]"
+        feedback: "Each cell must skip the **same** column above: red reads green and blue, green reads red and blue."
+      - answers:
+          - "5"
+        feedback: "That's `min(dp[-1])`. The code prints the whole last row."
+    hints:
+      - "For each colour in the second row, add its cost to the cheapest **other** colour in the first row."
+  - id: step.choose-dp.check-why-colour
+    type: choice
+    title: Why add the colour?
+    prompt: |
+      Why can't `dp[i]` just be the cheapest way to paint the first `i + 1` houses?
+    options:
+      - text: "Knowing only the cost, you can't tell which colours house `i + 1` may use."
+        correct: true
+        feedback: "Right. The next decision depends on the last colour, so the state has to remember it."
+      - text: "It could, but the table would be too small."
+        correct: false
+        feedback: "Size isn't the problem: the cheapest plan so far might end in the one colour the next house wants."
+      - text: "Because the answer has to be a colour, not a cost."
+        correct: false
+        feedback: "The answer is a cost. The colour is needed along the way."
+      - text: "Python lists can't hold one number per house."
+        correct: false
+        feedback: "They can. The issue is what the number has to mean."
+    hints:
+      - "What does house `i + 1` need to know about house `i`?"
+  - id: step.choose-dp.fill-squares
+    type: fill-blank
+    title: Fewest squares
+    pattern: pattern.dp-unbounded-choices
+    patternCue: "\"The fewest squares that add up to n\": fewest coins, with every square up to n as a coin."
+    prompt: |
+      Fill in the blanks so `fewest_squares(n)` returns the fewest perfect squares that add up to `n` (`n >= 0`).
+    template: |
+      def fewest_squares(n):
+          dp = [0] + [n] * n
+          for a in range(1, n + 1):
+              k = 1
+              while {{fits}}:
+                  dp[a] = min(dp[a], {{reuse}})
+                  k += 1
+          return dp[n]
+    blanks:
+      - id: fits
+        accepted:
+          - "k * k <= a"
+          - "k*k <= a"
+          - "k ** 2 <= a"
+          - "k**2 <= a"
+        mistakes:
+          - answers:
+              - "k <= a"
+            feedback: "The piece is `k * k`, so it's `k * k` that must fit in `a`."
+          - answers:
+              - "k * k < a"
+              - "k*k < a"
+            feedback: "A square equal to `a` fits too: `4` is one square."
+      - id: reuse
+        accepted:
+          - "dp[a - k * k] + 1"
+          - "dp[a-k*k] + 1"
+          - "dp[a - k*k] + 1"
+          - "1 + dp[a - k * k]"
+          - "dp[a - k ** 2] + 1"
+        mistakes:
+          - answers:
+              - "dp[a - k * k]"
+              - "dp[a-k*k]"
+            feedback: "Using the square `k * k` adds one piece: `+ 1`."
+          - answers:
+              - "dp[a - k] + 1"
+            feedback: "The piece is `k * k`, not `k`."
+    hints:
+      - "Try every square that fits in `a`."
+      - "Using `k * k` last leaves `a - k * k`, plus that one square."
+  - id: step.choose-dp.order-both
+    type: parsons
+    title: The shortest string holding both
+    pattern: pattern.dp-two-sequences
+    patternCue: "\"The shortest string with both as subsequences\": write the shared letters once, so subtract the LCS."
+    prompt: |
+      Arrange the lines into `shortest_holding(a, b)`: the length of the shortest string that has both `a` and `b` as
+      subsequences.
+    solution: |
+      def shortest_holding(a, b):
+          dp = [[0] * (len(b) + 1) for _ in range(len(a) + 1)]
+          for i in range(1, len(a) + 1):
+              for j in range(1, len(b) + 1):
+                  if a[i - 1] == b[j - 1]:
+                      dp[i][j] = dp[i - 1][j - 1] + 1
+                  else:
+                      dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
+          return len(a) + len(b) - dp[len(a)][len(b)]
+    hints:
+      - "Fill the longest-common-subsequence table first."
+      - "The shared letters are written once: subtract them from the total length."
+  - id: step.choose-dp.write-paint
+    type: write-code
+    largeScreenPreferred: true
+    title: Painting the street
+    pattern: pattern.dp-1d-decisions
+    patternCue: "\"Neighbours can't match\": decide each house from the one before, keeping its colour in the state."
+    prompt: |
+      Houses stand in a row. `costs[i]` holds three costs: painting house `i` red, green or blue. No two neighbours may share a
+      colour. Write `cheapest_paint(costs)` that returns the lowest total cost, or `0` for no houses.
+
+      `cheapest_paint([[17, 2, 17], [16, 16, 5], [14, 3, 19]])` is `10`: green, blue, green.
+    language: python
+    entrypoint: cheapest_paint
+    starter: |
+      def cheapest_paint(costs):
+          pass
+    solution: |
+      def cheapest_paint(costs):
+          if not costs:
+              return 0
+          prev = list(costs[0])
+          for i in range(1, len(costs)):
+              prev = [costs[i][c] + min(prev[d] for d in range(3) if d != c) for c in range(3)]
+          return min(prev)
+    tests:
+      - input: "[[17, 2, 17], [16, 16, 5], [14, 3, 19]]"
+        expected: "10"
+      - input: "[[7, 6, 2]]"
+        expected: "2"
+      - input: "[]"
+        expected: "0"
+      - input: "[[1, 5, 3], [2, 9, 4]]"
+        expected: "5"
+      - input: "[[7, 6, 2], [3, 8, 6], [9, 1, 4], [5, 7, 3]]"
+        expected: "9"
+    hints:
+      - "Keep, for the last house so far, the cheapest total ending in each of the three colours."
+      - "For the next house, colour `c` adds `costs[i][c]` to the cheapest **other** colour."
+      - "The last house may be any colour: return the smallest of the three."
+    walkthrough:
+      call: result = cheapest_paint([[7, 6, 2], [3, 8, 6], [9, 1, 4], [5, 7, 3]])
+      visualise:
+        - variable: prev
+          as: array
+      explanation: |
+        `prev` holds the three totals for the latest house. After the second house it's `[5, 10, 12]`: red there follows blue's
+        `2`. The last house ends at `[11, 16, 9]`, so the answer is `9`: blue, red, green, blue (`2 + 3 + 1 + 3`).
+    phoneAlternative:
+      id: step.choose-dp.write-paint.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `cheapest_paint(costs)`: paint each house red, green or blue, no two neighbours the same, for the lowest total.
+        Arrange the lines instead of typing them.
+      solution: |
+        def cheapest_paint(costs):
+            if not costs:
+                return 0
+            prev = list(costs[0])
+            for i in range(1, len(costs)):
+                prev = [costs[i][c] + min(prev[d] for d in range(3) if d != c) for c in range(3)]
+            return min(prev)
+      hints:
+        - "One total per colour for the latest house."
+  - id: step.choose-dp.write-tower
+    type: write-code
+    largeScreenPreferred: true
+    title: The tallest tower
+    pattern: pattern.dp-lis
+    patternCue: "\"Each box strictly smaller than the one below\": sort, then the heaviest chain ending at each box."
+    prompt: |
+      Each box is `[width, depth, height]`, with positive whole numbers. A box can sit on another only if it is **strictly
+      smaller in both width and depth**, and boxes can't be turned. Write `tallest_tower(boxes)` that returns the greatest
+      total height of a stack, or `0` for no boxes.
+
+      `tallest_tower([[1, 1, 5], [2, 2, 1], [3, 4, 2], [2, 3, 4]])` is `11`: heights `5`, `4` and `2`, smallest on top.
+    language: python
+    entrypoint: tallest_tower
+    starter: |
+      def tallest_tower(boxes):
+          pass
+    solution: |
+      def tallest_tower(boxes):
+          if not boxes:
+              return 0
+          boxes = sorted(boxes)
+          dp = [h for _, _, h in boxes]
+          for i in range(len(boxes)):
+              for j in range(i):
+                  if boxes[j][0] < boxes[i][0] and boxes[j][1] < boxes[i][1]:
+                      dp[i] = max(dp[i], dp[j] + boxes[i][2])
+          return max(dp)
+    tests:
+      - input: "[[1, 1, 5], [2, 2, 1], [3, 4, 2], [2, 3, 4]]"
+        expected: "11"
+      - input: "[[4, 4, 9]]"
+        expected: "9"
+      - input: "[]"
+        expected: "0"
+      - input: "[[2, 2, 3], [2, 2, 4], [2, 2, 5]]"
+        expected: "5"
+      - input: "[[1, 5, 4], [5, 1, 4], [6, 6, 1]]"
+        expected: "5"
+      - input: "[[3, 1, 2], [1, 2, 3], [4, 3, 1], [2, 4, 5], [5, 5, 2]]"
+        expected: "10"
+    hints:
+      - "Sort the boxes, so a box can only sit on boxes after it in the list."
+      - "`dp[i]` = the tallest stack with box `i` at the bottom: its own height, or more on top of a smaller box `j`."
+      - "Both width and depth must be strictly smaller. The tallest stack can end anywhere: `max(dp)`."
+    walkthrough:
+      call: result = tallest_tower([[1, 1, 5], [2, 2, 1], [3, 4, 2], [2, 3, 4]])
+      visualise:
+        - variable: dp
+          as: array
+          pointers: [i, j]
+      explanation: |
+        Sorted, the boxes are `[1, 1]`, `[2, 2]`, `[2, 3]`, `[3, 4]`. `[2, 2]` and `[2, 3]` share a width, so neither can hold
+        the other: each builds on `[1, 1]`, giving `6` and `9`. `[3, 4]` holds any of them, and the best is `9 + 2 = 11`.
+  - id: step.choose-dp.write-signs
+    type: write-code
+    largeScreenPreferred: true
+    title: Plus or minus
+    pattern: pattern.dp-knapsack
+    patternCue: "\"A + or - in front of each number\": the + numbers are a subset summing to (total + target) / 2."
+    prompt: |
+      Put a `+` or a `-` in front of each of the positive whole numbers `nums`. Write `sign_ways(nums, target)` that returns
+      how many ways give the total `target` (which may be negative).
+
+      `sign_ways([1, 1, 1, 1, 1], 3)` is `5`: any one of the five gets the `-`.
+    language: python
+    entrypoint: sign_ways
+    starter: |
+      def sign_ways(nums, target):
+          pass
+    solution: |
+      def sign_ways(nums, target):
+          total = sum(nums)
+          if abs(target) > total or (total + target) % 2:
+              return 0
+          goal = (total + target) // 2
+          dp = [1] + [0] * goal
+          for x in nums:
+              for t in range(goal, x - 1, -1):
+                  dp[t] += dp[t - x]
+          return dp[goal]
+    tests:
+      - input: "[1, 1, 1, 1, 1], 3"
+        expected: "5"
+      - input: "[1], 1"
+        expected: "1"
+      - input: "[1], -1"
+        expected: "1"
+      - input: "[1, 2], 2"
+        expected: "0"
+      - input: "[], 0"
+        expected: "1"
+      - input: "[2, 3, 5], 100"
+        expected: "0"
+      - input: "[1, 2, 3, 4], 0"
+        expected: "2"
+    hints:
+      - "If the `+` numbers sum to `P`, the `-` ones sum to `total - P`, so `P - (total - P) = target`."
+      - "That makes `P = (total + target) / 2`. If that's not a whole number in range, there are no ways."
+      - "Count the subsets making `P`: ways without the item plus ways with it, counting down."
