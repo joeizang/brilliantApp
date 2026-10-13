@@ -1,0 +1,683 @@
+id: lesson.top-down-state
+title: "Pattern: pass state down the tree"
+concepts:
+  - id: concept.state-in-arguments
+    title: Each call gets what its ancestors know as arguments
+  - id: concept.leaf-check
+    title: A root-to-leaf question is answered at a leaf, not at None
+  - id: concept.shared-path
+    title: One shared path list, appended on the way down and popped on the way back
+reviewItems:
+  - id: review.top-down.predict-sums
+    concept: concept.state-in-arguments
+    step: step.top-down.predict-sums
+  - id: review.top-down.leaf-check
+    concept: concept.leaf-check
+    step: step.top-down.check-leaf
+  - id: review.top-down.copy
+    concept: concept.shared-path
+    step: step.top-down.predict-copy
+  - id: review.top-down.which-problem
+    concept: concept.state-in-arguments
+    step: step.top-down.check-which-problem
+    kind: pattern
+  - id: review.top-down.what-to-pass
+    concept: concept.state-in-arguments
+    step: step.top-down.check-what-to-pass
+    kind: pattern
+patterns:
+  - id: pattern.top-down-state
+    title: Carry what the path knows down as arguments
+steps:
+  - id: step.top-down.idea
+    type: explain
+    title: Answers that flow down
+    body: |
+      In lesson 5 the answers flowed **up**: each node waited for its children, then combined what they returned. Some
+      questions run the other way. "Is there a root-to-leaf path whose values add up to 22?" depends on what is **above** a
+      node: the sum so far. A node can't know that from its children; its parent has to tell it.
+
+      So pass it down as an **argument**. Each call gets the state of the path that led to it, updates it with its own value,
+      and hands the new state to its children:
+
+      ```python
+      def has_path_sum(node, remaining):
+          if node is None:
+              return False
+          remaining -= node.val
+          if node.left is None and node.right is None:
+              return remaining == 0           # a leaf: the path is complete
+          return has_path_sum(node.left, remaining) or has_path_sum(node.right, remaining)
+      ```
+
+      `remaining -= node.val` changes only **this call's** copy: each call has its own `remaining`, as each frame has its own
+      locals. So when the left side returns, the right side still starts from the parent's value. Nothing needs undoing.
+
+      Ints are immutable in both languages, so the C# version behaves the same: `remaining` is a parameter, copied into
+      each call.
+    comparison:
+      csharp: |
+        static bool HasPathSum(Node? node, int remaining)
+        {
+            if (node == null) return false;
+            remaining -= node.Val;
+            if (node.Left == null && node.Right == null)
+                return remaining == 0;
+            return HasPathSum(node.Left, remaining)
+                || HasPathSum(node.Right, remaining);
+        }
+      python: |
+        def has_path_sum(node, remaining):
+            if node is None:
+                return False
+            remaining -= node.val
+            if node.left is None and node.right is None:
+                return remaining == 0
+            return (has_path_sum(node.left, remaining)
+                    or has_path_sum(node.right, remaining))
+  - id: step.top-down.trace
+    type: trace
+    title: Each call has its own remaining
+    body: |
+      Looking for a path that adds up to `22`. Watch `remaining` in the call frames: it shrinks on the way down, and each frame
+      keeps its own. At the leaf `7`, `remaining` is `-5`, so that path fails, and the call for `11` goes on to `2` with its
+      own `remaining`, still `2`. `5 → 4 → 11 → 2` works, and `or` stops the search there.
+    code: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def has_path_sum(node, remaining):
+          if node is None:
+              return False
+          remaining -= node.val
+          if node.left is None and node.right is None:
+              return remaining == 0
+          return has_path_sum(node.left, remaining) or has_path_sum(node.right, remaining)
+
+
+      root = Node(5,
+                  Node(4, Node(11, Node(7), Node(2))),
+                  Node(8, Node(13), Node(4, None, Node(1))))
+      found = has_path_sum(root, 22)
+    visualise:
+      - as: call_stack
+        functions: [has_path_sum]
+      - variable: root
+        as: tree
+        pointers: [node]
+  - id: step.top-down.predict-sums
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      Every leaf records the sum of its path. What does this print?
+    code: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+
+      #          5
+      #        /   \
+      #       4     8
+      #      /     / \
+      #     11    13  4
+      #    /  \        \
+      #   7    2        1
+      root = Node(5,
+                  Node(4, Node(11, Node(7), Node(2))),
+                  Node(8, Node(13), Node(4, None, Node(1))))
+      sums = []
+
+
+      def walk(node, total):
+          if node is None:
+              return
+          total += node.val
+          if node.left is None and node.right is None:
+              sums.append(total)
+          walk(node.left, total)
+          walk(node.right, total)
+
+
+      walk(root, 0)
+      print(*sums)
+    accepted:
+      - "27 22 26 18"
+    mistakes:
+      - answers:
+          - "27 29 50 55"
+        feedback: "That would be one running total shared by every call. Each call has its own `total`, so `2`'s path starts from `11`'s `20`, not from `7`'s `27`."
+      - answers:
+          - "7 2 13 1"
+        feedback: "Those are the leaf values. `total` carries the sum of the whole path from the root down to the leaf."
+      - answers:
+          - "18 26 22 27"
+        feedback: "The walk is pre-order and goes left first, so the leftmost leaf, `7`, is recorded first."
+    hints:
+      - "What is `total` when the call for `11` starts? It is the same for both of `11`'s children."
+      - "The leaves, left to right, are `7`, `2`, `13` and `1`."
+  - id: step.top-down.check-leaf
+    type: choice
+    title: Check at the leaf
+    prompt: |
+      This version checks for the target when it reaches `None`, instead of at a leaf. What does
+      `has_path_sum(Node(1, Node(2)), 1)` return?
+
+      ```python
+      def has_path_sum(node, remaining):
+          if node is None:
+              return remaining == 0
+          remaining -= node.val
+          return has_path_sum(node.left, remaining) or has_path_sum(node.right, remaining)
+      ```
+    options:
+      - text: "`True`, which is wrong: `1` has a child, so `1` alone isn't a root-to-leaf path."
+        correct: true
+        feedback: "Right. `1`'s empty right side is `None` with `remaining` at `0`. An empty child isn't a leaf; checking at `None` counts half-finished paths."
+      - text: "`False`, which is right: the only path is `1 → 2`, which adds up to `3`."
+        correct: false
+        feedback: "The left call does return `False`, but `or` then tries `1`'s right child, `None`, where `remaining` is `0`."
+      - text: "`True`, which is right: the root's value is `1`."
+        correct: false
+        feedback: "A root-to-leaf path has to end at a leaf, a node with no children. `1` has a child, so the only path is `1 → 2`."
+      - text: "It raises `AttributeError` on `None`."
+        correct: false
+        feedback: "The `None` check comes first, so no attribute of `None` is read."
+    hints:
+      - "Follow the right side of `1`. What is `remaining` there?"
+  - id: step.top-down.paths
+    type: explain
+    title: One path list, pushed and popped
+    body: |
+      To **collect** the paths themselves, a number isn't enough: you need the list of values from the root. Building a new
+      list for each call (`path + [node.val]`) works, but copies the path at every node. The usual way shares **one** list:
+
+      - append the node's value on the way down
+      - at a leaf, save a **copy**: `result.append(path[:])`
+      - pop the value on the way back up, so the parent's list is as it was before
+
+      The pop is what makes sharing safe: whatever a call adds, it removes before returning. That append, explore, pop rhythm
+      is the start of **backtracking**, the subject of the next lesson.
+
+      The copy matters just as much. `path` is one list object, so saving `path` itself saves a reference to a list that
+      later pops will empty. In C#, `new List<int>(path)` makes the copy.
+    comparison:
+      csharp: |
+        var result = new List<List<int>>();
+        var path = new List<int>();
+
+        void Walk(Node? node)
+        {
+            if (node == null) return;
+            path.Add(node.Val);
+            if (node.Left == null && node.Right == null)
+                result.Add(new List<int>(path));   // a copy
+            else
+            {
+                Walk(node.Left);
+                Walk(node.Right);
+            }
+            path.RemoveAt(path.Count - 1);
+        }
+      python: |
+        result = []
+        path = []
+
+
+        def walk(node):
+            if node is None:
+                return
+            path.append(node.val)
+            if node.left is None and node.right is None:
+                result.append(path[:])            # a copy
+            else:
+                walk(node.left)
+                walk(node.right)
+            path.pop()
+  - id: step.top-down.trace-paths
+    type: trace
+    title: The path grows and shrinks
+    body: |
+      `path` grows by one value on the way down and shrinks by one on the way back. At the leaf `5` it holds `[1, 2, 5]` and
+      a copy is saved. The pops take it back to `[1]`, and then `3` makes it `[1, 3]`.
+    code: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def all_paths(root):
+          result = []
+          path = []
+
+          def walk(node):
+              if node is None:
+                  return
+              path.append(node.val)
+              if node.left is None and node.right is None:
+                  result.append(path[:])
+              else:
+                  walk(node.left)
+                  walk(node.right)
+              path.pop()
+
+          walk(root)
+          return result
+
+
+      paths = all_paths(Node(1, Node(2, None, Node(5)), Node(3)))
+    visualise:
+      - as: call_stack
+        functions: [all_paths, walk]
+      - variable: path
+        as: array
+  - id: step.top-down.predict-copy
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      This version saves `path` instead of `path[:]`. What does it print?
+    code: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+
+      root = Node(1, Node(2), Node(3))
+      result = []
+      path = []
+
+
+      def walk(node):
+          if node is None:
+              return
+          path.append(node.val)
+          if node.left is None and node.right is None:
+              result.append(path)
+          else:
+              walk(node.left)
+              walk(node.right)
+          path.pop()
+
+
+      walk(root)
+      print(result)
+    accepted:
+      - "[[], []]"
+    mistakes:
+      - answers:
+          - "[[1, 2], [1, 3]]"
+        feedback: "That is what `path[:]` would give. Both entries are the same list object, `path`, and the pops empty it."
+      - answers:
+          - "[[1, 3], [1, 3]]"
+        feedback: "Both entries are `path` itself. It was `[1, 3]` when the second was saved, but the pops after that emptied it."
+      - answers:
+          - "[]"
+        feedback: "Two leaves, two appends: `result` has two entries. Both happen to be the same, now empty, list."
+    hints:
+      - "How many different list objects are in `result`?"
+      - "What is in `path` after the last `pop`?"
+  - id: step.top-down.check-which-problem
+    type: choice
+    title: Which one needs the path?
+    prompt: |
+      Which of these is a natural fit for passing state down from the root as arguments?
+    options:
+      - text: "Count the nodes whose value is at least as large as every value above them."
+        correct: true
+        feedback: "Right. A node needs the largest value on the path above it, which only its ancestors know: pass `max_so_far` down."
+      - text: "The number of nodes in the tree."
+        correct: false
+        feedback: "That combines the children's answers on the way up: `1 + size(left) + size(right)`. Nothing from above is needed."
+      - text: "The tree's height."
+        correct: false
+        feedback: "Height is built from the children's heights on the way up, as in lesson 5."
+      - text: "The largest value on each level."
+        correct: false
+        feedback: "Levels point to a level-order BFS with a queue."
+    hints:
+      - "Which question about a node can't be answered without knowing what is above it?"
+  - id: step.top-down.check-what-to-pass
+    type: choice
+    title: What to pass down
+    prompt: |
+      Each root-to-leaf path spells a number with its digits: the path `4 → 9 → 5` is `495`. To add up these numbers over all
+      the leaves, what should a call pass to its children?
+    options:
+      - text: "`current * 10 + node.val`: the number spelled so far, with this digit added at the end."
+        correct: true
+        feedback: "Right. `4`, then `49`, then `495`. A leaf adds its finished number to the total."
+      - text: "`current + node.val`: the sum of the digits."
+        correct: false
+        feedback: "That gives `4 + 9 + 5`, which is `18`, not `495`. Each new digit has to shift the earlier ones left."
+      - text: "`node.val * 10 + current`."
+        correct: false
+        feedback: "That puts the new digit in front: `4`, `94`, then `5 * 10 + 94`, which is `144`."
+      - text: "Nothing: each node returns its digit and the parent combines them."
+        correct: false
+        feedback: "A digit's place value depends on how far it is from the leaf, which differs between paths. Passing the prefix down is simpler."
+    hints:
+      - "What happens to `49` when you write a `5` after it?"
+  - id: step.top-down.fill-path-sum
+    type: fill-blank
+    title: Is there a path?
+    pattern: pattern.top-down-state
+    patternCue: "\"A root-to-leaf path that adds up to the target\": pass the remaining amount down and check it at a leaf."
+    prompt: |
+      Fill in the blanks so that `has_path_sum(node, remaining)` returns whether some root-to-leaf path adds up to `remaining`.
+    template: |
+      def has_path_sum(node, remaining):
+          if node is None:
+              return False
+          remaining -= node.val
+          if {{leaf}}:
+              return remaining == 0
+          return has_path_sum(node.left, {{passed}}) or has_path_sum(node.right, remaining)
+    blanks:
+      - id: leaf
+        accepted:
+          - "node.left is None and node.right is None"
+          - "not node.left and not node.right"
+          - "node.left is None and not node.right"
+          - "not node.left and node.right is None"
+        mistakes:
+          - answers:
+              - "node.left is None or node.right is None"
+            feedback: "A node with one child isn't a leaf: the path goes on through that child. Both sides must be empty."
+          - answers:
+              - "node is None"
+            feedback: "`node` can't be `None` here: that case returned already. A leaf is a node with no children."
+      - id: passed
+        accepted:
+          - "remaining"
+        mistakes:
+          - answers:
+              - "remaining - node.val"
+            feedback: "`remaining` already has `node.val` taken off, two lines up. Subtracting again counts the node twice."
+    hints:
+      - "A leaf has no children on either side."
+      - "`remaining` has already been updated for this node."
+  - id: step.top-down.order-paths
+    type: parsons
+    title: Collect the paths
+    pattern: pattern.top-down-state
+    patternCue: "\"List every root-to-leaf path\": share one path list, append going down, copy at a leaf, pop coming back."
+    prompt: |
+      Arrange the lines into `walk(node)`, which saves a copy of every root-to-leaf path into `result`. `path` and `result`
+      are lists defined outside.
+    solution: |
+      def walk(node):
+          if node is None:
+              return
+          path.append(node.val)
+          if node.left is None and node.right is None:
+              result.append(path[:])
+          else:
+              walk(node.left)
+              walk(node.right)
+          path.pop()
+    hints:
+      - "The node's value goes on the path before the leaf check."
+      - "The `pop` comes last, after both children, at the same level as the `if`."
+  - id: step.top-down.write-good-nodes
+    type: write-code
+    largeScreenPreferred: true
+    title: Count the good nodes
+    pattern: pattern.top-down-state
+    patternCue: "\"Compared with everything above it\": pass the largest value on the path down."
+    prompt: |
+      A node is **good** if its value is at least as large as every value on the path from the root down to it. The root is
+      always good. Write `good_nodes(root)` that returns how many good nodes the tree has (`0` for the empty tree).
+
+      `Node` is in the starter; keep it.
+    language: python
+    entrypoint: good_nodes
+    starter: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def good_nodes(root):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def good_nodes(root):
+          def count(node, highest):
+              if node is None:
+                  return 0
+              good = 1 if node.val >= highest else 0
+              highest = max(highest, node.val)
+              return good + count(node.left, highest) + count(node.right, highest)
+
+          if root is None:
+              return 0
+          return count(root, root.val)
+    tests:
+      - input: "Node(3, Node(1, Node(3)), Node(4, Node(1), Node(5)))"
+        expected: "4"
+      - input: "None"
+        expected: "0"
+      - input: "Node(7)"
+        expected: "1"
+      - input: "Node(3, Node(3, Node(4), Node(2)))"
+        expected: "3"
+      - input: "Node(5, Node(4, Node(3, Node(2))))"
+        expected: "1"
+      - input: "Node(-2, Node(-3), Node(-1))"
+        expected: "2"
+    hints:
+      - "A node can't see its ancestors, so give each call the largest value above it."
+      - "Count this node if its value is at least that largest value, then pass `max(highest, node.val)` to both children."
+      - "Start the root with its own value (or `float(\"-inf\")`), so the root counts."
+    walkthrough:
+      call: result = good_nodes(Node(3, Node(1, Node(3)), Node(4, Node(1), Node(5))))
+      visualise:
+        - as: call_stack
+          functions: [good_nodes, count]
+      explanation: |
+        The root `3` is good, and passes `3` down. `1` isn't, but passes `3` on, so the `3` below it is good. On the right, `4`
+        is good and passes `4`: its `1` isn't, its `5` is. Four good nodes.
+    phoneAlternative:
+      id: step.top-down.write-good-nodes.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `good_nodes(root)`, which counts the nodes at least as large as everything above them. Arrange the lines instead
+        of typing them.
+      solution: |
+        def good_nodes(root):
+            def count(node, highest):
+                if node is None:
+                    return 0
+                good = 1 if node.val >= highest else 0
+                highest = max(highest, node.val)
+                return good + count(node.left, highest) + count(node.right, highest)
+
+            if root is None:
+                return 0
+            return count(root, root.val)
+      hints:
+        - "Decide whether this node is good before raising `highest` with its value."
+  - id: step.top-down.write-sum-numbers
+    type: write-code
+    largeScreenPreferred: true
+    title: Add up the path numbers
+    pattern: pattern.top-down-state
+    patternCue: "\"The number each path spells\": pass the number so far down, times ten plus the next digit."
+    prompt: |
+      Every node holds a digit, `0` to `9`. Each root-to-leaf path spells a number: `1 → 2 → 3` is `123`. Write
+      `sum_numbers(root)` that returns the sum of the numbers spelled by all the root-to-leaf paths (`0` for the empty tree).
+
+      `Node` is in the starter; keep it.
+    language: python
+    entrypoint: sum_numbers
+    starter: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def sum_numbers(root):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def sum_numbers(root):
+          def walk(node, current):
+              if node is None:
+                  return 0
+              current = current * 10 + node.val
+              if node.left is None and node.right is None:
+                  return current
+              return walk(node.left, current) + walk(node.right, current)
+
+          return walk(root, 0)
+    tests:
+      - input: "Node(1, Node(2), Node(3))"
+        expected: "25"
+      - input: "Node(4, Node(9, Node(5), Node(1)), Node(0))"
+        expected: "1026"
+      - input: "None"
+        expected: "0"
+      - input: "Node(7)"
+        expected: "7"
+      - input: "Node(1, Node(0, None, Node(2)))"
+        expected: "102"
+    hints:
+      - "Pass the number spelled so far down to each call."
+      - "Adding a digit at the end: `current * 10 + node.val`."
+      - "A leaf returns its finished number; any other node returns the sum of its children's results. An empty child gives `0`."
+    walkthrough:
+      call: result = sum_numbers(Node(4, Node(9, Node(5), Node(1)), Node(0)))
+      visualise:
+        - as: call_stack
+          functions: [sum_numbers, walk]
+      explanation: |
+        `4` passes `4` down; `9` makes it `49`, and its leaves finish `495` and `491`. On the right, `0` makes `40`, a leaf.
+        `495 + 491 + 40` is `1026`.
+  - id: step.top-down.write-path-sums
+    type: write-code
+    largeScreenPreferred: true
+    title: Every path that adds up
+    pattern: pattern.top-down-state
+    patternCue: "\"List the root-to-leaf paths that add up to the target\": a shared path list plus the remaining amount, copied at a matching leaf."
+    prompt: |
+      Write `path_sums(root, target)` that returns a list of every root-to-leaf path whose values add up to `target`. Each
+      path is a list of values from the root down. List the paths in the left-to-right order of their leaves.
+
+      `Node` is in the starter; keep it.
+    language: python
+    entrypoint: path_sums
+    starter: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def path_sums(root, target):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def path_sums(root, target):
+          result = []
+          path = []
+
+          def walk(node, remaining):
+              if node is None:
+                  return
+              path.append(node.val)
+              remaining -= node.val
+              if node.left is None and node.right is None:
+                  if remaining == 0:
+                      result.append(path[:])
+              else:
+                  walk(node.left, remaining)
+                  walk(node.right, remaining)
+              path.pop()
+
+          walk(root, target)
+          return result
+    tests:
+      - input: "Node(5, Node(4, Node(11, Node(7), Node(2))), Node(8, Node(13), Node(4, Node(5), Node(1)))), 22"
+        expected: "[[5, 4, 11, 2], [5, 8, 4, 5]]"
+      - input: "Node(1, Node(2), Node(3)), 5"
+        expected: "[]"
+      - input: "None, 0"
+        expected: "[]"
+      - input: "Node(1, Node(2)), 1"
+        expected: "[]"
+      - input: "Node(-2, None, Node(-3)), -5"
+        expected: "[[-2, -3]]"
+      - input: "Node(1, Node(-1), Node(-1)), 0"
+        expected: "[[1, -1], [1, -1]]"
+    hints:
+      - "Combine both ideas: pass `remaining` down, and share one `path` list."
+      - "Append the node's value first; at a leaf with `remaining == 0`, save `path[:]`."
+      - "Pop the value after both children are done, whether or not it was a leaf."
+    walkthrough:
+      call: result = path_sums(Node(5, Node(4, Node(11, Node(7), Node(2))), Node(8, Node(13), Node(4, Node(5), Node(1)))), 22)
+      visualise:
+        - as: call_stack
+          functions: [path_sums, walk]
+        - variable: path
+          as: array
+      explanation: |
+        At the leaf `7`, `remaining` is `-5`: no match, pop. At `2` it is `0`, so `[5, 4, 11, 2]` is copied. On the right,
+        `13` leaves `-4`, the leaf `5` leaves `0` and `[5, 8, 4, 5]` is copied, and `1` leaves `4`.
