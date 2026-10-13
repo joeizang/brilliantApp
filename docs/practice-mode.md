@@ -87,13 +87,13 @@ the step or its phone alternative, is a **warning**: `brilliant validate`, `pack
 | `pattern.two-heaps` (Split the items between two heaps, and read the answer from their roots) | Track 6 lesson 7 | its 4 problems |
 | `pattern.memoisation` (Recurse on smaller subproblems, caching each answer the first time) | Track 7 lesson 1 | its 4 problems |
 | `pattern.tabulation` (Fill a table from the smallest subproblems up, then read the answer from it) | Track 7 lesson 2 | its 4 problems |
-| `pattern.dp-1d-decisions` (At each position, take the best of a few choices built from the answers just before) | Track 7 lesson 3 | its 5 problems |
-| `pattern.dp-unbounded-choices` (Build each amount from every item that could come last, reusing items as often as you like) | Track 7 lesson 4 | its 4 problems |
+| `pattern.dp-1d-decisions` (At each position, take the best of a few choices built from the answers just before) | Track 7 lessons 3, 10 | lesson 3's 5 problems, lesson 10's `cheapest_paint` |
+| `pattern.dp-unbounded-choices` (Build each amount from every item that could come last, reusing items as often as you like) | Track 7 lessons 4, 10 | lesson 4's 4 problems, lesson 10's `fewest_squares` (fill) |
 | `pattern.dp-string-prefixes` (Answer each prefix of the string from every way its last piece could end there) | Track 7 lesson 5 | its 4 problems |
 | `pattern.dp-grid` (Fill each cell from the cells you can arrive from, row by row) | Track 7 lesson 6 | its 4 problems |
-| `pattern.dp-two-sequences` (Fill a table over prefixes of both sequences, deciding what happens to their last items) | Track 7 lesson 7 | its 4 problems |
-| `pattern.dp-knapsack` (Decide each item once, take it or skip it, building on the answers without it) | Track 7 lesson 8 | its 4 problems |
-| `pattern.dp-lis` (For each item, extend the best sequence ending at an earlier, smaller item) | Track 7 lesson 9 | its 4 problems |
+| `pattern.dp-two-sequences` (Fill a table over prefixes of both sequences, deciding what happens to their last items) | Track 7 lessons 7, 10 | lesson 7's 4 problems, lesson 10's `shortest_holding` (Parsons) |
+| `pattern.dp-knapsack` (Decide each item once, take it or skip it, building on the answers without it) | Track 7 lessons 8, 10 | lesson 8's 4 problems, lesson 10's `sign_ways` |
+| `pattern.dp-lis` (For each item, extend the best sequence ending at an earlier, smaller item) | Track 7 lessons 9, 10 | lesson 9's 4 problems, lesson 10's `tallest_tower` |
 
 Left untagged: every problem in Track 1 lessons 1–6 (Python and Big-O drills), Track 5 lesson 1's graph-building drills, Track 2 lesson 6's `count_subarrays` (its prompt says
 "prefix sums and a dict" on purpose, to teach when a window fails) and `count_palindromes` (expand-around-centre, not one of the eight).
