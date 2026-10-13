@@ -1,0 +1,622 @@
+id: lesson.choosing-graph-patterns
+title: "Choosing the pattern: graphs"
+concepts:
+  - id: concept.pick-graph-pattern
+    title: Reading the clues for graph patterns
+  - id: concept.combine-graph-patterns
+    title: Combining graph patterns in one solution
+reviewItems:
+  - id: review.choose-graphs.flights
+    concept: concept.pick-graph-pattern
+    step: step.choose-graphs.check-flights
+    kind: pattern
+  - id: review.choose-graphs.new-land
+    concept: concept.pick-graph-pattern
+    step: step.choose-graphs.check-new-land
+    kind: pattern
+  - id: review.choose-graphs.virus
+    concept: concept.pick-graph-pattern
+    step: step.choose-graphs.check-virus
+    kind: pattern
+  - id: review.choose-graphs.not-a-graph
+    concept: concept.pick-graph-pattern
+    step: step.choose-graphs.check-not-a-graph
+    kind: pattern
+  - id: review.choose-graphs.predict-bridge
+    concept: concept.combine-graph-patterns
+    step: step.choose-graphs.predict-bridge
+  - id: review.choose-graphs.predict-grid-groups
+    concept: concept.combine-graph-patterns
+    step: step.choose-graphs.predict-grid-groups
+  - id: review.choose-graphs.why-flood
+    concept: concept.combine-graph-patterns
+    step: step.choose-graphs.check-why-flood
+steps:
+  - id: step.choose-graphs.clues
+    type: explain
+    title: Read the question first
+    body: |
+      This track added six graph patterns. The first job is to spot the graph at all: **things** (people, cities, cells, words,
+      courses) joined by **relations** (friends, roads, next to, one letter apart, must come before). Then look for the clue.
+
+      | If the question says... | Reach for |
+      | --- | --- |
+      | *can you reach*, *is there a path*, *visit every*, split into two teams, list a path | **DFS with a seen set** |
+      | the *fewest* steps, moves, hops or changes, each costing the same | **BFS from the start** |
+      | a grid where cells join their neighbours: *regions*, *islands*, *paint*, *rooms* | **flood fill from each unseen cell** |
+      | distance to the *nearest* of many, something *spreading* from many places at once | **multi-source BFS** |
+      | *before*, *after*, *depends on*, *prerequisites*, *an order*, *can all be done* | **topological sort** |
+      | links that *arrive over time*, *already connected?*, groups that merge, an undirected cycle | **union-find** |
+
+      Two warnings. If edges have different **costs** (kilometres, prices), the fewest edges isn't the cheapest route: that's
+      Dijkstra's algorithm, with a heap (Track 6). And if direction matters (one-way streets, links, *depends on*),
+      union-find is out, since it treats every edge as two-way.
+
+      And sometimes it isn't a graph question at all: counting or looking things up needs a dict or a set, not a search.
+  - id: step.choose-graphs.check-flights
+    type: choice
+    title: One-way flights
+    prompt: |
+      *Airlines fly one-way routes between cities. What's the fewest flights from Lagos to Lima?* Which pattern fits?
+    options:
+      - text: "BFS from Lagos over the directed routes, stopping when Lima is reached."
+        correct: true
+        feedback: "Right. *Fewest* flights, each counting one: a BFS distance. The routes are one-way, so the edges are directed."
+      - text: "Union-find over the routes, then check whether Lagos and Lima share a root."
+        correct: false
+        feedback: "Union-find ignores direction and only says *whether* they're linked, not in how many flights."
+      - text: "A DFS from Lagos, returning the first path that reaches Lima."
+        correct: false
+        feedback: "A DFS finds *a* route, which may be far from the shortest. *Fewest* calls for BFS."
+      - text: "A topological sort of the cities."
+        correct: false
+        feedback: "Routes aren't prerequisites, and flight networks are full of cycles (there and back)."
+    hints:
+      - "*Fewest*, with every flight counting the same."
+  - id: step.choose-graphs.check-new-land
+    type: choice
+    title: Land from the sea
+    prompt: |
+      *A grid starts as all water. Cells are turned into land one at a time. After each one, report how many islands there
+      are.* Which pattern does the least work?
+    options:
+      - text: "Union-find: each new land cell is its own group, unioned with any land up, down, left or right of it."
+        correct: true
+        feedback: "Right. Links that arrive over time, and a count after each: a running union-find count, one more for each new cell and one less for each merge."
+      - text: "A fresh island count with flood fill after every new cell."
+        correct: false
+        feedback: "Correct, but each count floods the whole grid again. With many additions that's far slower than a union per cell."
+      - text: "Multi-source BFS from every land cell."
+        correct: false
+        feedback: "That gives distances to the nearest land. The question is about groups."
+      - text: "A topological sort of the cells."
+        correct: false
+        feedback: "Nothing here has to come before anything else."
+    hints:
+      - "The links arrive over time, and the question is asked after each one."
+  - id: step.choose-graphs.check-virus
+    type: choice
+    title: The spreading virus
+    prompt: |
+      *Several computers on a network are infected. Each hour, every infected computer infects the computers it's wired to.
+      After how many hours is every computer infected?* Which pattern fits?
+    options:
+      - text: "Multi-source BFS from all the infected computers at once; the answer is the largest distance reached."
+        correct: true
+        feedback: "Right. Spreading from many places at once, a ring per hour, as with the rotting oranges."
+      - text: "A separate BFS from each infected computer, taking the smallest distance for each computer."
+        correct: false
+        feedback: "That works, but it runs one search per infected computer. Seeding one BFS with all of them gives the same answer in one pass."
+      - text: "Union-find over the wires."
+        correct: false
+        feedback: "Union-find says which computers are linked, not how many hours it takes to get there."
+      - text: "A DFS from each infected computer."
+        correct: false
+        feedback: "A DFS doesn't reach things in order of distance, so it can't say when each computer is reached."
+    hints:
+      - "Where does the spreading start, and what does each hour look like?"
+  - id: step.choose-graphs.check-not-a-graph
+    type: choice
+    title: Not every question is a graph
+    prompt: |
+      *A log lists the username behind each request. Which username appears most often?* Which tool fits?
+    options:
+      - text: "A dict counting each username (or a `Counter`), then the most common."
+        correct: true
+        feedback: "Right. There are no relations between users here, only counts. A dict does it in one pass."
+      - text: "Union-find, grouping requests by username."
+        correct: false
+        feedback: "Groups by equal value are just dict keys. Union-find is for groups made by links between things."
+      - text: "BFS over the log, one request to the next."
+        correct: false
+        feedback: "Consecutive requests aren't related; there's nothing to search."
+      - text: "Flood fill from each request."
+        correct: false
+        feedback: "No grid, and no neighbours. Count with a dict."
+    hints:
+      - "Is anything joined to anything else?"
+  - id: step.choose-graphs.combine
+    type: explain
+    title: Two patterns in one
+    body: |
+      Harder problems chain two patterns, each doing one job.
+
+      **The shortest bridge.** A grid has exactly two islands; how few water cells must be filled to join them? First, a
+      **flood fill** finds every cell of one island. Then a **multi-source BFS** starts from all of those cells at once, at
+      distance 0, and spreads across the water. The first time it touches land that isn't the first island, the distance of
+      the water cell it came from is the answer:
+
+      ```python
+      island = flood(first_land_cell)      # pattern 1
+      dist = {cell: 0 for cell in island}  # pattern 2, every cell a source
+      queue = deque(island)
+      ```
+
+      Other pairings: a **topological sort** to find an order, then a pass along it to add up the longest chain of
+      prerequisites; **union-find** to group accounts that share an email, then a dict from root to its members; **BFS** over
+      the states of a puzzle (lock wheels, word changes) whose neighbours you generate as you go.
+
+      Ask what each part of the question needs, and give each part its own pattern.
+  - id: step.choose-graphs.trace-bridge
+    type: trace
+    title: Flood, then spread
+    body: |
+      The flood shades the top-left island, `island`. Then every one of its cells joins the queue at distance 0, and the BFS
+      spreads over the water a ring at a time. When it reaches `(2, 2)`, land outside the island, from a water cell at distance
+      2, two cells of water are all that separate them: `bridge` is 2.
+    code: |
+      from collections import deque
+
+      grid = ["110", "000", "001"]
+      rows, cols = len(grid), len(grid[0])
+      island = {(0, 0)}
+      stack = [(0, 0)]
+      r = c = nr = nc = None
+      while stack:
+          r, c = stack.pop()
+          for nr, nc in ((r + 1, c), (r - 1, c), (r, c + 1), (r, c - 1)):
+              if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == "1" and (nr, nc) not in island:
+                  island.add((nr, nc))
+                  stack.append((nr, nc))
+      dist = {cell: 0 for cell in island}
+      queue = deque(sorted(island))
+      bridge = None
+      while queue and bridge is None:
+          r, c = queue.popleft()
+          for nr, nc in ((r + 1, c), (r - 1, c), (r, c + 1), (r, c - 1)):
+              if 0 <= nr < rows and 0 <= nc < cols and (nr, nc) not in dist:
+                  if grid[nr][nc] == "1":
+                      bridge = dist[(r, c)]
+                      break
+                  dist[(nr, nc)] = dist[(r, c)] + 1
+                  queue.append((nr, nc))
+    visualise:
+      - variable: grid
+        as: grid
+        cells: [[r, c], [nr, nc]]
+        highlight: island
+      - variable: dist
+        as: dict
+  - id: step.choose-graphs.predict-bridge
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      The same flood-then-spread code, on another grid. What does it print?
+    code: |
+      from collections import deque
+
+      grid = ["100", "000", "001"]
+      rows, cols = len(grid), len(grid[0])
+      island = {(0, 0)}
+      stack = [(0, 0)]
+      while stack:
+          r, c = stack.pop()
+          for nr, nc in ((r + 1, c), (r - 1, c), (r, c + 1), (r, c - 1)):
+              if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == "1" and (nr, nc) not in island:
+                  island.add((nr, nc))
+                  stack.append((nr, nc))
+      dist = {cell: 0 for cell in island}
+      queue = deque(sorted(island))
+      bridge = None
+      while queue and bridge is None:
+          r, c = queue.popleft()
+          for nr, nc in ((r + 1, c), (r - 1, c), (r, c + 1), (r, c - 1)):
+              if 0 <= nr < rows and 0 <= nc < cols and (nr, nc) not in dist:
+                  if grid[nr][nc] == "1":
+                      bridge = dist[(r, c)]
+                      break
+                  dist[(nr, nc)] = dist[(r, c)] + 1
+                  queue.append((nr, nc))
+      print(bridge)
+    accepted:
+      - "3"
+    mistakes:
+      - answers:
+          - "4"
+        feedback: "That counts moves from corner to corner. The bridge is the water cells in between: the last move lands on the other island, not on water."
+      - answers:
+          - "2"
+        feedback: "Moves only go up, down, left and right, so the far corner is four moves away, crossing three water cells."
+      - answers:
+          - "1"
+        feedback: "Diagonal cells don't join here. From `(0, 0)` to `(2, 2)` takes four moves, three of them onto water."
+    hints:
+      - "How many moves from `(0, 0)` to `(2, 2)`?"
+      - "`bridge` is the distance of the last water cell before the other island."
+  - id: step.choose-graphs.check-why-flood
+    type: choice
+    title: Why flood first?
+    prompt: |
+      In the shortest bridge, why flood the whole first island before the BFS, instead of starting the BFS from just one of
+      its cells?
+    options:
+      - text: "The bridge can leave from any cell of the island, so all of them must start at distance 0."
+        correct: true
+        feedback: "Right. From one cell, distances would include the walk across the island itself, and the nearest crossing point could be missed."
+      - text: "The flood counts how big the island is, which is the answer."
+        correct: false
+        feedback: "Its size doesn't matter. The flood finds which cells are sources for the BFS."
+      - text: "The BFS can't start on land."
+        correct: false
+        feedback: "It does start on land: every cell of the first island."
+      - text: "It doesn't matter; one cell gives the same answer."
+        correct: false
+        feedback: "Start from the far end of a long island and every distance includes the trip along it."
+    hints:
+      - "Where can the bridge start?"
+  - id: step.choose-graphs.predict-grid-groups
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      Union-find on a grid: each land cell is unioned with land below it and to its right. What does this print?
+    code: |
+      grid = ["110", "001", "011"]
+      parent = {}
+
+      def find(x):
+          while parent[x] != x:
+              x = parent[x]
+          return x
+
+      for r in range(3):
+          for c in range(3):
+              if grid[r][c] == "1":
+                  parent[(r, c)] = (r, c)
+      for r, c in list(parent):
+          for nb in ((r + 1, c), (r, c + 1)):
+              if nb in parent:
+                  parent[find(nb)] = find((r, c))
+      print(len({find(cell) for cell in parent}))
+    accepted:
+      - "2"
+    mistakes:
+      - answers:
+          - "1"
+        feedback: "`(0, 1)` and `(1, 2)` only touch at a corner, and only cells below or to the right are unioned. The top pair stays apart."
+      - answers:
+          - "5"
+        feedback: "That's the number of land cells. Unions join `(0, 0)` with `(0, 1)`, and the three bottom-right cells together."
+      - answers:
+          - "3"
+        feedback: "`(2, 1)` joins `(2, 2)` on its right, and `(1, 2)` joins `(2, 2)` below it, so those three are one group."
+    hints:
+      - "Find the land cells, and join those that share a side."
+      - "Checking only down and right is enough: every side is someone's down or right."
+  - id: step.choose-graphs.fill-knight
+    type: fill-blank
+    title: The knight's journey
+    pattern: pattern.graph-bfs
+    patternCue: "\"The fewest knight moves\": squares are nodes, moves are edges of equal cost, so BFS."
+    prompt: |
+      On an `n × n` chessboard, `knight_moves(n, start, target)` returns the fewest moves a knight needs from square `start`
+      to square `target` (both `(row, col)` pairs on the board), or `-1` if it can't get there. Fill in the blanks.
+    template: |
+      from collections import deque
+
+
+      def knight_moves(n, start, target):
+          jumps = [(1, 2), (2, 1), (2, -1), (1, -2), (-1, -2), (-2, -1), (-2, 1), (-1, 2)]
+          dist = {start: 0}
+          queue = deque([start])
+          while queue:
+              r, c = queue.{{take}}()
+              if (r, c) == target:
+                  return dist[(r, c)]
+              for dr, dc in jumps:
+                  nxt = (r + dr, c + dc)
+                  if 0 <= nxt[0] < n and 0 <= nxt[1] < n and nxt not in dist:
+                      dist[nxt] = {{next-dist}}
+                      queue.append(nxt)
+          return {{none}}
+    blanks:
+      - id: take
+        accepted:
+          - "popleft"
+        mistakes:
+          - answers:
+              - "pop"
+            feedback: "`pop` takes the newest square, making this a DFS whose distances can be too long. A queue takes from the front."
+      - id: next-dist
+        accepted:
+          - "dist[(r, c)] + 1"
+          - "1 + dist[(r, c)]"
+          - "dist[r, c] + 1"
+        mistakes:
+          - answers:
+              - "dist[nxt] + 1"
+            feedback: "`nxt` has no distance yet. It's one move further than the square it was reached from, `(r, c)`."
+          - answers:
+              - "1"
+            feedback: "Every square would be one move away. It's one more than the square it was reached from."
+      - id: none
+        accepted:
+          - "-1"
+        mistakes:
+          - answers:
+              - "0"
+            feedback: "`0` means the knight is already on the target. When the queue runs dry, the target can't be reached: `-1`."
+    hints:
+      - "Which search gives the fewest moves, and which end of the queue does it take from?"
+      - "A square is one move further than the square it was reached from."
+  - id: step.choose-graphs.order-tree
+    type: parsons
+    title: Is it a tree?
+    pattern: pattern.union-find
+    patternCue: "\"Connected with no cycle\": exactly n - 1 edges, and no edge whose ends already share a root."
+    prompt: |
+      Arrange the lines into `is_tree(n, edges)`, which returns whether the undirected graph on nodes `0` to `n - 1` is a tree:
+      connected, with no cycle. (A graph with `n - 1` edges and no cycle is always connected.)
+    solution: |
+      def is_tree(n, edges):
+          if len(edges) != n - 1:
+              return False
+          parent = list(range(n))
+
+          def find(x):
+              while parent[x] != x:
+                  x = parent[x]
+              return x
+
+          for a, b in edges:
+              ra, rb = find(a), find(b)
+              if ra == rb:
+                  return False
+              parent[rb] = ra
+          return True
+    hints:
+      - "A tree on `n` nodes has exactly `n - 1` edges: check that first."
+      - "Then union each edge; one whose ends already share a root closes a cycle."
+  - id: step.choose-graphs.write-closed
+    type: write-code
+    largeScreenPreferred: true
+    title: Islands in the middle
+    pattern: pattern.grid-flood-fill
+    patternCue: "\"Count the regions that don't touch the edge\": flood each island, noting whether any of its cells is on the border."
+    prompt: |
+      `grid` is a list of strings of `"1"` (land) and `"0"` (water). Land joins land up, down, left and right. Write
+      `closed_islands(grid)` that returns how many islands have **no** cell on the outer edge of the grid.
+
+      `closed_islands(["00000", "01100", "00100", "00001"])` is `1`: the island in the corner touches the edge.
+    language: python
+    entrypoint: closed_islands
+    starter: |
+      def closed_islands(grid):
+          pass
+    solution: |
+      def closed_islands(grid):
+          rows, cols = len(grid), len(grid[0])
+          seen = set()
+          count = 0
+          for r in range(rows):
+              for c in range(cols):
+                  if grid[r][c] == "1" and (r, c) not in seen:
+                      seen.add((r, c))
+                      stack = [(r, c)]
+                      closed = True
+                      while stack:
+                          i, j = stack.pop()
+                          if i in (0, rows - 1) or j in (0, cols - 1):
+                              closed = False
+                          for ni, nj in ((i + 1, j), (i - 1, j), (i, j + 1), (i, j - 1)):
+                              if 0 <= ni < rows and 0 <= nj < cols and grid[ni][nj] == "1" and (ni, nj) not in seen:
+                                  seen.add((ni, nj))
+                                  stack.append((ni, nj))
+                      if closed:
+                          count += 1
+          return count
+    tests:
+      - input: "['00000', '01100', '00100', '00001']"
+        expected: "1"
+      - input: "['1']"
+        expected: "0"
+      - input: "['000', '010', '000']"
+        expected: "1"
+      - input: "['00000', '01010', '00000']"
+        expected: "2"
+      - input: "['01110', '01010', '01110', '00000']"
+        expected: "0"
+      - input: "['0000', '0110', '0111', '0000']"
+        expected: "0"
+    hints:
+      - "This is the island count, with one more question per island: does it touch the edge?"
+      - "Flood the whole island before deciding. Don't stop at the first edge cell, or the rest of it will be counted later."
+      - "A cell is on the edge when its row is `0` or `rows - 1`, or its column is `0` or `cols - 1`."
+    walkthrough:
+      call: "result = closed_islands(['00000', '01010', '00000'])"
+      visualise:
+        - variable: grid
+          as: grid
+          cells: [[r, c], [i, j]]
+          highlight: seen
+      explanation: |
+        Both islands are single cells in the middle row, away from every edge, so each flood finishes with `closed` still
+        `True` and both are counted.
+    phoneAlternative:
+      id: step.choose-graphs.write-closed.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `closed_islands(grid)`, which counts the islands that don't touch the edge. Arrange the lines instead of typing
+        them.
+      solution: |
+        def closed_islands(grid):
+            rows, cols = len(grid), len(grid[0])
+            seen = set()
+            count = 0
+            for r in range(rows):
+                for c in range(cols):
+                    if grid[r][c] == "1" and (r, c) not in seen:
+                        seen.add((r, c))
+                        stack = [(r, c)]
+                        closed = True
+                        while stack:
+                            i, j = stack.pop()
+                            if i in (0, rows - 1) or j in (0, cols - 1):
+                                closed = False
+                            for ni, nj in ((i + 1, j), (i - 1, j), (i, j + 1), (i, j - 1)):
+                                if 0 <= ni < rows and 0 <= nj < cols and grid[ni][nj] == "1" and (ni, nj) not in seen:
+                                    seen.add((ni, nj))
+                                    stack.append((ni, nj))
+                        if closed:
+                            count += 1
+            return count
+      hints:
+        - "Each new island starts `closed`; any edge cell in its flood makes it not."
+        - "Count it only after the flood is done."
+  - id: step.choose-graphs.write-gates
+    type: write-code
+    largeScreenPreferred: true
+    title: Distance to a gate
+    pattern: pattern.multi-source-bfs
+    patternCue: "\"Each room's distance to the nearest gate\": every gate starts in the queue at 0, then one BFS."
+    prompt: |
+      `rooms` is a list of strings: `"G"` is a gate, `"#"` a wall and `"."` a room. Moving up, down, left or right through
+      gates and rooms is one step. Write `gate_distances(rooms)` that returns a list of lists of the same shape: each room's
+      fewest steps to a gate, `0` for a gate, and `-1` for a wall or a room that can't reach any gate.
+
+      `gate_distances(["G.#", "...", "#.G"])` is `[[0, 1, -1], [1, 2, 1], [-1, 1, 0]]`.
+
+      The `deque` import is in the starter; keep it.
+    language: python
+    entrypoint: gate_distances
+    starter: |
+      from collections import deque
+
+
+      def gate_distances(rooms):
+          pass
+    solution: |
+      from collections import deque
+
+
+      def gate_distances(rooms):
+          rows, cols = len(rooms), len(rooms[0])
+          dist = [[-1] * cols for _ in range(rows)]
+          queue = deque()
+          for r in range(rows):
+              for c in range(cols):
+                  if rooms[r][c] == "G":
+                      dist[r][c] = 0
+                      queue.append((r, c))
+          while queue:
+              r, c = queue.popleft()
+              for nr, nc in ((r + 1, c), (r - 1, c), (r, c + 1), (r, c - 1)):
+                  if 0 <= nr < rows and 0 <= nc < cols and rooms[nr][nc] == "." and dist[nr][nc] == -1:
+                      dist[nr][nc] = dist[r][c] + 1
+                      queue.append((nr, nc))
+          return dist
+    tests:
+      - input: "['G.#', '...', '#.G']"
+        expected: "[[0, 1, -1], [1, 2, 1], [-1, 1, 0]]"
+      - input: "['G']"
+        expected: "[[0]]"
+      - input: "['.#G']"
+        expected: "[[-1, -1, 0]]"
+      - input: "['....', 'G...']"
+        expected: "[[1, 2, 3, 4], [0, 1, 2, 3]]"
+      - input: "['#']"
+        expected: "[[-1]]"
+      - input: "['G.G']"
+        expected: "[[0, 1, 0]]"
+    hints:
+      - "Every gate is a source: distance `0`, in the queue from the start."
+      - "Start everything else at `-1`; the BFS only steps onto rooms still at `-1`."
+      - "Walls and rooms the BFS never reaches stay at `-1`."
+    walkthrough:
+      call: "result = gate_distances(['G.#', '...', '#.G'])"
+      visualise:
+        - variable: dist
+          as: grid
+          cells: [[r, c], [nr, nc]]
+        - variable: queue
+          as: queue
+      explanation: |
+        Both gates start in the queue. The first ring reaches the four rooms next to a gate, at 1. The middle room is two
+        steps from either gate, so it gets 2 on the second ring. The walls are never stepped on and stay at `-1`.
+  - id: step.choose-graphs.write-install
+    type: write-code
+    largeScreenPreferred: true
+    title: Install order
+    pattern: pattern.topo-sort
+    patternCue: "\"Install each package after what it needs\": a topological sort, taking the smallest ready name first."
+    prompt: |
+      `deps` maps each package to the list of packages it needs installed first; every package mentioned is a key. Write
+      `install_order(deps)` that returns an order to install them all in, as a list, or `[]` if it's impossible. When several
+      packages are ready, install the alphabetically **smallest** first.
+
+      `install_order({"app": ["lib", "utils"], "lib": ["utils"], "utils": []})` is `["utils", "lib", "app"]`.
+
+      Mind the direction: a package's list says what comes **before** it.
+    language: python
+    entrypoint: install_order
+    starter: |
+      def install_order(deps):
+          pass
+    solution: |
+      def install_order(deps):
+          users = {p: [] for p in deps}
+          waiting = {p: len(deps[p]) for p in deps}
+          for p in deps:
+              for need in deps[p]:
+                  users[need].append(p)
+          ready = {p for p in deps if waiting[p] == 0}
+          order = []
+          while ready:
+              p = min(ready)
+              ready.remove(p)
+              order.append(p)
+              for user in users[p]:
+                  waiting[user] -= 1
+                  if waiting[user] == 0:
+                      ready.add(user)
+          return order if len(order) == len(deps) else []
+    tests:
+      - input: "{'app': ['lib', 'utils'], 'lib': ['utils'], 'utils': []}"
+        expected: "['utils', 'lib', 'app']"
+      - input: "{'a': ['b'], 'b': ['a']}"
+        expected: "[]"
+      - input: "{'z': [], 'y': [], 'x': ['z']}"
+        expected: "['y', 'z', 'x']"
+      - input: "{'web': ['db', 'auth'], 'auth': ['db'], 'db': [], 'cli': []}"
+        expected: "['cli', 'db', 'auth', 'web']"
+      - input: "{'solo': []}"
+        expected: "['solo']"
+      - input: "{'loop': ['loop']}"
+        expected: "[]"
+    hints:
+      - "A package's in-degree is how many packages it needs: `len(deps[p])`."
+      - "Build the reverse lists too: for each need, which packages use it. Installing a package lowers its users' counts."
+      - "Take `min` of the ready set each time; if not every package came out, return `[]`."
+    walkthrough:
+      call: "result = install_order({'web': ['db', 'auth'], 'auth': ['db'], 'db': [], 'cli': []})"
+      visualise:
+        - variable: users
+          as: graph
+          directed: true
+          edge: [p, user]
+          visited: order
+        - variable: ready
+          as: set
+      explanation: |
+        `cli` and `db` need nothing, and `cli` is smaller. Installing `db` lowers `auth` to 0 and `web` to 1. `auth` goes
+        next, which frees `web`.
