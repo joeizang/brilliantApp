@@ -1,0 +1,304 @@
+@* A graph in the Trace Player: each node a circle with its label, round a ring in the order the nodes first appeared in the run, so a
+   node keeps its place from step to step. An edge is a line between two nodes (an arrow when the graph is directed; two that run both
+   ways bow apart; one from a node to itself is a loop outside it), with its weight at its middle. The edge being explored (the two
+   variables the visual names as its ends) is drawn thick in the accent. The nodes a visited variable holds are shaded; the nodes waiting
+   in a frontier are ringed and numbered in their order, 1 next. Pointers stand under the node they hold. *@
+@using Brilliant.Core.Python
+
+<figure class="graph mx-0 my-4 rounded-md border border-hairline bg-surface-raised px-4 pt-2 pb-4" data-variable="@View.Variable" data-kind="graph">
+    <figcaption class="graph-name mb-1 text-[.9rem] text-fg-secondary [overflow-wrap:anywhere]"><code>@View.Variable</code> <span class="graph-kind ml-[.4rem] text-[.8rem]">@(View.Directed ? "directed graph" : "graph")</span></figcaption>
+    <div class="graph-scroll overflow-x-auto">
+        @* Laid out in user units and sized in rem (16 units to 1rem), with the text in the same units, as the other drawings are. *@
+        <svg class="graph-svg block max-w-none overflow-visible" role="img" aria-label="@Describe()" style="@Size" viewBox="@ViewBox">
+            @if (View.Nodes.Count == 0)
+            {
+                <g class="graph-none">
+                    <text class="fill-fg-secondary font-mono" font-size="@U(ValueTextMax)" x="0" y="0" text-anchor="middle" dominant-baseline="central">empty</text>
+                </g>
+            }
+
+            @* The edges first, so the nodes sit on top of them. *@
+            @foreach (var edge in View.Edges)
+            {
+                if (!_at.TryGetValue(edge.From, out var from) || !_at.TryGetValue(edge.To, out var to)) continue;
+                var stroke = edge.Active ? "stroke-accent stroke-[3]" : "stroke-border stroke-2";
+                var (path, head, label) = Shape(edge, from, to);
+                <g class="@EdgeClass(edge)" data-from="@edge.From" data-to="@edge.To" @key="@($"edge-{edge.From}-{edge.To}")">
+                    <path class="@stroke fill-none @(edge.Added ? "animate-link-in" : "")" pathLength="1" d="@path" />
+                    @if (head is not null)
+                    {
+                        <path class="@(edge.Active ? "fill-accent" : "fill-border")" d="@head" />
+                    }
+                    @if (edge.Weight is { } weight)
+                    {
+                        <g class="edge-weight" transform="translate(@U(label.X) @U(label.Y))">
+                            <text class="@(edge.Active ? "fill-accent font-semibold" : "fill-fg-secondary") stroke-surface-raised stroke-[4] [paint-order:stroke] font-mono"
+                                  font-size="@U(SmallText)" text-anchor="middle" dominant-baseline="central">@Clip(weight)</text>
+                        </g>
+                    }
+                </g>
+            }
+
+            @foreach (var node in View.Nodes)
+            {
+                var (x, y) = _at[node.Id];
+                <g class="@NodeClass(node)" data-id="@node.Id" data-slot="@node.Slot" style="@At(x, y)" @key="@($"node-{node.Id}")">
+                    <title>@node.Label</title>
+                    @if (node.Queued is not null)
+                    {
+                        <circle class="queue-ring fill-none stroke-ember stroke-2 [stroke-dasharray:4_3]" r="@(NodeR + 4)" />
+                    }
+                    <g class="node-body origin-center [transform-box:fill-box] @(node.Added ? "animate-cell-in" : "")">
+                        <circle class="node-circle stroke-2 @(node.Visited ? "fill-accent-tint stroke-accent" : "fill-surface stroke-border")" r="@NodeR" />
+                        <text class="node-value fill-fg font-mono" font-size="@U(ValueText(node.Label))" text-anchor="middle" dominant-baseline="central">@Clip(node.Label)</text>
+                    </g>
+                    @if (node.JustVisited)
+                    {
+                        <g class="visit-mark" @key="@($"mark-{Step}")">
+                            <circle class="fill-none stroke-accent stroke-2 origin-center [transform-box:fill-box] animate-pop" r="@(NodeR + 7)" />
+                        </g>
+                    }
+                    @if (node.Queued is { } place)
+                    {
+                        <g class="queue-place" transform="translate(@(NodeR - 3) @(-NodeR + 3))" @key="@(node.JustQueued ? $"place-{Step}" : "place")">
+                            <g class="origin-center [transform-box:fill-box] @(node.JustQueued ? "animate-pop" : "")">
+                                <circle class="fill-ember-wash stroke-ember stroke-[1.5]" r="@BadgeR" />
+                                <text class="fill-ember-text font-semibold" font-size="@U(BadgeText(place))" text-anchor="middle" dominant-baseline="central">@place</text>
+                            </g>
+                        </g>
+                    }
+                </g>
+            }
+
+            @* A pointer stands just outside the ring from the node it holds, pointing in at it; the names of more than one on a node stack. *@
+            @foreach (var spot in _spots)
+            {
+                <g class="@(spot.Pointer.Moved ? "pointer moved" : "pointer") transition-transform duration-450 ease-app" data-name="@spot.Pointer.Name" data-node="@spot.Pointer.Node" data-row="@spot.Row"
+                   style="@At(spot.X, spot.Y)" @key="@($"pointer-{spot.Pointer.Name}")">
+                    @if (spot.Row == 0)
+                    {
+                        <path class="pointer-arrow fill-accent" transform="@spot.Arrow" d="M0 0 L-5 7 L5 7 Z" />
+                    }
+                    <text class="pointer-label fill-accent font-mono font-semibold" font-size="@U(PointerText)" x="@U(spot.LabelX)" y="@U(spot.LabelY)" text-anchor="middle" dominant-baseline="central">@spot.Pointer.Name</text>
+                </g>
+            }
+        </svg>
+    </div>
+    @foreach (var note in Notes())
+    {
+        <p class="graph-note mt-2 mb-0 text-[.9rem] text-fg-secondary">@note</p>
+    }
+</figure>
+
+@code {
+    [Parameter, EditorRequired] public GraphView View { get; set; } = default!;
+
+    /// <summary>The player's step number. What changed is keyed by it, so it is a fresh element and replays its animation.</summary>
+    [Parameter, EditorRequired] public int Step { get; set; }
+
+    // A node is a circle NodeR across the middle, round a ring with at least Gap between neighbours. Pointers' names stand under the
+    // node, LabelH a name, TickH below the arrow. An arrowhead is ArrowL long; a loop is LoopR across.
+    private const int NodeR = 18, Gap = 50, MinRing = 56, Pad = 8, LabelH = 18, TickH = 8, BadgeR = 9, ArrowL = 9, LoopR = 11;
+
+    // Text sizes in user units (16 is 1rem). A monospace character is about .6 of its size wide.
+    private const double SmallText = 12.8, PointerText = 14.4, ValueTextMax = 15.2, MonoW = .6;
+
+    private Dictionary<int, (double X, double Y)> _at = [];
+    private List<Spot> _spots = [];
+
+    /// <summary>A pointer on a node at (X, Y): its arrow's transform (tip at the circle, pointing in) and its name's centre, from the node.</summary>
+    private sealed record Spot(NodePointer Pointer, double X, double Y, int Row, string Arrow, double LabelX, double LabelY);
+    private double _ring;
+
+    protected override void OnParametersSet()
+    {
+        // The ring is wide enough for every node the run ever shows, so no node moves when another comes in.
+        var slots = Math.Max(1, View.Slots);
+        _ring = slots == 1 ? 0 : Math.Max(MinRing, slots * (2 * NodeR + Gap) / (2 * Math.PI));
+        _at = View.Nodes.ToDictionary(n => n.Id, n =>
+        {
+            var angle = -Math.PI / 2 + 2 * Math.PI * n.Slot / slots;
+            return (Math.Round(_ring * Math.Cos(angle), 1), Math.Round(_ring * Math.Sin(angle), 1));
+        });
+        // A pointer stands outward from the node it holds (under it when the ring is a single node), below or above the names of the
+        // pointers before it on that node.
+        _spots = [];
+        var rows = new Dictionary<int, int>();
+        foreach (var pointer in View.Pointers)
+            if (pointer.Node is { } id && _at.TryGetValue(id, out var at))
+            {
+                var row = rows.TryGetValue(id, out var r) ? r : 0;
+                rows[id] = row + 1;
+                var (ox, oy) = Outward(at);
+                var degrees = Math.Round(Math.Atan2(oy, ox) * 180 / Math.PI - 90, 1);
+                var arrow = $"translate({U(R(ox * (NodeR + 2)))} {U(R(oy * (NodeR + 2)))}) rotate({U(degrees)})";
+                var reach = NodeR + 4 + TickH + Math.Abs(ox) * LabelHalf(pointer.Name) + Math.Abs(oy) * LabelH / 2;
+                var stack = (oy < -.3 ? -1 : 1) * row * LabelH;
+                _spots.Add(new Spot(pointer, at.X, at.Y, row, arrow, R(ox * reach), R(oy * reach + stack)));
+            }
+    }
+
+    /// <summary>
+    /// An edge's line (centre to centre, or to the edge of the circle when it has an arrowhead), its arrowhead and where its weight goes.
+    /// Two edges that run both ways bow out, each to its own side; a loop is a circle on the outside of its node.
+    /// </summary>
+    private (string Path, string? Head, (double X, double Y) Label) Shape(GraphEdgeView edge, (double X, double Y) from, (double X, double Y) to)
+    {
+        if (edge.From == edge.To)
+        {
+            var (ox, oy) = Outward(from);
+            var (cx, cy) = (from.X + ox * (NodeR + LoopR - 4), from.Y + oy * (NodeR + LoopR - 4));
+            var loop = $"M{U(R(cx - LoopR))} {U(R(cy))} a{LoopR} {LoopR} 0 1 0 {2 * LoopR} 0 a{LoopR} {LoopR} 0 1 0 {-2 * LoopR} 0";
+            return (loop, null, (R(cx + ox * (LoopR + 8)), R(cy + oy * (LoopR + 8))));
+        }
+        var (dx, dy) = (to.X - from.X, to.Y - from.Y);
+        var d = Math.Max(1, Math.Sqrt(dx * dx + dy * dy));
+        var (ux, uy) = (dx / d, dy / d);
+        var bow = edge.Both ? Math.Min(28, d / 4) : 0;
+        // The control point is off the middle to the right of the way the edge runs; the curve's middle is half as far out.
+        var (qx, qy) = ((from.X + to.X) / 2 - uy * bow, (from.Y + to.Y) / 2 + ux * bow);
+        var mid = ((from.X + to.X) / 2 - uy * bow / 2, (from.Y + to.Y) / 2 + ux * bow / 2);
+        var label = (R(mid.Item1 - uy * 9), R(mid.Item2 + ux * 9));
+        if (!View.Directed)
+            return ($"M{U(R(from.X))} {U(R(from.Y))} L{U(R(to.X))} {U(R(to.Y))}", null, label);
+
+        // The line ends at the circle, where the arrowhead's tip is, coming in along the tangent from the control point.
+        var (tx, ty) = (to.X - qx, to.Y - qy);
+        var t = Math.Max(1, Math.Sqrt(tx * tx + ty * ty));
+        var (vx, vy) = (tx / t, ty / t);
+        var (tipX, tipY) = (to.X - vx * NodeR, to.Y - vy * NodeR);
+        var (baseX, baseY) = (tipX - vx * ArrowL, tipY - vy * ArrowL);
+        var head = $"M{U(R(tipX))} {U(R(tipY))} L{U(R(baseX - vy * 4.5))} {U(R(baseY + vx * 4.5))} L{U(R(baseX + vy * 4.5))} {U(R(baseY - vx * 4.5))} Z";
+        var path = edge.Both
+            ? $"M{U(R(from.X))} {U(R(from.Y))} Q{U(R(qx))} {U(R(qy))} {U(R(baseX))} {U(R(baseY))}"
+            : $"M{U(R(from.X))} {U(R(from.Y))} L{U(R(baseX))} {U(R(baseY))}";
+        return (path, head, label);
+    }
+
+    private static double R(double value) => Math.Round(value, 1);
+
+    /// <summary>The way out of the ring from a point on it: from the centre through it, or down for the centre itself.</summary>
+    private static (double X, double Y) Outward((double X, double Y) at)
+    {
+        var length = Math.Sqrt(at.X * at.X + at.Y * at.Y);
+        return length < 1 ? (0, 1) : (at.X / length, at.Y / length);
+    }
+
+    private double LabelHalf(string name) => Math.Max(10, name.Length * PointerText * MonoW) / 2;
+
+    // The drawing's extent round the ring's centre: the whole ring (so the drawing keeps its size from step to step), loops, weights and
+    // the pointers' names.
+    private (double Left, double Top, double Right, double Bottom) Bounds()
+    {
+        var reach = NodeR + 8;
+        var points = new List<(double X, double Y)> { (-_ring - reach, -_ring - reach), (_ring + reach, _ring + reach) };
+        foreach (var edge in View.Edges.Where(e => e.From == e.To && _at.ContainsKey(e.From)))
+        {
+            var (ox, oy) = Outward(_at[edge.From]);
+            var far = NodeR + 2 * LoopR + 2;
+            points.Add((_at[edge.From].X + ox * far + Math.Sign(ox) * 8, _at[edge.From].Y + oy * far + Math.Sign(oy) * 8));
+        }
+        foreach (var spot in _spots)
+        {
+            var (x, y) = (spot.X + spot.LabelX, spot.Y + spot.LabelY);
+            points.Add((x - LabelHalf(spot.Pointer.Name), y - LabelH / 2.0));
+            points.Add((x + LabelHalf(spot.Pointer.Name), y + LabelH / 2.0));
+        }
+        return (points.Min(p => p.X) - Pad, points.Min(p => p.Y) - Pad / 2.0, points.Max(p => p.X) + Pad, points.Max(p => p.Y) + Pad / 2.0);
+    }
+
+    private string ViewBox
+    {
+        get
+        {
+            var (left, top, right, bottom) = Bounds();
+            var (x, y) = ((int)Math.Floor(left), (int)Math.Floor(top));
+            return $"{x} {y} {(int)Math.Ceiling(right) - x} {(int)Math.Ceiling(bottom) - y}";
+        }
+    }
+
+    private string Size
+    {
+        get
+        {
+            var (left, top, right, bottom) = Bounds();
+            var (x, y) = ((int)Math.Floor(left), (int)Math.Floor(top));
+            return $"width: {U(((int)Math.Ceiling(right) - x) / 16.0)}rem; height: {U(((int)Math.Ceiling(bottom) - y) / 16.0)}rem";
+        }
+    }
+
+    // Numbers written into the drawing in invariant form: "12.8", never a culture's "12,8".
+    private static string U(double value) => value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    // Placed with CSS (not the transform attribute), as the other drawings' nodes are.
+    private static string At(double x, double y) => $"transform: translate({U(x)}px, {U(y)}px)";
+
+    private static string EdgeClass(GraphEdgeView edge) =>
+        "edge" + (edge.From == edge.To ? " loop" : "") + (edge.Both ? " both" : "") + (edge.Added ? " added" : "") + (edge.Active ? " active" : "");
+
+    private static string NodeClass(GraphNodeView node) =>
+        "node" + (node.Added ? " added" : "") + (node.Visited ? " visited" : "") + (node.JustVisited ? " just-visited" : "")
+        + (node.Queued is not null ? " queued" : "") + (node.JustQueued ? " just-queued" : "");
+
+    private static string Clip(string text) => text.Length <= 4 ? text : text[..3] + "…";
+
+    // A long label is set a little smaller so that all of its (at most 4) characters fit inside the circle.
+    private static double ValueText(string text) => Math.Min(ValueTextMax, Math.Round((2 * NodeR - 8) / (Clip(text).Length * MonoW), 1));
+    private static double BadgeText(int place) => place < 10 ? 11.2 : place < 100 ? 9.6 : 8;
+
+    private string Label(int id) => View.Node(id)?.Label ?? "?";
+
+    private List<string> Notes()
+    {
+        var notes = new List<string>();
+        if (View.More > 0)
+            notes.Add($"+{View.More} more {(View.More == 1 ? "node" : "nodes")} not shown.");
+        if (View.MoreEdges > 0)
+            notes.Add($"+{View.MoreEdges} more {(View.MoreEdges == 1 ? "edge" : "edges")} not shown.");
+        if (View.Edge is { } edge)
+            notes.Add(View.Edges.FirstOrDefault(e => e.Active) is { } active
+                ? $"Thick: the edge from {edge.From} ({Label(active.From)}) to {edge.To} ({Label(active.To)})."
+                : $"Thick, when there is one: the edge from {edge.From} to {edge.To}.");
+        var atNone = View.Pointers.Where(p => p.Node is null).Select(p => p.Name).ToList();
+        if (atNone.Count > 0)
+            notes.Add($"{string.Join(", ", atNone)} {(atNone.Count == 1 ? "is" : "are")} None.");
+        var unseen = View.Pointers.Where(p => p.Node is { } id && !_at.ContainsKey(id)).Select(p => p.Name).ToList();
+        if (unseen.Count > 0)
+            notes.Add($"{string.Join(", ", unseen)} {(unseen.Count == 1 ? "is" : "are")} on a node past the ones shown.");
+        if (View.Visited is { } visited)
+        {
+            notes.Add($"Shaded: the nodes in {visited.Variable}.");
+            if (visited.Unmatched > 0)
+                notes.Add($"{visited.Unmatched} {(visited.Unmatched == 1 ? "member" : "members")} of {visited.Variable} match no node shown.");
+        }
+        if (View.Frontier is { } frontier)
+        {
+            notes.Add($"Ringed: the nodes waiting in {frontier.Variable}, numbered in its order.");
+            if (frontier.Unmatched > 0)
+                notes.Add($"{frontier.Unmatched} {(frontier.Unmatched == 1 ? "member" : "members")} of {frontier.Variable} match no node shown.");
+        }
+        return notes;
+    }
+
+    private string Describe()
+    {
+        var kind = View.Directed ? "a directed graph" : "a graph";
+        if (View.Nodes.Count == 0) return $"{View.Variable}, {kind}: empty";
+        var joins = View.Directed ? "to" : "with";
+        string Node(GraphNodeView node)
+        {
+            var links = View.Edges.Where(e => e.From == node.Id || !View.Directed && e.To == node.Id)
+                .Select(e => (Other: e.From == node.Id ? e.To : e.From, e.Weight))
+                .Select(e => Label(e.Other) + (e.Weight is { } w ? $" (weight {w})" : "")).ToList();
+            var text = node.Label + (links.Count > 0 ? $" {joins} {string.Join(", ", links)}" : "");
+            if (node.Visited) text += ", visited";
+            if (node.Queued is { } place) text += $", waiting {place}";
+            return text;
+        }
+        var text = $"{View.Variable}, {kind}: " + string.Join("; ", View.Nodes.Select(Node));
+        if (View.Edges.FirstOrDefault(e => e.Active) is { } active)
+            text += $"; exploring the edge from {Label(active.From)} to {Label(active.To)}";
+        var pointers = View.Pointers.Select(p => p.Node is { } id ? $"{p.Name} at {Label(id)}" : $"{p.Name} at None").ToList();
+        return text + (pointers.Count > 0 ? "; " + string.Join(", ", pointers) : "");
+    }
+}

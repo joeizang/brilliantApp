@@ -110,6 +110,11 @@
         <TraceGrid View="grid" Step="Current.Index" @key="grid.Variable" />
     }
 
+    @foreach (var graph in Current.Graphs)
+    {
+        <TraceGraph View="graph" Step="Current.Index" @key="graph.Variable" />
+    }
+
     @if (Current.Locals.Count > 0)
     {
         <table class="locals my-4 w-full border-collapse text-[.95rem]">

@@ -217,7 +217,8 @@ public sealed record PackManifest(string PackId, string Version, int FormatVersi
 /// <see cref="Array"/> (a list, tuple or deque shown as cells), <see cref="Stack"/> (a list or deque, bottom to top),
 /// <see cref="Queue"/> (a list or deque, front to back), <see cref="Dict"/> (key/value rows), <see cref="Set"/> (members),
 /// <see cref="LinkedList"/> (nodes joined by arrows, from the node the variable holds), <see cref="Tree"/> (a binary tree, from the
-/// root node the variable holds, laid out level by level), <see cref="Grid"/> (a list of lists or strings, as a 2-D table) or <see cref="CallStack"/> (the calls under way,
+/// root node the variable holds, laid out level by level), <see cref="Grid"/> (a list of lists or strings, as a 2-D table), <see cref="Graph"/>
+/// (a dict of each node's neighbours, its nodes round a circle) or <see cref="CallStack"/> (the calls under way,
 /// one frame each, the running one on top; it draws no variable, so <see cref="Variable"/> is empty).
 /// <see cref="Pointers"/> name variables drawn as labelled markers: for an array, stack or queue, int variables, on the cell they
 /// index; for a dict or set, variables holding a key, on the row with that key (a lookup); for a linked list or a tree, variables
@@ -229,7 +230,11 @@ public sealed record PackManifest(string PackId, string Version, int FormatVersi
 /// <see cref="Cells"/> pairs of int variables, each drawn on the cell they index; <see cref="RowLabels"/> and <see cref="ColLabels"/> name
 /// a string, list or tuple labelling the rows and columns, from row or column <see cref="LabelOffset"/> on (so <c>dp[i][j]</c> over
 /// <c>a[i - 1]</c> and <c>b[j - 1]</c> takes 1); <see cref="Highlight"/> names a list or set of (row, col) pairs, or a grid of
-/// True/False flags, shading the cells it marks.
+/// True/False flags, shading the cells it marks. For a graph, <see cref="Pointers"/> name variables holding a node (a value, as the dict's
+/// keys are); <see cref="Directed"/> draws its edges as arrows; a dict of neighbours is weighted by its values,
+/// and with <see cref="Weights"/> a neighbour given as a (node, weight) pair is that node with that weight; <see cref="Edge"/> names the variables holding the ends of the edge being explored,
+/// which is emphasised; <see cref="Visited"/> names a list, set or dict of the nodes visited and <see cref="Frontier"/> a list or deque of
+/// those waiting (a queue or a stack), each marking its nodes.
 /// </summary>
 public sealed record Visual(string Variable, string As, IReadOnlyList<string> Pointers,
     string Next = Visual.DefaultNext, string Value = Visual.DefaultValue, IReadOnlyList<string>? Functions = null,
@@ -244,6 +249,12 @@ public sealed record Visual(string Variable, string As, IReadOnlyList<string> Po
     public int LabelOffset { get; init; }
     public string? Highlight { get; init; }
 
+    /// <summary>A graph's edges have a direction, so each is drawn as an arrow.</summary>
+    public bool Directed { get; init; }
+    public bool Weights { get; init; }
+    public EdgeNames? Edge { get; init; }
+    public string? Frontier { get; init; }
+
     public const string Array = "array";
     public const string Stack = "stack";
     public const string Queue = "queue";
@@ -252,6 +263,7 @@ public sealed record Visual(string Variable, string As, IReadOnlyList<string> Po
     public const string LinkedList = "linked_list";
     public const string Tree = "tree";
     public const string Grid = "grid";
+    public const string Graph = "graph";
     public const string CallStack = "call_stack";
 
     public const string DefaultNext = "next";
@@ -260,7 +272,7 @@ public sealed record Visual(string Variable, string As, IReadOnlyList<string> Po
     public const string DefaultRight = "right";
 
     /// <summary>Every drawing the player knows, in the order the docs list them.</summary>
-    public static readonly IReadOnlyList<string> Kinds = [Array, Stack, Queue, Dict, Set, LinkedList, Tree, Grid, CallStack];
+    public static readonly IReadOnlyList<string> Kinds = [Array, Stack, Queue, Dict, Set, LinkedList, Tree, Grid, Graph, CallStack];
 
     /// <summary>The drawings of a sequence as cells, whose pointers are indexes.</summary>
     public static readonly IReadOnlyList<string> Sequences = [Array, Stack, Queue];
@@ -285,6 +297,9 @@ public sealed record CellPair(string Row, string Col)
 {
     public string Name => $"{Row},{Col}";
 }
+
+/// <summary>The variables holding the two ends of the graph edge being explored, e.g. <c>node</c> and <c>neighbour</c>.</summary>
+public sealed record EdgeNames(string From, string To);
 
 /// <summary>
 /// "Watch it run." The learner steps forward and back through the execution of <see cref="Code"/>, seeing the current line,

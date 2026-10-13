@@ -112,9 +112,9 @@ public sealed class TraceStepValidatorTests : IDisposable
     [Fact]
     public void Only_the_kinds_the_player_knows_can_be_drawn()
     {
-        var m = Errors(Head + Body + Code + "    visualise:\n      - variable: nums\n        as: graph\n");
+        var m = Errors(Head + Body + Code + "    visualise:\n      - variable: nums\n        as: heap\n");
 
-        Assert.Contains(m, x => x.Contains("visualise[0]") && x.Contains("unsupported") && x.Contains("'graph'") && x.Contains("array, stack, queue, dict, set"));
+        Assert.Contains(m, x => x.Contains("visualise[0]") && x.Contains("unsupported") && x.Contains("'heap'") && x.Contains("array, stack, queue, dict, set"));
     }
 
     [Fact]
@@ -157,7 +157,8 @@ public sealed class TraceStepValidatorTests : IDisposable
         public bool Equals(Visual? a, Visual? b) =>
             a!.Variable == b!.Variable && a.As == b.As && a.Pointers.SequenceEqual(b.Pointers) && (a.Next, a.Value) == (b.Next, b.Value)
             && (a.Left, a.Right, a.Visited) == (b.Left, b.Right, b.Visited) && a.Cells.SequenceEqual(b.Cells)
-            && (a.RowLabels, a.ColLabels, a.LabelOffset, a.Highlight) == (b.RowLabels, b.ColLabels, b.LabelOffset, b.Highlight);
+            && (a.RowLabels, a.ColLabels, a.LabelOffset, a.Highlight) == (b.RowLabels, b.ColLabels, b.LabelOffset, b.Highlight)
+            && (a.Directed, a.Weights, a.Edge, a.Frontier) == (b.Directed, b.Weights, b.Edge, b.Frontier);
         public int GetHashCode(Visual v) => v.Variable.GetHashCode();
     }
 
@@ -630,7 +631,7 @@ public sealed class TraceStepValidatorTests : IDisposable
     [Theory]
     [InlineData("left: lo", "tree only")]
     [InlineData("right: hi", "tree only")]
-    [InlineData("visited: order", "tree only")]
+    [InlineData("visited: order", "tree or graph only")]
     public void Left_right_and_visited_are_options_of_a_tree_only(string option, string says)
     {
         var m = Errors(Head + Body + Code + $"    visualise:\n      - variable: nums\n        as: array\n        {option}\n");
@@ -839,6 +840,133 @@ public sealed class TraceStepValidatorTests : IDisposable
         var m = Errors(Head + Body + Code + "    visualise:\n      - variable: nums\n        as: grid\n", new CPythonRunner());
 
         Assert.Contains(m, x => x.Contains("'nums'") && x.Contains("no grid to draw"));
+    }
+
+    // ---- Graphs ----
+
+    private const string GraphVisual = "    visualise:\n      - variable: g\n        as: graph\n";
+
+    /// <summary>
+    /// A trace in which g is a graph A-B (none: never a dict; empty: a dict with no nodes), each named pointer on its node (null: None), and
+    /// the visited and frontier marks on the given nodes (null: not recorded).
+    /// </summary>
+    private static TraceResult GraphTrace(bool graph = true, bool empty = false, int[]? visited = null, int[]? frontier = null,
+        params (string Name, int? Node)[] pointers)
+    {
+        var tracked = new TrackedGraph(empty ? [] : [new GraphNode(0, "A"), new GraphNode(1, "B")], 0, empty ? [] : [new GraphEdge(0, 1, null)], 0,
+            pointers.ToDictionary(p => p.Name, p => p.Node),
+            visited is null ? null : new GraphMarks(visited, 0), frontier is null ? null : new GraphMarks(frontier, 0));
+        TraceFrame F(int? line) => new(line is null ? "return" : "line", line, "<module>", [], new Dictionary<string, TrackedArray>(),
+            Graphs: graph ? new Dictionary<string, TrackedGraph> { ["g"] = tracked } : null);
+        return new(TraceStatus.Ok, [F(1), F(null)], "", null, null, null);
+    }
+
+    [Fact]
+    public void A_graph_loads_with_its_options()
+    {
+        WriteLesson(Header + Head + Body + Code + GraphVisual
+            + "        directed: true\n        weights: true\n        edge: [node, nb]\n        pointers: [start]\n        visited: seen\n        frontier: queue\n");
+        var outPath = Path.Combine(_root, "out", "p.zip");
+
+        var report = ContentPacker.Pack(_root, outPath,
+            new FakeRunner((_, _) => GraphTrace(visited: [0], frontier: [1], pointers: [("node", 0), ("nb", 1), ("start", 0)])));
+
+        Assert.True(report.IsValid, string.Join("\n", report.Errors));
+        var step = Assert.IsType<TraceStep>(ContentPackFormat.Load(outPath).Get<Lesson>("lesson.one").Steps[0]);
+        Assert.Equal(new Visual("g", Visual.Graph, ["start"], Visited: "seen")
+        {
+            Directed = true, Weights = true, Edge = new EdgeNames("node", "nb"), Frontier = "queue",
+        }, step.Visuals[0], new VisualComparer());
+    }
+
+    [Theory]
+    [InlineData("directed: true", "'directed'")]
+    [InlineData("weights: true", "'weights'")]
+    [InlineData("edge: [a, b]", "'edge'")]
+    [InlineData("frontier: q", "'frontier'")]
+    public void Graph_options_belong_to_a_graph_only(string option, string says)
+    {
+        var m = Errors(Head + Body + Code + Visualise + "        " + option + "\n");
+
+        Assert.Contains(m, x => x.Contains(says) && x.Contains("graph only") && x.Contains("not of 'array'"));
+    }
+
+    [Theory]
+    [InlineData("edge: [node]", "a pair of variables")]
+    [InlineData("edge: [node, nb, x]", "a pair of variables")]
+    [InlineData("edge: [node, 'n b']", "not a valid Python name")]
+    [InlineData("edge: [g, nb]", "the graph's own variable")]
+    [InlineData("edge: [node, node]", "one variable twice")]
+    [InlineData("frontier: 9q", "not a valid Python name")]
+    [InlineData("frontier: g", "the graph's own variable")]
+    [InlineData("visited: seen\n        frontier: seen", "also 'visited'")]
+    [InlineData("visited: g", "own variable")]
+    [InlineData("pointers: [g]", "the graph's own variable")]
+    public void Graph_options_are_checked(string option, string says)
+    {
+        var m = Errors(Head + Body + Code + GraphVisual + "        " + option + "\n", new FakeRunner((_, _) => GraphTrace()));
+
+        Assert.Contains(m, x => x.Contains(says));
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public void A_graph_whose_variable_is_never_a_dict_with_nodes_is_reported(bool graph, bool empty)
+    {
+        var m = Errors(Head + Body + Code + GraphVisual, new FakeRunner((_, _) => GraphTrace(graph, empty)));
+
+        Assert.Contains(m, x => x.Contains("'g'") && x.Contains("never a non-empty dict"));
+    }
+
+    [Fact]
+    public void Graph_pointers_edge_and_marks_that_never_land_are_reported()
+    {
+        var never = Errors(Head + Body + Code + GraphVisual + "        pointers: [gone]\n        edge: [node, nb]\n        visited: seen\n        frontier: queue\n",
+            new FakeRunner((_, _) => GraphTrace(pointers: [("gone", null), ("node", 1), ("nb", 1)])));
+        var empty = Errors(Head + Body + Code + GraphVisual + "        visited: seen\n        frontier: queue\n",
+            new FakeRunner((_, _) => GraphTrace(visited: [], frontier: [])));
+
+        Assert.Equal(4, never.Count);
+        Assert.Contains(never, x => x.Contains("pointer 'gone'") && x.Contains("never holds a node of the graph"));
+        Assert.Contains(never, x => x.Contains("edge [node, nb]") && x.Contains("never holds the two ends of an edge"));
+        Assert.Contains(never, x => x.Contains("visited 'seen'") && x.Contains("is never a list, tuple, deque, set or dict"));
+        Assert.Contains(never, x => x.Contains("frontier 'queue'") && x.Contains("is never a list, tuple or deque"));
+        Assert.Equal(2, empty.Count);
+        Assert.All(empty, x => Assert.Contains("never holds a node of the graph", x));
+    }
+
+    [Theory]
+    [InlineData(false, 1, 0, true)]
+    [InlineData(true, 1, 0, false)]
+    public void An_undirected_edge_is_found_from_either_end(bool directed, int from, int to, bool found)
+    {
+        var m = Errors(Head + Body + Code + GraphVisual + $"        directed: {directed.ToString().ToLowerInvariant()}\n        edge: [node, nb]\n",
+            new FakeRunner((_, _) => GraphTrace(pointers: [("node", from), ("nb", to)])));
+
+        Assert.Equal(!found, m.Any(x => x.Contains("edge [node, nb]")));
+    }
+
+    private const string Bfs = "    code: |\n      from collections import deque\n"
+        + "      g = {'A': ['B', 'C'], 'B': ['D'], 'C': ['D'], 'D': []}\n"
+        + "      seen = {'A'}\n      queue = deque(['A'])\n      node = nb = None\n"
+        + "      while queue:\n          node = queue.popleft()\n          for nb in g[node]:\n"
+        + "              if nb not in seen:\n                  seen.add(nb)\n                  queue.append(nb)\n";
+
+    [Fact]
+    public void Real_cpython_traces_a_breadth_first_search()
+    {
+        Assert.Empty(Errors(Head + Body + Bfs + GraphVisual
+            + "        directed: true\n        edge: [node, nb]\n        visited: seen\n        frontier: queue\n"
+            + "      - variable: queue\n        as: queue\n", new CPythonRunner()));
+    }
+
+    [Fact]
+    public void Real_cpython_reports_a_graph_variable_that_is_never_a_dict()
+    {
+        var m = Errors(Head + Body + Code + "    visualise:\n      - variable: nums\n        as: graph\n", new CPythonRunner());
+
+        Assert.Contains(m, x => x.Contains("'nums'") && x.Contains("no graph to draw"));
     }
 
     // ---- Call stack ----

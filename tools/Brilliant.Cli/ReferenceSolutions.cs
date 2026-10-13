@@ -204,6 +204,8 @@ internal static class ReferenceSolutionChecker
                         $"variable '{visual.Variable}' never holds a tree node (an object with '{visual.Left}' and '{visual.Right}' attributes) in the trace, so there is no tree to draw.",
                     Visual.Grid =>
                         $"variable '{visual.Variable}' is never a non-empty list of lists or strings in the trace, so there is no grid to draw.",
+                    Visual.Graph =>
+                        $"variable '{visual.Variable}' is never a non-empty dict in the trace, so there is no graph to draw.",
                     Visual.CallStack => visual.Functions.Count == 0
                         ? "the code never calls a function of its own, so the call stack has nothing to draw."
                         : $"the code never calls {string.Join(" or ", visual.Functions.Select(f => $"'{f}'"))}, so the call stack has nothing to draw.",
@@ -224,6 +226,11 @@ internal static class ReferenceSolutionChecker
             if (visual.As == Visual.Grid)
             {
                 foreach (var problem in DescribeGrid(result, visual)) yield return problem;
+                continue;
+            }
+            if (visual.As == Visual.Graph)
+            {
+                foreach (var problem in DescribeGraph(result, visual)) yield return problem;
                 continue;
             }
             if (visual.As == Visual.CallStack)
@@ -307,8 +314,37 @@ internal static class ReferenceSolutionChecker
         }
     }
 
+    /// <summary>
+    /// Each graph pointer must hold one of its nodes at some step, the edge's two names must hold the ends of one of its edges at some
+    /// step, and the visited and frontier variables must be recorded at some step and mark a node at some step.
+    /// </summary>
+    private static IEnumerable<string> DescribeGraph(TraceResult result, Visual visual)
+    {
+        var graphs = result.Frames.Select(f => f.Graphs?.GetValueOrDefault(visual.Variable)).OfType<TrackedGraph>().ToList();
+        foreach (var pointer in visual.Pointers)
+            if (!graphs.Any(g => g.Pointers.TryGetValue(pointer, out var node) && node is not null))
+                yield return $"pointer '{pointer}' (of '{visual.Variable}') never holds a node of the graph in the trace.";
+        if (visual.Edge is { } edge && !graphs.Any(g => g.Pointers.GetValueOrDefault(edge.From) is { } from
+                && g.Pointers.GetValueOrDefault(edge.To) is { } to
+                && g.Edges.Any(e => (e.From, e.To) == (from, to) || !visual.Directed && (e.From, e.To) == (to, from))))
+            yield return $"edge [{edge.From}, {edge.To}] (of '{visual.Variable}') never holds the two ends of an edge of the graph in the trace.";
+        foreach (var (option, name, marks, kinds) in new[]
+                 {
+                     ("visited", visual.Visited, graphs.Select(g => g.Visited).ToList(), "a list, tuple, deque, set or dict"),
+                     ("frontier", visual.Frontier, graphs.Select(g => g.Frontier).ToList(), "a list, tuple or deque"),
+                 })
+        {
+            if (name is null) continue;
+            if (!marks.Any(m => m is not null))
+                yield return $"{option} '{name}' (of '{visual.Variable}') is never {kinds} in the trace, so it marks no node.";
+            else if (!marks.Any(m => m is { Nodes.Count: > 0 }))
+                yield return $"{option} '{name}' (of '{visual.Variable}') never holds a node of the graph in the trace, so it marks no node.";
+        }
+    }
+
     private static bool Draws(TraceFrame frame, Visual visual) => visual.As switch
     {
+        Visual.Graph => frame.Graphs is not null && frame.Graphs.TryGetValue(visual.Variable, out var graph) && graph.Nodes.Count > 0,
         Visual.Grid => frame.Grids is not null && frame.Grids.TryGetValue(visual.Variable, out var grid) && grid.Rows.Count > 0,
         Visual.Tree => frame.Trees is not null && frame.Trees.TryGetValue(visual.Variable, out var tree) && tree.Root is not null,
         Visual.LinkedList => frame.Lists is not null && frame.Lists.TryGetValue(visual.Variable, out var list) && list.Head is not null,

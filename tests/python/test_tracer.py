@@ -530,6 +530,87 @@ class Grids(unittest.TestCase):
         self.assertIsNone(grid["highlight"])
 
 
+class Graphs(unittest.TestCase):
+    def graphs(self, code, **options):
+        entry = dict({"variable": "g", "as": "graph"}, **options)
+        return trace(code, [entry])
+
+    def final(self, code, **options):
+        return self.graphs(code, **options)["frames"][-1]["graphs"]["g"]
+
+    @staticmethod
+    def labels(graph):
+        return [n["label"] for n in graph["nodes"]]
+
+    @staticmethod
+    def edges(graph):
+        label = {n["id"]: n["label"] for n in graph["nodes"]}
+        return [(label[e["from"]], label[e["to"]], e["weight"]) for e in graph["edges"]]
+
+    def test_records_the_keys_then_the_other_neighbours_and_the_edges(self):
+        graph = self.final("g = {'A': ['B', 'C'], 'B': ['D']}\nend = 1\n")
+        self.assertEqual(self.labels(graph), ["A", "B", "C", "D"])
+        self.assertEqual(self.edges(graph), [("A", "B", None), ("A", "C", None), ("B", "D", None)])
+        self.assertEqual((graph["more"], graph["moreEdges"], graph["pointers"], graph["visited"], graph["frontier"]), (0, 0, {}, None, None))
+
+    def test_a_node_keeps_its_id_through_the_run(self):
+        r = self.graphs("g = {1: [2]}\ng[3] = [1]\ng[2] = [3]\nend = 1\n")
+        ids = [{n["label"]: n["id"] for n in f["graphs"]["g"]["nodes"]} for f in r["frames"] if "g" in f["graphs"]]
+        self.assertEqual({len({frame[k] for frame in ids if k in frame}) for k in ("1", "2", "3")}, {1})
+
+    def test_a_label_is_a_string_as_it_is_and_anything_else_its_repr(self):
+        self.assertEqual(self.labels(self.final("g = {'x': [(0, 1)], 2: []}\nend = 1\n")), ["x", "2", "(0, 1)"])
+
+    def test_a_defaultdict_and_sets_of_neighbours_in_sorted_order(self):
+        code = "from collections import defaultdict\ng = defaultdict(set)\ng[1].update({3, 2})\nend = 1\n"
+        self.assertEqual(self.edges(self.final(code)), [("1", "2", None), ("1", "3", None)])
+
+    def test_without_weights_a_pair_is_a_node(self):
+        graph = self.final("g = {(0, 0): [(0, 1)]}\nend = 1\n")
+        self.assertEqual(self.edges(graph), [("(0, 0)", "(0, 1)", None)])
+
+    def test_weights_from_pairs_or_a_dict(self):
+        graph = self.final("g = {'A': [('B', 4)], 'B': {'C': 2.5}, 'C': ['A']}\nend = 1\n", weights=True)
+        self.assertEqual(self.edges(graph), [("A", "B", "4"), ("B", "C", "2.5"), ("C", "A", None)])
+
+    def test_a_dict_of_neighbours_is_weighted_without_the_flag(self):
+        graph = self.final("g = {'A': {'B': 7}, 'B': {}, 'C': [('A', 1)]}\nend = 1\n")
+        self.assertEqual(self.edges(graph), [("A", "B", "7"), ("C", "(\'A\', 1)", None)])
+
+    def test_nodes_are_told_apart_by_value_as_keys_are(self):
+        self.assertEqual(self.labels(self.final("g = {1: [1.0, True]}\nend = 1\n")), ["1"])
+
+    def test_a_value_that_is_not_a_dict_is_not_recorded(self):
+        self.assertNotIn("g", self.graphs("g = [[1]]\nend = 1\n")["frames"][-1]["graphs"])
+
+    def test_cuts_nodes_and_edges_and_counts_them(self):
+        graph = self.final("g = {i: [i + 100] for i in range(30)}\nend = 1\n")
+        self.assertEqual((len(graph["nodes"]), graph["more"]), (20, 40))
+        self.assertEqual((len(graph["edges"]), graph["moreEdges"]), (0, 30))
+        graph = self.final("g = {0: list(range(1, 20)), 1: list(range(2, 20)) * 4}\nend = 1\n")
+        self.assertEqual((len(graph["edges"]), graph["moreEdges"]), (60, 19 + 72 - 60))
+
+    def test_a_huge_graph_is_looked_at_only_so_far(self):
+        r = self.graphs("g = {0: list(range(10 ** 6))}\nend = 1\n")
+        self.assertEqual(r["status"], "ok")
+        self.assertEqual(r["frames"][-1]["graphs"]["g"]["moreEdges"], 999 - 20)
+
+    def test_pointers_hold_a_node_or_none(self):
+        graph = self.final("g = {'A': ['B']}\nnode, nb, gone, other = 'A', 'B', None, 'Z'\nend = 1\n", pointers=["node", "nb", "gone", "other", "unset"])
+        self.assertEqual(graph["pointers"], {"node": 0 + graph["nodes"][0]["id"], "nb": graph["nodes"][1]["id"], "gone": None})
+
+    def test_visited_and_frontier_mark_nodes_in_order(self):
+        code = "from collections import deque\ng = {'A': ['B', 'C']}\nseen = {'C', 'A', 'Z'}\nq = deque(['C', 'B', 'C', 'Y'])\nend = 1\n"
+        graph = self.final(code, visited="seen", frontier="q")
+        ids = {n["label"]: n["id"] for n in graph["nodes"]}
+        self.assertEqual(graph["visited"]["unmatched"], 1)
+        self.assertEqual(sorted(graph["visited"]["nodes"]), sorted([ids["A"], ids["C"]]))
+        self.assertEqual(graph["frontier"], {"nodes": [ids["C"], ids["B"]], "unmatched": 1})
+
+    def test_a_frontier_that_is_a_set_is_not_recorded(self):
+        self.assertIsNone(self.final("g = {1: []}\nq = {1}\nend = 1\n", frontier="q")["frontier"])
+
+
 class CallStacks(unittest.TestCase):
     FACT = "def fact(n):\n    if n <= 1:\n        return 1\n    return n * fact(n - 1)\n\nresult = fact(3)\n"
     WATCH = [{"as": "call_stack"}]

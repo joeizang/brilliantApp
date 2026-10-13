@@ -22,6 +22,11 @@ trace_code(code, watch_json, max_frames=MAX_FRAMES) -> JSON string:
                                       "pointers": {pointer: [row, col] | null},
                                       "rowLabels": [str] | null, "colLabels": [str] | null,
                                       "highlight": {"cells": [[row, col]], "unmatched": int} | null}},
+                 "graphs": {variable: {"nodes": [{"id": int, "label": str}], "more": int,
+                                       "edges": [{"from": id, "to": id, "weight": str | null}], "moreEdges": int,
+                                       "pointers": {pointer: id | null},
+                                       "visited": {"nodes": [id], "unmatched": int} | null,
+                                       "frontier": {"nodes": [id], "unmatched": int} | null}},
                  "calls": {"frames": [{"id": int, "function": str, "args": [{"name", "repr"}], "returning": str | null}],
                            "more": int, "returned": {"function": str, "value": str, "to": id | null} | null}}],
      "stdout": str, "message": str | null, "traceback": str | null, "errorLine": int | null}
@@ -67,6 +72,19 @@ same shape as the table: "cells" are the recorded cells it marks, sorted, and "u
 aren't pairs at all); only the first MAX_VISITED members are looked at, and the rest count as unmatched. It is null when the variable is
 not given, or is none of those.
 
+A watch entry {"variable": "graph", "as": "graph", "weights": false, "pointers": ["node", "nb"], "visited": "seen", "frontier": "queue"}
+records a graph in "graphs" while the variable holds a dict (a defaultdict too) mapping each node to its neighbours: a list, tuple, deque,
+set or dict of them (a set's in sorted order). A dict of neighbours is weighted already, its values the weights. With "weights", a
+neighbour given as a (node, weight) pair is that node with that weight; without it, a pair is a node itself (a grid square, say). Nodes are told apart by value, as dict
+keys are, and a node's "id" is the same at every step of the run. The nodes are the keys, in order, then the neighbours that aren't keys,
+in the order met, at most MAX_GRAPH_NODES ("more" counts the rest; at most MAX_WALK keys and neighbours are looked at). A node's "label"
+is a string as it is, anything else its repr. "edges" go from a key to each of its neighbours, both recorded, at most MAX_GRAPH_EDGES of
+them; "moreEdges" counts the rest. "pointers" maps each pointer that holds a node of the graph to its id, or to null when it is None;
+one holding anything else (or not defined) is left out. "visited" names a list, tuple, deque, set or dict (its keys) and "frontier" a
+list, tuple or deque (a queue or a stack): "nodes" are the recorded nodes their members are, in the order met, and "unmatched" counts
+the members that are none (only the first MAX_VISITED are looked at; the rest count as unmatched). Each is null when its variable is
+not given, or is none of those.
+
 A watch entry {"as": "call_stack", "functions": ["fact"]} records the active calls in "calls" at every frame (and only
 when it is watched, the frames below grow by one per return). Its "frames" are the calls of functions defined in the learner's code
 that haven't returned yet, outermost first, so the last is the one running; "functions", when given, keeps only the calls
@@ -106,6 +124,8 @@ MAX_WALK = 1000        # linked-list or tree nodes followed per frame at most, s
 MAX_TREE_NODES = 31    # tree nodes recorded per frame, five full levels (the rest are counted in "more")
 MAX_VISITED = 100      # members of a tree's visited list or set matched against its nodes (the rest mark nothing)
 MAX_GRID = 15          # rows of a grid recorded per frame, and cells of each row (the rest are counted)
+MAX_GRAPH_NODES = 20   # graph nodes recorded per frame (the rest are counted in "more")
+MAX_GRAPH_EDGES = 60   # graph edges recorded per frame (the rest are counted in "moreEdges")
 MAX_CALLS = 12         # calls on the stack recorded per frame, the innermost (the rest are counted in "more")
 MAX_CELL_REPR = 24     # characters of an array cell's, or a table key's or value's, repr
 MAX_OUTPUT = 4000      # characters of stdout kept
@@ -427,6 +447,115 @@ def _grids(frame, watch):
     return found
 
 
+def _label(value):
+    return _clip(value, MAX_CELL_REPR) if isinstance(value, str) else _repr(value, MAX_CELL_REPR)
+
+
+def _in_order(members):
+    """A set's members sorted (by repr when they can't be compared), so its edges keep their order; a big one as it iterates."""
+    if len(members) > MAX_SORT:
+        return list(itertools.islice(members, MAX_WALK))
+    try:
+        return sorted(members)
+    except Exception:
+        return sorted(members, key=lambda member: _repr(member, MAX_CELL_REPR))
+
+
+def _neighbours(value, weights):
+    """(neighbour, weight or _MISSING) for each neighbour a node's entry lists, or nothing when it lists none; a dict's values are weights."""
+    if isinstance(value, dict):
+        return iter(value.items())
+    if isinstance(value, (set, frozenset)):
+        value = _in_order(value)
+    elif not isinstance(value, (list, tuple, collections.deque)):
+        return iter(())
+    if not weights:
+        return ((member, _MISSING) for member in value)
+    return ((m[0], m[1]) if isinstance(m, (tuple, list)) and len(m) == 2 else (m, _MISSING) for m in value)
+
+
+def _marks(value, ids, kinds):
+    """The recorded nodes a visited or frontier variable's members are, in the order met, and how many members are none of them."""
+    if not isinstance(value, kinds):
+        return None
+    marked, unmatched = [], 0
+    for member in itertools.islice(value, MAX_VISITED):
+        found = ids(member)
+        if found is None:
+            unmatched += 1
+        elif found not in marked:
+            marked.append(found)
+    return {"nodes": marked, "unmatched": unmatched + max(0, len(value) - MAX_VISITED)}
+
+
+def _graph(entry, frame, identities):
+    """One graph as recorded at this frame, or None while its variable holds no dict."""
+    graph = _lookup(frame, entry["variable"])
+    if not isinstance(graph, dict):
+        return None
+    weights = bool(entry.get("weights"))
+    kept, cut, edges, more_edges, looked = {}, set(), [], 0, 0
+
+    def node(value):
+        """The id of a node met, which is recorded while there is room."""
+        found = identities.of(value)
+        if found not in kept and found not in cut:
+            if len(kept) < MAX_GRAPH_NODES:
+                kept[found] = _label(value)
+            else:
+                cut.add(found)
+        return found
+
+    keys = list(itertools.islice(graph.items(), MAX_WALK))
+    for key, _ in keys:
+        node(key)
+    looked = len(keys)
+    for key, listed in keys:
+        start = identities.of(key)
+        for neighbour, weight in _neighbours(listed, weights):
+            if looked >= MAX_WALK:
+                break
+            looked += 1
+            end = node(neighbour)
+            if start in kept and end in kept and len(edges) < MAX_GRAPH_EDGES:
+                edges.append({"from": start, "to": end, "weight": None if weight is _MISSING else _repr(weight, MAX_CELL_REPR)})
+            else:
+                more_edges += 1
+
+    def ids(value):
+        """The id of the recorded node a value is, else None."""
+        found = identities.of(value)
+        return found if found in kept else None
+
+    pointers = {}
+    for name in entry.get("pointers", []):
+        held = _lookup(frame, name)
+        if held is None:
+            pointers[name] = None
+        elif held is not _MISSING and (found := ids(held)) is not None:
+            pointers[name] = found
+
+    def named(option, kinds):
+        name = entry.get(option)
+        held = _MISSING if not name else _lookup(frame, name)
+        return None if held is _MISSING else _marks(held, ids, kinds)
+
+    return {"nodes": [{"id": i, "label": label} for i, label in kept.items()],
+            "more": len(cut) + max(0, len(graph) - len(keys)), "edges": edges, "moreEdges": more_edges, "pointers": pointers,
+            "visited": named("visited", (list, tuple, collections.deque, set, frozenset, dict)),
+            "frontier": named("frontier", (list, tuple, collections.deque))}
+
+
+def _graphs(frame, watch, identities):
+    found = {}
+    for entry in watch:
+        if isinstance(entry, dict) and entry.get("as") == "graph":
+            recorded = _graph(entry, frame, identities)
+            if recorded is not None:
+                found[entry["variable"]] = recorded
+    return found
+
+
 def _tracked(frame, watch):
     found = {}
     for name, value in _watched(frame, watch):
@@ -608,7 +737,7 @@ def trace_code(code, watch_json, max_frames=MAX_FRAMES):
             "event": event, "line": line, "function": frame.f_code.co_name,
             "locals": _locals(shown), "tracked": _tracked(frame, watch), "tables": _tables(frame, watch, shown, identities),
             "lists": _lists(frame, watch, nodes), "trees": _trees(frame, watch, nodes),
-            "grids": _grids(frame, watch),
+            "grids": _grids(frame, watch), "graphs": _graphs(frame, watch, identities),
         }
         if calls is not None:
             recorded["calls"] = calls.record(frame, returning)

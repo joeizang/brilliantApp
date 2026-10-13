@@ -1293,6 +1293,136 @@ public class TracePlayerTests : ShortcutContext
         Assert.Equal("dp, a grid: empty", cut.Find("figure.grid svg").GetAttribute("aria-label"));
     }
 
+    // ---- Graphs ----
+
+    private static readonly Visual GVisual = new("g", Visual.Graph, ["start"], Visited: "seen")
+    {
+        Edge = new EdgeNames("node", "nb"), Frontier = "queue", Directed = true, Weights = true,
+    };
+
+    /// <summary>A graph of the given labels (ids 0, 1, ...) and edges, with the pointers on their nodes and the marks given.</summary>
+    private static TrackedGraph GraphOf(string[] labels, (int From, int To, string? Weight)[] edges, int[]? seen = null, int[]? queue = null,
+        params (string Name, int? Node)[] pointers) =>
+        new(labels.Select((l, i) => new GraphNode(i, l)).ToList(), 0, edges.Select(e => new GraphEdge(e.From, e.To, e.Weight)).ToList(), 0,
+            pointers.ToDictionary(p => p.Name, p => p.Node),
+            seen is null ? null : new GraphMarks(seen, 0), queue is null ? null : new GraphMarks(queue, 0));
+
+    private IRenderedComponent<TracePlayer> Graphs(Visual visual, params TrackedGraph[] steps) =>
+        Start(RunOf(steps.Select((graph, i) => new TraceFrame("line", i + 1, "<module>", [], new Dictionary<string, TrackedArray>(),
+            Graphs: new Dictionary<string, TrackedGraph> { ["g"] = graph })).ToArray()), [visual], out _);
+
+    private static readonly string[] Abc = ["A", "B", "C"];
+
+    [Fact]
+    public void A_graph_draws_its_nodes_round_a_ring_with_its_edges_and_weights()
+    {
+        var cut = Graphs(GVisual, GraphOf(Abc, [(0, 1, "4"), (1, 2, null), (2, 0, "1")]));
+
+        Assert.Equal("graph", cut.Find("figure.graph").GetAttribute("data-kind"));
+        Assert.Contains("directed graph", cut.Find("figure.graph figcaption").TextContent);
+        Assert.Equal(["A", "B", "C"], cut.FindAll("figure.graph .node-value").Select(t => t.TextContent));
+        Assert.Equal(3, cut.FindAll("figure.graph g.edge").Count);
+        Assert.Equal(["4", "1"], cut.FindAll("figure.graph g.edge-weight").Select(t => t.TextContent.Trim()));
+        // The first node is at the top of the ring, the next clockwise from it.
+        var a = Place(cut.Find("figure.graph g.node[data-id='0']"));
+        var b = Place(cut.Find("figure.graph g.node[data-id='1']"));
+        Assert.True(a.Y < b.Y && b.X > a.X);
+        Assert.Equal("g, a directed graph: A to B (weight 4); B to C; C to A (weight 1)", cut.Find("figure.graph svg").GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public void A_directed_edge_has_an_arrowhead_and_edges_both_ways_bow_apart()
+    {
+        var cut = Graphs(GVisual, GraphOf(["A", "B"], [(0, 1, null), (1, 0, null), (1, 1, null)]));
+
+        Assert.Equal(2, cut.FindAll("figure.graph g.edge.both").Count);
+        Assert.All(cut.FindAll("figure.graph g.edge.both"), e => Assert.Contains("Q", e.QuerySelector("path")!.GetAttribute("d")));
+        Assert.Equal(2, cut.FindAll("figure.graph g.edge.both path.fill-border").Count);
+        Assert.NotNull(cut.Find("figure.graph g.edge.loop"));
+
+        var undirected = Graphs(GVisual with { Directed = false }, GraphOf(["A", "B"], [(0, 1, null), (1, 0, null)]));
+        Assert.Single(undirected.FindAll("figure.graph g.edge"));
+        Assert.Empty(undirected.FindAll("figure.graph g.edge path.fill-border"));
+        Assert.Contains("graph", undirected.Find("figure.graph figcaption").TextContent);
+        Assert.DoesNotContain("directed", undirected.Find("figure.graph figcaption").TextContent);
+    }
+
+    [Fact]
+    public void Nodes_keep_their_place_and_new_ones_and_new_edges_grow_in()
+    {
+        var cut = Graphs(GVisual, GraphOf(["A", "B"], []), GraphOf(Abc, [(0, 2, null)]));
+        var before = Place(cut.Find("figure.graph g.node[data-id='1']"));
+        cut.Find("button.next").Click();
+
+        Assert.Equal(before, Place(cut.Find("figure.graph g.node[data-id='1']")));
+        Assert.NotNull(cut.Find("figure.graph g.node[data-id='2'] .node-body.animate-cell-in"));
+        Assert.Null(cut.Find("figure.graph g.node[data-id='0']").QuerySelector(".animate-cell-in"));
+        Assert.NotNull(cut.Find("figure.graph g.edge.added path.animate-link-in"));
+    }
+
+    [Fact]
+    public void The_edge_being_explored_is_thick_and_noted()
+    {
+        var cut = Graphs(GVisual, GraphOf(Abc, [(0, 1, null), (0, 2, null)], null, null, ("node", 0), ("nb", 2)));
+
+        var active = cut.Find("figure.graph g.edge.active");
+        Assert.Equal(("0", "2"), (active.GetAttribute("data-from"), active.GetAttribute("data-to")));
+        Assert.Contains("stroke-accent", active.QuerySelector("path")!.ClassName);
+        Assert.Contains("Thick: the edge from node (A) to nb (C).", cut.FindAll(".graph-note").Select(n => n.TextContent));
+        Assert.Contains("exploring the edge from A to C", cut.Find("figure.graph svg").GetAttribute("aria-label"));
+        Assert.Empty(cut.FindAll("figure.graph g.pointer"));
+    }
+
+    [Fact]
+    public void Visited_nodes_are_shaded_and_waiting_ones_ringed_and_numbered()
+    {
+        var cut = Graphs(GVisual, GraphOf(Abc, [], [0], [0]), GraphOf(Abc, [], [0, 1, 2], [2, 1]));
+        cut.Find("button.next").Click();
+
+        Assert.Contains("fill-accent-tint", cut.Find("figure.graph g.node[data-id='1'] .node-circle").ClassName);
+        Assert.Null(cut.Find("figure.graph g.node[data-id='0']").QuerySelector(".queue-ring"));
+        Assert.Equal(["2", "1"], new[] { 1, 2 }.Select(id => cut.Find($"figure.graph g.node[data-id='{id}'] .queue-place").TextContent.Trim()));
+        Assert.NotNull(cut.Find("figure.graph g.node.just-visited[data-id='1'] .visit-mark"));
+        Assert.NotNull(cut.Find("figure.graph g.node.just-queued[data-id='2'] .queue-place .animate-pop"));
+        var notes = cut.FindAll(".graph-note").Select(n => n.TextContent).ToList();
+        Assert.Contains("Shaded: the nodes in seen.", notes);
+        Assert.Contains("Ringed: the nodes waiting in queue, numbered in its order.", notes);
+        Assert.Contains("B, visited, waiting 2", cut.Find("figure.graph svg").GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public void Graph_pointers_stand_outside_the_ring_from_their_node_and_none_is_noted()
+    {
+        var cut = Graphs(GVisual with { Pointers = ["start", "top", "cur"] }, GraphOf(Abc, [], null, null, ("start", 1), ("top", 0), ("cur", null)));
+
+        // B is on the right of the ring (below A, at the top): its pointer's name is out to the right, A's above.
+        var start = cut.Find("figure.graph g.pointer[data-name='start']");
+        Assert.Equal(Place(cut.Find("figure.graph g.node[data-id='1']")), Place(start));
+        Assert.True(double.Parse(start.QuerySelector("text")!.GetAttribute("x")!, CultureInfo.InvariantCulture) > 18);
+        var top = cut.Find("figure.graph g.pointer[data-name='top'] text");
+        Assert.Equal(("0", true), (top.GetAttribute("x"), double.Parse(top.GetAttribute("y")!, CultureInfo.InvariantCulture) < -18));
+        Assert.Contains("cur is None.", cut.FindAll(".graph-note").Select(n => n.TextContent));
+    }
+
+    [Fact]
+    public void Nodes_and_edges_past_the_cap_are_noted()
+    {
+        var cut = Graphs(GVisual, GraphOf(["A"], []) with { More = 3, MoreEdges = 1 });
+
+        var notes = cut.FindAll(".graph-note").Select(n => n.TextContent).ToList();
+        Assert.Contains("+3 more nodes not shown.", notes);
+        Assert.Contains("+1 more edge not shown.", notes);
+    }
+
+    [Fact]
+    public void An_empty_graph_says_so()
+    {
+        var cut = Graphs(GVisual, GraphOf([], []));
+
+        Assert.Contains("empty", cut.Find("figure.graph g.graph-none").TextContent);
+        Assert.Equal("g, a directed graph: empty", cut.Find("figure.graph svg").GetAttribute("aria-label"));
+    }
+
     // ---- The call stack ----
 
     private static readonly IReadOnlyList<Visual> StackVisual = [new Visual("", Visual.CallStack, [])];
