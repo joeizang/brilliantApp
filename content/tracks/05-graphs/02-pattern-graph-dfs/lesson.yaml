@@ -1,0 +1,602 @@
+id: lesson.pattern-graph-dfs
+title: "Pattern: depth-first search on a graph"
+concepts:
+  - id: concept.graph-dfs-seen
+    title: Mark a node seen before exploring it, or a cycle walks for ever
+  - id: concept.graph-dfs-stack
+    title: An explicit stack does the same dive without recursion
+  - id: concept.graph-dfs-reach
+    title: DFS finds everything reachable from a start node
+reviewItems:
+  - id: review.graph-dfs.predict-order
+    concept: concept.graph-dfs-seen
+    step: step.graph-dfs.predict-order
+  - id: review.graph-dfs.no-seen
+    concept: concept.graph-dfs-seen
+    step: step.graph-dfs.check-no-seen
+  - id: review.graph-dfs.predict-stack
+    concept: concept.graph-dfs-stack
+    step: step.graph-dfs.predict-stack
+  - id: review.graph-dfs.mark-on-push
+    concept: concept.graph-dfs-stack
+    step: step.graph-dfs.check-mark-on-push
+  - id: review.graph-dfs.too-deep
+    concept: concept.graph-dfs-stack
+    step: step.graph-dfs.check-too-deep
+  - id: review.graph-dfs.which-problem
+    concept: concept.graph-dfs-reach
+    step: step.graph-dfs.check-which-problem
+    kind: pattern
+  - id: review.graph-dfs.every-start
+    concept: concept.graph-dfs-reach
+    step: step.graph-dfs.check-every-start
+    kind: pattern
+patterns:
+  - id: pattern.graph-dfs
+    title: Dive along the edges, marking nodes seen
+steps:
+  - id: step.graph-dfs.idea
+    type: explain
+    title: DFS with a memory
+    body: |
+      A tree DFS (Track 4) goes down one child, as deep as it can, then backs up and tries the next. On a graph the same dive
+      works, with one thing added. A graph can have a **cycle**: `A → B → C → A`. A tree walk that follows every edge would go
+      round that cycle for ever, and even without a cycle it would visit a node once for every path that reaches it.
+
+      So a graph DFS keeps a **`seen` set**. A node goes into `seen` the moment the walk reaches it, and the walk only steps to
+      a neighbour that isn't in `seen` yet. Every node is explored once and every edge looked at once (twice when undirected):
+      **O(V + E)**.
+
+      The recursive form is the tree DFS plus the set. In C# it's a `HashSet<T>` and a recursive local function.
+    comparison:
+      csharp: |
+        var seen = new HashSet<string>();
+        var order = new List<string>();
+        void Dfs(string node)
+        {
+            seen.Add(node);
+            order.Add(node);
+            foreach (var nb in g[node])
+                if (!seen.Contains(nb)) Dfs(nb);
+        }
+        Dfs("A");
+      python: |
+        seen = set()
+        order = []
+
+        def dfs(node):
+            seen.add(node)
+            order.append(node)
+            for nb in g[node]:
+                if nb not in seen:
+                    dfs(nb)
+
+        dfs("A")
+  - id: step.graph-dfs.trace-recursive
+    type: trace
+    title: The dive, and the way back
+    body: |
+      The thick edge is the one being looked at, from `node` to `nb`. Shaded nodes are in `seen`. `D → A` leads back to the
+      start, but `A` is already shaded, so the walk doesn't step onto it: that one check is what stops the cycle. Watch the call
+      stack too: each frame waits on a neighbour's call, and when a node has no unseen neighbours left its frame returns.
+    code: |
+      g = {"A": ["B", "C"], "B": ["D"], "C": ["D"], "D": ["A"]}
+      seen = set()
+      order = []
+
+
+      def dfs(node):
+          seen.add(node)
+          order.append(node)
+          for nb in g[node]:
+              if nb not in seen:
+                  dfs(nb)
+
+
+      dfs("A")
+    visualise:
+      - as: call_stack
+        functions: [dfs]
+      - variable: g
+        as: graph
+        directed: true
+        edge: [node, nb]
+        visited: seen
+  - id: step.graph-dfs.predict-order
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      In what order does this DFS reach the nodes?
+    code: |
+      g = {"S": ["A", "B"], "A": ["C"], "B": ["C", "D"], "C": ["S", "D"], "D": []}
+      seen = set()
+      order = []
+
+
+      def dfs(node):
+          seen.add(node)
+          order.append(node)
+          for nb in g[node]:
+              if nb not in seen:
+                  dfs(nb)
+
+
+      dfs("S")
+      print("".join(order))
+    accepted:
+      - "SACDB"
+    mistakes:
+      - answers:
+          - "SABCD"
+        feedback: "That is breadth-first, level by level. A DFS follows `A`'s edge to `C`, and `C`'s to `D`, before it ever backs up to `B`."
+      - answers:
+          - "SACBD"
+        feedback: "`C`'s own neighbours come first: from `C` the walk goes on to `D`, and only backs up to `B` when `C` has nothing new."
+      - answers:
+          - "SACSD"
+        feedback: "`S` is in `seen` from the very first call, so `C → S` is skipped. Each node is reached once."
+    hints:
+      - "Keep a list of the calls that are waiting. Start: `dfs(S)` goes to `A` first."
+      - "When a node's neighbours are all seen, its call returns, and the caller tries its next neighbour."
+  - id: step.graph-dfs.check-no-seen
+    type: choice
+    title: Forget the set
+    prompt: |
+      Someone drops `seen` from the recursive DFS and runs it on `{"A": ["B"], "B": ["A"]}` from `"A"`. What happens?
+    options:
+      - text: "`dfs(A)` calls `dfs(B)`, which calls `dfs(A)` again, and so on, until Python raises `RecursionError`."
+        correct: true
+        feedback: "Right. The walk goes round the cycle `A → B → A` for ever, a frame per step, until it hits the recursion limit (about 1,000 frames)."
+      - text: "It visits `A` and `B` once each, as a tree DFS would."
+        correct: false
+        feedback: "A tree has no edge back to an ancestor, so it never needs a `seen` set. `B → A` is such an edge, and nothing stops the walk taking it."
+      - text: "It visits `A`, `B` and stops, because `A` has no other neighbours."
+        correct: false
+        feedback: "`B`'s list holds `A`, so `dfs(B)` calls `dfs(A)`, which calls `dfs(B)`... nothing remembers that `A` was already reached."
+      - text: "Python spots the cycle and skips it."
+        correct: false
+        feedback: "Python knows nothing about your graph. Spotting that a node was already reached is exactly the job of `seen`."
+    hints:
+      - "Without `seen`, what stops `dfs(B)` from calling `dfs(A)`?"
+  - id: step.graph-dfs.iterative
+    type: explain
+    title: The same dive with a stack
+    body: |
+      A recursive DFS on a long path of nodes needs one frame per node, and Python stops at about 1,000 frames with a
+      `RecursionError` (C#'s limit is higher, but its `StackOverflowException` can't be caught at all). When the graph can be
+      big, do the recursion's job yourself with a **list as a stack**:
+
+      ```python
+      seen = {start}
+      stack = [start]
+      while stack:
+          node = stack.pop()              # take the newest node
+          for nb in g[node]:
+              if nb not in seen:
+                  seen.add(nb)            # mark it when it is pushed...
+                  stack.append(nb)        # ...so it is never pushed twice
+      ```
+
+      Two things to notice:
+
+      - **Mark on push.** A node goes into `seen` when it's put on the stack, not when it's popped. Otherwise two nodes that
+        both point at `D` could each push it, and the stack would hold copies.
+      - **The order differs.** `pop` takes the **last** neighbour pushed, so this walk tries a node's neighbours from the end of
+        its list. For "what can I reach?" the order doesn't matter. Push `reversed(g[node])` if you want the first neighbour
+        tried first.
+
+      Swap the list for a `deque` and `pop` for `popleft`, and the same loop is a **breadth-first** search: that's the next
+      lesson.
+  - id: step.graph-dfs.trace-stack
+    type: trace
+    title: The stack runs the walk
+    body: |
+      Ringed nodes are on the stack, numbered from the bottom of it, so the **highest number is popped next**. Each pop takes
+      the newest node; its unseen neighbours are shaded and pushed on top. `C` was pushed after `B`, so `C`'s branch is
+      explored first, and `B` waits at the bottom until it's done.
+    code: |
+      g = {"A": ["B", "C"], "B": ["D"], "C": ["D", "E"], "D": [], "E": ["B"]}
+      seen = {"A"}
+      stack = ["A"]
+      node = nb = None
+      while stack:
+          node = stack.pop()
+          for nb in g[node]:
+              if nb not in seen:
+                  seen.add(nb)
+                  stack.append(nb)
+    visualise:
+      - variable: g
+        as: graph
+        directed: true
+        edge: [node, nb]
+        visited: seen
+        frontier: stack
+      - variable: stack
+        as: stack
+  - id: step.graph-dfs.predict-stack
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      This DFS uses a stack. In what order does it pop the nodes?
+    code: |
+      g = {"A": ["B", "C"], "B": ["D"], "C": ["E"], "D": [], "E": []}
+      seen = {"A"}
+      stack = ["A"]
+      order = []
+      while stack:
+          node = stack.pop()
+          order.append(node)
+          for nb in g[node]:
+              if nb not in seen:
+                  seen.add(nb)
+                  stack.append(nb)
+      print("".join(order))
+    accepted:
+      - "ACEBD"
+    mistakes:
+      - answers:
+          - "ABDCE"
+        feedback: "That's the recursive order. The stack pops the **last** node pushed: `A` pushes `B` then `C`, so `C` comes off first."
+      - answers:
+          - "ABCDE"
+        feedback: "That's breadth-first, which a queue would give. A stack takes the newest node, so it dives into `C`'s branch first."
+      - answers:
+          - "ACBED"
+        feedback: "Popping `C` pushes `E` on top of `B`, so `E` is popped before `B`."
+    hints:
+      - "Write the stack after each pop and push. After `A`, it's `[B, C]`, with `C` on top."
+  - id: step.graph-dfs.check-mark-on-push
+    type: choice
+    title: When to mark
+    prompt: |
+      In the stack DFS, someone moves `seen.add` from where the neighbour is pushed to just after `node = stack.pop()`, and pushes
+      every neighbour not yet in `seen`. Each node is still *explored* once (they skip a popped node already in `seen`). What
+      goes wrong on a graph where many nodes point at the same node?
+    options:
+      - text: "That node can be pushed once by each of them, so the stack holds many copies and grows beyond O(V)."
+        correct: true
+        feedback: "Right. Until it's popped, the node isn't in `seen`, so every neighbour that meets it pushes it again. Marking on push keeps one copy."
+      - text: "It never visits that node."
+        correct: false
+        feedback: "It does visit it: the first copy popped is explored. The trouble is the other copies left on the stack."
+      - text: "It loops for ever."
+        correct: false
+        feedback: "It still finishes: once the node is popped and marked, its copies are skipped. But the stack can hold a copy per edge."
+      - text: "Nothing: the two are the same."
+        correct: false
+        feedback: "Both explore each node once, but marking late lets a node sit on the stack several times. With many edges into it, that's a lot of copies."
+    hints:
+      - "Between being pushed and being popped, is the node in `seen`?"
+  - id: step.graph-dfs.check-too-deep
+    type: choice
+    title: When recursion is too deep
+    prompt: |
+      A graph is one long chain: `0 → 1 → 2 → ... → 49999`. You need every node reachable from `0`. Which DFS do you write in
+      Python?
+    options:
+      - text: "The stack version: the recursive one needs 50,000 frames and Python raises `RecursionError` at about 1,000."
+        correct: true
+        feedback: "Right. The chain makes every call wait on the next. A list as a stack holds 50,000 items without trouble."
+      - text: "The recursive version: it's O(V + E) too."
+        correct: false
+        feedback: "Both are O(V + E) in time. The problem is depth: a recursive call per node in the chain overflows Python's call stack."
+      - text: "Either: Python grows the call stack as needed."
+        correct: false
+        feedback: "Python has a fixed recursion limit, about 1,000 by default, and raises `RecursionError` past it. A list grows as needed; the call stack doesn't."
+      - text: "Neither: a chain has no cycles, so it needs no search."
+        correct: false
+        feedback: "You still have to walk the chain to find what's reachable. It's how deep the walk goes that matters."
+    hints:
+      - "How many recursive calls are waiting at once when the walk reaches node `49999`?"
+  - id: step.graph-dfs.check-which-problem
+    type: choice
+    title: Which one is a DFS?
+    prompt: |
+      Which of these problems is the best fit for a DFS over a graph with a `seen` set?
+    options:
+      - text: "Rooms are joined by one-way doors. Starting in room 0, can you get into room 7?"
+        correct: true
+        feedback: "Right. \"Can I get there at all?\" is reachability: dive from room 0, marking rooms seen, and see whether 7 gets marked."
+      - text: "What is the fewest number of doors you must go through to get from room 0 to room 7?"
+        correct: false
+        feedback: "\"Fewest steps\" is a shortest path. A DFS finds *a* path, not the shortest one; a BFS, which goes out one step at a time, finds the shortest."
+      - text: "Sort the rooms by their numbers."
+        correct: false
+        feedback: "Sorting doesn't involve the doors at all, so there's no graph to search."
+      - text: "Which room has the most doors?"
+        correct: false
+        feedback: "That's a count per node: `max(g, key=lambda r: len(g[r]))`. No walk is needed."
+    hints:
+      - "Which question is about whether a node can be reached, not how far it is?"
+  - id: step.graph-dfs.check-every-start
+    type: choice
+    title: More than one start
+    prompt: |
+      An undirected graph may be in several pieces. To visit **every** node, not just those reachable from node `0`, what do
+      you add to a DFS?
+    options:
+      - text: "A loop over every node that starts a DFS from it if it isn't in `seen` yet, sharing one `seen` set."
+        correct: true
+        feedback: "Right. Each new start is a node no earlier DFS reached, so it begins a new piece; the shared set stops any node being walked twice."
+      - text: "Run the DFS from node `0` twice."
+        correct: false
+        feedback: "The second run reaches exactly the same nodes as the first. A node in another piece can't be reached from `0` at all."
+      - text: "Add an edge from `0` to every other node first."
+        correct: false
+        feedback: "That changes the graph, and with it the answer to most questions about it (for example, how many pieces there are)."
+      - text: "Nothing: a DFS from any node visits the whole graph."
+        correct: false
+        feedback: "It only visits what can be reached from where it starts. Nodes in another piece have no path to it."
+    hints:
+      - "A DFS from one node reaches only its own piece."
+  - id: step.graph-dfs.fill-path
+    type: fill-blank
+    title: Is there a path?
+    pattern: pattern.graph-dfs
+    patternCue: "\"Can you get from here to there?\": dive from the start, never stepping onto a node already seen."
+    prompt: |
+      Fill in the blanks so that `has_path(g, start, target)` returns whether the directed graph `g` has a path from `start` to
+      `target`. Every node is a key of `g`.
+    template: |
+      def has_path(g, start, target):
+          seen = set()
+
+          def dfs(node):
+              if node == target:
+                  return True
+              {{mark}}
+              for nb in g[node]:
+                  if nb not in seen and {{recurse}}:
+                      return True
+              return False
+
+          return dfs(start)
+    blanks:
+      - id: mark
+        accepted:
+          - "seen.add(node)"
+        mistakes:
+          - answers:
+              - "seen.add(nb)"
+            feedback: "`nb` doesn't exist yet at this line; it's the loop variable below. Mark the node this call has reached."
+          - answers:
+              - "seen.add(target)"
+            feedback: "Marking the target would make every call skip it, so the path would never be found. Mark the node being explored."
+      - id: recurse
+        accepted:
+          - "dfs(nb)"
+        mistakes:
+          - answers:
+              - "dfs(node)"
+            feedback: "That calls the same node again, for ever. Step to the neighbour."
+          - answers:
+              - "nb == target"
+            feedback: "That only finds a target one edge away. To look further, the neighbour has to be searched too: call `dfs` on it."
+    hints:
+      - "Mark the node this call is exploring before looking at its neighbours."
+      - "If a neighbour's own search finds the target, so has this one."
+  - id: step.graph-dfs.order-reachable
+    type: parsons
+    title: How many can you reach?
+    pattern: pattern.graph-dfs
+    patternCue: "\"Everything reachable from one node\": a stack DFS, marking each node when it is pushed."
+    prompt: |
+      Arrange the lines into `reachable(g, start)`, which returns how many nodes can be reached from `start`, counting `start`
+      itself. Use a stack, not recursion.
+    solution: |
+      def reachable(g, start):
+          seen = {start}
+          stack = [start]
+          while stack:
+              node = stack.pop()
+              for nb in g[node]:
+                  if nb not in seen:
+                      seen.add(nb)
+                      stack.append(nb)
+          return len(seen)
+    hints:
+      - "Start with `start` both seen and on the stack."
+      - "Mark a neighbour as you push it."
+  - id: step.graph-dfs.write-rooms
+    type: write-code
+    largeScreenPreferred: true
+    title: Keys and rooms
+    pattern: pattern.graph-dfs
+    patternCue: "\"Can every room be opened?\": the keys are edges; dive from room 0 and check that every room was seen."
+    prompt: |
+      There are `n` rooms, numbered `0` to `n - 1`, and only room `0` is unlocked. `rooms[i]` is the list of keys you find in
+      room `i`; each key is the number of the room it opens. Write `can_visit_all(rooms)` that returns `True` if you can get
+      into every room.
+
+      `can_visit_all([[1], [2], [3], []])` is `True`, and `can_visit_all([[1, 3], [3, 0, 1], [2], [0]])` is `False` (no key
+      opens room `2`).
+    language: python
+    entrypoint: can_visit_all
+    starter: |
+      def can_visit_all(rooms):
+          pass
+    solution: |
+      def can_visit_all(rooms):
+          seen = {0}
+          stack = [0]
+          while stack:
+              room = stack.pop()
+              for key in rooms[room]:
+                  if key not in seen:
+                      seen.add(key)
+                      stack.append(key)
+          return len(seen) == len(rooms)
+    tests:
+      - input: "[[1], [2], [3], []]"
+        expected: "True"
+      - input: "[[1, 3], [3, 0, 1], [2], [0]]"
+        expected: "False"
+      - input: "[[]]"
+        expected: "True"
+      - input: "[[], [0]]"
+        expected: "False"
+      - input: "[[2], [], [1]]"
+        expected: "True"
+      - input: "[[1], [0], [3], [2]]"
+        expected: "False"
+    hints:
+      - "Each room is a node and each key an edge to the room it opens. Room `0` is where you start."
+      - "Walk everything reachable from room `0`, then compare how many rooms you saw with how many there are."
+    walkthrough:
+      call: result = can_visit_all([[1, 3], [3, 0, 1], [2], [0]])
+      visualise:
+        - variable: stack
+          as: stack
+        - variable: rooms
+          as: array
+          pointers: [room]
+      explanation: |
+        Room `0` gives keys `1` and `3`, both new, so both are pushed. `3` is popped first and only has key `0`, already seen.
+        Room `1` gives `3`, `0` and `1`, all seen. The stack is empty with `{0, 1, 3}` seen: three of four rooms, so `False`.
+    phoneAlternative:
+      id: step.graph-dfs.write-rooms.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `can_visit_all(rooms)`, which returns whether the keys found from room `0` open every room. Arrange the lines
+        instead of typing them.
+      solution: |
+        def can_visit_all(rooms):
+            seen = {0}
+            stack = [0]
+            while stack:
+                room = stack.pop()
+                for key in rooms[room]:
+                    if key not in seen:
+                        seen.add(key)
+                        stack.append(key)
+            return len(seen) == len(rooms)
+      hints:
+        - "Start from room `0`, seen and on the stack."
+        - "At the end, compare how many rooms were seen with how many there are."
+  - id: step.graph-dfs.write-path
+    type: write-code
+    largeScreenPreferred: true
+    title: The path a DFS finds
+    pattern: pattern.graph-dfs
+    patternCue: "\"Give me a path from A to B\": dive with a path list, appending on the way in and popping on a dead end."
+    prompt: |
+      Write `find_path(g, start, target)` that returns a path from `start` to `target` in the directed graph `g` as a list of
+      nodes, or `[]` if there is none. Try each node's neighbours in the order `g` lists them, and return the **first** path that
+      order finds. Every node is a key of `g`; a path from a node to itself is just `[start]`.
+
+      With `g = {"A": ["B", "C"], "B": ["D"], "C": ["E"], "D": [], "E": []}`, `find_path(g, "A", "E")` is `["A", "C", "E"]`:
+      `B`'s branch is a dead end.
+    language: python
+    entrypoint: find_path
+    starter: |
+      def find_path(g, start, target):
+          pass
+    solution: |
+      def find_path(g, start, target):
+          seen = set()
+          path = []
+
+          def dfs(node):
+              seen.add(node)
+              path.append(node)
+              if node == target:
+                  return True
+              for nb in g[node]:
+                  if nb not in seen and dfs(nb):
+                      return True
+              path.pop()
+              return False
+
+          return path if dfs(start) else []
+    tests:
+      - input: "{'A': ['B', 'C'], 'B': ['D'], 'C': ['E'], 'D': [], 'E': []}, 'A', 'E'"
+        expected: "['A', 'C', 'E']"
+      - input: "{'A': ['B'], 'B': []}, 'A', 'A'"
+        expected: "['A']"
+      - input: "{'A': ['B'], 'B': [], 'C': ['A']}, 'A', 'C'"
+        expected: "[]"
+      - input: "{1: [2], 2: [3], 3: [1, 4], 4: []}, 1, 4"
+        expected: "[1, 2, 3, 4]"
+      - input: "{0: [1, 2], 1: [3], 2: [3], 3: []}, 0, 3"
+        expected: "[0, 1, 3]"
+    hints:
+      - "Keep the path so far in a list: append a node when the walk reaches it."
+      - "When none of a node's neighbours leads to the target, take the node back off the path before returning."
+      - "Return as soon as some call reaches the target, so the path is left as it was."
+    walkthrough:
+      call: "result = find_path({'A': ['B', 'C'], 'B': ['D'], 'C': ['E'], 'D': [], 'E': []}, 'A', 'E')"
+      visualise:
+        - as: call_stack
+          functions: [find_path, dfs]
+        - variable: path
+          as: array
+      explanation: |
+        The walk goes `A`, `B`, `D`, and `path` grows with it. `D` has no neighbours and isn't the target, so it's popped; `B`
+        has nothing else, so it's popped too. Back at `A`, the next neighbour is `C`, then `E`: the target, so every waiting
+        call returns `True` and `path` is left as `[A, C, E]`.
+  - id: step.graph-dfs.write-bipartite
+    type: write-code
+    largeScreenPreferred: true
+    title: Two teams
+    pattern: pattern.graph-dfs
+    patternCue: "\"Split the nodes so every edge crosses\": a DFS from every unseen node, giving each neighbour the other colour."
+    prompt: |
+      `g` is an undirected graph (every edge is in both lists, and every node is a key). Write `two_teams(g)` that returns
+      `True` if the nodes can be split into two teams so that **every edge joins players on different teams**, and `False`
+      otherwise. The graph may be in several pieces.
+
+      A triangle `{0: [1, 2], 1: [0, 2], 2: [0, 1]}` gives `False`: whichever teams `0` and `1` are on, `2` is next to both.
+    language: python
+    entrypoint: two_teams
+    starter: |
+      def two_teams(g):
+          pass
+    solution: |
+      def two_teams(g):
+          team = {}
+          for start in g:
+              if start in team:
+                  continue
+              team[start] = 0
+              stack = [start]
+              while stack:
+                  node = stack.pop()
+                  for nb in g[node]:
+                      if nb not in team:
+                          team[nb] = 1 - team[node]
+                          stack.append(nb)
+                      elif team[nb] == team[node]:
+                          return False
+          return True
+    tests:
+      - input: "{0: [1, 2], 1: [0, 2], 2: [0, 1]}"
+        expected: "False"
+      - input: "{0: [1, 3], 1: [0, 2], 2: [1, 3], 3: [0, 2]}"
+        expected: "True"
+      - input: "{0: []}"
+        expected: "True"
+      - input: "{0: [1], 1: [0], 2: [3, 4], 3: [2, 4], 4: [2, 3]}"
+        expected: "False"
+      - input: "{0: [1], 1: [0], 2: [3], 3: [2], 4: []}"
+        expected: "True"
+      - input: "{}"
+        expected: "True"
+    hints:
+      - "Give the start node team `0`. Each neighbour must be on the other team: `1 - team[node]`."
+      - "A dict from node to team also does the job of `seen`. If a neighbour already has a team, check it's the other one."
+      - "The graph may be in pieces: start a new walk from every node that has no team yet."
+    walkthrough:
+      call: "result = two_teams({0: [1], 1: [0], 2: [3, 4], 3: [2, 4], 4: [2, 3]})"
+      visualise:
+        - variable: g
+          as: graph
+          edge: [node, nb]
+          visited: team
+        - variable: team
+          as: dict
+      explanation: |
+        The first walk puts `0` on team `0` and `1` on team `1`, and that piece is done. Node `2` has no team yet, so a second
+        walk starts there: `3` and `4` both go on team `1`. Popping `4`, its neighbour `3` is on team `1` as well: an edge inside
+        one team, so the answer is `False`.

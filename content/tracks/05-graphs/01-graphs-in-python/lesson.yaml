@@ -1,0 +1,463 @@
+id: lesson.graphs-in-python
+title: Graphs in Python
+concepts:
+  - id: concept.graph-adjacency-dict
+    title: An adjacency dict maps each node to its neighbours
+  - id: concept.graph-undirected-both-ways
+    title: An undirected edge is stored in both directions
+  - id: concept.graph-defaultdict
+    title: "defaultdict(list) builds the dict, and reading a missing key adds it"
+  - id: concept.graph-sparse
+    title: "An adjacency dict takes O(V + E) space; a matrix takes O(V²)"
+reviewItems:
+  - id: review.graphs.predict-defaultdict
+    concept: concept.graph-defaultdict
+    step: step.graphs.predict-defaultdict
+  - id: review.graphs.directed
+    concept: concept.graph-undirected-both-ways
+    step: step.graphs.check-directed
+  - id: review.graphs.predict-degrees
+    concept: concept.graph-undirected-both-ways
+    step: step.graphs.predict-degrees
+  - id: review.graphs.isolated
+    concept: concept.graph-adjacency-dict
+    step: step.graphs.check-isolated
+  - id: review.graphs.matrix
+    concept: concept.graph-sparse
+    step: step.graphs.check-matrix
+  - id: review.graphs.has-edge
+    concept: concept.graph-adjacency-dict
+    step: step.graphs.check-has-edge
+steps:
+  - id: step.graphs.idea
+    type: explain
+    title: Nodes and edges
+    body: |
+      A **graph** is a set of **nodes** (also called vertices) joined by **edges**. A tree is one kind of graph, but a general
+      graph can have **cycles** (you can walk round and come back), several paths between the same two nodes, and nodes that
+      aren't connected to anything.
+
+      Interview problems rarely hand you a graph object. They give you a list of **edges**, like `[("A", "B"), ("B", "C")]`, or
+      a grid, or a list of rules ("course 1 needs course 0"). The first step of almost every graph problem is the same: turn
+      what you're given into an **adjacency dict**, which maps each node to the list of its **neighbours**:
+
+      ```python
+      g = {"A": ["B"], "B": ["A", "C"], "C": ["B"]}
+      ```
+
+      Now "who are `B`'s neighbours?" is one lookup, `g["B"]`. In C# this is a `Dictionary<string, List<string>>`. The edges
+      can be **undirected** (a friendship: `A`–`B` works both ways) or **directed** (a follow: `A` → `B` doesn't mean
+      `B` → `A`).
+    comparison:
+      csharp: |
+        var g = new Dictionary<string, List<string>>();
+        foreach (var (a, b) in edges)
+        {
+            if (!g.ContainsKey(a)) g[a] = new List<string>();
+            if (!g.ContainsKey(b)) g[b] = new List<string>();
+            g[a].Add(b);
+            g[b].Add(a);
+        }
+      python: |
+        from collections import defaultdict
+
+        g = defaultdict(list)
+        for a, b in edges:
+            g[a].append(b)
+            g[b].append(a)
+  - id: step.graphs.trace-build
+    type: trace
+    title: From an edge list to a graph
+    body: |
+      `defaultdict(list)` gives a missing key a fresh empty list the first time it's used, so `g[a].append(b)` works even
+      for a node it has never seen. Each edge is undirected, so it's added **twice**: `a` gets `b` as a neighbour, and `b`
+      gets `a`. Watch the graph grow one edge at a time; the thick line is the edge being added.
+    code: |
+      from collections import defaultdict
+
+      edges = [("A", "B"), ("A", "C"), ("B", "C"), ("C", "D")]
+      g = defaultdict(list)
+      for a, b in edges:
+          g[a].append(b)
+          g[b].append(a)
+    visualise:
+      - variable: g
+        as: graph
+        edge: [a, b]
+      - variable: edges
+        as: array
+  - id: step.graphs.predict-defaultdict
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      This builds a directed graph, then checks whether node `3` has any neighbours. What does it print?
+    code: |
+      from collections import defaultdict
+
+      g = defaultdict(list)
+      for a, b in [(1, 2), (2, 3)]:
+          g[a].append(b)
+      if g[3]:
+          print("3 has neighbours")
+      print(len(g), sorted(g))
+    accepted:
+      - "3 [1, 2, 3]"
+    mistakes:
+      - answers:
+          - "2 [1, 2]"
+        feedback: "Reading `g[3]` on a `defaultdict` doesn't just look: a missing key is **added** with an empty list. So `3` is a key now, and `len(g)` is `3`."
+      - answers:
+          - "3 has neighbours"
+        feedback: "`3` is only ever a target here, so `g[3]` is a new empty list, which is false. The `if` prints nothing."
+      - answers:
+          - "KeyError: 3"
+        feedback: "A plain dict would raise `KeyError`. A `defaultdict(list)` makes the missing list instead, and keeps it."
+    hints:
+      - "`2 → 3` only appends to `g[2]`. Is `3` a key after the loop?"
+      - "What does a `defaultdict` do when you read a key it doesn't have?"
+  - id: step.graphs.directed
+    type: explain
+    title: Directed or undirected
+    body: |
+      The only difference in the code is the second `append`:
+
+      ```python
+      g[a].append(b)          # directed: a -> b
+      g[b].append(a)          # add this too for undirected: b -> a
+      ```
+
+      So an undirected graph with `E` edges holds `2E` neighbour entries. Ask which one a problem means: "roads between cities"
+      and "friends" are undirected; "prerequisites", "follows" and "flights from X to Y" are directed.
+
+      Two traps when building:
+
+      - **Nodes with no edges.** If the problem says "nodes `0` to `n - 1`" and node `4` has no edges, it never appears in a
+        `defaultdict` built from the edges, so a loop over `g` misses it. Start with every node: `g = {i: [] for i in range(n)}`.
+      - **A missing key on lookup.** With a plain dict, `g[node]` for a node with no outgoing edges raises `KeyError`; with a
+        `defaultdict` it quietly adds the key. Either way, know which one you have.
+
+      When you need to ask "is there an edge from `u` to `v`?" a lot, store each node's neighbours in a **set** instead:
+      `defaultdict(set)` and `g[a].add(b)`, so `v in g[u]` is O(1) instead of a walk along a list.
+  - id: step.graphs.check-directed
+    type: choice
+    title: Which needs arrows?
+    prompt: |
+      Which of these relationships should be stored as a **directed** graph?
+    options:
+      - text: "User X follows user Y on a social site."
+        correct: true
+        feedback: "Right. X following Y says nothing about Y following X, so the edge has a direction: only `g[x].append(y)`."
+      - text: "X and Y are friends."
+        correct: false
+        feedback: "Friendship works both ways, so it's undirected: add `y` to `x`'s list and `x` to `y`'s."
+      - text: "Two cities joined by a two-way road."
+        correct: false
+        feedback: "A two-way road can be driven either way. Store it in both directions, as an undirected edge."
+      - text: "Two computers on the same network cable."
+        correct: false
+        feedback: "A cable carries traffic both ways. It's an undirected edge."
+    hints:
+      - "Does the relationship from X to Y imply the same one from Y to X?"
+  - id: step.graphs.predict-degrees
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      An undirected graph on nodes `0` to `4`. What does it print?
+    code: |
+      edges = [(0, 1), (1, 2), (2, 0), (2, 3)]
+      g = {n: [] for n in range(5)}
+      for a, b in edges:
+          g[a].append(b)
+          g[b].append(a)
+      print(sum(len(nbs) for nbs in g.values()), g[2], g[4])
+    accepted:
+      - "8 [1, 0, 3] []"
+    mistakes:
+      - answers:
+          - "4 [1, 0, 3] []"
+        feedback: "Each undirected edge is stored twice, once at each end, so 4 edges make 8 neighbour entries."
+      - answers:
+          - "8 [0, 1, 3] []"
+        feedback: "The lists keep the order the edges came in: `2` meets `1` (from `(1, 2)`) before `0` (from `(2, 0)`)."
+      - answers:
+          - "8 [3] []"
+        feedback: "That would be a directed graph. Here every edge is added both ways, so `2` also gets `1` and `0`."
+    hints:
+      - "Write each node's list as the four edges are added, in order."
+      - "How many entries does one undirected edge add?"
+  - id: step.graphs.check-isolated
+    type: choice
+    title: The missing node
+    prompt: |
+      A problem says: "there are `n` nodes, `0` to `n - 1`; count the nodes that have no edges". Someone builds the graph with
+      `defaultdict(list)` from the edge list, then counts the keys whose list is empty. Why is the answer always `0`?
+    options:
+      - text: "A node with no edges never appears in any edge, so it never becomes a key; start with `{i: [] for i in range(n)}`."
+        correct: true
+        feedback: "Right. A `defaultdict` only creates the keys you touch. Every key it built came from an edge, so none is empty."
+      - text: "`defaultdict(list)` can't hold empty lists."
+        correct: false
+        feedback: "It can: reading a missing key creates exactly an empty list. The problem is that nothing reads the isolated nodes' keys."
+      - text: "The count needs `len(g) - n` instead."
+        correct: false
+        feedback: "That would count the isolated nodes only by accident of how keys were made. Make every node a key, then count the empty lists."
+      - text: "Undirected edges are stored twice, which cancels the empty lists out."
+        correct: false
+        feedback: "Storing each edge twice doesn't remove anything. The isolated nodes were never added at all."
+    hints:
+      - "Which keys does a `defaultdict` built from the edges have?"
+  - id: step.graphs.check-matrix
+    type: choice
+    title: Dict or matrix?
+    prompt: |
+      A social graph has 1,000,000 users, each with about 100 friends. You could store it as an **adjacency matrix**
+      (`m[u][v]` is `True` when `u` and `v` are friends) or as an adjacency dict of lists. Which is the better fit, and why?
+    options:
+      - text: "The dict: it stores only the ~100 million edge entries, while the matrix needs 10¹² cells, almost all `False`."
+        correct: true
+        feedback: "Right. A graph with few edges per node is **sparse**: an adjacency dict is O(V + E) space, a matrix O(V²) whatever the edges."
+      - text: "The matrix: it's always faster."
+        correct: false
+        feedback: "A matrix answers \"is `u`–`v` an edge?\" in O(1), but listing a node's friends means scanning a whole row of a million cells, and it won't fit in memory."
+      - text: "They take the same space; only the speed differs."
+        correct: false
+        feedback: "A matrix has a cell for every pair of nodes, edge or not. The dict only stores the edges that exist."
+      - text: "Neither: graphs this size must go in a database."
+        correct: false
+        feedback: "The adjacency dict fits fine: about 100 entries per user. The matrix is the one that can't."
+    hints:
+      - "How many cells does a matrix need for a million nodes? How many entries does the dict need?"
+  - id: step.graphs.check-has-edge
+    type: choice
+    title: Asking about one edge
+    prompt: |
+      An algorithm asks "are `u` and `v` neighbours?" millions of times. The graph is a dict of **lists**. What change makes each
+      question O(1)?
+    options:
+      - text: "Store each node's neighbours in a set: `defaultdict(set)` and `g[a].add(b)`; then `v in g[u]` is a hash lookup."
+        correct: true
+        feedback: "Right. `in` on a list walks it, O(degree); on a set it's a hash lookup, O(1) on average. C#'s `HashSet<T>` is the same idea."
+      - text: "Sort each list, so `in` stops early."
+        correct: false
+        feedback: "`in` on a list doesn't know the list is sorted; it still walks from the front. You'd need `bisect` for O(log degree), and a set beats that."
+      - text: "Use `g.get(u, [])` instead of `g[u]`."
+        correct: false
+        feedback: "That only avoids a missing key. Looking for `v` in the list it returns is still a walk along the list."
+      - text: "Nothing: `in` is always O(1) in Python."
+        correct: false
+        feedback: "`in` is O(1) on a set or dict, but O(n) on a list or tuple, which compares item by item."
+    hints:
+      - "What does `in` cost on a list, and on a set?"
+  - id: step.graphs.fill-build
+    type: fill-blank
+    title: Build an undirected graph
+    prompt: |
+      Fill in the blanks so that `build(edges)` returns an undirected adjacency dict, where each edge `(a, b)` makes `a` and `b`
+      neighbours of each other.
+    template: |
+      from collections import defaultdict
+
+
+      def build(edges):
+          g = defaultdict({{factory}})
+          for a, b in edges:
+              g[a].append(b)
+              {{reverse}}
+          return g
+    blanks:
+      - id: factory
+        accepted:
+          - "list"
+        mistakes:
+          - answers:
+              - "[]"
+            feedback: "`defaultdict` needs something it can **call** to make each new value. `list` is that function; `[]` is one list, and `defaultdict([])` raises `TypeError`."
+          - answers:
+              - "set"
+            feedback: "A set of neighbours is a fine choice, but this code calls `append`, which a set doesn't have (it has `add`)."
+      - id: reverse
+        accepted:
+          - "g[b].append(a)"
+        mistakes:
+          - answers:
+              - "g[a].append(b)"
+            feedback: "That adds `b` to `a`'s list a second time. The edge also has to run from `b` back to `a`."
+    hints:
+      - "`defaultdict` takes a function that makes a fresh value for a missing key."
+      - "An undirected edge goes in both nodes' lists."
+  - id: step.graphs.order-reverse
+    type: parsons
+    title: Turn every edge round
+    prompt: |
+      Arrange the lines into `reverse_graph(g)`. `g` is a directed graph in which every node is a key. Return a new graph with
+      every edge turned round: `a → b` becomes `b → a`.
+    solution: |
+      def reverse_graph(g):
+          rev = {node: [] for node in g}
+          for node in g:
+              for nb in g[node]:
+                  rev[nb].append(node)
+          return rev
+    hints:
+      - "Start with every node as a key, so nodes with no incoming edges still appear."
+      - "For each edge `node → nb`, the reversed edge is `nb → node`."
+  - id: step.graphs.write-build
+    type: write-code
+    largeScreenPreferred: true
+    title: Every node, every edge
+    prompt: |
+      Write `build_graph(n, edges)` that returns an undirected adjacency dict for nodes `0` to `n - 1`. **Every** node is a key,
+      even one with no edges, and its list holds its neighbours in the order the edges list them.
+
+      `build_graph(4, [(0, 1), (1, 2)])` is `{0: [1], 1: [0, 2], 2: [1], 3: []}`.
+    language: python
+    entrypoint: build_graph
+    starter: |
+      def build_graph(n, edges):
+          pass
+    solution: |
+      def build_graph(n, edges):
+          g = {i: [] for i in range(n)}
+          for a, b in edges:
+              g[a].append(b)
+              g[b].append(a)
+          return g
+    tests:
+      - input: "4, [(0, 1), (1, 2)]"
+        expected: "{0: [1], 1: [0, 2], 2: [1], 3: []}"
+      - input: "1, []"
+        expected: "{0: []}"
+      - input: "3, []"
+        expected: "{0: [], 1: [], 2: []}"
+      - input: "3, [(0, 1), (1, 2), (2, 0)]"
+        expected: "{0: [1, 2], 1: [0, 2], 2: [1, 0]}"
+      - input: "5, [(4, 0), (0, 2)]"
+        expected: "{0: [4, 2], 1: [], 2: [0], 3: [], 4: [0]}"
+    hints:
+      - "Make every node a key with an empty list before you look at the edges."
+      - "Each edge `(a, b)` goes in both directions."
+    walkthrough:
+      call: result = build_graph(4, [(0, 1), (1, 2), (2, 0)])
+      visualise:
+        - variable: g
+          as: graph
+          edge: [a, b]
+      explanation: |
+        The dict comprehension makes all four nodes first, so `3` is in the graph though no edge touches it. Each edge then
+        adds itself at both ends: `(0, 1)`, then `(1, 2)`, then `(2, 0)`, which closes the triangle.
+    phoneAlternative:
+      id: step.graphs.write-build.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `build_graph(n, edges)`, which returns an undirected adjacency dict where every node `0` to `n - 1` is a key.
+        Arrange the lines instead of typing them.
+      solution: |
+        def build_graph(n, edges):
+            g = {i: [] for i in range(n)}
+            for a, b in edges:
+                g[a].append(b)
+                g[b].append(a)
+            return g
+      hints:
+        - "Make every node a key first."
+        - "Each edge goes in both directions."
+  - id: step.graphs.write-judge
+    type: write-code
+    largeScreenPreferred: true
+    title: The town judge
+    prompt: |
+      A town has `n` people, labelled `1` to `n`. `trust` is a list of pairs `[a, b]`: person `a` trusts person `b`. The town
+      judge, if there is one, trusts **nobody**, and is trusted by **everybody else**. Write `find_judge(n, trust)` that returns
+      the judge's label, or `-1` if there is no judge.
+
+      Think of each pair as a directed edge `a → b`: the judge has no edges out and `n - 1` edges in.
+    language: python
+    entrypoint: find_judge
+    starter: |
+      def find_judge(n, trust):
+          pass
+    solution: |
+      def find_judge(n, trust):
+          score = [0] * (n + 1)
+          for a, b in trust:
+              score[a] -= 1
+              score[b] += 1
+          for person in range(1, n + 1):
+              if score[person] == n - 1:
+                  return person
+          return -1
+    tests:
+      - input: "2, [[1, 2]]"
+        expected: "2"
+      - input: "3, [[1, 3], [2, 3]]"
+        expected: "3"
+      - input: "3, [[1, 3], [2, 3], [3, 1]]"
+        expected: "-1"
+      - input: "1, []"
+        expected: "1"
+      - input: "3, [[1, 2], [2, 3]]"
+        expected: "-1"
+      - input: "4, [[1, 3], [1, 4], [2, 3], [2, 4], [4, 3]]"
+        expected: "3"
+    hints:
+      - "You don't need the neighbour lists, only how many edges go in and out of each person."
+      - "One number per person is enough: add 1 for each edge in and take 1 for each edge out. Only the judge reaches `n - 1`."
+    walkthrough:
+      call: result = find_judge(4, [[1, 3], [1, 4], [2, 3], [2, 4], [4, 3]])
+      visualise:
+        - variable: score
+          as: array
+          pointers: [a, b, person]
+      explanation: |
+        Each pair takes 1 from the one who trusts and adds 1 to the one trusted. `4` is trusted twice but trusts `3`, so it ends
+        on `1`. `3` is trusted by all three others and trusts no one: `3`, which is `n - 1`, so `3` is the judge.
+  - id: step.graphs.write-mutual
+    type: write-code
+    largeScreenPreferred: true
+    title: Friends in common
+    prompt: |
+      `edges` is a list of friendships `(x, y)`, which work both ways. Write `mutual_friends(edges, a, b)` that returns the
+      friends `a` and `b` have in common, as a sorted list. Build the graph with **sets** of neighbours, so the common friends
+      are one set operation.
+    language: python
+    entrypoint: mutual_friends
+    starter: |
+      from collections import defaultdict
+
+
+      def mutual_friends(edges, a, b):
+          pass
+    solution: |
+      from collections import defaultdict
+
+
+      def mutual_friends(edges, a, b):
+          g = defaultdict(set)
+          for x, y in edges:
+              g[x].add(y)
+              g[y].add(x)
+          return sorted(g[a] & g[b])
+    tests:
+      - input: "[('ann', 'bob'), ('ann', 'cat'), ('bob', 'cat'), ('bob', 'dan'), ('ann', 'dan')], 'ann', 'bob'"
+        expected: "['cat', 'dan']"
+      - input: "[('ann', 'bob')], 'ann', 'bob'"
+        expected: "[]"
+      - input: "[(1, 2), (2, 3)], 1, 3"
+        expected: "[2]"
+      - input: "[(1, 2)], 1, 9"
+        expected: "[]"
+      - input: "[(5, 1), (5, 2), (6, 1), (6, 2), (6, 3)], 5, 6"
+        expected: "[1, 2]"
+    hints:
+      - "Build an undirected `defaultdict(set)`, adding each friendship at both ends."
+      - "`&` on two sets gives the members in both. Sort it to return a list."
+    walkthrough:
+      call: "result = mutual_friends([('ann', 'bob'), ('ann', 'cat'), ('bob', 'cat'), ('bob', 'dan'), ('ann', 'dan')], 'ann', 'bob')"
+      visualise:
+        - variable: g
+          as: graph
+          pointers: [a, b]
+      explanation: |
+        Each friendship goes into both people's sets. When the graph is built, `ann`'s set is `{bob, cat, dan}` and `bob`'s is
+        `{ann, cat, dan}`. Their intersection is `{cat, dan}`. `ann` and `bob` are in each other's sets, but not in their own, so neither is in common.
