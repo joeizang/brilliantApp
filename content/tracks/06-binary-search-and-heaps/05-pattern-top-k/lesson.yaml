@@ -244,8 +244,8 @@ steps:
     type: trace
     title: The three smallest, with negation
     body: |
-      For the `k` **smallest**, the kept items need the **largest** at the root, to throw out. `heapq` only has a min-heap, so
-      store `-x`: the root, the most negative, is the largest number kept. When `4` arrives, `-4` goes in and `-9` comes
+      For the `k` **smallest**, the kept items need the **largest** at the root, to throw out. `heappush` and `heappop` make a
+      min-heap, so store `-x`: the root, the most negative, is the largest number kept. When `4` arrives, `-4` goes in and `-9` comes
       out: `9` is no longer among the three smallest. Then `1` pushes out `6`, and `7` goes straight back out.
     code: |
       import heapq
@@ -361,9 +361,11 @@ steps:
           - "min(heap)"
         mistakes:
           - answers:
-              - "heap[-1]"
               - "max(heap)"
             feedback: "That's the largest of the `k` kept: the 1st largest. The `k`-th largest is the smallest of them, at the root."
+          - answers:
+              - "heap[-1]"
+            feedback: "The last item of a heap isn't the largest or the smallest of anything in particular: `[1, 3, 8, 5]` ends in `5`. The `k`-th largest is the smallest of the `k` kept, at the root."
     hints:
       - "The heap should hold the `k` largest seen so far."
       - "Of the `k` largest, which is the `k`-th largest?"

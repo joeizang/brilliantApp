@@ -6,7 +6,7 @@ concepts:
   - id: concept.heap-sift
     title: "Push sifts up, pop sifts down: O(log n) each, because the tree is log n deep"
   - id: concept.heapq-api
-    title: "heapq is a min-heap on a plain list: negate for a max-heap, use tuples for priorities"
+    title: "heapq's heappush and heappop make a min-heap of a plain list: negate for a max-heap, use tuples for priorities"
 reviewItems:
   - id: review.heaps.predict-layout
     concept: concept.heap-property
@@ -180,7 +180,7 @@ steps:
         feedback: "Right. Every parent is `<=` its children, all the way up, so nothing is smaller than the root. That's the only position you can count on."
       - text: "`heap[-1]` is the largest item."
         correct: false
-        feedback: "Not here: `heap[-1]` is `5` but `8` is larger. The largest is somewhere in the bottom level, but not necessarily last."
+        feedback: "Not here: `heap[-1]` is `5` but `8` is larger. The largest is one of the leaves, the items with no children, but which one isn't fixed, and it needn't be on the deepest level: `[1, 2, 100, 3, 4]` is a heap too."
       - text: "`heap[1]` is the second smallest."
         correct: false
         feedback: "The second smallest is one of the root's children, `heap[1]` or `heap[2]`. A heap doesn't order siblings."
@@ -221,8 +221,10 @@ steps:
 
       Two habits cover almost everything else:
 
-      - **Only a min-heap.** For the largest first, push **`-x`** and negate what comes out. (C#'s `PriorityQueue` takes a
-        comparer instead, such as `Comparer<int>.Create((a, b) => b.CompareTo(a))`.)
+      - **A min-heap by default.** `heappush`, `heappop` and `heapify` keep the smallest at the root. For the largest first,
+        push **`-x`** and negate what comes out: it works in every Python version, and it's what this track uses. Python
+        3.14 also adds `heapify_max`, `heappush_max` and `heappop_max`, which do the same without the minus signs. (C#'s
+        `PriorityQueue` takes a comparer instead, such as `Comparer<int>.Create((a, b) => b.CompareTo(a))`.)
       - **Priorities as tuples.** Push `(priority, item)`: tuples compare item by item, so the smallest priority comes out
         first, and a tie is broken by the next item. If the items can't be compared (two dicts, say), put a counter in the
         middle, `(priority, n, item)`, so a tie never reaches them. C# keeps the priority apart from the element, so it has
@@ -313,7 +315,7 @@ steps:
       - answers:
           - "write test read plan"
           - "write read test plan"
-        feedback: "`heapq` is a min-heap: the **smallest** priority, `1`, comes out first."
+        feedback: "`heappop` is a min-heap pop: the **smallest** priority, `1`, comes out first."
     hints:
       - "Tuples compare their first items; only on a tie do they look at the second."
   - id: step.heaps.pattern
@@ -383,7 +385,7 @@ steps:
         feedback: "Right. \"Largest, again and again, with results going back\": a max-heap, which in `heapq` means negating."
       - text: "`heapify` the weights as they are and pop: the root is the heaviest."
         correct: false
-        feedback: "`heapq` is a min-heap: the root is the **lightest**. Negate the weights to bring the heaviest to the top."
+        feedback: "`heapify` and `heappop` make a min-heap: the root is the **lightest**. Negate the weights to bring the heaviest to the top (or, from Python 3.14, use `heapify_max` and `heappop_max`)."
       - text: "Sort the weights in descending order once, then halve the first one each turn."
         correct: false
         feedback: "After a halving, the first stone may no longer be the heaviest. The order has to be fixed every turn, and that's what a heap does in O(log n)."
