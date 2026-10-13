@@ -1304,6 +1304,17 @@ public class TraceTests
     }
 
     [Fact]
+    public void With_the_root_at_none_a_subtree_only_a_pointer_holds_is_detached_not_the_roots_tree()
+    {
+        // curr = root; root = None: the recorder lists curr's nodes, but none of them is the root's.
+        var tree = Tree(null, [(7, "7", 8, null), (8, "8", null, null), (5, "5", null, null)], 0, null, ("node", 7), ("other", 5));
+        var view = TreeAt(Build(Run(TreeFrame(1, tree)), Root with { Pointers = ["node", "other"] }), 0);
+
+        Assert.Equal([(8, 1, 0, 1), (7, 1, 1, 0), (5, 2, 2, 0)], view.Nodes.Select(n => (n.Id, n.Tree, n.Column, n.Depth)));
+        Assert.Equal([new NodePointer("root", null, false), new NodePointer("node", 7, false), new NodePointer("other", 5, false)], view.Pointers);
+    }
+
+    [Fact]
     public void A_pointer_the_recorder_left_out_is_not_drawn_and_one_at_none_is()
     {
         var view = TreeAt(Build(Run(TreeFrame(1, Tree(1, [(1, "a", null, null)], 0, null, ("node", null)))),

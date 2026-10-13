@@ -621,7 +621,7 @@ public static class TraceModel
             return TreeLink.Child;
         }
 
-        void Grow(int root)
+        void Grow(int root, int tree)
         {
             var links = new Dictionary<int, (TreeLink Left, TreeLink Right)>();
             var level = new Queue<int>();
@@ -634,7 +634,6 @@ public static class TraceModel
                 links[id] = (left, Take(node.Right, taken[id] + 1, level));
             }
 
-            var tree = placed.Count == 0 ? 0 : placed[^1].Tree + 1;
             void InOrder(int id)
             {
                 var node = byId[id];
@@ -646,9 +645,11 @@ public static class TraceModel
             InOrder(root);
         }
 
-        if (tracked.Root is { } start && byId.ContainsKey(start)) Grow(start);
+        // Tree 0 is the root's alone, even when the root is None: nodes only a pointer reaches are detached, numbered from 1.
+        if (tracked.Root is { } start && byId.ContainsKey(start)) Grow(start, 0);
+        var detached = 0;
         foreach (var node in tracked.Nodes)
-            if (!taken.ContainsKey(node.Id)) Grow(node.Id);
+            if (!taken.ContainsKey(node.Id)) Grow(node.Id, ++detached);
         return placed;
     }
 }
