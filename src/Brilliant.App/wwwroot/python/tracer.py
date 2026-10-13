@@ -14,6 +14,10 @@ trace_code(code, watch_json, max_frames=MAX_FRAMES) -> JSON string:
                  "lists": {variable: {"head": id | null, "more": int,
                                       "nodes": [{"id": int, "value": str | null, "next": id | null}],
                                       "pointers": {pointer: id | null}}},
+                 "trees": {variable: {"root": id | null, "more": int,
+                                      "nodes": [{"id": int, "value": str | null, "left": id | null, "right": id | null}],
+                                      "pointers": {pointer: id | null},
+                                      "visited": {"ordered": bool, "nodes": [{"id": int, "order": int | null}], "unmatched": int} | null}},
                  "calls": {"frames": [{"id": int, "function": str, "args": [{"name", "repr"}], "returning": str | null}],
                            "more": int, "returned": {"function": str, "value": str, "to": id | null} | null}}],
      "stdout": str, "message": str | null, "traceback": str | null, "errorLine": int | null}
@@ -36,6 +40,16 @@ its id. Its "next" is the id of the node it links to, or null at the end; a "nex
 recorded is a cycle, which is not followed again. Its "value" is the repr of the value attribute, null when the node
 has none. "pointers" maps each pointer that holds a node to its id, or to null when it is None; a pointer holding
 anything else (or not defined) is left out.
+
+A watch entry {"variable": "root", "as": "tree", "left": "left", "right": "right", "value": "val", "pointers": ["node"],
+"visited": "order"} records a binary tree in "trees" while the variable holds a node or None. A node is any object with both the
+"left" and the "right" attribute. Its nodes are taken level by level from the root, then from each pointer that holds a node the root
+doesn't reach (a detached subtree), at most MAX_TREE_NODES ("more" counts the rest, up to MAX_WALK); a node met again (shared, or a
+cycle) is not followed again. Ids are by identity, as for a linked list; a child that isn't a node is null. "visited" names a list,
+tuple, deque or set that a traversal fills: a member that is a node of the tree marks that node, and any other member marks a node
+whose value equals it. In a list (ordered) each member marks the first node, level by level, it matches that no earlier member has,
+and "order" is its place in the list, from 1; in a set every node it matches is marked and "order" is null. "unmatched" counts the
+members that mark no recorded node; only the first MAX_VISITED members are matched, and the rest count as unmatched. "visited" is null when the variable is not given, or is not one of those.
 
 A watch entry {"as": "call_stack", "functions": ["fact"]} records the active calls in "calls" at every frame (and only
 when it is watched, the frames below grow by one per return). Its "frames" are the calls of functions defined in the learner's code
@@ -72,7 +86,9 @@ MAX_REPR = 60          # characters of a variable's repr
 MAX_ROWS = 20          # dict entries / set members recorded per frame (the rest are counted in "more")
 MAX_SORT = 500         # sets bigger than this are shown in iteration order rather than paying to sort them at every step
 MAX_NODES = 30         # linked-list nodes recorded per frame (the rest are counted in "more")
-MAX_WALK = 1000        # linked-list nodes followed per frame at most, so a huge list doesn't slow every step
+MAX_WALK = 1000        # linked-list or tree nodes followed per frame at most, so a huge one doesn't slow every step
+MAX_TREE_NODES = 31    # tree nodes recorded per frame, five full levels (the rest are counted in "more")
+MAX_VISITED = 100      # members of a tree's visited list or set matched against its nodes (the rest mark nothing)
 MAX_CALLS = 12         # calls on the stack recorded per frame, the innermost (the rest are counted in "more")
 MAX_CELL_REPR = 24     # characters of an array cell's, or a table key's or value's, repr
 MAX_OUTPUT = 4000      # characters of stdout kept
@@ -136,7 +152,7 @@ class _Identities:
 
 
 class _Nodes:
-    """Gives each linked-list node of the run a number, by identity. It keeps the node, so its id() can't be reused by another."""
+    """Gives each linked-list or tree node of the run a number, by identity. It keeps the node, so its id() can't be reused by another."""
 
     def __init__(self):
         self._ids = {}
@@ -218,6 +234,88 @@ def _lists(frame, watch, nodes):
     for entry in watch:
         if isinstance(entry, dict) and entry.get("as") == "linked_list":
             recorded = _linked(entry, frame, nodes)
+            if recorded is not None:
+                found[entry["variable"]] = recorded
+    return found
+
+
+def _is_tree_node(value, left, right):
+    return _is_node(value, left) and _is_node(value, right)
+
+
+def _same(a, b):
+    try:
+        return bool(a == b)
+    except Exception:           # an __eq__ that raises
+        return False
+
+
+def _visited(value, kept):
+    """Which recorded nodes the visited list or set marks. kept is [(node, its value or _MISSING, recorded)] level by level."""
+    ordered = isinstance(value, (list, tuple, collections.deque))
+    if not ordered and not isinstance(value, (set, frozenset)):
+        return None
+    marks, unmatched = {}, 0
+    by_identity = {id(node): recorded for node, _, recorded in kept}
+    for place, member in enumerate(itertools.islice(value, MAX_VISITED), start=1):
+        found = by_identity.get(id(member))
+        matches = [found] if found is not None else [r for _, v, r in kept if v is not _MISSING and _same(v, member)]
+        if ordered:
+            matches = [r for r in matches if r["id"] not in marks][:1]
+        for recorded in matches:
+            marks.setdefault(recorded["id"], place if ordered else None)
+        if not matches:
+            unmatched += 1
+    nodes = [{"id": r["id"], "order": marks[r["id"]]} for _, _, r in kept if r["id"] in marks]
+    return {"ordered": ordered, "nodes": nodes, "unmatched": unmatched + max(0, len(value) - MAX_VISITED)}
+
+
+def _tree(entry, frame, nodes):
+    """One binary tree as recorded at this frame, or None while its variable holds neither a node nor None."""
+    left, right, attr = entry.get("left", "left"), entry.get("right", "right"), entry.get("value", "val")
+    root = _lookup(frame, entry["variable"])
+    if root is not None and not _is_tree_node(root, left, right):
+        return None
+    starts = [root] if root is not None else []
+    pointers = {}
+    for name in entry.get("pointers", []):
+        value = _lookup(frame, name)
+        if value is None:
+            pointers[name] = None
+        elif _is_tree_node(value, left, right):
+            pointers[name] = nodes.of(value)
+            starts.append(value)
+
+    kept, seen, more = [], set(), 0
+    for start in starts:
+        level = collections.deque([start])
+        while level and len(seen) < MAX_WALK:
+            node = level.popleft()
+            if id(node) in seen:
+                continue
+            seen.add(id(node))
+            children = [_attr(node, link, None) for link in (left, right)]
+            children = [c if _is_tree_node(c, left, right) else None for c in children]
+            level.extend(c for c in children if c is not None and id(c) not in seen)
+            if len(kept) < MAX_TREE_NODES:
+                value = _attr(node, attr, _MISSING)
+                kept.append((node, value, {
+                    "id": nodes.of(node), "value": None if value is _MISSING else _repr(value, MAX_CELL_REPR),
+                    "left": None if children[0] is None else nodes.of(children[0]),
+                    "right": None if children[1] is None else nodes.of(children[1])}))
+            else:
+                more += 1
+    visited = entry.get("visited")
+    visited = None if not visited else _lookup(frame, visited)
+    return {"root": None if root is None else nodes.of(root), "nodes": [r for _, _, r in kept], "more": more,
+            "pointers": pointers, "visited": None if visited is None or visited is _MISSING else _visited(visited, kept)}
+
+
+def _trees(frame, watch, nodes):
+    found = {}
+    for entry in watch:
+        if isinstance(entry, dict) and entry.get("as") == "tree":
+            recorded = _tree(entry, frame, nodes)
             if recorded is not None:
                 found[entry["variable"]] = recorded
     return found
@@ -403,7 +501,7 @@ def trace_code(code, watch_json, max_frames=MAX_FRAMES):
         recorded = {
             "event": event, "line": line, "function": frame.f_code.co_name,
             "locals": _locals(shown), "tracked": _tracked(frame, watch), "tables": _tables(frame, watch, shown, identities),
-            "lists": _lists(frame, watch, nodes),
+            "lists": _lists(frame, watch, nodes), "trees": _trees(frame, watch, nodes),
         }
         if calls is not None:
             recorded["calls"] = calls.record(frame, returning)
