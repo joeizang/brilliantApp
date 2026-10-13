@@ -1221,6 +1221,37 @@ public class TracePlayerTests : ShortcutContext
     }
 
     [Fact]
+    public void Pointers_at_negative_indexes_are_noted_not_drawn()
+    {
+        var cut = Grids(GridOf(Zeros, ("i,j", [-1, 0])));
+
+        Assert.Empty(cut.FindAll("figure.grid g.pointer-ring"));
+        Assert.Contains("i,j is at (-1, 0), off the grid.", cut.FindAll(".grid-note").Select(n => n.TextContent));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(4)]
+    public void A_long_column_pointer_name_fits_inside_the_drawing_over_the_first_and_last_column(int columns)
+    {
+        var visuals = new[] { new Visual("dp", Visual.Grid, []) { Cells = [new CellPair("i", "current_column_index")] } };
+        var row = Enumerable.Repeat("0", columns).ToArray();
+        var first = new TrackedGrid([row], [columns], 0, new Dictionary<string, IReadOnlyList<int>?> { ["i,current_column_index"] = [0, 0] });
+        var last = first with { Pointers = new Dictionary<string, IReadOnlyList<int>?> { ["i,current_column_index"] = [0, columns - 1] } };
+        var cut = Start(RunOf(GridFrame(1, first), GridFrame(2, last)), visuals, out _);
+
+        foreach (var _ in new[] { 0, 1 })
+        {
+            var width = double.Parse(cut.Find("figure.grid svg").GetAttribute("viewBox")!.Split(' ')[2], CultureInfo.InvariantCulture);
+            var x = Place(cut.Find("figure.grid g.pointer-col")).X;
+            var half = "current_column_index".Length * 14.4 * .6 / 2;
+            Assert.True(x - half >= 0, $"the name starts at {x - half}");
+            Assert.True(x + half <= width, $"the name ends at {x + half}, past {width}");
+            cut.Find("button.next").Click();
+        }
+    }
+
+    [Fact]
     public void Labels_stand_outside_the_indexes_from_the_offset()
     {
         var cut = Grids(GridOf(Zeros) with { RowLabels = ["x"], ColLabels = ["p", "q"] });

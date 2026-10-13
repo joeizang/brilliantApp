@@ -1471,6 +1471,16 @@ public class TraceTests
     }
 
     [Fact]
+    public void A_grid_pointer_at_a_negative_index_is_off_the_grid()
+    {
+        var visual = Dp with { Cells = [new CellPair("i", "j"), new CellPair("r", "c")] };
+        var tracked = Grid([["1"]], ("i,j", [-1, 0]), ("r,c", [0, -1]));
+        var view = GridAt(Build(Run(GridFrame(1, tracked)), visual), 0);
+
+        Assert.Equal([(-1, 0, false), (0, -1, false)], view.Pointers.Select(p => (p.Row!.Value, p.Col!.Value, p.OnGrid)));
+    }
+
+    [Fact]
     public void A_grid_pointer_that_moved_is_marked()
     {
         var visual = Dp with { Cells = [new CellPair("i", "j")] };

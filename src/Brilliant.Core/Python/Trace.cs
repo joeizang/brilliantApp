@@ -676,7 +676,7 @@ public static class TraceModel
             {
                 var defined = tracked.Pointers.TryGetValue(p.Name, out var at);
                 int? row = at is [var r, _] ? r : null, col = at is [_, var c] ? c : null;
-                var onGrid = row is { } rr && col is { } cc && rr < rows.Count && cc < rows[rr].Cells.Count && rr >= 0 && cc >= 0;
+                var onGrid = row is { } rr && col is { } cc && rr >= 0 && cc >= 0 && rr < rows.Count && cc < rows[rr].Cells.Count;
                 var was = before?.Pointers.FirstOrDefault(b => b.Name == p.Name);
                 var moved = was is not null && (was.Defined != defined || was.Row != row || was.Col != col);
                 return new GridPointerView(p.Name, p.Row, p.Col, row, col, defined, onGrid, moved);

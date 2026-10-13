@@ -116,20 +116,24 @@
     private const double SmallText = 12.8, PointerText = 14.4, LabelText = 14.4, ValueTextMax = 15.2, MonoW = .6;
 
     private double[] _laneLeft = [], _laneW = [];
-    private double _rowLabelW, _indexW;
+    private double _rowLabelW, _indexW, _left, _colHalf;
 
     protected override void OnParametersSet()
     {
         // Every pointer of the visual has its lane at every step, so a marker never jumps to another lane.
         _laneW = View.Pointers.Select(p => Math.Max(10, p.RowName.Length * PointerText * MonoW) + 12).ToArray();
-        _laneLeft = new double[_laneW.Length];
-        for (var k = 0; k < _laneW.Length; k++) _laneLeft[k] = Pad + _laneW.Take(k).Sum();
         _rowLabelW = View.RowLabels is null ? 0
             : Math.Max(16, View.RowLabels.Select(l => ClipLabel(l ?? "").Length).DefaultIfEmpty(0).Max() * LabelText * MonoW) + 8;
         _indexW = Math.Max(1, (View.Rows.Count - 1).ToString().Length) * SmallText * MonoW + 10;
+        // A column marker's name is centred over its cell and may be wider than it: half the widest, so the grid stands far enough
+        // from the left edge (and the drawing reaches far enough right) for that name to fit over the first (or last) column.
+        _colHalf = View.Pointers.Select(p => p.ColName.Length * PointerText * MonoW / 2).DefaultIfEmpty(0).Max();
+        _left = Pad + Math.Max(0, _colHalf - CellW / 2.0 - _laneW.Sum() - _rowLabelW - _indexW);
+        _laneLeft = new double[_laneW.Length];
+        for (var k = 0; k < _laneW.Length; k++) _laneLeft[k] = _left + _laneW.Take(k).Sum();
     }
 
-    private double RowLabelLeft => Pad + _laneW.Sum();
+    private double RowLabelLeft => _left + _laneW.Sum();
     private double GridLeft => RowLabelLeft + _rowLabelW + _indexW;
     private double ColLabelTop => Pad + View.Pointers.Count * LaneH;
     private double IndexTop => ColLabelTop + (View.ColLabels is null ? 0 : LabelH);
@@ -139,7 +143,8 @@
     private double CellY(int row) => GridTop + row * CellH;
 
     private double Right => View.Rows.Count == 0 ? Pad + 2 * CellW
-        : View.Rows.Select(r => CellX(r.Cells.Count) + (r.More > 0 ? 8 + (r.More.ToString().Length + 1) * SmallText * MonoW : 0)).Append(CellX(View.Columns)).Max();
+        : View.Rows.Select(r => CellX(r.Cells.Count) + (r.More > 0 ? 8 + (r.More.ToString().Length + 1) * SmallText * MonoW : 0))
+            .Append(CellX(View.Columns)).Append(CellX(View.Columns - 1) + CellW / 2.0 + _colHalf).Max();
 
     private int Width => (int)Math.Ceiling(Right) + Pad;
     private int Height => (int)Math.Ceiling(View.Rows.Count == 0 ? Pad + CellH : CellY(View.Rows.Count)) + Pad;
