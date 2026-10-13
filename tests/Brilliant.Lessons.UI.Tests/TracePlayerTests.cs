@@ -1083,6 +1083,20 @@ public class TracePlayerTests : ShortcutContext
     }
 
     [Fact]
+    public void A_value_popped_off_the_end_fades_inside_the_drawing()
+    {
+        var full = Enumerable.Range(0, 31).Select(n => n.ToString()).ToArray();
+        var cut = Heaps(HeapVisual, HeapFrame(1, full), HeapFrame(2, full[..30]));
+        cut.Find("button.next").Click();
+
+        // The ghost is past the last live cell, so the row is as wide as the places drawn, not the cells left.
+        var ghost = cut.Find("figure.heap g.cell.gone");
+        Assert.Equal("30", ghost.GetAttribute("data-index"));
+        var box = cut.Find("figure.heap svg").GetAttribute("viewBox")!.Split(' ').Select(double.Parse).ToArray();
+        Assert.True(Place(ghost).X + 44 <= box[0] + box[2], $"ghost ends at {Place(ghost).X + 44}, the drawing at {box[0] + box[2]}");
+    }
+
+    [Fact]
     public void An_empty_heap_is_an_empty_slot_and_cut_off_cells_are_counted()
     {
         var empty = Heaps(HeapVisual, HeapFrame(1, []));

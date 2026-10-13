@@ -173,7 +173,7 @@
 
     private double Right => new[]
         {
-            CellX(Live + (View.More > 0 ? 1 : 0)) + 0.0,
+            CellX(Places + (View.More > 0 ? 1 : 0)) + 0.0,   // a value that just left fades past the last cell
             Pad + (Levels == 0 ? 0 : (1 << (Levels - 1)) * SlotW),
             CellX(1),
         }
