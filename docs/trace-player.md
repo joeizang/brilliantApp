@@ -59,7 +59,7 @@ The validator rejects, with the file and step in the message:
   already drawn on the first node); a `variable` that never holds a node; nodes that have no `value` attribute to show (the message says to
   set `value`); and a pointer that never holds a node of the list.
 - on a tree: `left` or `right` on any other kind, not attribute names, or both the same attribute (`value` is an option of a linked list
-  or a tree only); the tree's own variable listed as a pointer or as `visited`; `visited` on any other kind, or not an identifier; a
+  or a tree only); the tree's own variable listed as a pointer or as `visited`; `visited` on a kind other than a tree or a graph, or not an identifier; a
   `variable` that never holds a node; nodes with no `value` attribute; a pointer that never holds a node of the tree; and a `visited`
   variable that is never a list or set, or never marks a node.
 - on a grid: `cells`, `rowLabels`, `colLabels`, `labelOffset` or `highlight` on any other kind; a `cells` entry that isn't a pair of
@@ -67,6 +67,11 @@ The validator rejects, with the file and step in the message:
   negative `labelOffset`, or one given without labels; a `variable` that is never a non-empty list of lists or strings; a pair or pointer
   that never lands on a cell; a label variable that is never a string, list or tuple; and a highlight that is never recorded or never
   marks a cell.
+- on a graph: `directed`, `weights`, `edge` or `frontier` on any other kind; an `edge` that isn't a pair of two different identifiers or
+  names the graph's own variable; a `frontier` or `visited` that isn't an identifier, is the graph's own variable, or (the frontier) is
+  the same variable as `visited`; the graph's own variable as a pointer; a `variable` that is never a non-empty dict; a pointer that
+  never holds a node; an `edge` whose two variables never hold the ends of one edge (either way round, for an undirected graph); and a
+  `visited` or `frontier` that is never recorded or never marks a node.
 - on the call stack: a `variable` or `pointers` (it has neither), a second `call_stack`, `functions` on any other kind, a function name
   that isn't an identifier or is listed twice, code that never calls a function of its own (or none of those listed), and a listed
   function that is never called.
@@ -243,6 +248,52 @@ camelCase, as every other option is (the issue wrote them snake_case).
 - At most 15 rows and 15 cells of each are drawn; a longer row ends in *+N*, and the rows cut off are *+N more rows not shown.* A wide
   grid scrolls sideways.
 
+### Graphs
+
+```yaml
+- id: step.graphs.bfs
+  type: trace
+  title: Breadth-first search
+  body: |
+    The queue holds the nodes found but not yet explored. Watch each node leave the front of it and its neighbours join the back.
+  code: |
+    from collections import deque
+    g = {"A": ["B", "C"], "B": ["D"], "C": ["D", "E"], "D": ["E"], "E": []}
+    seen = {"A"}
+    queue = deque(["A"])
+    node = nb = None
+    while queue:
+        node = queue.popleft()
+        for nb in g[node]:
+            if nb not in seen:
+                seen.add(nb)
+                queue.append(nb)
+  visualise:
+    - variable: g           # a dict of node -> neighbours (a list, tuple, deque or set, or a dict of neighbour -> weight)
+      as: graph
+      directed: true        # arrows; leave it out for an undirected graph, where A -> B and B -> A are one edge
+      edge: [node, nb]      # the two variables holding the edge being explored, drawn thick
+      visited: seen         # a list, tuple, deque, set or dict of nodes, shaded
+      frontier: queue       # a list, tuple or deque of nodes waiting, ringed and numbered in order (1 is next)
+    - variable: queue       # the frontier itself, beside the graph
+      as: queue
+```
+
+Two more options: `weights: true` reads a neighbour given as a `(node, weight)` pair as that node with that weight (a dict of neighbour
+→ weight is weighted already), and `pointers` names variables holding a node (`start`, `target`), drawn outside the ring at their node.
+
+- A **graph** is a dict. Its keys are nodes, then any neighbour that isn't a key is a node too; a node is drawn with its label (a string
+  as it is, anything else its repr). A node is the same node wherever it appears: by equality, as a dict key would be.
+- The nodes stand round a ring in the order they first appear in the run, the first at the top and the rest clockwise, so a node keeps
+  its place from step to step; the ring is sized for every node the run shows. An edge is a line between two nodes (an arrow when
+  `directed`; two that run both ways bow apart; a loop stands outside its node), with its weight at its middle.
+- A node or edge that came in grows (or draws) in. The `edge` between its two variables' nodes is thick, in the accent; a visited node is
+  shaded and pops a ring when first marked; a waiting node has a dashed ember ring and its place in the frontier, which pops when it joins.
+- At most 20 nodes and 60 edges are drawn; the rest are *+N more nodes (edges) not shown.* Members of `visited` or `frontier` that match
+  no node shown are counted in a note.
+- A frontier that is a set has no order to number, so it isn't recorded (and the validator says so): use a list or deque. To see the
+  frontier as a queue (or stack) too, draw its variable as one beside the graph, as above.
+
 ### The call stack
 
 ```yaml
@@ -313,6 +364,16 @@ defined, or a pointer holding anything else, is left out. The labels are a strin
 it is, anything else its repr), the first 15, or null. `highlight` is `{cells, unmatched}` when the variable is a list, tuple or set of
 pairs (each of the first 100 members marks its recorded cell; the rest, and members that aren't pairs or mark no recorded cell, are
 `unmatched`) or a grid of bools (each True marks its cell), and null otherwise.
+
+A graph is recorded as `{nodes: [{id, label}], more, edges: [{from, to, weight}], moreEdges, pointers, visited, frontier}`, with the watch
+entry `{"variable", "as": "graph", "weights", "pointers", "visited", "frontier"}` (the pointers include the two `edge` variables). It is
+recorded while the variable is a dict. Nodes are its keys, then the neighbours that aren't keys, each given an id by value (so `1`,
+`1.0` and `True` are one node) that it keeps for the run; a set's members are taken in sorted order where they sort. Neighbours are a
+list, tuple, deque or set's members, or a dict's keys (its values are the weights); with `weights`, a two-item tuple or list is a node
+and its weight. At most 20 nodes and 60 edges are kept (`more` and `moreEdges` count the rest), looking at no more than 1000 keys and
+neighbours in all. A pointer maps to its node's id, to null for None, and is left out when it holds anything else. `visited` (a list,
+tuple, deque, set, frozenset or dict) and `frontier` (a list, tuple or deque) are `{nodes, unmatched}`: the ids of the nodes their first
+100 members are, in order, once each, and a count of the rest; null when the variable is anything else.
 
 A linked list is recorded as `{head, nodes, more, pointers}`. Every node gets an id the first time it is met and keeps it for the whole run
 (the recorder holds on to the object, so its id can't be reused by a new one); `head` and each pointer are a node id or null for None. `nodes` are
@@ -385,6 +446,11 @@ being "new" isn't a change the learner caused.
   have; `Shaded` a cell the highlight marks. `Pointers` lists every pointer of the visual, pairs first, at every step (`Defined` says
   whether it was recorded), so each keeps its lane; `OnGrid` is a pointer on a cell drawn, `Moved` one whose place differs. The labels are
   lined up to the rows and columns by `labelOffset` (null where there is none).
+- **Graphs** (`GraphView`): `Nodes` as `GraphNodeView`s, each with its `Slot` on the ring (its first appearance in the whole run; `Slots`
+  is how many the run has, so the ring never changes), `Visited`, and `Queued` its 1-based place in the frontier. `Edges` as
+  `GraphEdgeView`s, an undirected graph's two directions made one; `Both` a directed edge whose reverse is drawn too, `Active` the edge
+  between the nodes the visual's `edge` variables hold. Compared with the step before (in the same function): `Added` nodes and edges,
+  `JustVisited` and `JustQueued` nodes. `Pointers` are the visual's pointers that were recorded, each `Moved` when it holds a different node.
 - **The call stack** (`CallStackView`): `Frames` are the calls under way as `CallFrameView`s (`Label` is `fact(n=3)`). A frame is
   `Pushed` when its id is bigger than any the step before had, and `Received` is the value handed back to it since the step before (by
   `returned.to`). `Gone` are the calls the step before had that this one hasn't (ghosts for one step; when the stack is cut off, only
@@ -429,6 +495,9 @@ being "new" isn't a change the learner caused.
   flashes (keyed by step) and a new one grows in. Each pointer is three `<g>`s keyed by its name (the ring, the column marker and the row
   marker), placed with CSS transforms, so they slide; nested rings stand inside one another when pointers share a cell. The SVG's label
   reads the grid row by row, with the pointers.
+- A graph (`TraceGraph.razor`) is an SVG in a sideways scroll box, sized in rem, centred on its ring. Nodes are `<g>`s keyed by id, edges
+  by their two ends, so a new one grows or draws in; an arrowhead is a path of its own, ending at the circle. A pointer's name stands
+  outward from its node, with an arrow pointing in. The SVG's label reads each node with its neighbours (and weights), marks and pointers.
 - The call stack (`TraceCallStack.razor`) is a column of frames drawn bottom up, in user units sized in rem, as wide as its longest call
   and returned value, scrolling sideways (and up and down, at most 30rem) on a phone. Each frame is a `<g>` keyed by its id and placed with
   a CSS transform; a new call grows in (`animate-cell-in`), a gone one rises away (`animate-cell-out`), the *running* marker slides to the
@@ -472,10 +541,10 @@ by the last rung of the hint ladder, see [hints.md](hints.md).
 
 ## Not in this slice
 
-Per-variable speed or scrubbing, trees with more than two children (a general tree or a graph), drawing nested structures (a dict of lists, a node whose value is a node), doubly linked
+Per-variable speed or scrubbing, trees with more than two children (a general tree), drawing nested structures (a dict of lists, a node whose value is a node), doubly linked
 lists (a `prev` arrow), and reading a trace aloud.
 `Visual.As` is a string and the model builds one `ArrayView` per `array`, `stack` or `queue` visual, one `TableView` per `dict` or `set`
-visual, one `LinkedListView` per `linked_list` visual, one `TreeView` per `tree` visual, one `GridView` per `grid` visual and one `CallStackView` for the `call_stack`, so another kind slots in beside them.
+visual, one `LinkedListView` per `linked_list` visual, one `TreeView` per `tree` visual, one `GridView` per `grid` visual, one `GraphView` per `graph` visual and one `CallStackView` for the `call_stack`, so another kind slots in beside them.
 
 ## Tests
 
@@ -484,7 +553,7 @@ visual, one `LinkedListView` per `linked_list` visual, one `TreeView` per `tree`
 `tests/Brilliant.Lessons.UI.Tests/TracePlayerTests.cs`, `TraceStepViewTests.cs` and `WalkthroughRungTests.cs` (rendering, stepping, playback on a manual clock, shortcuts,
 line highlight, lesson wiring), `tests/js/shortcuts.test.mjs` (key classification) and `ShortcutTests.cs` (the page listener's mapping).
 bUnit can't observe a CSS transition or element reuse, so the sliding, flashing, the ghost row's fade and the stack and queue cells
-growing in and rising away, a linked list's nodes sliding and arrows drawing in, a tree's nodes sliding, edges drawing in and visit badges popping, a grid's pointers sliding and cells flashing, and the call stack's frames growing in and values popping up, are checked by looking at the running app.
+growing in and rising away, a linked list's nodes sliding and arrows drawing in, a tree's nodes sliding, edges drawing in and visit badges popping, a grid's pointers sliding and cells flashing, a graph's edges drawing in and marks popping, and the call stack's frames growing in and values popping up, are checked by looking at the running app.
 
 Known limit: the recorder keeps only the first 20 rows, so a pointer on a later row is shown as nothing (neither marked nor a miss) beside
 *+N more*.

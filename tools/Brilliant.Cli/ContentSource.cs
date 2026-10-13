@@ -686,14 +686,42 @@ public static partial class ContentValidator
                 }
                 if (isTree && (v.Left ?? Visual.DefaultLeft) == (v.Right ?? Visual.DefaultRight))
                     report.Add(file, $"{where}: 'left' and 'right' name the same attribute; a tree node needs two links.");
+                // A graph's options say how its edges run and which nodes a search has reached; 'visited' is shared with a tree.
+                var isGraph = v.As == Visual.Graph;
                 if (v.Visited is not null)
                 {
-                    if (!isTree)
-                        report.Add(file, $"{where}: 'visited' is an option of a {Visual.Tree} only, not of '{v.As}'.");
+                    if (!isTree && !isGraph)
+                        report.Add(file, $"{where}: 'visited' is an option of a {Visual.Tree} or {Visual.Graph} only, not of '{v.As}'.");
                     else if (!PythonIdentifier.IsMatch(v.Visited))
                         report.Add(file, $"{where}: visited '{v.Visited}' is not a valid Python name.");
                     else if (v.Visited == v.Variable)
-                        report.Add(file, $"{where}: visited '{v.Visited}' is the tree's own variable; name the list or set of the nodes visited.");
+                        report.Add(file, $"{where}: visited '{v.Visited}' is the {v.As}'s own variable; name the list or set of the nodes visited.");
+                }
+                foreach (var (option, given) in new[] { ("directed", v.Directed is not null), ("weights", v.Weights is not null), ("edge", v.Edge is not null), ("frontier", v.Frontier is not null) })
+                    if (given && !isGraph)
+                        report.Add(file, $"{where}: '{option}' is an option of a {Visual.Graph} only, not of '{v.As}'.");
+                EdgeNames? edgeNames = null;
+                if (isGraph && v.Edge is not null)
+                {
+                    if (v.Edge is not { Count: 2 })
+                        report.Add(file, $"{where}: 'edge' is a pair of variables, the node an edge leaves and the node it reaches: [node, neighbour].");
+                    else if (v.Edge.Any(n => string.IsNullOrWhiteSpace(n) || !PythonIdentifier.IsMatch(n)))
+                        report.Add(file, $"{where}: edge [{string.Join(", ", v.Edge)}] has a name that is not a valid Python name.");
+                    else if (v.Edge.Contains(v.Variable))
+                        report.Add(file, $"{where}: edge [{string.Join(", ", v.Edge)}] names the graph's own variable; name the variables holding its two nodes.");
+                    else if (v.Edge[0] == v.Edge[1])
+                        report.Add(file, $"{where}: edge [{string.Join(", ", v.Edge)}] names one variable twice; an edge has two ends.");
+                    else
+                        edgeNames = new EdgeNames(v.Edge[0], v.Edge[1]);
+                }
+                if (isGraph && v.Frontier is not null)
+                {
+                    if (!PythonIdentifier.IsMatch(v.Frontier))
+                        report.Add(file, $"{where}: frontier '{v.Frontier}' is not a valid Python name.");
+                    else if (v.Frontier == v.Variable)
+                        report.Add(file, $"{where}: frontier '{v.Frontier}' is the graph's own variable; name the queue or stack of nodes waiting.");
+                    else if (v.Frontier == v.Visited)
+                        report.Add(file, $"{where}: frontier '{v.Frontier}' is also 'visited'; name the nodes waiting, not the ones reached.");
                 }
 
                 // A grid's options say where its cells are pointed at, labelled and shaded; no other drawing has cells in rows.
@@ -748,6 +776,8 @@ public static partial class ContentValidator
                         report.Add(file, $"{where}: pointer '{pointer}' is the list's own variable, which is already drawn on its first node.");
                     else if (isTree && pointer == v.Variable)
                         report.Add(file, $"{where}: pointer '{pointer}' is the tree's own variable, which is already drawn on its root.");
+                    else if (isGraph && pointer == v.Variable)
+                        report.Add(file, $"{where}: pointer '{pointer}' is the graph's own variable; a graph pointer holds one of its nodes.");
                     else if (isGrid && pointer == v.Variable)
                         report.Add(file, $"{where}: pointer '{pointer}' is the grid's own variable; a grid pointer holds a (row, col) pair.");
                     else
@@ -758,6 +788,7 @@ public static partial class ContentValidator
                     v.Left ?? Visual.DefaultLeft, v.Right ?? Visual.DefaultRight, v.Visited)
                 {
                     Cells = cells, RowLabels = v.RowLabels, ColLabels = v.ColLabels, LabelOffset = v.LabelOffset ?? 0, Highlight = v.Highlight,
+                    Directed = v.Directed ?? false, Weights = v.Weights ?? false, Edge = edgeNames, Frontier = isGraph ? v.Frontier : null,
                 });
             }
 
@@ -913,6 +944,10 @@ public static partial class ContentValidator
         public string? ColLabels { get; set; }
         public int? LabelOffset { get; set; }
         public string? Highlight { get; set; }
+        public bool? Directed { get; set; }
+        public bool? Weights { get; set; }
+        public List<string>? Edge { get; set; }
+        public string? Frontier { get; set; }
     }
     private sealed class BlankDto { public string? Id { get; set; } public List<string>? Accepted { get; set; } public List<MistakeDto>? Mistakes { get; set; } }
     private sealed class TestDto { public string? Input { get; set; } public string? Expected { get; set; } }

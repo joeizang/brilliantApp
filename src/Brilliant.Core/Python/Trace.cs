@@ -79,6 +79,24 @@ public sealed record TrackedGrid(IReadOnlyList<IReadOnlyList<string>> Rows, IRea
     IReadOnlyDictionary<string, IReadOnlyList<int>?> Pointers, IReadOnlyList<string>? RowLabels = null, IReadOnlyList<string>? ColLabels = null,
     GridHighlight? Highlight = null);
 
+/// <summary>A graph node as recorded: its id (by value, as a dict key, the same at every step) and its label (a string as it is, else the repr).</summary>
+public sealed record GraphNode(int Id, string Label);
+
+/// <summary>An edge as recorded, from a key of the dict to a neighbour it lists, with the repr of its weight (null: none given).</summary>
+public sealed record GraphEdge(int From, int To, string? Weight);
+
+/// <summary>The recorded nodes a graph's visited or frontier variable holds, in the order met, and how many of its members are none of them.</summary>
+public sealed record GraphMarks(IReadOnlyList<int> Nodes, int Unmatched);
+
+/// <summary>
+/// A watched graph (a dict of each node's neighbours) as recorded at one step. <see cref="Nodes"/> are the keys, then the neighbours that
+/// aren't keys; <see cref="More"/> counts the nodes cut off. <see cref="Edges"/> are in the dict's order, between recorded nodes;
+/// <see cref="MoreEdges"/> counts the rest. <see cref="Pointers"/> maps each pointer that holds a recorded node to its id, or to null when
+/// it holds None. <see cref="Visited"/> and <see cref="Frontier"/> are null when not drawn (or their variable holds none of their kinds).
+/// </summary>
+public sealed record TrackedGraph(IReadOnlyList<GraphNode> Nodes, int More, IReadOnlyList<GraphEdge> Edges, int MoreEdges,
+    IReadOnlyDictionary<string, int?> Pointers, GraphMarks? Visited = null, GraphMarks? Frontier = null);
+
 /// <summary>An argument of a call, as it was when the call was made: its name and the repr of its value, clipped.</summary>
 public sealed record CallArg(string Name, string Repr);
 
@@ -112,7 +130,8 @@ public sealed record TraceFrame(
     IReadOnlyDictionary<string, TrackedList>? Lists = null,
     TrackedCalls? Calls = null,
     IReadOnlyDictionary<string, TrackedTree>? Trees = null,
-    IReadOnlyDictionary<string, TrackedGrid>? Grids = null);
+    IReadOnlyDictionary<string, TrackedGrid>? Grids = null,
+    IReadOnlyDictionary<string, TrackedGraph>? Graphs = null);
 
 /// <summary>What the Python tracer (wwwroot/python/tracer.py) recorded.</summary>
 public sealed record TraceResult(
@@ -140,7 +159,9 @@ public static class TraceResultJson
     /// follow it and which pointers to look up: <c>["nums",{"variable":"head","as":"linked_list","next":"next","value":"val","pointers":["curr"]}]</c>;
     /// a tree likewise: <c>{"variable":"root","as":"tree","left":"left","right":"right","value":"val","pointers":[],"visited":"order"}</c>
     /// (<c>visited</c> null when none is drawn); a grid with its pointers, pairs of int variables, labels and highlight:
-    /// <c>{"variable":"dp","as":"grid","pointers":[],"cells":[["i","j"]],"rowLabels":"a","colLabels":"b","highlight":null}</c>; the call stack as an object with the functions it keeps (none: all): <c>{"as":"call_stack","functions":["fact"]}</c>.
+    /// <c>{"variable":"dp","as":"grid","pointers":[],"cells":[["i","j"]],"rowLabels":"a","colLabels":"b","highlight":null}</c>; a graph with the
+    /// pointers to look up (the edge's ends among them), whether neighbours carry weights, and its visited and frontier variables:
+    /// <c>{"variable":"graph","as":"graph","weights":false,"pointers":["node","nb"],"visited":"seen","frontier":"queue"}</c>; the call stack as an object with the functions it keeps (none: all): <c>{"as":"call_stack","functions":["fact"]}</c>.
     /// </summary>
     public static string SerializeWatch(IEnumerable<Visual> visuals)
     {
@@ -165,6 +186,12 @@ public static class TraceResultJson
                     ["variable"] = v.Variable, ["as"] = v.As, ["pointers"] = Names(v.Pointers),
                     ["cells"] = new JsonArray(v.Cells.Select(c => (JsonNode?)Names([c.Row, c.Col])).ToArray()),
                     ["rowLabels"] = v.RowLabels, ["colLabels"] = v.ColLabels, ["highlight"] = v.Highlight,
+                },
+                Visual.Graph => new JsonObject
+                {
+                    ["variable"] = v.Variable, ["as"] = v.As, ["weights"] = v.Weights,
+                    ["pointers"] = Names(v.Pointers.Concat(v.Edge is { } e ? [e.From, e.To] : []).Distinct()),
+                    ["visited"] = v.Visited, ["frontier"] = v.Frontier,
                 },
                 Visual.CallStack => new JsonObject { ["as"] = v.As, ["functions"] = Names(v.Functions) },
                 _ => JsonValue.Create(v.Variable),
@@ -331,16 +358,47 @@ public sealed record GridView(string Variable, IReadOnlyList<GridRowView> Rows, 
     public GridCellView? At(int row, int col) => row >= 0 && row < Rows.Count && col >= 0 && col < Rows[row].Cells.Count ? Rows[row].Cells[col] : null;
 }
 
+/// <summary>
+/// A graph node, placed: <see cref="Slot"/> is its place round the circle, the order the run first met it in, so it stands in the same
+/// place at every step. <see cref="Added"/>: it wasn't drawn the step before. <see cref="Visited"/>: the visited variable holds it;
+/// <see cref="Queued"/> is its place in the frontier (1: the first), null when it isn't there. <see cref="JustVisited"/> and
+/// <see cref="JustQueued"/>: it was marked since the step before.
+/// </summary>
+public sealed record GraphNodeView(int Id, string Label, int Slot, bool Added = false, bool Visited = false, int? Queued = null,
+    bool JustVisited = false, bool JustQueued = false);
+
+/// <summary>
+/// A graph edge. An undirected graph draws an edge listed both ways once. <see cref="Both"/>: a directed graph has the edge the other way
+/// too, so the two bow apart. <see cref="Added"/>: it wasn't drawn the step before. <see cref="Active"/>: it is the edge being explored,
+/// from the node the edge's first variable holds to the second's.
+/// </summary>
+public sealed record GraphEdgeView(int From, int To, string? Weight, bool Both = false, bool Added = false, bool Active = false);
+
+/// <summary>A graph's visited or frontier variable, and how many of its members are no node drawn.</summary>
+public sealed record GraphMarksView(string Variable, int Unmatched);
+
+/// <summary>
+/// A graph drawn as its nodes round a circle of <see cref="Slots"/> places (every node the run meets has one) and the edges between them.
+/// <see cref="More"/> and <see cref="MoreEdges"/> count the nodes and edges beyond the ones recorded. <see cref="Edge"/> names the variables
+/// holding the ends of the edge being explored (null: none drawn). <see cref="Visited"/> and <see cref="Frontier"/> are null when not drawn.
+/// </summary>
+public sealed record GraphView(string Variable, bool Directed, IReadOnlyList<GraphNodeView> Nodes, int Slots, IReadOnlyList<GraphEdgeView> Edges,
+    int More, int MoreEdges, IReadOnlyList<NodePointer> Pointers, EdgeNames? Edge = null, GraphMarksView? Visited = null, GraphMarksView? Frontier = null)
+{
+    public GraphNodeView? Node(int id) => Nodes.FirstOrDefault(n => n.Id == id);
+}
+
 /// <summary>One step of the player: what to highlight and draw. <see cref="Line"/> is null on the final state.</summary>
 public sealed record TraceState(
     int Index, int? Line, string Function, bool IsFinal,
     IReadOnlyList<LocalView> Locals, IReadOnlyList<ArrayView> Arrays, IReadOnlyList<TableView> Tables,
     IReadOnlyList<LinkedListView>? Lists = null, CallStackView? Calls = null, IReadOnlyList<TreeView>? Trees = null,
-    IReadOnlyList<GridView>? Grids = null)
+    IReadOnlyList<GridView>? Grids = null, IReadOnlyList<GraphView>? Graphs = null)
 {
     public IReadOnlyList<LinkedListView> Lists { get; init; } = Lists ?? [];
     public IReadOnlyList<TreeView> Trees { get; init; } = Trees ?? [];
     public IReadOnlyList<GridView> Grids { get; init; } = Grids ?? [];
+    public IReadOnlyList<GraphView> Graphs { get; init; } = Graphs ?? [];
 }
 
 /// <summary>
@@ -358,6 +416,8 @@ public static class TraceModel
         var listVisuals = visuals.Where(v => v.As == Visual.LinkedList).ToList();
         var treeVisuals = visuals.Where(v => v.As == Visual.Tree).ToList();
         var gridVisuals = visuals.Where(v => v.As == Visual.Grid).ToList();
+        var graphVisuals = visuals.Where(v => v.As == Visual.Graph).ToList();
+        var slots = graphVisuals.ToDictionary(v => v.Variable, v => Slots(result, v.Variable));
         var drawsCalls = visuals.Any(v => v.As == Visual.CallStack);
         var states = new List<TraceState>(result.Frames.Count);
         TraceFrame? previousFrame = null;
@@ -368,7 +428,7 @@ public static class TraceModel
             var state = new TraceState(index, frame.Line, frame.Function, frame.Line is null,
                 Locals(frame, comparable), Arrays(frame, arrayVisuals, comparable), Tables(frame, tableVisuals, comparable),
                 Lists(frame, listVisuals, comparable), drawsCalls ? Calls(frame, previous) : null, Trees(frame, treeVisuals, comparable),
-                Grids(frame, gridVisuals, comparable));
+                Grids(frame, gridVisuals, comparable), Graphs(frame, graphVisuals, slots, comparable));
             states.Add(state);
             previousFrame = frame;
             previous = state;
@@ -691,6 +751,74 @@ public static class TraceModel
             views.Add(new GridView(visual.Variable, rows, tracked.More, pointers,
                 visual.RowLabels is null ? null : Align(tracked.RowLabels, rows.Count),
                 visual.ColLabels is null ? null : Align(tracked.ColLabels, columns), highlight));
+        }
+        return views;
+    }
+
+    /// <summary>Each node of the graph the run ever records, in the order first met: its place round the circle, the same at every step.</summary>
+    internal static IReadOnlyDictionary<int, int> Slots(TraceResult result, string variable)
+    {
+        var slots = new Dictionary<int, int>();
+        foreach (var frame in result.Frames)
+            if (frame.Graphs is not null && frame.Graphs.TryGetValue(variable, out var graph))
+                foreach (var node in graph.Nodes)
+                    slots.TryAdd(node.Id, slots.Count);
+        return slots;
+    }
+
+    private static IReadOnlyList<GraphView> Graphs(TraceFrame frame, List<Visual> visuals, Dictionary<string, IReadOnlyDictionary<int, int>> slots,
+        TraceState? previous)
+    {
+        var views = new List<GraphView>();
+        foreach (var visual in visuals)
+        {
+            if (frame.Graphs is null || !frame.Graphs.TryGetValue(visual.Variable, out var tracked)) continue;
+            var before = previous?.Graphs.FirstOrDefault(g => g.Variable == visual.Variable);
+            var place = slots[visual.Variable];
+
+            // An undirected graph lists an edge from both ends; it is one edge, keyed the same from either.
+            (int, int) Key(int from, int to) => visual.Directed || from <= to ? (from, to) : (to, from);
+            var keys = tracked.Edges.Select(e => Key(e.From, e.To)).ToHashSet();
+            var was = before?.Edges.Select(e => Key(e.From, e.To)).ToHashSet();
+            (int, int)? active = visual.Edge is { } edge && tracked.Pointers.GetValueOrDefault(edge.From) is { } a
+                && tracked.Pointers.GetValueOrDefault(edge.To) is { } b ? Key(a, b) : null;
+            var drawn = new HashSet<(int, int)>();
+            var edges = new List<GraphEdgeView>();
+            foreach (var e in tracked.Edges)
+            {
+                var key = Key(e.From, e.To);
+                if (!drawn.Add(key)) continue;
+                edges.Add(new GraphEdgeView(e.From, e.To, e.Weight,
+                    Both: visual.Directed && e.From != e.To && keys.Contains((e.To, e.From)),
+                    Added: was is not null && !was.Contains(key), Active: key == active));
+            }
+
+            var visited = (tracked.Visited?.Nodes ?? []).ToHashSet();
+            var queued = new Dictionary<int, int>();
+            foreach (var id in tracked.Frontier?.Nodes ?? []) queued.TryAdd(id, queued.Count + 1);
+            var old = before?.Nodes.ToDictionary(n => n.Id);
+            var nodes = tracked.Nodes.Select(n =>
+            {
+                var view = new GraphNodeView(n.Id, n.Label, place[n.Id], Visited: visited.Contains(n.Id), Queued: queued.GetValueOrDefault(n.Id) is > 0 and var q ? q : null);
+                if (old is null) return view;
+                var prior = old.GetValueOrDefault(n.Id);
+                return view with
+                {
+                    Added = prior is null, JustVisited = view.Visited && prior?.Visited != true, JustQueued = view.Queued is not null && prior?.Queued is null,
+                };
+            }).ToList();
+
+            var pointers = new List<NodePointer>();
+            foreach (var name in visual.Pointers)
+                if (tracked.Pointers.TryGetValue(name, out var node))
+                {
+                    var moved = before is not null && before.Pointers.FirstOrDefault(p => p.Name == name) is var prior && (prior is null || prior.Node != node);
+                    pointers.Add(new NodePointer(name, node, moved));
+                }
+
+            views.Add(new GraphView(visual.Variable, visual.Directed, nodes, place.Count, edges, tracked.More, tracked.MoreEdges, pointers, visual.Edge,
+                tracked.Visited is { } v && visual.Visited is { } vn ? new GraphMarksView(vn, v.Unmatched) : null,
+                tracked.Frontier is { } f && visual.Frontier is { } fn ? new GraphMarksView(fn, f.Unmatched) : null));
         }
         return views;
     }

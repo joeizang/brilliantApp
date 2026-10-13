@@ -67,7 +67,7 @@ public class TraceTests
     [Fact]
     public void The_watch_list_names_each_variable_once_and_only_for_drawings_the_player_knows()
     {
-        var watch = TraceResultJson.SerializeWatch([Nums, new Visual("nums", Visual.Array, ["j"]), new Visual("tree", "graph", [])]);
+        var watch = TraceResultJson.SerializeWatch([Nums, new Visual("nums", Visual.Array, ["j"]), new Visual("tree", "heap", [])]);
 
         Assert.Equal("""["nums"]""", watch);
     }
@@ -1537,5 +1537,164 @@ public class TraceTests
         Assert.Equal(("a", "b", 1, "seen"), (visual.RowLabels, visual.ColLabels, visual.LabelOffset, visual.Highlight));
         Assert.Equal([new CellPair("i", "j")], visual.Cells);
         Assert.Equal(["cell"], visual.Pointers);
+    }
+
+    // ---- Graphs ----
+
+    private static readonly Visual G = new("g", Visual.Graph, []);
+
+    private static TrackedGraph Graph(string[] labels, (int From, int To)[] edges, params (string Name, int? Node)[] pointers) =>
+        new(labels.Select((l, i) => new GraphNode(i, l)).ToList(), 0, edges.Select(e => new GraphEdge(e.From, e.To, null)).ToList(), 0,
+            pointers.ToDictionary(p => p.Name, p => p.Node));
+
+    private static TraceFrame GraphFrame(int? line, TrackedGraph graph, string function = "<module>") =>
+        new(line is null ? "return" : "line", line, function, [], new Dictionary<string, TrackedArray>(),
+            Graphs: new Dictionary<string, TrackedGraph> { ["g"] = graph });
+
+    private static GraphView GraphAt(IReadOnlyList<TraceState> states, int index) => states[index].Graphs.Single();
+
+    [Fact]
+    public void A_graph_is_watched_with_its_weights_pointers_edge_and_marks()
+    {
+        var visual = G with { Pointers = ["node"], Weights = true, Edge = new EdgeNames("node", "nb"), Visited = "seen", Frontier = "queue", Directed = true };
+
+        Assert.Equal("""[{"variable":"g","as":"graph","weights":true,"pointers":["node","nb"],"visited":"seen","frontier":"queue"}]""",
+            TraceResultJson.SerializeWatch([visual]));
+    }
+
+    [Fact]
+    public void A_graph_is_read_from_the_recorder_json()
+    {
+        var result = TraceResultJson.Parse("""
+            {"status":"ok","stdout":"","message":null,"traceback":null,"errorLine":null,"frames":[{"event":"line","line":1,"function":"<module>",
+             "locals":[],"tracked":{},"graphs":{"g":{"nodes":[{"id":3,"label":"A"},{"id":5,"label":"B"}],"more":2,
+             "edges":[{"from":3,"to":5,"weight":"4"}],"moreEdges":1,"pointers":{"node":3,"gone":null},
+             "visited":{"nodes":[3],"unmatched":1},"frontier":null}}}]}
+            """);
+
+        var graph = result.Frames[0].Graphs!["g"];
+        Assert.Equal((2, 1, "B"), (graph.More, graph.MoreEdges, graph.Nodes[1].Label));
+        Assert.Equal(new GraphEdge(3, 5, "4"), graph.Edges.Single());
+        Assert.Equal((3, (int?)null), (graph.Pointers["node"], graph.Pointers["gone"]));
+        Assert.Equal([3], graph.Visited!.Nodes);
+        Assert.Equal(1, graph.Visited.Unmatched);
+        Assert.Null(graph.Frontier);
+    }
+
+    [Fact]
+    public void A_node_keeps_its_place_round_the_circle_through_the_run()
+    {
+        var states = Build(Run(
+            GraphFrame(1, new TrackedGraph([new GraphNode(7, "x")], 0, [], 0, new Dictionary<string, int?>())),
+            GraphFrame(2, new TrackedGraph([new GraphNode(9, "y"), new GraphNode(7, "x")], 0, [], 0, new Dictionary<string, int?>()))), G);
+
+        Assert.Equal([(7, 0)], GraphAt(states, 0).Nodes.Select(n => (n.Id, n.Slot)));
+        Assert.Equal([(9, 1), (7, 0)], GraphAt(states, 1).Nodes.Select(n => (n.Id, n.Slot)));
+        Assert.Equal([2, 2], states.Select(s => s.Graphs.Single().Slots));
+    }
+
+    [Fact]
+    public void An_undirected_graph_draws_an_edge_listed_both_ways_once()
+    {
+        var view = GraphAt(Build(Run(GraphFrame(1, Graph(["A", "B", "C"], [(0, 1), (1, 0), (1, 2)]))), G), 0);
+
+        Assert.Equal([(0, 1, false), (1, 2, false)], view.Edges.Select(e => (e.From, e.To, e.Both)));
+    }
+
+    [Fact]
+    public void A_directed_graph_draws_both_ways_as_two_edges_that_say_so()
+    {
+        var view = GraphAt(Build(Run(GraphFrame(1, Graph(["A", "B", "C"], [(0, 1), (1, 0), (1, 2), (2, 2)]))), G with { Directed = true }), 0);
+
+        Assert.Equal([(0, 1, true), (1, 0, true), (1, 2, false), (2, 2, false)], view.Edges.Select(e => (e.From, e.To, e.Both)));
+        Assert.True(view.Directed);
+    }
+
+    [Fact]
+    public void Nodes_and_edges_that_came_in_are_marked_against_the_same_function_only()
+    {
+        var first = Graph(["A"], []);
+        var second = Graph(["A", "B"], [(0, 1)]);
+        var states = Build(Run(GraphFrame(1, first), GraphFrame(2, second), GraphFrame(3, second with { Edges = [] }, "f"), GraphFrame(4, second, "f")), G);
+
+        Assert.Equal([(0, false), (1, true)], GraphAt(states, 1).Nodes.Select(n => (n.Id, n.Added)));
+        Assert.True(GraphAt(states, 1).Edges.Single().Added);
+        Assert.DoesNotContain(GraphAt(states, 2).Nodes, n => n.Added);
+        Assert.True(GraphAt(states, 3).Edges.Single().Added);
+        Assert.DoesNotContain(GraphAt(states, 0).Nodes, n => n.Added);
+    }
+
+    [Theory]
+    [InlineData(false, 1, 0, true)]
+    [InlineData(true, 1, 0, false)]
+    [InlineData(true, 0, 1, true)]
+    public void The_edge_being_explored_is_active(bool directed, int from, int to, bool active)
+    {
+        var visual = G with { Directed = directed, Edge = new EdgeNames("node", "nb") };
+        var view = GraphAt(Build(Run(GraphFrame(1, Graph(["A", "B"], [(0, 1)], ("node", from), ("nb", to)))), visual), 0);
+
+        Assert.Equal(active, view.Edges.Single().Active);
+        Assert.Empty(view.Pointers);
+    }
+
+    [Fact]
+    public void No_edge_is_active_while_an_end_is_none()
+    {
+        var visual = G with { Edge = new EdgeNames("node", "nb") };
+        var view = GraphAt(Build(Run(GraphFrame(1, Graph(["A", "B"], [(0, 1)], ("node", 0), ("nb", null)))), visual), 0);
+
+        Assert.False(view.Edges.Single().Active);
+    }
+
+    [Fact]
+    public void Graph_pointers_are_listed_in_order_and_marked_when_they_move()
+    {
+        var visual = G with { Pointers = ["node", "nb", "unset"] };
+        var states = Build(Run(
+            GraphFrame(1, Graph(["A", "B"], [], ("node", 0), ("nb", null))),
+            GraphFrame(2, Graph(["A", "B"], [], ("node", 1), ("nb", null)))), visual);
+
+        Assert.Equal([new NodePointer("node", 0, false), new NodePointer("nb", null, false)], GraphAt(states, 0).Pointers);
+        Assert.Equal([new NodePointer("node", 1, true), new NodePointer("nb", null, false)], GraphAt(states, 1).Pointers);
+    }
+
+    [Fact]
+    public void Visited_and_frontier_mark_their_nodes_and_what_was_just_marked()
+    {
+        var visual = G with { Visited = "seen", Frontier = "queue" };
+        var first = Graph(["A", "B", "C"], []) with { Visited = new GraphMarks([0], 0), Frontier = new GraphMarks([0], 0) };
+        var second = first with { Visited = new GraphMarks([0, 1], 2), Frontier = new GraphMarks([2, 1], 1) };
+        var states = Build(Run(GraphFrame(1, first), GraphFrame(2, second)), visual);
+        var view = GraphAt(states, 1);
+
+        Assert.Equal([(true, (int?)null, false, false), (true, 2, true, true), (false, 1, false, true)],
+            view.Nodes.Select(n => (n.Visited, n.Queued, n.JustVisited, n.JustQueued)));
+        Assert.Equal((new GraphMarksView("seen", 2), new GraphMarksView("queue", 1)), (view.Visited!, view.Frontier!));
+        Assert.DoesNotContain(GraphAt(states, 0).Nodes, n => n.JustVisited || n.JustQueued);
+    }
+
+    [Fact]
+    public void Marks_not_drawn_are_null()
+    {
+        var tracked = Graph(["A"], []) with { Visited = new GraphMarks([0], 0) };
+        var view = GraphAt(Build(Run(GraphFrame(1, tracked)), G), 0);
+
+        Assert.Null(view.Visited);
+    }
+
+    [Fact]
+    public void A_graph_visual_survives_a_pack_round_trip_with_its_options()
+    {
+        var step = new TraceStep("step.g", "Search", "Watch.", "g = {}\n",
+            [G with { Pointers = ["node"], Directed = true, Weights = true, Edge = new EdgeNames("node", "nb"), Visited = "seen", Frontier = "queue" }]);
+        using var ms = new MemoryStream();
+        ContentPackFormat.Write(ms, new PackManifest("pack.t", "1.0.0", ContentPackFormat.CurrentFormatVersion),
+            [new Track("track.a", "A", ["lesson.one"])], [new Lesson("lesson.one", "One", "track.a", [step])]);
+        ms.Position = 0;
+
+        var visual = Assert.IsType<TraceStep>(ContentPackFormat.Load(ms).Get<Lesson>("lesson.one").Steps[0]).Visuals.Single();
+
+        Assert.Equal((true, true, new EdgeNames("node", "nb"), "seen", "queue"), (visual.Directed, visual.Weights, visual.Edge, visual.Visited, visual.Frontier));
+        Assert.Equal(["node"], visual.Pointers);
     }
 }
