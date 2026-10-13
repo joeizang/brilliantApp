@@ -76,7 +76,7 @@ steps:
 
         double Median() => lower.Count > upper.Count
             ? lower.Peek()
-            : (lower.Peek() + upper.Peek()) / 2.0;
+            : ((double)lower.Peek() + upper.Peek()) / 2.0;
       python: |
         import heapq
 
@@ -251,10 +251,10 @@ steps:
     body: |
       Two heaps also help when items have **two different orders** that matter at different times.
 
-      *You can start projects whose capital is at most your money `w`; each finished project adds its profit to `w`. Pick at
-      most `k` projects to end with the most money.*
+      *You can start projects whose capital is at most your money `w`; each finished project adds its profit (never negative)
+      to `w`. Pick at most `k` projects to end with the most money.*
 
-      Greedy works: each time, start the most profitable project you can afford. But "affordable" changes as `w` grows. So:
+      Since no project loses money, greedy works: each time, start the most profitable project you can afford. But "affordable" changes as `w` grows. So:
 
       - A **min-heap by capital** (or the projects sorted by capital) holds the ones you **can't afford yet**. As `w` grows,
         pop every project whose capital is now `<= w`...
@@ -459,8 +459,8 @@ steps:
     patternCue: "\"The most profitable project you can afford, as your money grows\": projects by capital gate a max-heap by profit."
     prompt: |
       You start with money `w`. Project `i` needs `capital[i]` to start (it isn't spent) and adds `profits[i]` to your money
-      when done. Do at most `k` projects, one after another. Write `max_money(k, w, profits, capital)` that returns the most
-      money you can end with.
+      when done; profits are never negative. Do at most `k` projects, one after another. Write
+      `max_money(k, w, profits, capital)` that returns the most money you can end with.
 
       `max_money(2, 0, [1, 2, 3], [0, 1, 1])` is `4`: only project `0` is affordable at first (`w` becomes `1`); then project
       `2`, the most profitable affordable one (`w` becomes `4`).
@@ -518,7 +518,7 @@ steps:
       title: Arrange the lines
       prompt: |
         Write `max_money(k, w, profits, capital)`: do at most `k` projects, each time the most profitable one whose capital
-        is at most `w`, adding its profit to `w`. Arrange the lines instead of typing them.
+        is at most `w`, adding its profit (never negative) to `w`. Arrange the lines instead of typing them.
       solution: |
         import heapq
 
