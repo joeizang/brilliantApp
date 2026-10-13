@@ -91,6 +91,9 @@ the step or its phone alternative, is a **warning**: `brilliant validate`, `pack
 | `pattern.dp-unbounded-choices` (Build each amount from every item that could come last, reusing items as often as you like) | Track 7 lesson 4 | its 4 problems |
 | `pattern.dp-string-prefixes` (Answer each prefix of the string from every way its last piece could end there) | Track 7 lesson 5 | its 4 problems |
 | `pattern.dp-grid` (Fill each cell from the cells you can arrive from, row by row) | Track 7 lesson 6 | its 4 problems |
+| `pattern.dp-two-sequences` (Fill a table over prefixes of both sequences, deciding what happens to their last items) | Track 7 lesson 7 | its 4 problems |
+| `pattern.dp-knapsack` (Decide each item once, take it or skip it, building on the answers without it) | Track 7 lesson 8 | its 4 problems |
+| `pattern.dp-lis` (For each item, extend the best sequence ending at an earlier, smaller item) | Track 7 lesson 9 | its 4 problems |
 
 Left untagged: every problem in Track 1 lessons 1–6 (Python and Big-O drills), Track 5 lesson 1's graph-building drills, Track 2 lesson 6's `count_subarrays` (its prompt says
 "prefix sums and a dict" on purpose, to teach when a window fails) and `count_palindromes` (expand-around-centre, not one of the eight).
