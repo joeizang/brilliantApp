@@ -112,9 +112,9 @@ public sealed class TraceStepValidatorTests : IDisposable
     [Fact]
     public void Only_the_kinds_the_player_knows_can_be_drawn()
     {
-        var m = Errors(Head + Body + Code + "    visualise:\n      - variable: nums\n        as: heap\n");
+        var m = Errors(Head + Body + Code + "    visualise:\n      - variable: nums\n        as: trie\n");
 
-        Assert.Contains(m, x => x.Contains("visualise[0]") && x.Contains("unsupported") && x.Contains("'heap'") && x.Contains("array, stack, queue, dict, set"));
+        Assert.Contains(m, x => x.Contains("visualise[0]") && x.Contains("unsupported") && x.Contains("'trie'") && x.Contains("array, stack, queue, dict, set"));
     }
 
     [Fact]
@@ -158,7 +158,7 @@ public sealed class TraceStepValidatorTests : IDisposable
             a!.Variable == b!.Variable && a.As == b.As && a.Pointers.SequenceEqual(b.Pointers) && (a.Next, a.Value) == (b.Next, b.Value)
             && (a.Left, a.Right, a.Visited) == (b.Left, b.Right, b.Visited) && a.Cells.SequenceEqual(b.Cells)
             && (a.RowLabels, a.ColLabels, a.LabelOffset, a.Highlight) == (b.RowLabels, b.ColLabels, b.LabelOffset, b.Highlight)
-            && (a.Directed, a.Weights, a.Edge, a.Frontier) == (b.Directed, b.Weights, b.Edge, b.Frontier);
+            && (a.Directed, a.Weights, a.Edge, a.Frontier) == (b.Directed, b.Weights, b.Edge, b.Frontier) && a.Max == b.Max;
         public int GetHashCode(Visual v) => v.Variable.GetHashCode();
     }
 
@@ -967,6 +967,86 @@ public sealed class TraceStepValidatorTests : IDisposable
         var m = Errors(Head + Body + Code + "    visualise:\n      - variable: nums\n        as: graph\n", new CPythonRunner());
 
         Assert.Contains(m, x => x.Contains("'nums'") && x.Contains("no graph to draw"));
+    }
+
+    // ---- Heaps ----
+
+    private const string HeapVisual = "    visualise:\n      - variable: heap\n        as: heap\n";
+
+    /// <summary>A trace in which heap is a list [1, 5, 2] (or never recorded) and i is the int given, or not defined.</summary>
+    private static TraceResult HeapTrace(bool heap = true, string iType = "int")
+    {
+        TraceFrame F(int? line) => new(line is null ? "return" : "line", line, "<module>", [new TraceLocal("i", iType, "0")],
+            new Dictionary<string, TrackedArray>(), Heaps: heap ? new Dictionary<string, TrackedHeap> { ["heap"] = new("list", ["1", "5", "2"], 0) } : null);
+        return new(TraceStatus.Ok, [F(1), F(null)], "", null, null, null);
+    }
+
+    [Fact]
+    public void A_heap_loads_with_its_pointers_and_max_label()
+    {
+        WriteLesson(Header + Head + Body + Code + HeapVisual + "        pointers: [i]\n        max: true\n");
+        var outPath = Path.Combine(_root, "out", "p.zip");
+
+        var report = ContentPacker.Pack(_root, outPath, new FakeRunner((_, _) => HeapTrace()));
+
+        Assert.True(report.IsValid, string.Join("\n", report.Errors));
+        var step = Assert.IsType<TraceStep>(ContentPackFormat.Load(outPath).Get<Lesson>("lesson.one").Steps[0]);
+        Assert.Equal(new Visual("heap", Visual.Heap, ["i"]) { Max = true }, step.Visuals[0], new VisualComparer());
+    }
+
+    [Fact]
+    public void Max_belongs_to_a_heap_only()
+    {
+        var m = Errors(Head + Body + Code + Visualise + "        max: true\n");
+
+        Assert.Contains(m, x => x.Contains("'max'") && x.Contains("heap only") && x.Contains("not of 'array'"));
+    }
+
+    [Theory]
+    [InlineData("next: nxt", "'next'")]
+    [InlineData("left: lo", "'left'")]
+    [InlineData("visited: seen", "'visited'")]
+    [InlineData("frontier: q", "'frontier'")]
+    [InlineData("cells: [[i, j]]", "'cells'")]
+    [InlineData("functions: [f]", "'functions'")]
+    [InlineData("pointers: [heap]", "the heap's own variable")]
+    [InlineData("top: right", "top")]
+    public void Options_that_draw_nothing_on_a_heap_are_rejected(string option, string says)
+    {
+        var m = Errors(Head + Body + Code + HeapVisual + "        " + option + "\n", new FakeRunner((_, _) => HeapTrace()));
+
+        Assert.Contains(m, x => x.Contains(says));
+    }
+
+    [Fact]
+    public void A_heap_whose_variable_is_never_a_list_is_reported()
+    {
+        var m = Errors(Head + Body + Code + HeapVisual, new FakeRunner((_, _) => HeapTrace(heap: false)));
+
+        Assert.Contains(m, x => x.Contains("'heap'") && x.Contains("never a list") && x.Contains("no heap to draw"));
+    }
+
+    [Fact]
+    public void A_heap_pointer_that_is_never_an_int_is_reported()
+    {
+        var m = Errors(Head + Body + Code + HeapVisual + "        pointers: [i]\n", new FakeRunner((_, _) => HeapTrace(iType: "str")));
+
+        Assert.Contains(m, x => x.Contains("pointer 'i'") && x.Contains("never an int"));
+    }
+
+    [Fact]
+    public void Real_cpython_traces_heapq_pushes_and_pops()
+    {
+        Assert.Empty(Errors(Head + Body + "    code: |\n      import heapq\n      heap = []\n      for x in [5, 1, 4]:\n"
+            + "          heapq.heappush(heap, x)\n      smallest = heapq.heappop(heap)\n" + HeapVisual, new CPythonRunner()));
+    }
+
+    [Fact]
+    public void Real_cpython_reports_a_heap_variable_that_is_never_a_list()
+    {
+        var m = Errors(Head + Body + "    code: |\n      heap = (1, 2)\n      x = 1\n" + HeapVisual, new CPythonRunner());
+
+        Assert.Contains(m, x => x.Contains("'heap'") && x.Contains("no heap to draw"));
     }
 
     // ---- Call stack ----

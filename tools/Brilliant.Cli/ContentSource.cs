@@ -724,6 +724,10 @@ public static partial class ContentValidator
                         report.Add(file, $"{where}: frontier '{v.Frontier}' is also 'visited'; name the nodes waiting, not the ones reached.");
                 }
 
+                var isHeap = v.As == Visual.Heap;
+                if (v.Max is not null && !isHeap)
+                    report.Add(file, $"{where}: 'max' is an option of a {Visual.Heap} only, not of '{v.As}'.");
+
                 // A grid's options say where its cells are pointed at, labelled and shaded; no other drawing has cells in rows.
                 var isGrid = v.As == Visual.Grid;
                 var cells = new List<CellPair>();
@@ -778,6 +782,8 @@ public static partial class ContentValidator
                         report.Add(file, $"{where}: pointer '{pointer}' is the tree's own variable, which is already drawn on its root.");
                     else if (isGraph && pointer == v.Variable)
                         report.Add(file, $"{where}: pointer '{pointer}' is the graph's own variable; a graph pointer holds one of its nodes.");
+                    else if (isHeap && pointer == v.Variable)
+                        report.Add(file, $"{where}: pointer '{pointer}' is the heap's own variable; a heap pointer is an int variable indexing it.");
                     else if (isGrid && pointer == v.Variable)
                         report.Add(file, $"{where}: pointer '{pointer}' is the grid's own variable; a grid pointer holds a (row, col) pair.");
                     else
@@ -789,6 +795,7 @@ public static partial class ContentValidator
                 {
                     Cells = cells, RowLabels = v.RowLabels, ColLabels = v.ColLabels, LabelOffset = v.LabelOffset ?? 0, Highlight = v.Highlight,
                     Directed = v.Directed ?? false, Weights = v.Weights ?? false, Edge = edgeNames, Frontier = isGraph ? v.Frontier : null,
+                    Max = isHeap && (v.Max ?? false),
                 });
             }
 
@@ -948,6 +955,7 @@ public static partial class ContentValidator
         public bool? Weights { get; set; }
         public List<string>? Edge { get; set; }
         public string? Frontier { get; set; }
+        public bool? Max { get; set; }
     }
     private sealed class BlankDto { public string? Id { get; set; } public List<string>? Accepted { get; set; } public List<MistakeDto>? Mistakes { get; set; } }
     private sealed class TestDto { public string? Input { get; set; } public string? Expected { get; set; } }

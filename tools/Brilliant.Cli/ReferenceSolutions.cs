@@ -202,6 +202,8 @@ internal static class ReferenceSolutionChecker
                         $"variable '{visual.Variable}' never holds a node (an object with a '{visual.Next}' attribute) in the trace, so there is no list to draw.",
                     Visual.Tree =>
                         $"variable '{visual.Variable}' never holds a tree node (an object with '{visual.Left}' and '{visual.Right}' attributes) in the trace, so there is no tree to draw.",
+                    Visual.Heap =>
+                        $"variable '{visual.Variable}' is never a list in the trace, so there is no heap to draw.",
                     Visual.Grid =>
                         $"variable '{visual.Variable}' is never a non-empty list of lists or strings in the trace, so there is no grid to draw.",
                     Visual.Graph =>
@@ -242,8 +244,8 @@ internal static class ReferenceSolutionChecker
             }
             foreach (var pointer in visual.Pointers)
             {
-                // A sequence's pointers index cells, so they must be ints; a dict's or set's hold a key, which can be anything.
-                var isArray = Visual.Sequences.Contains(visual.As);
+                // A sequence's or heap's pointers index cells, so they must be ints; a dict's or set's hold a key, which can be anything.
+                var isArray = Visual.Sequences.Contains(visual.As) || visual.As == Visual.Heap;
                 if (!result.Frames.Any(f => f.Locals.Any(l => l.Name == pointer && (!isArray || l.Type == "int"))))
                     yield return isArray
                         ? $"pointer '{pointer}' (of '{visual.Variable}') is never an int variable in the trace."
@@ -346,6 +348,7 @@ internal static class ReferenceSolutionChecker
     {
         Visual.Graph => frame.Graphs is not null && frame.Graphs.TryGetValue(visual.Variable, out var graph) && graph.Nodes.Count > 0,
         Visual.Grid => frame.Grids is not null && frame.Grids.TryGetValue(visual.Variable, out var grid) && grid.Rows.Count > 0,
+        Visual.Heap => frame.Heaps is not null && frame.Heaps.ContainsKey(visual.Variable),
         Visual.Tree => frame.Trees is not null && frame.Trees.TryGetValue(visual.Variable, out var tree) && tree.Root is not null,
         Visual.LinkedList => frame.Lists is not null && frame.Lists.TryGetValue(visual.Variable, out var list) && list.Head is not null,
         Visual.CallStack => frame.Calls is { Frames.Count: > 0 },
