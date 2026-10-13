@@ -591,4 +591,101 @@ public sealed class TraceStepValidatorTests : IDisposable
 
         Assert.Contains(m, x => x.Contains("'head'") && x.Contains("never holds a node"));
     }
+
+    // ---- Call stack ----
+
+    private const string CallsVisual = "    visualise:\n      - as: call_stack\n";
+
+    private const string Fact = "    code: |\n      def fact(n):\n          if n <= 1:\n              return 1\n          return n * fact(n - 1)\n\n      fact(3)\n";
+
+    /// <summary>A trace in which the named functions are called, one after another, and return.</summary>
+    private static TraceResult CallTrace(params string[] functions)
+    {
+        TraceFrame F(int? line, params RecordedCall[] calls) => new(line is null ? "return" : "line", line, "<module>", [],
+            new Dictionary<string, TrackedArray>(), Calls: new TrackedCalls(calls, 0, null));
+        return new(TraceStatus.Ok, [F(1), .. functions.Select((f, i) => F(2, new RecordedCall(i, f, [], null))), F(null)], "", null, null, null);
+    }
+
+    [Fact]
+    public void A_call_stack_loads_with_its_functions_and_draws_no_variable()
+    {
+        WriteLesson(Header + Head + Body + Fact + CallsVisual + "        functions: [fact]\n");
+        var outPath = Path.Combine(_root, "out", "p.zip");
+
+        var report = ContentPacker.Pack(_root, outPath, new FakeRunner((_, _) => CallTrace("fact")));
+
+        Assert.True(report.IsValid, string.Join("\n", report.Errors));
+        var visual = Assert.IsType<TraceStep>(ContentPackFormat.Load(outPath).Get<Lesson>("lesson.one").Steps[0]).Visuals.Single();
+        Assert.Equal(("", Visual.CallStack), (visual.Variable, visual.As));
+        Assert.Equal(["fact"], visual.Functions);
+    }
+
+    [Fact]
+    public void A_call_stack_sits_beside_other_visuals()
+    {
+        var m = Errors(Head + Body + Fact + "    visualise:\n      - as: call_stack\n      - variable: memo\n        as: dict\n",
+            new FakeRunner((_, _) => CallTrace("fact")));
+
+        Assert.DoesNotContain(m, x => x.Contains("visualise[1]") && x.Contains("already drawn"));
+    }
+
+    [Fact]
+    public void A_call_stack_takes_no_variable_and_no_pointers_and_is_drawn_once()
+    {
+        var m = Errors(Head + Body + Fact + "    visualise:\n      - as: call_stack\n        variable: n\n        pointers: [n]\n      - as: call_stack\n",
+            new FakeRunner((_, _) => CallTrace("fact")));
+
+        Assert.Contains(m, x => x.Contains("visualise[0]") && x.Contains("leave 'variable' out"));
+        Assert.Contains(m, x => x.Contains("visualise[0]") && x.Contains("has no pointers"));
+        Assert.Contains(m, x => x.Contains("visualise[1]") && x.Contains("call stack is already drawn by visualise[0]"));
+    }
+
+    [Fact]
+    public void Functions_is_an_option_of_a_call_stack_only()
+    {
+        var m = Errors(Head + Body + Code + "    visualise:\n      - variable: nums\n        as: array\n        functions: [f]\n");
+
+        Assert.Contains(m, x => x.Contains("visualise[0]") && x.Contains("'functions'") && x.Contains("call_stack only"));
+    }
+
+    [Fact]
+    public void Functions_must_be_names_listed_once()
+    {
+        var m = Errors(Head + Body + Fact + CallsVisual + "        functions: [fact, fact, '2f']\n", new FakeRunner((_, _) => CallTrace("fact")));
+
+        Assert.Contains(m, x => x.Contains("function 'fact' is listed twice"));
+        Assert.Contains(m, x => x.Contains("function '2f'") && x.Contains("not a valid Python name"));
+    }
+
+    [Fact]
+    public void A_call_stack_that_is_always_empty_is_reported()
+    {
+        Assert.Contains(Errors(Head + Body + Code + CallsVisual, new FakeRunner((_, _) => CallTrace())),
+            x => x.Contains("never calls a function of its own"));
+        Assert.Contains(Errors(Head + Body + Code + CallsVisual + "        functions: [fact]\n", new FakeRunner((_, _) => CallTrace())),
+            x => x.Contains("never calls 'fact'"));
+    }
+
+    [Fact]
+    public void A_listed_function_that_is_never_called_is_reported()
+    {
+        var m = Errors(Head + Body + Fact + CallsVisual + "        functions: [fact, helper]\n", new FakeRunner((_, _) => CallTrace("fact")));
+
+        Assert.Contains(m, x => x.Contains("function 'helper'") && x.Contains("never called"));
+        Assert.DoesNotContain(m, x => x.Contains("function 'fact'"));
+    }
+
+    [Fact]
+    public void Real_cpython_traces_a_recursive_call_stack()
+    {
+        Assert.Empty(Errors(Head + Body + Fact + CallsVisual + "        functions: [fact]\n", new CPythonRunner()));
+    }
+
+    [Fact]
+    public void Real_cpython_reports_a_call_stack_for_code_that_calls_nothing_of_its_own()
+    {
+        var m = Errors(Head + Body + "    code: |\n      print(len([1, 2]))\n" + CallsVisual, new CPythonRunner());
+
+        Assert.Contains(m, x => x.Contains("never calls a function of its own"));
+    }
 }

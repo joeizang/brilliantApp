@@ -630,14 +630,44 @@ public static partial class ContentValidator
                 var v = list[i];
                 var where = $"{label}: visualise[{i}]";
                 if (IsEmptyEntry(v, where, file, report)) continue;
-                Require(v.Variable, "variable", file, report, where);
                 Require(v.As, "as", file, report, where);
-                if (!string.IsNullOrWhiteSpace(v.Variable) && !PythonIdentifier.IsMatch(v.Variable))
-                    report.Add(file, $"{where}: variable '{v.Variable}' is not a valid Python name.");
                 if (!string.IsNullOrWhiteSpace(v.As) && !Visual.Kinds.Contains(v.As))
                     report.Add(file, $"{where}: unsupported 'as' value '{v.As}' (supported: {string.Join(", ", Visual.Kinds)}).");
-                if (v.Variable is not null && visuals.FindIndex(x => x.Variable == v.Variable) is var first and >= 0)
-                    report.Add(file, $"{where}: '{v.Variable}' is already drawn by visualise[{first}].");
+
+                // The call stack draws the calls under way, not a variable, and is drawn once.
+                if (v.As == Visual.CallStack)
+                {
+                    if (v.Variable is not null)
+                        report.Add(file, $"{where}: a {Visual.CallStack} draws the calls under way, not a variable; leave 'variable' out.");
+                    if (v.Pointers is { Count: > 0 })
+                        report.Add(file, $"{where}: a {Visual.CallStack} has no pointers.");
+                    if (visuals.FindIndex(x => x.As == Visual.CallStack) is var drawn and >= 0)
+                        report.Add(file, $"{where}: the call stack is already drawn by visualise[{drawn}].");
+                }
+                else
+                {
+                    Require(v.Variable, "variable", file, report, where);
+                    if (!string.IsNullOrWhiteSpace(v.Variable) && !PythonIdentifier.IsMatch(v.Variable))
+                        report.Add(file, $"{where}: variable '{v.Variable}' is not a valid Python name.");
+                    if (v.Variable is not null && visuals.FindIndex(x => x.Variable == v.Variable) is var first and >= 0)
+                        report.Add(file, $"{where}: '{v.Variable}' is already drawn by visualise[{first}].");
+                }
+
+                var functions = new List<string>();
+                foreach (var function in v.Functions ?? [])
+                {
+                    if (v.As != Visual.CallStack)
+                    {
+                        report.Add(file, $"{where}: 'functions' is an option of a {Visual.CallStack} only, not of '{v.As}'.");
+                        break;
+                    }
+                    if (string.IsNullOrWhiteSpace(function) || !PythonIdentifier.IsMatch(function))
+                        report.Add(file, $"{where}: function '{function}' is not a valid Python name.");
+                    else if (functions.Contains(function))
+                        report.Add(file, $"{where}: function '{function}' is listed twice.");
+                    else
+                        functions.Add(function);
+                }
 
                 // A linked list's options say how to walk its nodes; no other drawing has nodes.
                 var isList = v.As == Visual.LinkedList;
@@ -662,8 +692,8 @@ public static partial class ContentValidator
                     else
                         pointers.Add(pointer);
                 }
-                visuals.Add(new Visual(v.Variable ?? "", v.As ?? "", pointers,
-                    v.Next ?? Visual.DefaultNext, v.Value ?? Visual.DefaultValue));
+                visuals.Add(new Visual(v.As == Visual.CallStack ? "" : v.Variable ?? "", v.As ?? "", pointers,
+                    v.Next ?? Visual.DefaultNext, v.Value ?? Visual.DefaultValue, functions));
             }
 
         return visuals;
@@ -809,6 +839,7 @@ public static partial class ContentValidator
         public List<string>? Pointers { get; set; }
         public string? Next { get; set; }
         public string? Value { get; set; }
+        public List<string>? Functions { get; set; }
     }
     private sealed class BlankDto { public string? Id { get; set; } public List<string>? Accepted { get; set; } public List<MistakeDto>? Mistakes { get; set; } }
     private sealed class TestDto { public string? Input { get; set; } public string? Expected { get; set; } }

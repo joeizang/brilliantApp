@@ -1009,8 +1009,23 @@ public class TraceTests
 
         var loaded = Assert.IsType<TraceStep>(ContentPackFormat.Load(ms).Get<Lesson>("lesson.one").Steps[0]);
 
-        Assert.Equal(step.Visuals[0], loaded.Visuals[0] with { Pointers = step.Visuals[0].Pointers });
+        Assert.Equal(step.Visuals[0], loaded.Visuals[0] with { Pointers = step.Visuals[0].Pointers, Functions = step.Visuals[0].Functions });
         Assert.Equal(["curr"], loaded.Visuals[0].Pointers);
+    }
+
+    [Fact]
+    public void A_call_stack_visual_survives_a_pack_round_trip_with_its_functions()
+    {
+        var step = new TraceStep("step.t", "Calls", "Watch.", "f()\n", [new Visual("", Visual.CallStack, [], Functions: ["fact"])]);
+        using var ms = new MemoryStream();
+        ContentPackFormat.Write(ms, new PackManifest("pack.t", "1.0.0", ContentPackFormat.CurrentFormatVersion),
+            [new Track("track.a", "A", ["lesson.one"])], [new Lesson("lesson.one", "One", "track.a", [step])]);
+        ms.Position = 0;
+
+        var visual = Assert.IsType<TraceStep>(ContentPackFormat.Load(ms).Get<Lesson>("lesson.one").Steps[0]).Visuals.Single();
+
+        Assert.Equal(Visual.CallStack, visual.As);
+        Assert.Equal(["fact"], visual.Functions);
     }
 
     // ---- Content ----
@@ -1031,5 +1046,146 @@ public class TraceTests
         var visual = Assert.Single(loaded.Visuals);
         Assert.Equal(("nums", Visual.Array), (visual.Variable, visual.As));
         Assert.Equal(["i"], visual.Pointers);
+    }
+
+    // ---- Call stack ----
+
+    private static readonly Visual CallStack = new("", Visual.CallStack, []);
+
+    private static RecordedCall Call(int id, string n, string? returning = null) => new(id, "fact", [new CallArg("n", n)], returning);
+
+    private static TraceFrame CallFrame(int? line, string function, TrackedCalls calls, params TraceLocal[] locals) =>
+        new(line is null || calls.Frames.Any(c => c.Returning is not null) ? "return" : "line", line, function, locals,
+            new Dictionary<string, TrackedArray>(), Calls: calls);
+
+    private static TrackedCalls Calls(params RecordedCall[] calls) => new(calls, 0, null);
+
+    [Fact]
+    public void The_watch_list_includes_the_call_stack_with_its_functions()
+    {
+        Assert.Equal("""["nums",{"as":"call_stack","functions":["fact"]}]""",
+            TraceResultJson.SerializeWatch([Nums, new Visual("", Visual.CallStack, [], Functions: ["fact"]), CallStack]));
+        Assert.Equal("""[{"as":"call_stack","functions":[]}]""", TraceResultJson.SerializeWatch([CallStack]));
+    }
+
+    [Fact]
+    public void Calls_in_the_tracer_json_parse()
+    {
+        const string json = """
+            {"status":"ok","stdout":"","message":null,"traceback":null,"errorLine":null,"frames":[
+              {"event":"return","line":3,"function":"fact","locals":[],"tracked":{},"tables":{},"lists":{},
+               "calls":{"frames":[{"id":0,"function":"fact","args":[{"name":"n","repr":"2"}],"returning":null},
+                                  {"id":1,"function":"fact","args":[{"name":"n","repr":"1"}],"returning":"1"}],
+                        "more":0,"returned":{"function":"g","value":"5","to":0}}}]}
+            """;
+        var calls = TraceResultJson.Parse(json).Frames.Single().Calls!;
+        Assert.Equal([0, 1], calls.Frames.Select(c => c.Id));
+        Assert.Equal(new CallArg("n", "1"), calls.Frames[1].Args.Single());
+        Assert.Equal("1", calls.Frames[1].Returning);
+        Assert.Equal(new ReturnedValue("g", "5", 0), calls.Returned);
+    }
+
+    [Fact]
+    public void The_call_stack_is_drawn_only_when_a_visual_asks_for_it()
+    {
+        var run = Run(CallFrame(2, "fact", Calls(Call(0, "3"))));
+        Assert.Null(Build(run).Single().Calls);
+        var view = Build(run, CallStack).Single().Calls!;
+        Assert.Equal("fact(n=3)", view.Running!.Label);
+        Assert.False(view.Running.Pushed);
+    }
+
+    [Fact]
+    public void A_call_that_began_since_the_step_before_is_pushed_even_in_another_function()
+    {
+        var states = Build(Run(
+            CallFrame(6, "<module>", Calls()),
+            CallFrame(2, "fact", Calls(Call(0, "2"))),
+            CallFrame(4, "fact", Calls(Call(0, "2"))),
+            CallFrame(2, "fact", Calls(Call(0, "2"), Call(1, "1")))), CallStack);
+        Assert.Equal([true], states[1].Calls!.Frames.Select(f => f.Pushed));
+        Assert.Equal([false], states[2].Calls!.Frames.Select(f => f.Pushed));
+        Assert.Equal([false, true], states[3].Calls!.Frames.Select(f => f.Pushed));
+    }
+
+    [Fact]
+    public void A_return_shows_on_the_returning_call_then_on_the_caller_and_the_call_is_gone()
+    {
+        var states = Build(Run(
+            CallFrame(3, "fact", Calls(Call(0, "2"), Call(1, "1", returning: "1"))),
+            CallFrame(4, "fact", new TrackedCalls([Call(0, "2", returning: "2")], 0, new ReturnedValue("fact", "1", 0))),
+            CallFrame(null, "<module>", new TrackedCalls([], 0, new ReturnedValue("fact", "2", null)))), CallStack);
+
+        Assert.Equal("1", states[0].Calls!.Running!.Returning);
+        var caller = states[1].Calls!.Running!;
+        Assert.Equal(new ReturnedValue("fact", "1", 0), caller.Received);
+        Assert.Equal("2", caller.Returning);
+        Assert.Equal([1], states[1].Calls!.Gone.Select(g => g.Id));
+        Assert.Null(states[1].Calls!.ToModule);
+
+        var last = states[2].Calls!;
+        Assert.Empty(last.Frames);
+        Assert.Equal([0], last.Gone.Select(g => g.Id));
+        Assert.Equal(new ReturnedValue("fact", "2", null), last.ToModule);
+    }
+
+    [Fact]
+    public void A_value_received_is_shown_for_one_step_only()
+    {
+        var states = Build(Run(
+            CallFrame(4, "fact", new TrackedCalls([Call(0, "2")], 0, new ReturnedValue("fact", "1", 0))),
+            CallFrame(5, "fact", Calls(Call(0, "2")))), CallStack);
+        Assert.NotNull(states[0].Calls!.Running!.Received);
+        Assert.Null(states[1].Calls!.Running!.Received);
+        Assert.Empty(states[1].Calls!.Gone);
+    }
+
+    [Fact]
+    public void A_call_returned_to_and_a_new_call_in_one_step_are_told_apart()
+    {
+        // fib(n - 1) returned to fib(2), which at once called fib(n - 2).
+        var states = Build(Run(
+            CallFrame(3, "fib", Calls(Call(0, "2"), Call(1, "1", returning: "1"))),
+            CallFrame(2, "fib", new TrackedCalls([Call(0, "2"), Call(2, "0")], 0, new ReturnedValue("fib", "1", 0)))), CallStack);
+        var view = states[1].Calls!;
+        Assert.Equal([1], view.Gone.Select(g => g.Id));
+        Assert.Equal([false, true], view.Frames.Select(f => f.Pushed));
+        Assert.NotNull(view.Frames[0].Received);
+        Assert.Null(view.Frames[1].Received);
+    }
+
+    [Fact]
+    public void A_call_cut_off_at_the_bottom_is_not_gone_and_one_coming_back_into_view_is_not_pushed()
+    {
+        var states = Build(Run(
+            CallFrame(2, "f", new TrackedCalls([Call(0, "3"), Call(1, "2")], 0, null)),
+            CallFrame(2, "f", new TrackedCalls([Call(1, "2"), Call(2, "1")], 1, null)),
+            CallFrame(2, "f", new TrackedCalls([Call(0, "3"), Call(1, "2")], 0, null))), CallStack);
+        Assert.Empty(states[1].Calls!.Gone);
+        Assert.Equal([false, true], states[1].Calls!.Frames.Select(f => f.Pushed));
+        Assert.Equal(1, states[1].Calls!.More);
+        Assert.Equal([2], states[2].Calls!.Gone.Select(g => g.Id));
+        Assert.All(states[2].Calls!.Frames, f => Assert.False(f.Pushed));
+    }
+
+    [Fact]
+    public void Locals_are_still_compared_only_within_one_function_when_the_call_stack_is_drawn()
+    {
+        var states = Build(Run(
+            CallFrame(1, "<module>", Calls(), Int("n", 1)),
+            CallFrame(2, "fact", Calls(Call(0, "1")), Int("n", 1))), CallStack);
+        Assert.False(states[1].Locals.Single().Changed);
+    }
+
+    [Fact]
+    public void A_visual_kind_without_a_variable_can_sit_beside_other_visuals()
+    {
+        var frame = CallFrame(2, "f", Calls(Call(0, "1"))) with
+        {
+            Tables = new Dictionary<string, TrackedTable> { ["memo"] = Dict(("1", "1")) },
+        };
+        var state = Build(Run(frame), new Visual("memo", Visual.Dict, []), CallStack).Single();
+        Assert.Single(state.Tables);
+        Assert.Single(state.Calls!.Frames);
     }
 }
