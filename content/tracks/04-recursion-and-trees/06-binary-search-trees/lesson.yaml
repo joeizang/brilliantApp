@@ -50,7 +50,7 @@ steps:
       csharp: |
         var set = new SortedSet<int> { 8, 3, 10, 1, 6 };
         set.Contains(6);                 // O(log n): walks down the tree
-        set.Min;                         // 1
+        var smallest = set.Min;          // 1
         set.GetViewBetween(3, 8);        // { 3, 6, 8 }
       python: |
         import bisect

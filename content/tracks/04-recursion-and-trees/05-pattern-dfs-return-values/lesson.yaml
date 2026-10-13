@@ -270,10 +270,11 @@ steps:
     title: A value that means "stop"
     body: |
       A tree is **height-balanced** if, at every node, the heights of the two subtrees differ by at most one. The obvious code
-      calls `height` on both children of **every** node, and each `height` call walks the whole subtree again. On a tree like a
-      long chain that is O(n²).
+      calls `height` on both children of every node it checks, and each `height` call walks that whole subtree again. On a
+      balanced tree it checks every node, so each node's height is worked out once for every ancestor, about `log n` times:
+      O(n log n) in total.
 
-      Do it in one walk instead: return the height, but return `-1` when the subtree is already **unbalanced**. A height is
+      Do it in one walk instead, O(n): return the height, but return `-1` when the subtree is already **unbalanced**. A height is
       never negative, so `-1` can't be mistaken for one. A node that gets `-1` from either child returns `-1` straight away,
       without checking anything else, and the answer is `walk(root) != -1`.
 
@@ -314,12 +315,12 @@ steps:
           return is_balanced(node.left) and is_balanced(node.right)
       ```
     options:
-      - text: "Every node's `height` call walks its whole subtree again, so the work can be O(n²). One walk returning height or `-1` is O(n)."
+      - text: "Each `height` call walks a whole subtree again, so on a balanced tree every node's height is worked out once per ancestor: O(n log n). One walk returning height or `-1` is O(n)."
         correct: true
         feedback: "Right. Combining children's answers on the way up computes each height once, and `-1` ends the walk as soon as it fails."
       - text: "This version gives the wrong answer for some trees."
         correct: false
-        feedback: "It is correct, just slow: it checks every node, recomputing the heights below each one."
+        feedback: "It is correct, just slower: each node it checks recomputes the heights of everything below it."
       - text: "This version always hits the recursion limit."
         correct: false
         feedback: "Its depth is still the tree's height. The problem is the repeated work, not the depth."
