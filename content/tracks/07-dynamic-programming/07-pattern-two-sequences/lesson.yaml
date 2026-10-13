@@ -473,7 +473,8 @@ steps:
       `s` is **woven** from `a` and `b` when it uses every character of both, keeping each string's own order, with their
       characters mixed in any way. Write `is_woven(a, b, s)` that returns `True` or `False`.
 
-      `is_woven("aab", "axy", "aaxaby")` is `True`: `a a x a b y` takes `a`, `a` from `a`, then `x` from `b`, and so on.
+      `is_woven("aab", "axy", "aaxaby")` is `True`: `a a x a b y` takes its first `a` from `b` and its second from `a`, then
+      `x` from `b`, `a` and `b` from `a`, and `y` from `b`.
     language: python
     entrypoint: is_woven
     starter: |
