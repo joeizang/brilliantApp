@@ -1,0 +1,564 @@
+id: lesson.pattern-grid-dp
+title: "Pattern: grid DP"
+concepts:
+  - id: concept.grid-dp-arrive
+    title: A cell's answer comes from the cells you can arrive from, above and to the left
+  - id: concept.grid-dp-edges
+    title: The first row and column have only one way in, and blocked cells contribute nothing
+  - id: concept.grid-dp-order
+    title: Any fill order works as long as the cells a cell reads are already filled
+  - id: concept.grid-dp-cycles
+    title: When moves can go back the way they came, the grid has cycles and needs a search instead
+reviewItems:
+  - id: review.grid-dp.predict-paths
+    concept: concept.grid-dp-arrive
+    step: step.grid-dp.predict-paths
+  - id: review.grid-dp.rocks
+    concept: concept.grid-dp-edges
+    step: step.grid-dp.check-rocks
+  - id: review.grid-dp.predict-cost
+    concept: concept.grid-dp-arrive
+    step: step.grid-dp.predict-cost
+  - id: review.grid-dp.greedy
+    concept: concept.grid-dp-arrive
+    step: step.grid-dp.check-greedy
+  - id: review.grid-dp.order
+    concept: concept.grid-dp-order
+    step: step.grid-dp.check-order
+  - id: review.grid-dp.not-dp
+    concept: concept.grid-dp-cycles
+    step: step.grid-dp.check-not-dp
+    kind: pattern
+  - id: review.grid-dp.cue
+    concept: concept.grid-dp-arrive
+    step: step.grid-dp.check-cue
+    kind: pattern
+patterns:
+  - id: pattern.dp-grid
+    title: Fill each cell from the cells you can arrive from, row by row
+steps:
+  - id: step.grid-dp.idea
+    type: explain
+    title: Counting routes through a city
+    body: |
+      Streets run across and avenues run down. You start at the top-left corner and may only walk **right** or **down**. How
+      many routes reach the bottom-right corner?
+
+      You arrive at a corner either **from above** or **from the left**, and those routes don't overlap. So with `dp[r][c]` = the
+      number of routes to row `r`, column `c`:
+
+      `dp[r][c] = dp[r - 1][c] + dp[r][c - 1]`
+
+      Along the top row and the left column there's only **one** way in (straight along the edge), so those cells are `1`.
+
+      It's the stairs again, in two dimensions: each cell builds on the neighbours it can be reached from.
+    comparison:
+      csharp: |
+        static long Routes(int rows, int cols)
+        {
+            var dp = new long[rows, cols];
+            for (int r = 0; r < rows; r++)
+                for (int c = 0; c < cols; c++)
+                    dp[r, c] = r == 0 || c == 0 ? 1 : dp[r - 1, c] + dp[r, c - 1];
+            return dp[rows - 1, cols - 1];
+        }
+      python: |
+        def routes(rows, cols):
+            dp = [[0] * cols for _ in range(rows)]
+            for r in range(rows):
+                for c in range(cols):
+                    if r == 0 or c == 0:
+                        dp[r][c] = 1
+                    else:
+                        dp[r][c] = dp[r - 1][c] + dp[r][c - 1]
+            return dp[rows - 1][cols - 1]
+  - id: step.grid-dp.trace-routes
+    type: trace
+    title: Filling the city
+    body: |
+      Rows are streets and columns are avenues. Watch each corner add the count from above to the count from the left. The
+      corner of 3rd Street and Avenue D is reached `10` ways.
+    code: |
+      streets = ["1st", "2nd", "3rd"]
+      avenues = ["A", "B", "C", "D"]
+      dp = [[0] * len(avenues) for _ in streets]
+      for r in range(len(streets)):
+          for c in range(len(avenues)):
+              if r == 0 or c == 0:
+                  dp[r][c] = 1
+              else:
+                  dp[r][c] = dp[r - 1][c] + dp[r][c - 1]
+      total = dp[-1][-1]
+    visualise:
+      - variable: dp
+        as: grid
+        cells: [[r, c]]
+        rowLabels: streets
+        colLabels: avenues
+  - id: step.grid-dp.predict-paths
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      What does this print?
+    code: |
+      rows, cols = 3, 4
+      dp = [[0] * cols for _ in range(rows)]
+      for r in range(rows):
+          for c in range(cols):
+              if r == 0 or c == 0:
+                  dp[r][c] = 1
+              else:
+                  dp[r][c] = dp[r - 1][c] + dp[r][c - 1]
+      print(dp[2])
+    accepted:
+      - "[1, 3, 6, 10]"
+    mistakes:
+      - answers:
+          - "[1, 2, 3, 4]"
+        feedback: "That's row `1`. Row `2` adds row `1`'s cell above to its own cell on the left: `1, 1 + 2, 3 + 3, 6 + 4`."
+      - answers:
+          - "[1, 1, 1, 1]"
+        feedback: "Only row `0` is all ones. The left column is `1`, but the rest add up the cells above and to the left."
+      - answers:
+          - "[3, 6, 10]"
+        feedback: "`dp[2]` is a whole row, starting with `dp[2][0] = 1` on the left edge."
+    hints:
+      - "Row `1` is `[1, 2, 3, 4]`. Each cell of row `2` is the cell above plus the cell to its left."
+  - id: step.grid-dp.check-rocks
+    type: choice
+    title: Rocks in the way
+    prompt: |
+      Some corners are blocked by rocks. A rock's cell is set to `0`. Along the top row, why is every cell **after** a rock also
+      `0`?
+    options:
+      - text: "A top-row cell can only be reached from the left, and the rock cuts that path off. `0 + 0` stays `0`."
+        correct: true
+        feedback: "Right. So don't just set the edges to `1`: treat a missing neighbour as `0`, and let the rock's `0` flow along."
+      - text: "Rocks block the whole row."
+        correct: false
+        feedback: "Cells below the row can still be reached from the left column. Only cells reached solely through the rock lose out."
+      - text: "It isn't: the top row is always `1`."
+        correct: false
+        feedback: "Past a rock, the only way in along the edge goes through the rock. There are no routes."
+      - text: "To save memory."
+        correct: false
+        feedback: "The `0` is the true count: no routes reach those cells."
+    hints:
+      - "Where can a top-row cell be reached from?"
+  - id: step.grid-dp.cost-idea
+    type: explain
+    title: The cheapest route
+    body: |
+      Now each cell has a **cost** to step on, and you want the route with the smallest total, still moving right or down.
+
+      Same shape, with `min` instead of `+`: arrive from whichever neighbour is cheaper, and pay this cell's cost.
+
+      `dp[r][c] = grid[r][c] + min(dp[r - 1][c], dp[r][c - 1])`
+
+      Along the edges, only one neighbour exists, so take that one. `dp[0][0]` is just `grid[0][0]`.
+    comparison:
+      csharp: |
+        static long CheapestRoute(int[][] grid)
+        {
+            int rows = grid.Length, cols = grid[0].Length;
+            var dp = new long[rows, cols];
+            for (int r = 0; r < rows; r++)
+                for (int c = 0; c < cols; c++)
+                {
+                    long best = r == 0 && c == 0 ? 0
+                              : r == 0 ? dp[r, c - 1]
+                              : c == 0 ? dp[r - 1, c]
+                              : Math.Min(dp[r - 1, c], dp[r, c - 1]);
+                    dp[r, c] = grid[r][c] + best;
+                }
+            return dp[rows - 1, cols - 1];
+        }
+      python: |
+        def cheapest_route(grid):
+            rows, cols = len(grid), len(grid[0])
+            dp = [[0] * cols for _ in range(rows)]
+            for r in range(rows):
+                for c in range(cols):
+                    if r == 0 and c == 0:
+                        best = 0
+                    elif r == 0:
+                        best = dp[r][c - 1]
+                    elif c == 0:
+                        best = dp[r - 1][c]
+                    else:
+                        best = min(dp[r - 1][c], dp[r][c - 1])
+                    dp[r][c] = grid[r][c] + best
+            return dp[rows - 1][cols - 1]
+  - id: step.grid-dp.trace-cost
+    type: trace
+    title: The cheapest way down
+    body: |
+      The ring marks the same cell in the cost grid and in the table. At the centre, the cheaper way in is from the left (`2`,
+      against `4` from above), so `dp[1][1] = 2 + 5 = 7`. The corner ends at `7`, by the route `1, 3, 1, 1, 1`.
+    code: |
+      grid = [[1, 3, 1],
+              [1, 5, 1],
+              [4, 2, 1]]
+      rows, cols = len(grid), len(grid[0])
+      dp = [[0] * cols for _ in range(rows)]
+      for r in range(rows):
+          for c in range(cols):
+              if r == 0 and c == 0:
+                  best = 0
+              elif r == 0:
+                  best = dp[r][c - 1]
+              elif c == 0:
+                  best = dp[r - 1][c]
+              else:
+                  best = min(dp[r - 1][c], dp[r][c - 1])
+              dp[r][c] = grid[r][c] + best
+      cheapest = dp[-1][-1]
+    visualise:
+      - variable: grid
+        as: grid
+        cells: [[r, c]]
+      - variable: dp
+        as: grid
+        cells: [[r, c]]
+  - id: step.grid-dp.predict-cost
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      What does this print?
+    code: |
+      grid = [[1, 3, 1],
+              [1, 5, 1],
+              [4, 2, 1]]
+      rows, cols = len(grid), len(grid[0])
+      dp = [[0] * cols for _ in range(rows)]
+      for r in range(rows):
+          for c in range(cols):
+              if r == 0 and c == 0:
+                  best = 0
+              elif r == 0:
+                  best = dp[r][c - 1]
+              elif c == 0:
+                  best = dp[r - 1][c]
+              else:
+                  best = min(dp[r - 1][c], dp[r][c - 1])
+              dp[r][c] = grid[r][c] + best
+      print(dp[2])
+    accepted:
+      - "[6, 8, 7]"
+    mistakes:
+      - answers:
+          - "[4, 2, 1]"
+        feedback: "That's the cost grid's bottom row. `dp` holds the cheapest total to reach each cell."
+      - answers:
+          - "[6, 8, 8]"
+        feedback: "At the corner, the cell above is `6` and the left is `8`. The cheaper is `6`, plus the corner's `1`: `7`."
+      - answers:
+          - "[6, 8, 9]"
+        feedback: "The corner takes the **cheaper** of above (`6`) and left (`8`): `6 + 1 = 7`."
+    hints:
+      - "The table's rows are `[1, 4, 5]`, then `[2, 7, 6]`. Fill the last row from those."
+  - id: step.grid-dp.check-greedy
+    type: choice
+    title: Why not step to the cheaper neighbour?
+    prompt: |
+      For this grid, someone starts at the top-left and always steps to whichever of right or down is cheaper. What total do
+      they get, and what's the cheapest?
+
+      ```
+      1 2 9
+      3 8 9
+      1 1 1
+      ```
+    options:
+      - text: "Greedy gets `13` (`1, 2, 8, 1, 1`); the cheapest is `7` (`1, 3, 1, 1, 1`)."
+        correct: true
+        feedback: "Right. The `2` looked better than the `3`, but it led into the expensive middle. The table compares whole routes."
+      - text: "Both get `7`."
+        correct: false
+        feedback: "Greedy's first step is right to the `2`, since `2 < 3`. From there, the cheap bottom-left is out of reach."
+      - text: "Greedy gets `7`; the cheapest is `13`."
+        correct: false
+        feedback: "The table takes the minimum over every route, so it can't be worse than greedy."
+      - text: "Both get `13`."
+        correct: false
+        feedback: "Going down first, `1, 3, 1, 1, 1`, costs `7`."
+    hints:
+      - "Follow greedy: from `1`, it compares `2` and `3`."
+  - id: step.grid-dp.check-order
+    type: choice
+    title: Which order breaks it?
+    prompt: |
+      Each cell reads the cell above and the cell to its left. Which order of filling the table gives **wrong** answers?
+    options:
+      - text: "The bottom row first, from right to left, then upwards."
+        correct: true
+        feedback: "Right. The first cell filled, the bottom-right corner, reads cells that are still `0`. A cell's inputs must be filled first."
+      - text: "Row by row, left to right."
+        correct: false
+        feedback: "That's the usual order: above was filled in the previous row, and left just now."
+      - text: "Column by column, top to bottom."
+        correct: false
+        feedback: "That works too: left was filled in the previous column, and above just now."
+      - text: "Diagonal by diagonal, from the top-left."
+        correct: false
+        feedback: "That works: the cells above and left are on the previous diagonal."
+    hints:
+      - "Which order fills a cell before the cells it reads?"
+  - id: step.grid-dp.pattern
+    type: explain
+    title: Spotting it
+    body: |
+      The cue: **a grid you cross in one general direction** (right and down, or down only), counting routes or finding the
+      cheapest or best, sometimes with blocked cells. Also any problem whose table naturally has two indexes.
+
+      1. **State**: `dp[r][c]` = the answer for reaching (or for the square ending at) cell `(r, c)`.
+      2. **Choices**: the cells you can arrive from: above, left, and sometimes the diagonal.
+      3. **Base**: the first row and column, or a missing neighbour counted as `0` (for counts) or infinity (for costs).
+      4. **Order**: row by row, left to right.
+      5. **Answer**: the bottom-right cell, or the best cell anywhere.
+
+      It's O(rows × cols), and since each row reads only the row above, one row of memory is enough.
+
+      If you can move **in all four directions**, a route can loop back, and there's no order to fill in. That's a graph:
+      BFS for the fewest steps (Track 5), or Dijkstra for the cheapest.
+  - id: step.grid-dp.check-not-dp
+    type: choice
+    title: DP or search?
+    prompt: |
+      *"A maze of open and walled cells. Moving up, down, left or right, what's the fewest steps from the start to the exit?"*
+      What fits?
+    options:
+      - text: "BFS from the start: moves go every way, so there's no order to fill a table in."
+        correct: true
+        feedback: "Right. A cell's best can come from below or the right, which a row-by-row table hasn't filled yet. BFS handles cycles."
+      - text: "Grid DP: `dp[r][c] = 1 + min(above, left)`."
+        correct: false
+        feedback: "That only allows arriving from above or the left. The shortest route might go up or left first."
+      - text: "Grid DP, filled bottom-up instead."
+        correct: false
+        feedback: "Any single order misses some directions. Cycles need a search, not a table."
+      - text: "Try every route with backtracking."
+        correct: false
+        feedback: "Correct but exponential. BFS finds the fewest steps visiting each cell once."
+    hints:
+      - "Can the best route to a cell come from a cell the table hasn't filled yet?"
+  - id: step.grid-dp.check-cue
+    type: choice
+    title: Read the cue
+    prompt: |
+      *"In a grid of `0`s and `1`s, find the side of the largest square made only of `1`s."* What's a good state?
+    options:
+      - text: "`dp[r][c]` = the side of the largest all-`1` square whose **bottom-right corner** is `(r, c)`: `1 + min(above, left, diagonal)` on a `1`."
+        correct: true
+        feedback: "Right. The square ending here is limited by the smallest of the three squares ending next to it. The answer is the largest cell."
+      - text: "`dp[r][c]` = how many `1`s are in row `r` up to column `c`."
+        correct: false
+        feedback: "That's a run along one row. A square needs the rows above to line up too."
+      - text: "`dp[r][c]` = the number of `1`s in the whole grid above and left of `(r, c)`."
+        correct: false
+        feedback: "A count of `1`s says nothing about whether they form a square."
+      - text: "Check every square of every size: no table."
+        correct: false
+        feedback: "Correct but slow, about O(n⁴) or more. Ending the state at a corner gets O(rows × cols)."
+    hints:
+      - "Fix where the square ends, as with the best run."
+  - id: step.grid-dp.fill-rocks
+    type: fill-blank
+    title: Routes around rocks
+    pattern: pattern.dp-grid
+    patternCue: "\"Routes moving right or down, with blocked cells\": routes from above plus routes from the left, and a rock gets none."
+    prompt: |
+      `grid` is a list of strings: `.` is open and `#` is a rock. Fill in the blanks so `routes(grid)` counts the routes from
+      the top-left to the bottom-right, moving only right or down, never onto a rock.
+    template: |
+      def routes(grid):
+          rows, cols = len(grid), len(grid[0])
+          dp = [[0] * cols for _ in range(rows)]
+          for r in range(rows):
+              for c in range(cols):
+                  if grid[r][c] == "#":
+                      dp[r][c] = {{rock}}
+                  elif r == 0 and c == 0:
+                      dp[r][c] = 1
+                  else:
+                      up = dp[r - 1][c] if r > 0 else 0
+                      left = {{left}}
+                      dp[r][c] = up + left
+          return dp[rows - 1][cols - 1]
+    blanks:
+      - id: rock
+        accepted:
+          - "0"
+        mistakes:
+          - answers:
+              - "1"
+            feedback: "No route can stand on a rock, so it passes on nothing: `0`."
+          - answers:
+              - "-1"
+            feedback: "`-1` would subtract from its neighbours' counts. A rock has `0` routes."
+      - id: left
+        accepted:
+          - "dp[r][c - 1] if c > 0 else 0"
+          - "dp[r][c-1] if c > 0 else 0"
+          - "dp[r][c-1] if c>0 else 0"
+          - "dp[r][c - 1] if c else 0"
+        mistakes:
+          - answers:
+              - "dp[r][c - 1]"
+              - "dp[r][c-1]"
+            feedback: "At `c = 0`, `dp[r][-1]` is the row's last cell. Use `0` when there's no cell to the left, as `up` does."
+          - answers:
+              - "dp[r - 1][c - 1] if c > 0 else 0"
+            feedback: "That's the diagonal. Moving right, you arrive from `(r, c - 1)`."
+    hints:
+      - "How many routes pass through a rock?"
+      - "Write `left` the way `up` is written, for the column."
+  - id: step.grid-dp.order-row
+    type: parsons
+    title: The cheapest route in one row
+    pattern: pattern.dp-grid
+    patternCue: "\"The cheapest route moving right or down\": each cell pays its cost plus the cheaper of above and left."
+    prompt: |
+      Arrange the lines into `cheapest_route(grid)`, keeping only one row of the table: before it's updated, `row[c]` still
+      holds the cell above.
+    solution: |
+      def cheapest_route(grid):
+          cols = len(grid[0])
+          row = [float("inf")] * cols
+          row[0] = 0
+          for line in grid:
+              row[0] += line[0]
+              for c in range(1, cols):
+                  row[c] = line[c] + min(row[c], row[c - 1])
+          return row[-1]
+    hints:
+      - "The first column has only the cell above, so it just adds."
+      - "Infinity in the first pass means \"no cell above yet\"."
+  - id: step.grid-dp.write-square
+    type: write-code
+    largeScreenPreferred: true
+    title: The largest square
+    pattern: pattern.dp-grid
+    patternCue: "\"The largest square of 1s\": the square ending at each corner is one more than the smallest of its three neighbours."
+    prompt: |
+      `grid` is a list of equal-length strings of `0`s and `1`s (at least one row). Write `largest_square(grid)` that returns
+      the side of the largest square made only of `1`s, or `0` if there are none.
+
+      For `["10100", "10111", "11111", "10010"]` it's `2`.
+    language: python
+    entrypoint: largest_square
+    starter: |
+      def largest_square(grid):
+          pass
+    solution: |
+      def largest_square(grid):
+          rows, cols = len(grid), len(grid[0])
+          dp = [[0] * cols for _ in range(rows)]
+          best = 0
+          for r in range(rows):
+              for c in range(cols):
+                  if grid[r][c] == "1":
+                      if r == 0 or c == 0:
+                          dp[r][c] = 1
+                      else:
+                          dp[r][c] = 1 + min(dp[r - 1][c], dp[r][c - 1], dp[r - 1][c - 1])
+                      best = max(best, dp[r][c])
+          return best
+    tests:
+      - input: "[\"10100\", \"10111\", \"11111\", \"10010\"]"
+        expected: "2"
+      - input: "[\"0\"]"
+        expected: "0"
+      - input: "[\"1\"]"
+        expected: "1"
+      - input: "[\"111\", \"111\", \"111\"]"
+        expected: "3"
+      - input: "[\"1101\", \"1101\", \"1111\"]"
+        expected: "2"
+    hints:
+      - "`dp[r][c]` = the side of the largest all-`1` square with its bottom-right corner at `(r, c)`."
+      - "On a `1`, it's `1 + min` of the squares ending above, to the left, and on the diagonal. On a `0`, it's `0`."
+      - "The answer is the largest cell, not the last one."
+    walkthrough:
+      call: result = largest_square(["10100", "10111", "11111", "10010"])
+      visualise:
+        - variable: dp
+          as: grid
+          cells: [[r, c]]
+        - variable: grid
+          as: grid
+          cells: [[r, c]]
+      explanation: |
+        At `(2, 3)`, the squares ending above, to the left and on the diagonal are all `1`, so `dp[2][3]` is `2`: the block of
+        `1`s at rows `1` and `2`, columns `2` and `3`. No cell reaches `3`, so the answer is `2`.
+    phoneAlternative:
+      id: step.grid-dp.write-square.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `largest_square(grid)`: the side of the largest all-`1` square. Arrange the lines instead of typing them.
+      solution: |
+        def largest_square(grid):
+            rows, cols = len(grid), len(grid[0])
+            dp = [[0] * cols for _ in range(rows)]
+            best = 0
+            for r in range(rows):
+                for c in range(cols):
+                    if grid[r][c] == "1":
+                        if r == 0 or c == 0:
+                            dp[r][c] = 1
+                        else:
+                            dp[r][c] = 1 + min(dp[r - 1][c], dp[r][c - 1], dp[r - 1][c - 1])
+                        best = max(best, dp[r][c])
+            return best
+      hints:
+        - "The square ending at a corner is limited by the three squares ending next to it."
+  - id: step.grid-dp.write-triangle
+    type: write-code
+    largeScreenPreferred: true
+    title: Down the triangle
+    pattern: pattern.dp-grid
+    patternCue: "\"The cheapest path down a triangle\": work up from the bottom row, each cell plus the cheaper of the two below."
+    prompt: |
+      A triangle of numbers has `1` number in row `0`, `2` in row `1`, and so on. From `tri[r][c]` you step down to
+      `tri[r + 1][c]` or `tri[r + 1][c + 1]`. Write `cheapest_descent(tri)` (at least one row) that returns the smallest total
+      of a path from the top to the bottom row.
+
+      For `[[2], [3, 4], [6, 5, 7], [4, 1, 8, 3]]` it's `11`: `2 + 3 + 5 + 1`.
+    language: python
+    entrypoint: cheapest_descent
+    starter: |
+      def cheapest_descent(tri):
+          pass
+    solution: |
+      def cheapest_descent(tri):
+          best = list(tri[-1])
+          for r in range(len(tri) - 2, -1, -1):
+              for c in range(r + 1):
+                  best[c] = tri[r][c] + min(best[c], best[c + 1])
+          return best[0]
+    tests:
+      - input: "[[2], [3, 4], [6, 5, 7], [4, 1, 8, 3]]"
+        expected: "11"
+      - input: "[[-10]]"
+        expected: "-10"
+      - input: "[[1], [2, 3]]"
+        expected: "3"
+      - input: "[[5], [9, 6], [4, 6, 8], [0, 7, 1, 5]]"
+        expected: "18"
+    hints:
+      - "Going from the bottom up, each cell has exactly two cells to choose from: the two below it."
+      - "Start `best` as a copy of the bottom row. For each row above, `best[c] = tri[r][c] + min(best[c], best[c + 1])`."
+      - "After the top row, `best[0]` is the answer."
+    walkthrough:
+      call: result = cheapest_descent([[2], [3, 4], [6, 5, 7], [4, 1, 8, 3]])
+      visualise:
+        - variable: tri
+          as: grid
+          cells: [[r, c]]
+        - variable: best
+          as: array
+          pointers: [c]
+      explanation: |
+        `best` starts as `[4, 1, 8, 3]`. Row `2` makes it `[7, 6, 10, 3]`, row `1` makes it `[9, 10, 10, 3]`, and the top makes
+        `best[0] = 2 + 9 = 11`. Only the first `r + 1` cells matter at each row.

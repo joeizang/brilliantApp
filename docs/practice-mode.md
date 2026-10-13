@@ -88,6 +88,9 @@ the step or its phone alternative, is a **warning**: `brilliant validate`, `pack
 | `pattern.memoisation` (Recurse on smaller subproblems, caching each answer the first time) | Track 7 lesson 1 | its 4 problems |
 | `pattern.tabulation` (Fill a table from the smallest subproblems up, then read the answer from it) | Track 7 lesson 2 | its 4 problems |
 | `pattern.dp-1d-decisions` (At each position, take the best of a few choices built from the answers just before) | Track 7 lesson 3 | its 5 problems |
+| `pattern.dp-unbounded-choices` (Build each amount from every item that could come last, reusing items as often as you like) | Track 7 lesson 4 | its 4 problems |
+| `pattern.dp-string-prefixes` (Answer each prefix of the string from every way its last piece could end there) | Track 7 lesson 5 | its 4 problems |
+| `pattern.dp-grid` (Fill each cell from the cells you can arrive from, row by row) | Track 7 lesson 6 | its 4 problems |
 
 Left untagged: every problem in Track 1 lessons 1–6 (Python and Big-O drills), Track 5 lesson 1's graph-building drills, Track 2 lesson 6's `count_subarrays` (its prompt says
 "prefix sums and a dict" on purpose, to teach when a window fails) and `count_palindromes` (expand-around-centre, not one of the eight).

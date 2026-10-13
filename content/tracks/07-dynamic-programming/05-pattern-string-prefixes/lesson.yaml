@@ -1,0 +1,524 @@
+id: lesson.pattern-string-prefixes
+title: "Pattern: DP over prefixes"
+concepts:
+  - id: concept.prefixdp-state
+    title: dp[i] answers the question for the first i characters, so dp[0] is the empty string
+  - id: concept.prefixdp-last-piece
+    title: Each way the last piece could end at i reads the answer from where that piece starts
+  - id: concept.prefixdp-greedy
+    title: Taking the longest piece that fits can strand the rest of the string
+reviewItems:
+  - id: review.prefixdp.predict-decode
+    concept: concept.prefixdp-state
+    step: step.prefixdp.predict-decode
+  - id: review.prefixdp.zero
+    concept: concept.prefixdp-last-piece
+    step: step.prefixdp.check-zero
+  - id: review.prefixdp.predict-zeros
+    concept: concept.prefixdp-last-piece
+    step: step.prefixdp.predict-zeros
+  - id: review.prefixdp.predict-break
+    concept: concept.prefixdp-last-piece
+    step: step.prefixdp.predict-break
+  - id: review.prefixdp.greedy
+    concept: concept.prefixdp-greedy
+    step: step.prefixdp.check-greedy
+  - id: review.prefixdp.which-problem
+    concept: concept.prefixdp-state
+    step: step.prefixdp.check-which-problem
+    kind: pattern
+  - id: review.prefixdp.cue
+    concept: concept.prefixdp-last-piece
+    step: step.prefixdp.check-cue
+    kind: pattern
+patterns:
+  - id: pattern.dp-string-prefixes
+    title: Answer each prefix of the string from every way its last piece could end there
+steps:
+  - id: step.prefixdp.idea
+    type: explain
+    title: Decoding a message
+    body: |
+      A message of letters was sent as numbers: `A` is `1`, `B` is `2`, up to `Z` at `26`, with no spaces. How many ways can
+      `"226"` be read? `2 2 6` (`BBF`), `22 6` (`VF`) and `2 26` (`BZ`): three.
+
+      Work on **prefixes**. Let `dp[i]` = the number of ways to read the **first `i` characters**, `s[:i]`. The last letter read
+      ends at `i`, and it's either:
+
+      - **one digit**, `s[i - 1]`, if it isn't `0` (no letter is `0`): then the rest is `s[:i - 1]`, read in `dp[i - 1]` ways;
+      - **two digits**, `s[i - 2:i]`, if they're `10` to `26`: then the rest is `s[:i - 2]`, read in `dp[i - 2]` ways.
+
+      Add both. `dp[0] = 1`: the empty prefix is read one way, by reading nothing.
+    comparison:
+      csharp: |
+        static long DecodeWays(string s)
+        {
+            var dp = new long[s.Length + 1];
+            dp[0] = 1;
+            for (int i = 1; i <= s.Length; i++)
+            {
+                if (s[i - 1] != '0')
+                    dp[i] += dp[i - 1];
+                if (i >= 2 && string.CompareOrdinal(s, i - 2, "10", 0, 2) >= 0
+                           && string.CompareOrdinal(s, i - 2, "26", 0, 2) <= 0)
+                    dp[i] += dp[i - 2];
+            }
+            return dp[s.Length];
+        }
+      python: |
+        def decode_ways(s):
+            dp = [0] * (len(s) + 1)
+            dp[0] = 1
+            for i in range(1, len(s) + 1):
+                if s[i - 1] != "0":
+                    dp[i] += dp[i - 1]
+                if i >= 2 and "10" <= s[i - 2:i] <= "26":
+                    dp[i] += dp[i - 2]
+            return dp[len(s)]
+  - id: step.prefixdp.trace-decode
+    type: trace
+    title: Reading "2261" a prefix at a time
+    body: |
+      `dp[i]` counts the readings of the first `i` digits. At `i = 3` the last letter is `6` (from `dp[2]`) or `26` (from
+      `dp[1]`): `2 + 1 = 3`. At `i = 4`, `61` is too big, so only the single `1` counts.
+    code: |
+      s = "2261"
+      digits = list(s)
+      dp = [0] * (len(s) + 1)
+      dp[0] = 1
+      for i in range(1, len(s) + 1):
+          if s[i - 1] != "0":
+              dp[i] += dp[i - 1]
+          if i >= 2 and "10" <= s[i - 2:i] <= "26":
+              dp[i] += dp[i - 2]
+      ways = dp[len(s)]
+    visualise:
+      - variable: dp
+        as: array
+        pointers: [i]
+      - variable: digits
+        as: array
+  - id: step.prefixdp.predict-decode
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      What does this print?
+    code: |
+      s = "1126"
+      dp = [0] * (len(s) + 1)
+      dp[0] = 1
+      for i in range(1, len(s) + 1):
+          if s[i - 1] != "0":
+              dp[i] += dp[i - 1]
+          if i >= 2 and "10" <= s[i - 2:i] <= "26":
+              dp[i] += dp[i - 2]
+      print(dp)
+    accepted:
+      - "[1, 1, 2, 3, 5]"
+    mistakes:
+      - answers:
+          - "[1, 1, 2, 3, 4]"
+        feedback: "At `i = 4`, the single `6` gives `dp[3] = 3` and the pair `26` gives `dp[2] = 2`: `5`."
+      - answers:
+          - "[1, 2, 3, 5]"
+        feedback: "`dp` has `len(s) + 1` cells, starting with `dp[0] = 1` for the empty prefix."
+      - answers:
+          - "[1, 1, 1, 2, 3]"
+        feedback: "At `i = 2`, `11` is a letter (`K`), so `dp[2] = dp[1] + dp[0] = 2`."
+    hints:
+      - "Every pair here (`11`, `12`, `26`) is a letter, so each cell adds the two before."
+  - id: step.prefixdp.check-zero
+    type: choice
+    title: The trouble with zero
+    prompt: |
+      How many ways can `"06"` be read, and why?
+    options:
+      - text: "None: `0` alone is no letter, and `06` isn't one of `10` to `26`, so the first digit can't be read."
+        correct: true
+        feedback: "Right. `dp[1]` is `0`, and nothing reaches `dp[2]` either: `6` builds on `dp[1] = 0`, and `06` is out of range."
+      - text: "One: `06` is `F`."
+        correct: false
+        feedback: "Letters are written `1` to `26` with no leading zeros. `06` isn't how `F` is sent."
+      - text: "One: skip the `0` and read `6`."
+        correct: false
+        feedback: "Every digit has to be part of a letter. Nothing can be skipped."
+      - text: "Two: `0 6` and `06`."
+        correct: false
+        feedback: "Neither is a letter: `0` isn't, and `06` has a leading zero."
+    hints:
+      - "Which letters can contain the `0`?"
+  - id: step.prefixdp.predict-zeros
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      `decode_ways` is the function from the start of the lesson. What does this print?
+    code: |
+      def decode_ways(s):
+          dp = [0] * (len(s) + 1)
+          dp[0] = 1
+          for i in range(1, len(s) + 1):
+              if s[i - 1] != "0":
+                  dp[i] += dp[i - 1]
+              if i >= 2 and "10" <= s[i - 2:i] <= "26":
+                  dp[i] += dp[i - 2]
+          return dp[len(s)]
+
+      print(decode_ways("1201"), decode_ways("100"))
+    accepted:
+      - "1 0"
+    mistakes:
+      - answers:
+          - "2 0"
+        feedback: "In `1201`, the `0` must pair with the `2` before it (`20`), so `12` can't be read as one letter. Only `1 20 1` works."
+      - answers:
+          - "1 1"
+        feedback: "In `100`, the first `0` pairs with the `1` (`10`), leaving a lone `0` that can't be read. No way works."
+      - answers:
+          - "2 1"
+        feedback: "Each `0` has to pair with the digit before it. Follow which pairs that forces."
+    hints:
+      - "A `0` can only be read as the second digit of `10` or `20`."
+  - id: step.prefixdp.break-idea
+    type: explain
+    title: Breaking a string into words
+    body: |
+      Can `"applepie"` be split into words from `{"apple", "pie", "pen"}`? Yes: `apple pie`.
+
+      The same idea, with more choices for the last piece. Let `dp[i]` be **True** when `s[:i]` splits into words. The last word
+      ends at `i` and starts at some `j`. It works when `s[:j]` splits (`dp[j]`) **and** `s[j:i]` is a word:
+
+      `dp[i] = any(dp[j] and s[j:i] in words for j in range(i))`, with `dp[0] = True`.
+
+      Decoding had two possible last pieces; here there's one per starting point `j`. Keep the words in a **set**, so each check
+      is quick.
+    comparison:
+      csharp: |
+        static bool WordBreak(string s, HashSet<string> words)
+        {
+            var dp = new bool[s.Length + 1];
+            dp[0] = true;
+            for (int i = 1; i <= s.Length; i++)
+                for (int j = 0; j < i && !dp[i]; j++)
+                    dp[i] = dp[j] && words.Contains(s[j..i]);
+            return dp[s.Length];
+        }
+      python: |
+        def word_break(s, words):
+            dp = [True] + [False] * len(s)
+            for i in range(1, len(s) + 1):
+                for j in range(i):
+                    if dp[j] and s[j:i] in words:
+                        dp[i] = True
+                        break
+            return dp[len(s)]
+  - id: step.prefixdp.trace-break
+    type: trace
+    title: Which prefixes split?
+    body: |
+      `dp[5]` turns True when `j = 0` finds `apple`. Later, `dp[8]` turns True when `j = 5` finds `pie` after a prefix that
+      splits.
+    code: |
+      s = "applepie"
+      words = {"apple", "pie", "pen"}
+      dp = [True] + [False] * len(s)
+      for i in range(1, len(s) + 1):
+          for j in range(i):
+              if dp[j] and s[j:i] in words:
+                  dp[i] = True
+                  break
+      ok = dp[len(s)]
+    visualise:
+      - variable: dp
+        as: array
+        pointers: [i, j]
+  - id: step.prefixdp.predict-break
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      What does this print?
+    code: |
+      words = {"cat", "cats", "and", "sand", "dog"}
+
+      def splits(s):
+          dp = [True] + [False] * len(s)
+          for i in range(1, len(s) + 1):
+              for j in range(i):
+                  if dp[j] and s[j:i] in words:
+                      dp[i] = True
+                      break
+          return dp[len(s)]
+
+      print(splits("catsanddog"), splits("catsandog"))
+    accepted:
+      - "True False"
+    mistakes:
+      - answers:
+          - "True True"
+        feedback: "`catsandog` splits as `cats and og` or `cat sand og`, and `og` isn't a word. No split works."
+      - answers:
+          - "False False"
+        feedback: "`catsanddog` is `cats and dog` (or `cat sand dog`)."
+      - answers:
+          - "False True"
+        feedback: "Swapped. The first has a `dog` at the end; the second ends in `og`."
+    hints:
+      - "Try to split each one by hand, ending with a word from the set."
+  - id: step.prefixdp.check-greedy
+    type: choice
+    title: Why not the longest word first?
+    prompt: |
+      Words `{"ab", "abc", "cd"}`, string `"abcd"`. Someone always takes the **longest** word that fits at the front. What
+      happens, and what does the DP find?
+    options:
+      - text: "Greedy takes `abc` and is stuck on `d`; the DP finds `ab cd`."
+        correct: true
+        feedback: "Right. The longest first piece left a remainder no word covers. The DP tries every place the last word could start."
+      - text: "Both find `ab cd`."
+        correct: false
+        feedback: "`abc` is longer than `ab`, so greedy takes it first, and `d` isn't a word."
+      - text: "Both are stuck: `abcd` can't be split."
+        correct: false
+        feedback: "`ab` then `cd` uses only words in the set."
+      - text: "Greedy finds `abc d`."
+        correct: false
+        feedback: "`d` isn't in the set, so that isn't a split."
+    hints:
+      - "After `abc`, what's left?"
+  - id: step.prefixdp.pattern
+    type: explain
+    title: Spotting it
+    body: |
+      The cue: **one string or sequence cut into pieces** (letters, words, chunks) where each piece has a rule, and you want to
+      know if it can be done, how many ways, or the fewest pieces.
+
+      1. **State**: `dp[i]` = the answer for the first `i` characters. `dp[0]` is the empty prefix.
+      2. **Choices**: every place `j` where the **last piece** `s[j:i]` could start, if that piece is allowed.
+      3. **Base**: `dp[0]`: `True`, `1` way, or `0` pieces.
+      4. **Order**: `i` upwards, so `dp[j]` is ready for every `j < i`.
+      5. **Answer**: `dp[len(s)]`.
+
+      With every `j`, it's O(n²) checks of a piece. When pieces are at most a few long (like decoding), only the last few `j`
+      matter.
+  - id: step.prefixdp.check-which-problem
+    type: choice
+    title: Which problem?
+    prompt: |
+      Which of these fits DP over prefixes?
+    options:
+      - text: "Split a string of digits into numbers from `0` to `255` with no leading zeros. How many ways?"
+        correct: true
+        feedback: "Right. The last number ends at `i` and is 1 to 3 digits long: add `dp[i - k]` for each length `k` that makes a valid number."
+      - text: "Reverse the order of the words in a sentence."
+        correct: false
+        feedback: "That's `\" \".join(reversed(s.split()))`. Nothing to decide."
+      - text: "Count the vowels in a string."
+        correct: false
+        feedback: "A loop with a counter."
+      - text: "Check whether a string reads the same backwards."
+        correct: false
+        feedback: "`s == s[::-1]`, or two pointers. There are no pieces to choose."
+    hints:
+      - "Where is a string being cut into pieces that follow a rule?"
+  - id: step.prefixdp.check-cue
+    type: choice
+    title: Read the cue
+    prompt: |
+      *"Cut a string into the fewest pieces so that every piece is a palindrome."* What's the recurrence?
+    options:
+      - text: "`dp[i] = min(dp[j] + 1)` over every `j < i` where `s[j:i]` is a palindrome, with `dp[0] = 0`."
+        correct: true
+        feedback: "Right. The last piece is some palindrome ending at `i`. Every single letter is one, so there's always a choice."
+      - text: "Keep taking the longest palindrome at the front."
+        correct: false
+        feedback: "Greedy fails: `\"abaab\"` takes `aba`, then `a` and `b`: three pieces, while `a` and `baab` is two."
+      - text: "`dp[i] = dp[i - 1] + 1`."
+        correct: false
+        feedback: "That cuts every letter apart, the most pieces. Longer palindromes ending at `i` can do better."
+      - text: "Count the palindromes inside the string."
+        correct: false
+        feedback: "That's a different question. The pieces have to cover the string without overlapping."
+    hints:
+      - "What can the last piece be?"
+  - id: step.prefixdp.fill-decode
+    type: fill-blank
+    title: Decode ways
+    pattern: pattern.dp-string-prefixes
+    patternCue: "\"How many ways to read the digits as letters 1 to 26\": the last letter is one digit or two."
+    prompt: |
+      Fill in the blanks so `decode_ways(s)` returns the number of ways to read the digit string `s` as letters, `A` = `1` to
+      `Z` = `26`.
+    template: |
+      def decode_ways(s):
+          dp = [0] * (len(s) + 1)
+          dp[0] = 1
+          for i in range(1, len(s) + 1):
+              if s[i - 1] != "0":
+                  dp[i] += {{one}}
+              if i >= 2 and "10" <= {{pair}} <= "26":
+                  dp[i] += dp[i - 2]
+          return dp[len(s)]
+    blanks:
+      - id: one
+        accepted:
+          - "dp[i - 1]"
+          - "dp[i-1]"
+        mistakes:
+          - answers:
+              - "1"
+            feedback: "That counts one way however the prefix before was read. Add the ways to read `s[:i - 1]`."
+          - answers:
+              - "dp[i]"
+            feedback: "`dp[i]` is what's being worked out. The rest before a one-digit letter is `s[:i - 1]`."
+      - id: pair
+        accepted:
+          - "s[i - 2:i]"
+          - "s[i-2:i]"
+        mistakes:
+          - answers:
+              - "s[i - 1:i + 1]"
+              - "s[i-1:i+1]"
+            feedback: "The prefix `s[:i]` ends at `s[i - 1]`, so its last two digits are `s[i - 2:i]`."
+          - answers:
+              - "s[i - 2]"
+              - "s[i-2]"
+            feedback: "That's one digit. A two-digit letter is the slice `s[i - 2:i]`."
+    hints:
+      - "A one-digit letter leaves the first `i - 1` characters."
+      - "The last two characters of `s[:i]` are a slice."
+  - id: step.prefixdp.order-break
+    type: parsons
+    title: Word break
+    pattern: pattern.dp-string-prefixes
+    patternCue: "\"Can the string be split into dictionary words\": the last word starts at some j where the prefix already splits."
+    prompt: |
+      Arrange the lines into `word_break(s, words)`: `True` when `s` splits into words from the set `words` (each usable any
+      number of times).
+    solution: |
+      def word_break(s, words):
+          dp = [True] + [False] * len(s)
+          for i in range(1, len(s) + 1):
+              for j in range(i):
+                  if dp[j] and s[j:i] in words:
+                      dp[i] = True
+                      break
+          return dp[len(s)]
+    hints:
+      - "The empty prefix splits."
+      - "Once `dp[i]` is True, there's no need to try more `j`."
+  - id: step.prefixdp.write-fewest-words
+    type: write-code
+    largeScreenPreferred: true
+    title: The fewest words
+    pattern: pattern.dp-string-prefixes
+    patternCue: "\"The fewest dictionary words that make the string\": the best over every last word, plus one."
+    prompt: |
+      Write `fewest_words(s, words)` that returns the fewest words from the set `words` (each usable again) that join to make
+      `s` exactly, or `-1` if no split works.
+
+      `fewest_words("applepenapple", {"apple", "pen", "applepen"})` is `2`: `applepen apple`.
+    language: python
+    entrypoint: fewest_words
+    starter: |
+      def fewest_words(s, words):
+          pass
+    solution: |
+      def fewest_words(s, words):
+          inf = float("inf")
+          dp = [0] + [inf] * len(s)
+          for i in range(1, len(s) + 1):
+              for j in range(i):
+                  if s[j:i] in words:
+                      dp[i] = min(dp[i], dp[j] + 1)
+          return -1 if dp[len(s)] == inf else dp[len(s)]
+    tests:
+      - input: "\"applepenapple\", {\"apple\", \"pen\", \"applepen\"}"
+        expected: "2"
+      - input: "\"catsandog\", {\"cats\", \"dog\", \"sand\", \"and\", \"cat\"}"
+        expected: "-1"
+      - input: "\"\", {\"a\"}"
+        expected: "0"
+      - input: "\"aaaa\", {\"a\", \"aa\"}"
+        expected: "2"
+      - input: "\"abcd\", {\"ab\", \"abc\", \"cd\", \"a\", \"bcd\"}"
+        expected: "2"
+    hints:
+      - "`dp[i]` = the fewest words that make `s[:i]`. Infinity means no split yet."
+      - "For each `j` where `s[j:i]` is a word, `dp[j] + 1` is a candidate."
+      - "`dp[0] = 0`: nothing needs no words."
+    walkthrough:
+      call: result = fewest_words("applepenapple", {"apple", "pen", "applepen"})
+      visualise:
+        - variable: dp
+          as: array
+          pointers: [i, j]
+      explanation: |
+        `dp[5]` is `1` (`apple`), `dp[8]` is `1` (`applepen`, beating `apple pen`), and `dp[13]` is `dp[8] + 1 = 2` from the last
+        `apple`.
+    phoneAlternative:
+      id: step.prefixdp.write-fewest-words.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `fewest_words(s, words)`: the fewest words from the set that make `s`, or `-1`. Arrange the lines instead of
+        typing them.
+      solution: |
+        def fewest_words(s, words):
+            inf = float("inf")
+            dp = [0] + [inf] * len(s)
+            for i in range(1, len(s) + 1):
+                for j in range(i):
+                    if s[j:i] in words:
+                        dp[i] = min(dp[i], dp[j] + 1)
+            return -1 if dp[len(s)] == inf else dp[len(s)]
+      hints:
+        - "Every word that ends at `i` is a possible last word."
+  - id: step.prefixdp.write-palindromes
+    type: write-code
+    largeScreenPreferred: true
+    title: The fewest palindromes
+    pattern: pattern.dp-string-prefixes
+    patternCue: "\"Cut into the fewest palindromes\": the last piece is any palindrome ending here."
+    prompt: |
+      Write `fewest_palindromes(s)` that returns the fewest pieces `s` can be cut into so that each piece reads the same
+      backwards. An empty string needs `0` pieces.
+
+      `fewest_palindromes("abaab")` is `2`: `a` and `baab`.
+    language: python
+    entrypoint: fewest_palindromes
+    starter: |
+      def fewest_palindromes(s):
+          pass
+    solution: |
+      def fewest_palindromes(s):
+          dp = [0] + [len(s)] * len(s)
+          for i in range(1, len(s) + 1):
+              for j in range(i):
+                  piece = s[j:i]
+                  if piece == piece[::-1]:
+                      dp[i] = min(dp[i], dp[j] + 1)
+          return dp[len(s)]
+    tests:
+      - input: "\"abaab\""
+        expected: "2"
+      - input: "\"aab\""
+        expected: "2"
+      - input: "\"\""
+        expected: "0"
+      - input: "\"racecar\""
+        expected: "1"
+      - input: "\"abc\""
+        expected: "3"
+      - input: "\"banana\""
+        expected: "2"
+    hints:
+      - "`dp[i]` = the fewest palindromes that make `s[:i]`. Single letters always work, so `len(s)` is a safe start."
+      - "For each `j` where `s[j:i]` reads the same reversed, `dp[j] + 1` is a candidate."
+    walkthrough:
+      call: result = fewest_palindromes("abaab")
+      visualise:
+        - variable: dp
+          as: array
+          pointers: [i, j]
+      explanation: |
+        `dp` fills to `[0, 1, 2, 1, 2, 2]`. At `i = 5`, `baab` (from `j = 1`) is a palindrome, so `dp[1] + 1 = 2`. Taking `aba`
+        first would leave `ab`, which needs two more.
