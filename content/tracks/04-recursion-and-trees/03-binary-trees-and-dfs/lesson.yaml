@@ -1,0 +1,667 @@
+id: lesson.binary-tree-dfs
+title: Binary trees and DFS traversals
+concepts:
+  - id: concept.binary-tree-shape
+    title: "Binary trees: root, children, leaves and None"
+  - id: concept.dfs-three-orders
+    title: Pre-order, in-order and post-order
+  - id: concept.dfs-none-base-case
+    title: An empty subtree is the base case
+reviewItems:
+  - id: review.tree-dfs.leaves
+    concept: concept.binary-tree-shape
+    step: step.tree-dfs.check-leaves
+  - id: review.tree-dfs.predict-inorder
+    concept: concept.dfs-three-orders
+    step: step.tree-dfs.predict-inorder
+  - id: review.tree-dfs.predict-postorder
+    concept: concept.dfs-three-orders
+    step: step.tree-dfs.predict-postorder
+  - id: review.tree-dfs.no-none-check
+    concept: concept.dfs-none-base-case
+    step: step.tree-dfs.check-no-none-check
+  - id: review.tree-dfs.which-order-sizes
+    concept: concept.dfs-three-orders
+    step: step.tree-dfs.check-order-sizes
+    kind: pattern
+  - id: review.tree-dfs.which-order-copy
+    concept: concept.dfs-three-orders
+    step: step.tree-dfs.check-order-copy
+    kind: pattern
+patterns:
+  - id: pattern.dfs-traversal
+    title: "Pick the walk: pre-order, in-order or post-order"
+steps:
+  - id: step.tree-dfs.nodes
+    type: explain
+    title: A node with two children
+    body: |
+      A **binary tree** is a linked list where each node has up to **two** next nodes instead of one: a `left` child and a
+      `right` child. The top node is the **root**. A node with no children is a **leaf**. A missing child is `None`, and the
+      empty tree is just `None`.
+
+      Every child is the root of a smaller tree, its **subtree**. That is what makes trees and recursion fit so well: whatever
+      you do to a tree, you can do by doing it to the left subtree and the right subtree, and the smallest tree, `None`, is the
+      base case.
+
+      Python has no tree class built in, so you write a small one, as you did for linked lists. A `__repr__` makes a node print
+      as `Node(4)` instead of `<Node object at 0x…>`.
+    comparison:
+      csharp: |
+        class Node(int val, Node? left = null, Node? right = null)
+        {
+            public int Val = val;
+            public Node? Left = left;
+            public Node? Right = right;
+        }
+
+        //       1
+        //      / \
+        //     2   3
+        var root = new Node(1, new Node(2), new Node(3));
+      python: |
+        class Node:
+            def __init__(self, val, left=None, right=None):
+                self.val = val
+                self.left = left
+                self.right = right
+
+            def __repr__(self):
+                return f"Node({self.val})"
+
+
+        #       1
+        #      / \
+        #     2   3
+        root = Node(1, Node(2), Node(3))
+  - id: step.tree-dfs.check-leaves
+    type: choice
+    title: Find the leaves
+    prompt: |
+      Which nodes of this tree are **leaves**?
+
+      ```python
+      root = Node(1, Node(2, None, Node(4)), Node(3))
+      ```
+    options:
+      - text: "`4` and `3`"
+        correct: true
+        feedback: "Right. `2` has a right child, `4`, so it isn't a leaf even though its left child is `None`. `4` and `3` have no children."
+      - text: "`2` and `3`"
+        correct: false
+        feedback: "`2`'s left child is `None`, but its right child is `4`. A leaf has no children at all."
+      - text: "`2`, `4` and `3`"
+        correct: false
+        feedback: "A node with one child isn't a leaf: `2` has `4` on its right."
+      - text: "`1`"
+        correct: false
+        feedback: "`1` is the root, the node at the top. Leaves are at the bottom: nodes whose `left` and `right` are both `None`."
+    hints:
+      - "Draw it: `1` at the top, `2` on its left and `3` on its right, then `4` as `2`'s right child."
+      - "A leaf's `left` and `right` are both `None`."
+  - id: step.tree-dfs.orders
+    type: explain
+    title: Three ways to walk
+    body: |
+      A **depth-first search** (DFS) goes all the way down one subtree before it starts the next. At each node it does three
+      things: walk the left subtree, walk the right subtree, and **visit** the node itself (record it, print it, add it up).
+      Left always comes before right. Where the visit goes gives the three orders:
+
+      - **pre-order**: the node, then left, then right. A parent comes before everything under it.
+      - **in-order**: left, then the node, then right. A node sits between its two subtrees.
+      - **post-order**: left, then right, then the node. A parent comes after everything under it.
+
+      The code is the same three lines in a different order, under one base case: an empty subtree has nothing to visit.
+
+      ```python
+      def preorder(node):
+          if node is None:
+              return
+          order.append(node.val)      # move this line to change the order
+          preorder(node.left)
+          preorder(node.right)
+      ```
+  - id: step.tree-dfs.trace-preorder
+    type: trace
+    title: A pre-order walk
+    body: |
+      The numbers on the nodes are the order of the visits. `preorder` records a node as soon as it arrives, then goes left. When
+      it calls itself on a missing child, that call returns straight away. Watch the call stack: it is exactly the path from the
+      root down to the node being visited.
+    code: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      root = Node(1, Node(2, Node(4), Node(5)), Node(3))
+      order = []
+
+
+      def preorder(node):
+          if node is None:
+              return
+          order.append(node.val)
+          preorder(node.left)
+          preorder(node.right)
+
+
+      preorder(root)
+    visualise:
+      - as: call_stack
+        functions: [preorder]
+      - variable: root
+        as: tree
+        pointers: [node]
+        visited: order
+  - id: step.tree-dfs.predict-inorder
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      The tree is drawn in the comment. What does the in-order walk print?
+    code: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+
+      #        A
+      #       / \
+      #      B   C
+      #       \   /
+      #        D E
+      root = Node("A", Node("B", None, Node("D")), Node("C", Node("E")))
+      order = []
+
+
+      def inorder(node):
+          if node is None:
+              return
+          inorder(node.left)
+          order.append(node.val)
+          inorder(node.right)
+
+
+      inorder(root)
+      print("".join(order))
+    accepted:
+      - "BDAEC"
+    mistakes:
+      - answers:
+          - "ABDCE"
+        feedback: "That is pre-order, where a node comes before its subtrees. In-order puts each node *between* its left and right subtrees."
+      - answers:
+          - "DBECA"
+        feedback: "That is post-order, where a node comes after its subtrees. In-order puts `A` between `B`'s subtree and `C`'s."
+      - answers:
+          - "DBAEC"
+        feedback: "`D` is `B`'s *right* child, so in-order visits `B` first and then `D`."
+      - answers:
+          - "BDACE"
+        feedback: "`E` is `C`'s *left* child, so in-order visits `E` before `C`."
+    hints:
+      - "Everything in `A`'s left subtree comes before `A`, and everything in its right subtree after."
+      - "Do the same for `B`'s subtree (`B`, then its right child `D`) and for `C`'s (its left child `E`, then `C`)."
+  - id: step.tree-dfs.predict-postorder
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      Same tree, but now the node is visited after both its subtrees. What does this print?
+    code: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+
+      #        A
+      #       / \
+      #      B   C
+      #       \   /
+      #        D E
+      root = Node("A", Node("B", None, Node("D")), Node("C", Node("E")))
+      order = []
+
+
+      def postorder(node):
+          if node is None:
+              return
+          postorder(node.left)
+          postorder(node.right)
+          order.append(node.val)
+
+
+      postorder(root)
+      print("".join(order))
+    accepted:
+      - "DBECA"
+    mistakes:
+      - answers:
+          - "ABDCE"
+        feedback: "That is pre-order. In post-order the root can't be visited until everything under it has been, so `A` comes last."
+      - answers:
+          - "BDAEC"
+        feedback: "That is in-order. Post-order visits both subtrees before the node, so `A` is last."
+      - answers:
+          - "DEBCA"
+        feedback: "Post-order finishes the whole left subtree, `B` included, before it starts the right one: `D`, `B`, then `E`, `C`."
+      - answers:
+          - "ACEBD"
+        feedback: "That is the reverse of the answer. Post-order starts deep on the left: `B`'s child `D` comes first."
+    hints:
+      - "The root is always last in post-order."
+      - "Finish `B`'s subtree (`D`, then `B`) before starting `C`'s (`E`, then `C`)."
+  - id: step.tree-dfs.check-no-none-check
+    type: choice
+    title: Forgetting the empty tree
+    prompt: |
+      This walk leaves out the base case. What happens when it runs on `Node(1, Node(2))`?
+
+      ```python
+      def preorder(node):
+          order.append(node.val)
+          preorder(node.left)
+          preorder(node.right)
+      ```
+    options:
+      - text: "It records `1` and `2`, then raises `AttributeError: 'NoneType' object has no attribute 'val'`."
+        correct: true
+        feedback: "Right. `Node(2)` has no left child, so `preorder(None)` runs and asks `None` for `.val`. Every tree ends in `None`s, so the walk needs `if node is None: return`."
+      - text: "It records `1` and `2` and stops, because `Node(2)` has no children."
+        correct: false
+        feedback: "Nothing stops it from calling `preorder(node.left)` when `node.left` is `None`. That call then reads `None.val`."
+      - text: "It raises `RecursionError`, because there is no base case."
+        correct: false
+        feedback: "The recursion isn't infinite: it fails on the first `None`, three calls deep, with an `AttributeError`."
+      - text: "It records `1`, `2` and `None`."
+        correct: false
+        feedback: "`None` has no `.val` to record. Reading it raises an `AttributeError`."
+    hints:
+      - "What is `Node(2).left`? What does the next call do with it?"
+  - id: step.tree-dfs.choosing
+    type: explain
+    title: Pick the walk the problem needs
+    body: |
+      All three orders visit every node once, so all three are O(n). What differs is **what is already done** when you visit a
+      node:
+
+      - **pre-order:** nothing under the node has been visited yet. Use it when a parent must come first: copying a tree,
+        printing a folder before its files, passing something down from parent to child.
+      - **in-order:** everything on the left is done, nothing on the right is. Use it when left-to-right order matters. In a
+        binary search tree it gives the values sorted (that's lesson 6).
+      - **post-order:** both subtrees are done. Use it when a node needs its children's answers first: a folder's size, a
+        tree's height, evaluating `(2 + 3) * 4` from its tree, or deleting a tree from the bottom up.
+
+      Each walk goes as deep as the tree is tall. A balanced tree of a million nodes is only about 20 levels deep, but a tree
+      where every node has only a left child is really a linked list, and as deep as it is long.
+  - id: step.tree-dfs.check-order-sizes
+    type: choice
+    title: Which walk?
+    prompt: |
+      Each node of a tree is a folder, and holds the size of its own files. You want every folder's **total** size: its own
+      files plus everything in its subfolders. Which walk fits?
+    options:
+      - text: "Post-order: a folder's total needs its subfolders' totals first."
+        correct: true
+        feedback: "Right. When post-order reaches a folder, both of its subtrees are already done, so their totals are ready to add."
+      - text: "Pre-order: a folder comes before its subfolders."
+        correct: false
+        feedback: "When pre-order visits a folder, none of its subfolders has been added up yet, so its total can't be known."
+      - text: "In-order: it visits the folders from left to right."
+        correct: false
+        feedback: "In-order has only the left subtree done when it visits a folder. The right subtree's total is still missing."
+      - text: "Any of them: each visits every folder once."
+        correct: false
+        feedback: "They all visit every folder, but only post-order visits a folder after both its subfolders, when their totals are known."
+    hints:
+      - "When you visit a folder, which of its subtrees must already be finished?"
+  - id: step.tree-dfs.check-order-copy
+    type: choice
+    title: Which walk?
+    prompt: |
+      You save a tree to a file by walking it and writing each node's value, and `None` for each missing child, so the shape
+      is saved too: `Node(1, Node(2))` and `Node(1, None, Node(2))` write different files. To rebuild it, you read the file from
+      the start and attach each node under its parent **as soon as it is read**. Which walk should write the file?
+    options:
+      - text: "Pre-order: every node is written before anything under it, so its parent always exists when it's read back."
+        correct: true
+        feedback: "Right. Pre-order puts each parent ahead of its children, and the `None`s say where each subtree ends: `1 2 None None None` and `1 None 2 None None` rebuild the two different trees."
+      - text: "Post-order: the leaves are written first."
+        correct: false
+        feedback: "Then the root comes last. Reading from the start, every child would arrive before the parent it belongs under."
+      - text: "In-order: it keeps the values in left-to-right order."
+        correct: false
+        feedback: "In-order writes a left child before its parent, so the rebuild would meet a child with nowhere to attach it."
+      - text: "It doesn't matter, as long as every node and every `None` is written once."
+        correct: false
+        feedback: "The order matters here: a node can only be attached under a parent that has already been read."
+    hints:
+      - "When a value is read back, what must already be rebuilt?"
+  - id: step.tree-dfs.fill-preorder
+    type: fill-blank
+    title: Collect the values in pre-order
+    pattern: pattern.dfs-traversal
+    patternCue: "\"Each node before anything under it\": pre-order visits the node, then walks left, then right."
+    prompt: |
+      Fill in the blanks so that `preorder(root)` returns the tree's values in pre-order. The inner function `walk` does the
+      walking and appends to `values`.
+    template: |
+      def preorder(root):
+          values = []
+
+          def walk(node):
+              if {{base}}:
+                  return
+              {{visit}}
+              walk(node.left)
+              walk(node.right)
+
+          walk(root)
+          return values
+    blanks:
+      - id: base
+        accepted:
+          - "node is None"
+          - "not node"
+          - "node == None"
+        mistakes:
+          - answers:
+              - "node.left is None"
+              - "node.left is None and node.right is None"
+            feedback: "That stops at a leaf without recording it, and still calls `walk` on a missing child. The empty tree is `node is None`."
+          - answers:
+              - "root is None"
+            feedback: "`root` never changes. Each call checks its own `node`."
+      - id: visit
+        accepted:
+          - "values.append(node.val)"
+        mistakes:
+          - answers:
+              - "values.append(node)"
+            feedback: "That collects the nodes. The function returns their values: `node.val`."
+          - answers:
+              - "return node.val"
+            feedback: "Returning here ends the call before it walks the subtrees. Record the value and carry on."
+    hints:
+      - "The empty subtree has nothing to visit."
+      - "Pre-order records the node before walking left and right."
+  - id: step.tree-dfs.order-postorder
+    type: parsons
+    title: Collect the values in post-order
+    pattern: pattern.dfs-traversal
+    patternCue: "\"Each node after everything under it\": post-order walks left, then right, then visits the node."
+    prompt: |
+      Arrange the lines into `postorder(node)`, which returns the values of the tree in post-order by joining the lists from its
+      two subtrees. `postorder(None)` is `[]`.
+    solution: |
+      def postorder(node):
+          if node is None:
+              return []
+          left = postorder(node.left)
+          right = postorder(node.right)
+          return left + right + [node.val]
+    hints:
+      - "The empty tree gives an empty list."
+      - "Trust the two calls for the subtrees, then put the node's own value last."
+  - id: step.tree-dfs.write-inorder
+    type: write-code
+    largeScreenPreferred: true
+    title: Collect the values in order
+    pattern: pattern.dfs-traversal
+    patternCue: "\"Each node between its left and right subtrees\": in-order walks left, visits the node, then walks right."
+    prompt: |
+      Write `inorder(root)` that returns a list of the tree's values in in-order: the left subtree, the node, the right subtree.
+      The empty tree, `None`, gives `[]`.
+
+      `Node` is in the starter; keep it. The tests build trees with it, such as `Node(2, Node(1), Node(3))`.
+    language: python
+    entrypoint: inorder
+    starter: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def inorder(root):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def inorder(root):
+          values = []
+
+          def walk(node):
+              if node is None:
+                  return
+              walk(node.left)
+              values.append(node.val)
+              walk(node.right)
+
+          walk(root)
+          return values
+    tests:
+      - input: "Node(2, Node(1), Node(3))"
+        expected: "[1, 2, 3]"
+      - input: "None"
+        expected: "[]"
+      - input: "Node(7)"
+        expected: "[7]"
+      - input: "Node(1, Node(2, Node(4), Node(5)), Node(3))"
+        expected: "[4, 2, 5, 1, 3]"
+      - input: "Node(1, None, Node(2, None, Node(3)))"
+        expected: "[1, 2, 3]"
+      - input: "Node(\"A\", Node(\"B\", None, Node(\"D\")), Node(\"C\", Node(\"E\")))"
+        expected: "['B', 'D', 'A', 'E', 'C']"
+    hints:
+      - "An inner function that appends to a list in the outer one saves passing the list around."
+      - "Walk the left subtree, record `node.val`, then walk the right subtree."
+      - "Or join lists: `inorder(root.left) + [root.val] + inorder(root.right)`, with `[]` for `None`."
+    walkthrough:
+      call: result = inorder(Node(1, Node(2, Node(4), Node(5)), Node(3)))
+      visualise:
+        - as: call_stack
+          functions: [inorder, walk]
+      explanation: |
+        `walk` goes left from `1` to `2` to `4`, and `4`'s left child is `None`, so `4` is recorded first. Then `2`, which sits
+        between its subtrees, then `5`. Back at the root, `1` is recorded after its whole left subtree, and `3` last.
+    phoneAlternative:
+      id: step.tree-dfs.write-inorder.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `inorder(node)`, which returns the tree's values in in-order. Arrange the lines instead of typing them.
+      solution: |
+        def inorder(node):
+            if node is None:
+                return []
+            return inorder(node.left) + [node.val] + inorder(node.right)
+      hints:
+        - "The empty tree gives `[]`."
+        - "The node's value goes between the two subtrees' lists."
+  - id: step.tree-dfs.write-leaves
+    type: write-code
+    largeScreenPreferred: true
+    title: The leaves, left to right
+    pattern: pattern.dfs-traversal
+    patternCue: "\"Every leaf, from left to right\": any walk that goes left before right meets the leaves in that order; record a node only when it has no children."
+    prompt: |
+      Write `leaves(root)` that returns a list of the values of the tree's leaves (nodes with no children), from left to right.
+      The empty tree gives `[]`.
+
+      `Node` is in the starter; keep it.
+    language: python
+    entrypoint: leaves
+    starter: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def leaves(root):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def leaves(root):
+          found = []
+
+          def walk(node):
+              if node is None:
+                  return
+              if node.left is None and node.right is None:
+                  found.append(node.val)
+                  return
+              walk(node.left)
+              walk(node.right)
+
+          walk(root)
+          return found
+    tests:
+      - input: "Node(1, Node(2, Node(4), Node(5)), Node(3))"
+        expected: "[4, 5, 3]"
+      - input: "None"
+        expected: "[]"
+      - input: "Node(9)"
+        expected: "[9]"
+      - input: "Node(1, Node(2, None, Node(6)), Node(3, Node(7)))"
+        expected: "[6, 7]"
+      - input: "Node(1, Node(2, Node(3, Node(4))))"
+        expected: "[4]"
+    hints:
+      - "A leaf is a node whose `left` and `right` are both `None`."
+      - "Walk left before right, and record a node only when it is a leaf."
+    walkthrough:
+      call: result = leaves(Node(1, Node(2, None, Node(6)), Node(3, Node(7))))
+      visualise:
+        - as: call_stack
+          functions: [leaves, walk]
+      explanation: |
+        `walk` passes `1` and `2`, which have children, and records nothing for them. `2` has no left child, so its first call
+        returns at once; its right child `6` is a leaf. Then the walk crosses to `3`, whose left child `7` is the other leaf.
+  - id: step.tree-dfs.write-evaluate
+    type: write-code
+    largeScreenPreferred: true
+    title: Evaluate an expression tree
+    pattern: pattern.dfs-traversal
+    patternCue: "\"A node's answer needs its children's answers\": post-order works out both subtrees first, then combines them at the node."
+    prompt: |
+      An arithmetic expression can be stored as a tree. A leaf holds a number. Every other node holds one of `"+"`, `"-"` or
+      `"*"` and has two children, the left and right operands. `(2 + 3) * 4` is
+      `Node("*", Node("+", Node(2), Node(3)), Node(4))`.
+
+      Write `evaluate(node)` that returns the value of the expression. `Node` is in the starter; keep it.
+    language: python
+    entrypoint: evaluate
+    starter: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def evaluate(node):
+          pass
+    solution: |
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def evaluate(node):
+          if node.left is None:
+              return node.val
+          a = evaluate(node.left)
+          b = evaluate(node.right)
+          if node.val == "+":
+              return a + b
+          if node.val == "-":
+              return a - b
+          return a * b
+    tests:
+      - input: "Node(\"*\", Node(\"+\", Node(2), Node(3)), Node(4))"
+        expected: "20"
+      - input: "Node(7)"
+        expected: "7"
+      - input: "Node(\"-\", Node(10), Node(\"*\", Node(2), Node(3)))"
+        expected: "4"
+      - input: "Node(\"-\", Node(\"-\", Node(10), Node(4)), Node(3))"
+        expected: "3"
+      - input: "Node(\"+\", Node(\"*\", Node(2), Node(5)), Node(\"*\", Node(\"-\", Node(1), Node(4)), Node(6)))"
+        expected: "-8"
+    hints:
+      - "A leaf (no children) is a number: return it."
+      - "Otherwise work out both operands with recursive calls before you look at the operator."
+      - "Keep the order for `-`: the left operand minus the right."
+    walkthrough:
+      call: result = evaluate(Node("*", Node("+", Node(2), Node(3)), Node(4)))
+      visualise:
+        - as: call_stack
+          functions: [evaluate]
+      explanation: |
+        The `"*"` node can't multiply until it knows both sides. Its left call reaches the `"+"` node, whose children return `2`
+        and `3`, so it returns `5`. The right call returns `4`. Only then does `"*"` combine them: `5 * 4` is `20`. That is
+        post-order: children first, then the node.
+    phoneAlternative:
+      id: step.tree-dfs.write-evaluate.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `evaluate(node)`, which returns the value of an expression tree of numbers and `"+"`, `"-"` and `"*"` nodes.
+        Arrange the lines instead of typing them.
+      solution: |
+        def evaluate(node):
+            if node.left is None:
+                return node.val
+            a = evaluate(node.left)
+            b = evaluate(node.right)
+            if node.val == "+":
+                return a + b
+            if node.val == "-":
+                return a - b
+            return a * b
+      hints:
+        - "A leaf is a number."
+        - "Work out both operands before choosing what to do with them."
