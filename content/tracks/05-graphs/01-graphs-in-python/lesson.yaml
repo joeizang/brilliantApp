@@ -367,9 +367,9 @@ steps:
     largeScreenPreferred: true
     title: The town judge
     prompt: |
-      A town has `n` people, labelled `1` to `n`. `trust` is a list of pairs `[a, b]`: person `a` trusts person `b`. The town
-      judge, if there is one, trusts **nobody**, and is trusted by **everybody else**. Write `find_judge(n, trust)` that returns
-      the judge's label, or `-1` if there is no judge.
+      A town has `n` people, labelled `1` to `n`. `trust` is a list of pairs `[a, b]`: person `a` trusts person `b`. No pair
+      appears twice, and nobody trusts themselves (`a != b`). The town judge, if there is one, trusts **nobody**, and is trusted
+      by **everybody else**. Write `find_judge(n, trust)` that returns the judge's label, or `-1` if there is no judge.
 
       Think of each pair as a directed edge `a → b`: the judge has no edges out and `n - 1` edges in.
     language: python
@@ -402,7 +402,7 @@ steps:
         expected: "3"
     hints:
       - "You don't need the neighbour lists, only how many edges go in and out of each person."
-      - "One number per person is enough: add 1 for each edge in and take 1 for each edge out. Only the judge reaches `n - 1`."
+      - "One number per person is enough: add 1 for each edge in and take 1 for each edge out. With no repeated pairs and no one trusting themselves, a person has at most `n - 1` edges in, so only the judge reaches `n - 1`."
     walkthrough:
       call: result = find_judge(4, [[1, 3], [1, 4], [2, 3], [2, 4], [4, 3]])
       visualise:
