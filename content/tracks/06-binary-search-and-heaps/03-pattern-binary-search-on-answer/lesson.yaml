@@ -59,11 +59,11 @@ steps:
       hours). The search runs the check log₂(max) times, so the whole thing is **O(n log max)**: far less than trying every
       speed.
 
-      Rounding up: `-(-p // k)` or `(p + k - 1) // k`. In C# integer division truncates, so it's `(p + k - 1) / k` there too.
+      Rounding up: `-(-p // k)` or `(p + k - 1) // k`. In C# integer division truncates, so it's `(p + k - 1) / k` there too, with `p` widened to `long` first so the sum can't overflow.
     comparison:
       csharp: |
         bool Enough(int[] piles, int h, int k) =>
-            piles.Sum(p => (long)((p + k - 1) / k)) <= h;
+            piles.Sum(p => ((long)p + k - 1) / k) <= h;
 
         int lo = 1, hi = piles.Max();
         while (lo < hi)
@@ -454,7 +454,6 @@ steps:
       visualise:
         - variable: weights
           as: array
-          pointers: [w]
       explanation: |
         Capacities run from `4` to `16`. `10` fits in two days, so `hi = 10`; `7` in three, `hi = 7`. `5` needs four days
         (`[3, 2]`, `[2]`, `[4, 1]`, `[4]`), so `lo = 6`. `6` takes `[3, 2]`, `[2, 4]`, `[1, 4]`: three days. The answer is `6`.
@@ -548,7 +547,6 @@ steps:
       visualise:
         - variable: stalls
           as: array
-          pointers: [s]
       explanation: |
         Sorted, the stalls are `1, 2, 4, 8, 9`, and gaps `1` to `8` might work. Gap `5` places birds at `1` and `8` only, so it
         fails: `hi = 5`. Gap `3` places them at `1`, `4` and `8`: fine, `lo = 4`. Gap `4` places `1` and `8` only: fails,

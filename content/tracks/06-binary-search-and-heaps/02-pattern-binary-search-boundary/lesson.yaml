@@ -154,7 +154,7 @@ steps:
         feedback: "That's why `hi` starts at `len(nums)`. It's not why `hi` moves only to `mid`: that's about `mid` still being a candidate."
       - text: "It makes no difference: both find the same index."
         correct: false
-        feedback: "With `mid - 1`, a `mid` that was the answer is thrown away. On `[7, 7]` with `x = 7`, `mid - 1` skips index `0`."
+        feedback: "With `mid - 1`, a `mid` that was the answer is thrown away. On `[1, 7]` with `x = 7`, `mid` is `1`, the answer, but `hi` drops to `0` and the search returns `0`."
       - text: "To make the loop faster."
         correct: false
         feedback: "It does the opposite of what speed would ask for, keeping one more item in the range. It's there because that item could be the answer."
