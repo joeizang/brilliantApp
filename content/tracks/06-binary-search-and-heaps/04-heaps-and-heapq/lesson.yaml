@@ -1,0 +1,644 @@
+id: lesson.heaps-and-heapq
+title: Heaps and heapq
+concepts:
+  - id: concept.heap-property
+    title: "A heap is a list where every parent is <= its children, so heap[0] is the smallest"
+  - id: concept.heap-sift
+    title: "Push sifts up, pop sifts down: O(log n) each, because the tree is log n deep"
+  - id: concept.heapq-api
+    title: "heapq is a min-heap on a plain list: negate for a max-heap, use tuples for priorities"
+reviewItems:
+  - id: review.heaps.predict-layout
+    concept: concept.heap-property
+    step: step.heaps.predict-layout
+  - id: review.heaps.not-sorted
+    concept: concept.heap-property
+    step: step.heaps.check-not-sorted
+  - id: review.heaps.costs
+    concept: concept.heap-sift
+    step: step.heaps.check-costs
+  - id: review.heaps.predict-max
+    concept: concept.heapq-api
+    step: step.heaps.predict-max
+  - id: review.heaps.predict-tuples
+    concept: concept.heapq-api
+    step: step.heaps.predict-tuples
+  - id: review.heaps.which-problem
+    concept: concept.heap-property
+    step: step.heaps.check-which-problem
+    kind: pattern
+  - id: review.heaps.sort-instead
+    concept: concept.heap-sift
+    step: step.heaps.check-sort-instead
+    kind: pattern
+  - id: review.heaps.cue
+    concept: concept.heapq-api
+    step: step.heaps.check-cue
+    kind: pattern
+patterns:
+  - id: pattern.heap-repeated-min
+    title: Take the smallest (or largest) again and again, as items come and go
+steps:
+  - id: step.heaps.idea
+    type: explain
+    title: Always the smallest next
+    body: |
+      A hospital queue doesn't serve people in the order they came: it serves the most urgent first. That's a **priority
+      queue**: put things in, in any order, and always take out the one with the best priority.
+
+      A sorted list would do it, but every insert shifts items along: O(n). A **heap** does both in O(log n). It is a
+      **binary tree stored in a plain list**:
+
+      - The children of the item at index `i` are at `2i + 1` and `2i + 2`, and its parent is at `(i - 1) // 2`. No nodes, no
+        pointers: just arithmetic on indexes.
+      - The **heap property**: every parent is `<=` its children. So the smallest item is always at the root, `heap[0]`.
+
+      That's all it promises. Siblings can be in any order, and the list is **not** sorted: `[1, 3, 2, 7, 4]` is a heap.
+      The tree is as full as it can be, level by level, so its depth is about log₂ n, and that's what makes it cheap to fix.
+
+      C# has `PriorityQueue<TElement, TPriority>` (since .NET 6), a heap underneath. Python has the **`heapq`** module: a few
+      functions that treat an ordinary list as a min-heap.
+    comparison:
+      csharp: |
+        var queue = new PriorityQueue<string, int>();
+        queue.Enqueue("cold", 3);
+        queue.Enqueue("broken arm", 1);
+        queue.Enqueue("cut", 2);
+
+        Console.WriteLine(queue.Peek());     // broken arm
+        Console.WriteLine(queue.Dequeue());  // broken arm
+        Console.WriteLine(queue.Dequeue());  // cut
+      python: |
+        import heapq
+
+        queue = []
+        heapq.heappush(queue, (3, "cold"))
+        heapq.heappush(queue, (1, "broken arm"))
+        heapq.heappush(queue, (2, "cut"))
+
+        print(queue[0][1])                 # broken arm
+        print(heapq.heappop(queue)[1])     # broken arm
+        print(heapq.heappop(queue)[1])     # cut
+  - id: step.heaps.trace-push
+    type: trace
+    title: Push, then sift up
+    body: |
+      A push puts the new value at the **end** of the list, the next free place in the bottom level. That can break the heap
+      property only between the new value and its parent. So compare them, and swap while the new value is the smaller: it
+      **sifts up** until its parent is no bigger, or it reaches the root. At most one swap per level: O(log n).
+
+      Watch `1` go in at index `5`, swap with its parent `4`, then with `2`, and end at the root.
+    code: |
+      heap = [2, 3, 4, 8, 5]
+      heap.append(1)
+      i = len(heap) - 1
+      while i > 0 and heap[i] < heap[(i - 1) // 2]:
+          parent = (i - 1) // 2
+          heap[i], heap[parent] = heap[parent], heap[i]
+          i = parent
+    visualise:
+      - variable: heap
+        as: heap
+        pointers: [i]
+  - id: step.heaps.pop
+    type: explain
+    title: Pop, then sift down
+    body: |
+      The smallest is at `heap[0]`, but taking it out of the front of a list would shift everything. So a pop does this
+      instead:
+
+      1. Keep `heap[0]`: that's the answer.
+      2. Move the **last** item to the root. The list is one shorter, and the tree still has its shape.
+      3. That item is probably too big for the root, so **sift it down**: compare it with its **smaller** child, and swap
+         while the child is smaller. Stop when neither child is smaller, or it has no children.
+
+      Why the smaller child? After the swap that child becomes the parent of the other one, so it must be the smaller of the
+      two. Again at most one swap per level: O(log n).
+
+      Reading the smallest without removing it, `heap[0]`, is O(1).
+  - id: step.heaps.trace-pop
+    type: trace
+    title: Pop, step by step
+    body: |
+      `1` leaves, and the last item, `7`, takes its place at the root. Its children are `2` and `6`; the smaller is `2`, so
+      they swap. Then its children are `3` and `4`, and it swaps with `3`. At index `3` it has no children, and the heap is
+      whole again.
+    code: |
+      heap = [1, 2, 6, 3, 4, 8, 7]
+      smallest = heap[0]
+      heap[0] = heap.pop()
+      i = 0
+      while True:
+          child = 2 * i + 1
+          if child >= len(heap):
+              break
+          if child + 1 < len(heap) and heap[child + 1] < heap[child]:
+              child += 1
+          if heap[i] <= heap[child]:
+              break
+          heap[i], heap[child] = heap[child], heap[i]
+          i = child
+    visualise:
+      - variable: heap
+        as: heap
+        pointers: [i, child]
+  - id: step.heaps.predict-layout
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      Four pushes onto an empty heap. What is the list afterwards?
+    code: |
+      import heapq
+
+      heap = []
+      for x in [5, 3, 8, 1]:
+          heapq.heappush(heap, x)
+      print(heap)
+    accepted:
+      - "[1, 3, 8, 5]"
+    mistakes:
+      - answers:
+          - "[1, 3, 5, 8]"
+        feedback: "A heap isn't sorted. `1` goes in at index `3` and sifts up past `3` to the root, but `5` is only moved down one place, to index `3`, and `8` never moves."
+      - answers:
+          - "[5, 3, 8, 1]"
+        feedback: "Each push sifts the new value up. `3` is smaller than its parent `5`, so they swap straight away."
+      - answers:
+          - "[1, 5, 8, 3]"
+        feedback: "Follow `1`: it starts at index `3`, whose parent is index `1` (holding `5`). They swap, then `1` swaps with `3` at the root, and `5` stays at index `3`."
+    hints:
+      - "Write the list after each push. After two pushes it is `[3, 5]`."
+      - "The parent of index `3` is `(3 - 1) // 2`, index `1`."
+  - id: step.heaps.check-not-sorted
+    type: choice
+    title: What a heap promises
+    prompt: |
+      `heap = [1, 3, 8, 5]` is a valid min-heap. Which of these is **guaranteed** for any min-heap?
+    options:
+      - text: "`heap[0]` is the smallest item."
+        correct: true
+        feedback: "Right. Every parent is `<=` its children, all the way up, so nothing is smaller than the root. That's the only position you can count on."
+      - text: "`heap[-1]` is the largest item."
+        correct: false
+        feedback: "Not here: `heap[-1]` is `5` but `8` is larger. The largest is somewhere in the bottom level, but not necessarily last."
+      - text: "`heap[1]` is the second smallest."
+        correct: false
+        feedback: "The second smallest is one of the root's children, `heap[1]` or `heap[2]`. A heap doesn't order siblings."
+      - text: "The list is sorted."
+        correct: false
+        feedback: "`[1, 3, 8, 5]` is a heap and not sorted. A heap keeps only parent `<=` child, which is much cheaper to maintain."
+    hints:
+      - "The rule is about parents and children. What does it say about siblings, or the last item?"
+  - id: step.heaps.check-costs
+    type: choice
+    title: What it costs
+    prompt: |
+      For a heap of `n` items, which line gives the costs of reading the smallest, pushing, and popping?
+    options:
+      - text: "Read `heap[0]`: O(1). Push: O(log n). Pop: O(log n)."
+        correct: true
+        feedback: "Right. Reading the root is one index. A push or pop swaps at most once per level, and the tree has about log₂ n levels."
+      - text: "Read: O(1). Push: O(1). Pop: O(n)."
+        correct: false
+        feedback: "That's an unsorted list: append anywhere, then scan for the smallest. A heap pays a little on push to make pop cheap."
+      - text: "Read: O(log n). Push: O(log n). Pop: O(log n)."
+        correct: false
+        feedback: "The smallest is always at index `0`, so reading it needs no search at all."
+      - text: "Read: O(1). Push: O(n). Pop: O(1)."
+        correct: false
+        feedback: "That's a sorted list kept with the smallest at the end: every insert shifts items. A heap's sift touches one item per level."
+    hints:
+      - "How deep is a tree that is full level by level?"
+  - id: step.heaps.heapq
+    type: explain
+    title: The heapq module
+    body: |
+      `heapq` works on a plain list you own:
+
+      - `heapq.heappush(h, x)` and `heapq.heappop(h)`: push and pop, O(log n). `h[0]` peeks.
+      - `heapq.heapify(h)`: turns any list into a heap **in place**, in **O(n)**, faster than `n` pushes.
+      - `heapq.heappushpop(h, x)` pushes then pops, and `heapq.heapreplace(h, x)` pops then pushes, each as one sift.
+
+      Two habits cover almost everything else:
+
+      - **Only a min-heap.** For the largest first, push **`-x`** and negate what comes out. (C#'s `PriorityQueue` takes a
+        comparer instead, such as `Comparer<int>.Create((a, b) => b.CompareTo(a))`.)
+      - **Priorities as tuples.** Push `(priority, item)`: tuples compare item by item, so the smallest priority comes out
+        first, and a tie is broken by the next item. If the items can't be compared (two dicts, say), put a counter in the
+        middle, `(priority, n, item)`, so a tie never reaches them. C# keeps the priority apart from the element, so it has
+        no such problem.
+    comparison:
+      csharp: |
+        int[] nums = [4, 1, 7, 3];
+
+        var max = new PriorityQueue<int, int>(
+            Comparer<int>.Create((a, b) => b.CompareTo(a)));
+        foreach (var x in nums) max.Enqueue(x, x);
+
+        Console.WriteLine(max.Dequeue());  // 7
+      python: |
+        import heapq
+
+        nums = [4, 1, 7, 3]
+
+        max_heap = [-x for x in nums]
+        heapq.heapify(max_heap)
+
+        print(-heapq.heappop(max_heap))  # 7
+  - id: step.heaps.trace-heapq
+    type: trace
+    title: heapify, then pops
+    body: |
+      `heapify` arranges the whole list in one step, then each `heappop` is one step too: the sifting happens inside `heapq`,
+      which is written in C. Watch the values leave smallest first, and the last one move up to the root each time.
+    code: |
+      import heapq
+
+      heap = [9, 4, 7, 1, 8, 2]
+      heapq.heapify(heap)
+      first = heapq.heappop(heap)
+      second = heapq.heappop(heap)
+      heapq.heappush(heap, 3)
+      third = heapq.heappop(heap)
+    visualise:
+      - variable: heap
+        as: heap
+  - id: step.heaps.predict-max
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      This uses negated values for a max-heap. What does it print?
+    code: |
+      import heapq
+
+      nums = [4, 1, 7, 3]
+      heap = [-x for x in nums]
+      heapq.heapify(heap)
+      print(-heapq.heappop(heap), -heapq.heappop(heap), -heap[0])
+    accepted:
+      - "7 4 3"
+    mistakes:
+      - answers:
+          - "-7 -4 -3"
+        feedback: "The heap holds `-7, -4, ...`, but each one is negated again as it's printed: `-(-7)` is `7`."
+      - answers:
+          - "1 3 4"
+          - "-1 -3 -4"
+        feedback: "Negated, the largest number becomes the smallest, `-7`, so it's popped first. That's the trick that makes a min-heap act as a max-heap."
+      - answers:
+          - "7 4 4"
+        feedback: "Two pops have taken `7` and `4` out, so the root is now `-3`, and `-heap[0]` is `3`."
+    hints:
+      - "Which is smallest out of `-4, -1, -7, -3`?"
+  - id: step.heaps.predict-tuples
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      Tasks are pushed as `(priority, name)` tuples. What does it print?
+    code: |
+      import heapq
+
+      heap = []
+      heapq.heappush(heap, (2, "write"))
+      heapq.heappush(heap, (1, "read"))
+      heapq.heappush(heap, (2, "test"))
+      heapq.heappush(heap, (1, "plan"))
+      print(" ".join(heapq.heappop(heap)[1] for _ in range(4)))
+    accepted:
+      - "plan read test write"
+    mistakes:
+      - answers:
+          - "read plan write test"
+        feedback: "A heap doesn't keep the order things arrived in. On a tie in priority the tuples compare their names, and `\"plan\" < \"read\"`."
+      - answers:
+          - "write test read plan"
+          - "write read test plan"
+        feedback: "`heapq` is a min-heap: the **smallest** priority, `1`, comes out first."
+    hints:
+      - "Tuples compare their first items; only on a tie do they look at the second."
+  - id: step.heaps.pattern
+    type: explain
+    title: "The pattern: the smallest, again and again"
+    body: |
+      Reach for a heap when a problem keeps asking for **the smallest (or largest) of what's left**, and what's left keeps
+      **changing**: items are removed, new ones arrive, or a result goes back in.
+
+      - *Combine the two shortest ropes, put the new rope back, repeat.*
+      - *Smash the two heaviest stones; what's left of them goes back.*
+      - *Run the task with the earliest deadline next, as tasks keep arriving.*
+
+      If the items are all known up front and never change, sorting once is as good. And if you need the smallest only once,
+      `min()` is O(n) with no heap at all. The heap earns its place when the "smallest" has to be found **over and over**,
+      among items that change: n pops and pushes cost O(n log n), where re-scanning each time costs O(n²).
+  - id: step.heaps.check-which-problem
+    type: choice
+    title: Which one needs a heap?
+    prompt: |
+      Which of these is the best fit for a heap?
+    options:
+      - text: "Repeatedly join the two shortest ropes; the joined rope goes back in the pile."
+        correct: true
+        feedback: "Right. The two smallest are needed again and again, and each join adds a new rope: pop, pop, push, O(log n) each."
+      - text: "Find the longest rope in a pile."
+        correct: false
+        feedback: "Once only, and nothing changes: `max(ropes)` is O(n). Building a heap would cost as much and give nothing more."
+      - text: "Print a list of ropes from shortest to longest."
+        correct: false
+        feedback: "Everything is known up front and nothing changes: `sorted(ropes)` does it."
+      - text: "Is there a rope exactly 7 metres long?"
+        correct: false
+        feedback: "That's a lookup: `7 in set(ropes)`. A heap can only tell you the smallest."
+    hints:
+      - "Which one needs the smallest many times, while the pile changes?"
+  - id: step.heaps.check-sort-instead
+    type: choice
+    title: Why not sort once?
+    prompt: |
+      For the rope problem, someone sorts the ropes once and then takes the two shortest from the front each time. Why does
+      that go wrong, or get slow?
+    options:
+      - text: "The joined rope must go back in its sorted place: finding and inserting it costs O(n) each time, O(n²) in all."
+        correct: true
+        feedback: "Right. A heap takes the new rope in O(log n). Sorting once only works when nothing new arrives."
+      - text: "Sorting is O(n²) in Python."
+        correct: false
+        feedback: "`sorted` is O(n log n). The trouble is after the sort: every new rope has to be put back in order."
+      - text: "It always gives the wrong answer, because sort isn't stable."
+        correct: false
+        feedback: "Python's sort is stable, and ties between ropes don't matter anyway. It can be made right, but keeping the list sorted is slow."
+      - text: "Nothing: it's just as fast as a heap."
+        correct: false
+        feedback: "Each joined rope has to go back into the sorted list. `bisect.insort` finds the place quickly, but shifting the items after it is O(n)."
+    hints:
+      - "What happens to the joined rope?"
+  - id: step.heaps.check-cue
+    type: choice
+    title: Read the cue
+    prompt: |
+      A problem says: *"Each turn, take the **heaviest** stone and break it in half. After `k` turns, what's the total?"* How
+      do you set it up with `heapq`?
+    options:
+      - text: "Push every weight negated, so the heaviest is at the root; pop, halve, push the rest back negated."
+        correct: true
+        feedback: "Right. \"Largest, again and again, with results going back\": a max-heap, which in `heapq` means negating."
+      - text: "`heapify` the weights as they are and pop: the root is the heaviest."
+        correct: false
+        feedback: "`heapq` is a min-heap: the root is the **lightest**. Negate the weights to bring the heaviest to the top."
+      - text: "Sort the weights in descending order once, then halve the first one each turn."
+        correct: false
+        feedback: "After a halving, the first stone may no longer be the heaviest. The order has to be fixed every turn, and that's what a heap does in O(log n)."
+      - text: "Call `max()` each turn."
+        correct: false
+        feedback: "That works, but each `max()` is O(n), so `k` turns cost O(k·n). A heap makes each turn O(log n)."
+    hints:
+      - "Which end of a `heapq` heap is at the root?"
+  - id: step.heaps.fill-sift-up
+    type: fill-blank
+    title: Sift up by hand
+    prompt: |
+      Fill in the blanks so that `sift_up(heap, i)` moves `heap[i]` up until its parent is no bigger: the second half of a
+      push.
+    template: |
+      def sift_up(heap, i):
+          while i > 0:
+              parent = {{parent}}
+              if heap[i] >= heap[parent]:
+                  break
+              heap[i], heap[parent] = heap[parent], heap[i]
+              i = {{next}}
+    blanks:
+      - id: parent
+        accepted:
+          - "(i - 1) // 2"
+          - "(i-1)//2"
+        mistakes:
+          - answers:
+              - "i // 2"
+            feedback: "That's the rule for a heap that starts at index `1`. Here the root is at `0`, so index `2`'s parent is `0`, and `2 // 2` would give `1`."
+          - answers:
+              - "(i - 1) / 2"
+              - "(i-1)/2"
+            feedback: "`/` gives a float, and a list index must be an int. Use `//`."
+          - answers:
+              - "i - 1"
+            feedback: "That's the item before it in the list, not its parent. The parent of index `i` is at `(i - 1) // 2`."
+      - id: next
+        accepted:
+          - "parent"
+        mistakes:
+          - answers:
+              - "i - 1"
+              - "(i - 1) // 2 - 1"
+            feedback: "The value just moved to `parent`, so carry on from there: `i = parent`."
+    hints:
+      - "Children of `i` are at `2i + 1` and `2i + 2`. Work backwards for the parent."
+      - "After the swap, the value you're moving is at `parent`."
+  - id: step.heaps.order-sift-down
+    type: parsons
+    title: Sift down by hand
+    prompt: |
+      Arrange the lines into `sift_down(heap, i)`, which moves `heap[i]` down, swapping with its smaller child, until no
+      child is smaller: the second half of a pop.
+    solution: |
+      def sift_down(heap, i):
+          n = len(heap)
+          while 2 * i + 1 < n:
+              child = 2 * i + 1
+              if child + 1 < n and heap[child + 1] < heap[child]:
+                  child += 1
+              if heap[i] <= heap[child]:
+                  break
+              heap[i], heap[child] = heap[child], heap[i]
+              i = child
+    hints:
+      - "Pick the smaller child first, then decide whether to swap."
+      - "The loop runs while `i` has at least a left child."
+  - id: step.heaps.write-stone
+    type: write-code
+    largeScreenPreferred: true
+    title: The last stone
+    pattern: pattern.heap-repeated-min
+    patternCue: "\"Smash the two heaviest, put what's left back\": a max-heap (negated values), two pops and maybe a push each turn."
+    prompt: |
+      Each turn, take the two **heaviest** stones, `x <= y`, and smash them together. If they weigh the same, both are
+      destroyed; otherwise a stone of weight `y - x` is left and goes back in. Write `last_stone(stones)` that returns the
+      weight of the last stone, or `0` if none is left.
+
+      `last_stone([2, 7, 4, 1, 8, 1])` is `1`: `8` and `7` leave `1`, `4` and `2` leave `2`, `2` and `1` leave `1`, and `1`
+      and `1` leave nothing but the last `1`.
+    language: python
+    entrypoint: last_stone
+    starter: |
+      import heapq
+
+
+      def last_stone(stones):
+          pass
+    solution: |
+      import heapq
+
+
+      def last_stone(stones):
+          heap = [-s for s in stones]
+          heapq.heapify(heap)
+          while len(heap) > 1:
+              y = -heapq.heappop(heap)
+              x = -heapq.heappop(heap)
+              if y > x:
+                  heapq.heappush(heap, -(y - x))
+          return -heap[0] if heap else 0
+    tests:
+      - input: "[2, 7, 4, 1, 8, 1]"
+        expected: "1"
+      - input: "[1]"
+        expected: "1"
+      - input: "[3, 3]"
+        expected: "0"
+      - input: "[10, 4]"
+        expected: "6"
+      - input: "[9, 3, 2, 10]"
+        expected: "0"
+      - input: "[1, 1, 1]"
+        expected: "1"
+    hints:
+      - "`heapq` gives the smallest. Store each weight as `-w` to get the heaviest."
+      - "Loop while at least two stones are left: pop two, and push back the difference if it isn't zero."
+      - "Remember to negate the weights back as they come out, and when you push."
+    walkthrough:
+      call: result = last_stone([2, 7, 4, 1, 8, 1])
+      visualise:
+        - variable: heap
+          as: heap
+      explanation: |
+        The heap holds the weights negated, so the root, `-8`, is the heaviest. `8` and `7` come out and `-1` goes back;
+        then `4` and `2`, leaving `-2`; then `2` and `1`, leaving `-1`; then `1` and `1`, which destroy each other. One
+        stone is left, `-1`, so the answer is `1`.
+  - id: step.heaps.write-ropes
+    type: write-code
+    largeScreenPreferred: true
+    title: Join the ropes
+    pattern: pattern.heap-repeated-min
+    patternCue: "\"Join the two shortest, again and again\": a min-heap, two pops and a push per join."
+    prompt: |
+      Joining two ropes of lengths `a` and `b` costs `a + b`, and makes one rope of length `a + b`. Write
+      `rope_cost(ropes)` that returns the smallest total cost of joining all the ropes into one.
+
+      `rope_cost([4, 3, 2, 6])` is `29`: join `2` and `3` (cost `5`), then `4` and `5` (cost `9`), then `6` and `9` (cost
+      `15`). Always joining the two shortest gives the smallest total.
+    language: python
+    entrypoint: rope_cost
+    starter: |
+      import heapq
+
+
+      def rope_cost(ropes):
+          pass
+    solution: |
+      import heapq
+
+
+      def rope_cost(ropes):
+          heap = list(ropes)
+          heapq.heapify(heap)
+          total = 0
+          while len(heap) > 1:
+              joined = heapq.heappop(heap) + heapq.heappop(heap)
+              total += joined
+              heapq.heappush(heap, joined)
+          return total
+    tests:
+      - input: "[4, 3, 2, 6]"
+        expected: "29"
+      - input: "[1]"
+        expected: "0"
+      - input: "[5, 5]"
+        expected: "10"
+      - input: "[1, 2, 3, 4, 5]"
+        expected: "33"
+      - input: "[8, 4, 6, 12]"
+        expected: "58"
+    hints:
+      - "Put the ropes in a heap with `heapify`."
+      - "While more than one rope is left: pop the two shortest, add their sum to the total, and push the joined rope back."
+    walkthrough:
+      call: result = rope_cost([4, 3, 2, 6])
+      visualise:
+        - variable: heap
+          as: heap
+      explanation: |
+        `heapify` brings `2` to the root. `2` and `3` are popped and `5` pushed (total `5`); then `4` and `5`, pushing `9`
+        (total `14`); then `6` and `9`, pushing `15` (total `29`). One rope is left.
+    phoneAlternative:
+      id: step.heaps.write-ropes.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `rope_cost(ropes)`, the smallest total cost of joining all the ropes into one, where joining `a` and `b` costs
+        `a + b`. Arrange the lines instead of typing them.
+      solution: |
+        import heapq
+
+
+        def rope_cost(ropes):
+            heap = list(ropes)
+            heapq.heapify(heap)
+            total = 0
+            while len(heap) > 1:
+                joined = heapq.heappop(heap) + heapq.heappop(heap)
+                total += joined
+                heapq.heappush(heap, joined)
+            return total
+      hints:
+        - "Copy and heapify, then pop two and push one until one rope is left."
+  - id: step.heaps.write-halve
+    type: write-code
+    largeScreenPreferred: true
+    title: Halve the biggest pile
+    pattern: pattern.heap-repeated-min
+    patternCue: "\"Each turn, the biggest pile\": a max-heap of negated sizes; pop, shrink, push back, k times."
+    prompt: |
+      `piles` holds piles of stones. Each turn, take the **biggest** pile and remove `pile // 2` stones from it (so `9`
+      becomes `5`). Write `halve_piles(piles, k)` that returns the total number of stones left after `k` turns.
+
+      `halve_piles([5, 4, 9], 2)` is `12`: `9` becomes `5`, then one of the `5`s becomes `3`, leaving `3 + 4 + 5`.
+    language: python
+    entrypoint: halve_piles
+    starter: |
+      import heapq
+
+
+      def halve_piles(piles, k):
+          pass
+    solution: |
+      import heapq
+
+
+      def halve_piles(piles, k):
+          heap = [-p for p in piles]
+          heapq.heapify(heap)
+          for _ in range(k):
+              biggest = -heap[0]
+              heapq.heapreplace(heap, -(biggest - biggest // 2))
+          return -sum(heap)
+    tests:
+      - input: "[5, 4, 9], 2"
+        expected: "12"
+      - input: "[4, 3, 6, 7], 3"
+        expected: "12"
+      - input: "[1], 5"
+        expected: "1"
+      - input: "[10], 2"
+        expected: "3"
+      - input: "[100, 1], 0"
+        expected: "101"
+    hints:
+      - "Negate the piles so the biggest is at the root."
+      - "Each turn: pop the biggest, take away `pile // 2`, push it back. `heapq.heapreplace` does the pop and push in one."
+    walkthrough:
+      call: result = halve_piles([5, 4, 9], 2)
+      visualise:
+        - variable: heap
+          as: heap
+      explanation: |
+        The root is `-9`, the biggest pile. It becomes `9 - 4 = 5`, and `-5` goes back. Now there are two `-5`s; one is at
+        the root, and becomes `5 - 2 = 3`. The heap holds `-3, -4, -5`, so `12` stones are left.
