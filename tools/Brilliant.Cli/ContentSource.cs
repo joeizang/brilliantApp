@@ -669,15 +669,31 @@ public static partial class ContentValidator
                         functions.Add(function);
                 }
 
-                // A linked list's options say how to walk its nodes; no other drawing has nodes.
+                // A linked list's and a tree's options say how to walk their nodes; no other drawing has nodes.
                 var isList = v.As == Visual.LinkedList;
-                foreach (var (option, value) in new[] { ("next", v.Next), ("value", v.Value) })
+                var isTree = v.As == Visual.Tree;
+                foreach (var (option, value, owners) in new[]
+                         {
+                             ("next", v.Next, new[] { Visual.LinkedList }), ("value", v.Value, [Visual.LinkedList, Visual.Tree]),
+                             ("left", v.Left, [Visual.Tree]), ("right", v.Right, [Visual.Tree]),
+                         })
                 {
                     if (value is null) continue;
-                    if (!isList)
-                        report.Add(file, $"{where}: '{option}' is an option of a {Visual.LinkedList} only, not of '{v.As}'.");
+                    if (!owners.Contains(v.As))
+                        report.Add(file, $"{where}: '{option}' is an option of a {string.Join(" or ", owners)} only, not of '{v.As}'.");
                     else if (!PythonIdentifier.IsMatch(value))
                         report.Add(file, $"{where}: {option} '{value}' is not a valid Python attribute name.");
+                }
+                if (isTree && (v.Left ?? Visual.DefaultLeft) == (v.Right ?? Visual.DefaultRight))
+                    report.Add(file, $"{where}: 'left' and 'right' name the same attribute; a tree node needs two links.");
+                if (v.Visited is not null)
+                {
+                    if (!isTree)
+                        report.Add(file, $"{where}: 'visited' is an option of a {Visual.Tree} only, not of '{v.As}'.");
+                    else if (!PythonIdentifier.IsMatch(v.Visited))
+                        report.Add(file, $"{where}: visited '{v.Visited}' is not a valid Python name.");
+                    else if (v.Visited == v.Variable)
+                        report.Add(file, $"{where}: visited '{v.Visited}' is the tree's own variable; name the list or set of the nodes visited.");
                 }
 
                 var pointers = new List<string>();
@@ -689,11 +705,14 @@ public static partial class ContentValidator
                         report.Add(file, $"{where}: pointer '{pointer}' is listed twice.");
                     else if (isList && pointer == v.Variable)
                         report.Add(file, $"{where}: pointer '{pointer}' is the list's own variable, which is already drawn on its first node.");
+                    else if (isTree && pointer == v.Variable)
+                        report.Add(file, $"{where}: pointer '{pointer}' is the tree's own variable, which is already drawn on its root.");
                     else
                         pointers.Add(pointer);
                 }
                 visuals.Add(new Visual(v.As == Visual.CallStack ? "" : v.Variable ?? "", v.As ?? "", pointers,
-                    v.Next ?? Visual.DefaultNext, v.Value ?? Visual.DefaultValue, functions));
+                    v.Next ?? Visual.DefaultNext, v.Value ?? Visual.DefaultValue, functions,
+                    v.Left ?? Visual.DefaultLeft, v.Right ?? Visual.DefaultRight, v.Visited));
             }
 
         return visuals;
@@ -840,6 +859,9 @@ public static partial class ContentValidator
         public string? Next { get; set; }
         public string? Value { get; set; }
         public List<string>? Functions { get; set; }
+        public string? Left { get; set; }
+        public string? Right { get; set; }
+        public string? Visited { get; set; }
     }
     private sealed class BlankDto { public string? Id { get; set; } public List<string>? Accepted { get; set; } public List<MistakeDto>? Mistakes { get; set; } }
     private sealed class TestDto { public string? Input { get; set; } public string? Expected { get; set; } }

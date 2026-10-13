@@ -200,6 +200,8 @@ internal static class ReferenceSolutionChecker
                         $"variable '{visual.Variable}' is never a list or deque in the trace, so there is no {visual.As} to draw.",
                     Visual.LinkedList =>
                         $"variable '{visual.Variable}' never holds a node (an object with a '{visual.Next}' attribute) in the trace, so there is no list to draw.",
+                    Visual.Tree =>
+                        $"variable '{visual.Variable}' never holds a tree node (an object with '{visual.Left}' and '{visual.Right}' attributes) in the trace, so there is no tree to draw.",
                     Visual.CallStack => visual.Functions.Count == 0
                         ? "the code never calls a function of its own, so the call stack has nothing to draw."
                         : $"the code never calls {string.Join(" or ", visual.Functions.Select(f => $"'{f}'"))}, so the call stack has nothing to draw.",
@@ -210,6 +212,11 @@ internal static class ReferenceSolutionChecker
             if (visual.As == Visual.LinkedList)
             {
                 foreach (var problem in DescribeList(result, visual)) yield return problem;
+                continue;
+            }
+            if (visual.As == Visual.Tree)
+            {
+                foreach (var problem in DescribeTree(result, visual)) yield return problem;
                 continue;
             }
             if (visual.As == Visual.CallStack)
@@ -243,8 +250,31 @@ internal static class ReferenceSolutionChecker
                 yield return $"pointer '{pointer}' (of '{visual.Variable}') never holds a node of the list in the trace.";
     }
 
+    /// <summary>
+    /// A tree's nodes must have the value attribute, each pointer must hold one of its nodes at some step, and the visited variable must
+    /// be a list or set at some step and mark a node at some step.
+    /// </summary>
+    private static IEnumerable<string> DescribeTree(TraceResult result, Visual visual)
+    {
+        var trees = result.Frames.Select(f => f.Trees?.GetValueOrDefault(visual.Variable)).OfType<TrackedTree>().ToList();
+        if (trees.Any(t => t.Nodes.Any(n => n.Value is null)))
+            yield return $"the nodes of '{visual.Variable}' have no attribute '{visual.Value}' to show; " +
+                "set 'value' to the attribute that holds a node's value.";
+        foreach (var pointer in visual.Pointers)
+            if (!trees.Any(t => t.Pointers.TryGetValue(pointer, out var node) && node is not null))
+                yield return $"pointer '{pointer}' (of '{visual.Variable}') never holds a node of the tree in the trace.";
+        if (visual.Visited is { } visited)
+        {
+            if (!trees.Any(t => t.Visited is not null))
+                yield return $"visited '{visited}' (of '{visual.Variable}') is never a list or set in the trace, so it marks no node.";
+            else if (!trees.Any(t => t.Visited is { Nodes.Count: > 0 }))
+                yield return $"visited '{visited}' (of '{visual.Variable}') never holds a node of the tree or a node's value in the trace, so it marks no node.";
+        }
+    }
+
     private static bool Draws(TraceFrame frame, Visual visual) => visual.As switch
     {
+        Visual.Tree => frame.Trees is not null && frame.Trees.TryGetValue(visual.Variable, out var tree) && tree.Root is not null,
         Visual.LinkedList => frame.Lists is not null && frame.Lists.TryGetValue(visual.Variable, out var list) && list.Head is not null,
         Visual.CallStack => frame.Calls is { Frames.Count: > 0 },
         _ when Visual.Sequences.Contains(visual.As) => frame.Tracked.TryGetValue(visual.Variable, out var tracked) && visual.Draws(tracked.Type),
