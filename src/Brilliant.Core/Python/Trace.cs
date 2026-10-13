@@ -43,9 +43,28 @@ public sealed record ListNode(int Id, string? Value, int? Next);
 /// </summary>
 public sealed record TrackedList(int? Head, IReadOnlyList<ListNode> Nodes, int More, IReadOnlyDictionary<string, int?> Pointers);
 
+/// <summary>An argument of a call, as it was when the call was made: its name and the repr of its value, clipped.</summary>
+public sealed record CallArg(string Name, string Repr);
+
 /// <summary>
-/// The state just before <see cref="Line"/> ran (<see cref="Event"/> "line"), or the state the module finished in
-/// (<see cref="Event"/> "return", <see cref="Line"/> null).
+/// A call under way, as recorded. <see cref="Id"/> is the same at every step it is on the stack and is never given to another call of
+/// the run. <see cref="Returning"/> is the repr of the value it returns, on the step it returns (and only on that step).
+/// </summary>
+public sealed record RecordedCall(int Id, string Function, IReadOnlyList<CallArg> Args, string? Returning);
+
+/// <summary>What a call handed back since the step before: the function, the repr of the value, and the id of the call it went to (null: the module, or a call not recorded).</summary>
+public sealed record ReturnedValue(string Function, string Value, int? To);
+
+/// <summary>
+/// The call stack as recorded at one step: the learner's calls under way, outermost first, so the last is the one running; at most the
+/// recorder's limit of them, the innermost (<see cref="More"/> counts the outer ones cut off). <see cref="Returned"/> is what came back since the step before.
+/// </summary>
+public sealed record TrackedCalls(IReadOnlyList<RecordedCall> Frames, int More, ReturnedValue? Returned);
+
+/// <summary>
+/// The state just before <see cref="Line"/> ran (<see cref="Event"/> "line"), the state the module finished in
+/// (<see cref="Event"/> "return", <see cref="Line"/> null), or, while the call stack is watched, a function's state as it returns
+/// (<see cref="Event"/> "return", <see cref="Line"/> the line it returns from).
 /// </summary>
 public sealed record TraceFrame(
     string Event,
@@ -54,7 +73,8 @@ public sealed record TraceFrame(
     IReadOnlyList<TraceLocal> Locals,
     IReadOnlyDictionary<string, TrackedArray> Tracked,
     IReadOnlyDictionary<string, TrackedTable>? Tables = null,
-    IReadOnlyDictionary<string, TrackedList>? Lists = null);
+    IReadOnlyDictionary<string, TrackedList>? Lists = null,
+    TrackedCalls? Calls = null);
 
 /// <summary>What the Python tracer (wwwroot/python/tracer.py) recorded.</summary>
 public sealed record TraceResult(
@@ -79,20 +99,25 @@ public static class TraceResultJson
 
     /// <summary>
     /// The variables the tracer should record: a sequence, dict or set by its name, a linked list as an object that also says how to
-    /// follow it and which pointers to look up: <c>["nums",{"variable":"head","as":"linked_list","next":"next","value":"val","pointers":["curr"]}]</c>.
+    /// follow it and which pointers to look up: <c>["nums",{"variable":"head","as":"linked_list","next":"next","value":"val","pointers":["curr"]}]</c>;
+    /// the call stack as an object with the functions it keeps (none: all): <c>{"as":"call_stack","functions":["fact"]}</c>.
     /// </summary>
     public static string SerializeWatch(IEnumerable<Visual> visuals)
     {
+        static JsonArray Names(IEnumerable<string> names) => new(names.Select(n => (JsonNode?)JsonValue.Create(n)).ToArray());
+
         var watch = new JsonArray();
         var seen = new HashSet<string>();
-        foreach (var v in visuals.Where(v => Visual.Kinds.Contains(v.As) && seen.Add(v.Variable)))
-            watch.Add(v.As == Visual.LinkedList
-                ? new JsonObject
+        foreach (var v in visuals.Where(v => Visual.Kinds.Contains(v.As) && seen.Add(v.As == Visual.CallStack ? "<call stack>" : v.Variable)))
+            watch.Add(v.As switch
+            {
+                Visual.LinkedList => new JsonObject
                 {
-                    ["variable"] = v.Variable, ["as"] = v.As, ["next"] = v.Next, ["value"] = v.Value,
-                    ["pointers"] = new JsonArray(v.Pointers.Select(p => (JsonNode?)JsonValue.Create(p)).ToArray()),
-                }
-                : JsonValue.Create(v.Variable));
+                    ["variable"] = v.Variable, ["as"] = v.As, ["next"] = v.Next, ["value"] = v.Value, ["pointers"] = Names(v.Pointers),
+                },
+                Visual.CallStack => new JsonObject { ["as"] = v.As, ["functions"] = Names(v.Functions) },
+                _ => JsonValue.Create(v.Variable),
+            });
         return watch.ToJsonString();
     }
 }
@@ -169,11 +194,33 @@ public sealed record LinkedListView(string Variable, IReadOnlyList<ChainView> Ch
     public IEnumerable<NodeView> Nodes => Chains.SelectMany(c => c.Nodes);
 }
 
+/// <summary>
+/// A frame of the call stack: one call, with its arguments as they were passed. <see cref="Pushed"/>: the call began since the step before.
+/// <see cref="Returning"/>: the value it is returning on this step. <see cref="Received"/>: a value a call it made handed back to it since
+/// the step before (shown for that one step).
+/// </summary>
+public sealed record CallFrameView(int Id, string Function, IReadOnlyList<CallArg> Args, string? Returning = null, bool Pushed = false,
+    ReturnedValue? Received = null)
+{
+    /// <summary>How the call reads in code: <c>fact(n=3)</c>.</summary>
+    public string Label => $"{Function}({string.Join(", ", Args.Select(a => $"{a.Name}={a.Repr}"))})";
+}
+
+/// <summary>
+/// The call stack drawn as frames, outermost first, so the last is the one running. <see cref="Gone"/> are the calls that returned (or
+/// were left by an exception) since the step before, shown for one step so the learner sees them go. <see cref="More"/> counts the outer
+/// calls cut off. <see cref="ToModule"/> is a value handed back since the step before to the module (or to a call not drawn).
+/// </summary>
+public sealed record CallStackView(IReadOnlyList<CallFrameView> Frames, int More, IReadOnlyList<CallFrameView> Gone, ReturnedValue? ToModule)
+{
+    public CallFrameView? Running => Frames.Count > 0 ? Frames[^1] : null;
+}
+
 /// <summary>One step of the player: what to highlight and draw. <see cref="Line"/> is null on the final state.</summary>
 public sealed record TraceState(
     int Index, int? Line, string Function, bool IsFinal,
     IReadOnlyList<LocalView> Locals, IReadOnlyList<ArrayView> Arrays, IReadOnlyList<TableView> Tables,
-    IReadOnlyList<LinkedListView>? Lists = null)
+    IReadOnlyList<LinkedListView>? Lists = null, CallStackView? Calls = null)
 {
     public IReadOnlyList<LinkedListView> Lists { get; init; } = Lists ?? [];
 }
@@ -181,7 +228,8 @@ public sealed record TraceState(
 /// <summary>
 /// The Trace Model: turns the raw frames of a run into the states the Trace Player renders, with what changed since the
 /// previous step marked so the player can animate it. Changes are only marked against the immediately preceding step and
-/// only when it ran in the same function; entering or leaving a call marks nothing.
+/// only when it ran in the same function; entering or leaving a call marks nothing. The call stack is the exception: it spans
+/// the functions, so it is compared with the step before whichever function that ran in.
 /// </summary>
 public static class TraceModel
 {
@@ -190,6 +238,7 @@ public static class TraceModel
         var arrayVisuals = visuals.Where(v => Visual.Sequences.Contains(v.As)).ToList();
         var tableVisuals = visuals.Where(v => v.As is Visual.Dict or Visual.Set).ToList();
         var listVisuals = visuals.Where(v => v.As == Visual.LinkedList).ToList();
+        var drawsCalls = visuals.Any(v => v.As == Visual.CallStack);
         var states = new List<TraceState>(result.Frames.Count);
         TraceFrame? previousFrame = null;
         TraceState? previous = null;
@@ -198,7 +247,7 @@ public static class TraceModel
             var comparable = previous is not null && previousFrame!.Function == frame.Function ? previous : null;
             var state = new TraceState(index, frame.Line, frame.Function, frame.Line is null,
                 Locals(frame, comparable), Arrays(frame, arrayVisuals, comparable), Tables(frame, tableVisuals, comparable),
-                Lists(frame, listVisuals, comparable));
+                Lists(frame, listVisuals, comparable), drawsCalls ? Calls(frame, previous) : null);
             states.Add(state);
             previousFrame = frame;
             previous = state;
@@ -361,6 +410,28 @@ public static class TraceModel
             views.Add(new TableView(visual.Variable, tracked.Kind, rows, tracked.More, misses));
         }
         return views;
+    }
+
+    /// <summary>
+    /// The call stack, compared with the step before: a call is new if it began after every call drawn then (ids grow with each call), and
+    /// one drawn then is gone if it is no longer on the stack and wasn't merely cut off at the bottom.
+    /// </summary>
+    internal static CallStackView? Calls(TraceFrame frame, TraceState? previous)
+    {
+        if (frame.Calls is not { } calls) return null;
+        var before = previous?.Calls;
+        var newestBefore = before?.Frames.Select(f => f.Id).DefaultIfEmpty(-1).Max();
+        var returned = calls.Returned;
+        var frames = calls.Frames.Select(c => new CallFrameView(c.Id, c.Function, c.Args, c.Returning,
+            Pushed: newestBefore is not null && c.Id > newestBefore,
+            Received: returned is { To: { } to } && to == c.Id ? returned : null)).ToList();
+
+        var ids = frames.Select(f => f.Id).ToHashSet();
+        var bottom = frames.Count > 0 ? frames[0].Id : int.MaxValue;
+        var gone = before?.Frames.Where(f => !ids.Contains(f.Id) && (calls.More == 0 || f.Id > bottom))
+            .Select(f => f with { Pushed = false, Received = null }).ToList() ?? [];
+        var toModule = returned is not null && (returned.To is null || !ids.Contains(returned.To.Value)) ? returned : null;
+        return new CallStackView(frames, calls.More, gone, toModule);
     }
 
     private static IReadOnlyList<LinkedListView> Lists(TraceFrame frame, List<Visual> visuals, TraceState? previous)

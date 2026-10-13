@@ -1,4 +1,4 @@
-@* The Trace Player: the example's code (read-only, current line highlighted), the watched lists drawn as cells with named pointers,
+@* The Trace Player: the example's code (read-only, current line highlighted), the call stack, the watched lists drawn as cells with named pointers,
    the watched dicts and sets drawn as tables, the locals, and Previous/Next/Play to walk the recorded steps (also ← → and Space).
    What changed since the last step is marked, and the pointers slide. *@
 @using Brilliant.Core.Python
@@ -30,6 +30,11 @@
    </div>
 
    <div class="trace-visuals min-w-0">
+
+    @if (Current.Calls is { } calls)
+    {
+        <TraceCallStack View="calls" Step="Current.Index" />
+    }
 
     @foreach (var array in Current.Arrays.Where(a => a.Kind != Visual.Array))
     {

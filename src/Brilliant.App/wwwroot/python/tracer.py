@@ -13,7 +13,9 @@ trace_code(code, watch_json, max_frames=MAX_FRAMES) -> JSON string:
                                        "hits": {local variable: id}}},
                  "lists": {variable: {"head": id | null, "more": int,
                                       "nodes": [{"id": int, "value": str | null, "next": id | null}],
-                                      "pointers": {pointer: id | null}}}}],
+                                      "pointers": {pointer: id | null}}},
+                 "calls": {"frames": [{"id": int, "function": str, "args": [{"name", "repr"}], "returning": str | null}],
+                           "more": int, "returned": {"function": str, "value": str, "to": id | null} | null}}],
      "stdout": str, "message": str | null, "traceback": str | null, "errorLine": int | null}
 
 A "line" frame is the state just before that line runs. The last frame is the module's "return": the final
@@ -35,6 +37,17 @@ recorded is a cycle, which is not followed again. Its "value" is the repr of the
 has none. "pointers" maps each pointer that holds a node to its id, or to null when it is None; a pointer holding
 anything else (or not defined) is left out.
 
+A watch entry {"as": "call_stack", "functions": ["fact"]} records the active calls in "calls" at every frame (and only
+when it is watched, the frames below grow by one per return). Its "frames" are the calls of functions defined in the learner's code
+that haven't returned yet, outermost first, so the last is the one running; "functions", when given, keeps only the calls
+of those functions. A call's "id" is the same at every step it is on the stack and never reused within the run; its "args"
+are the arguments' reprs as they were when it was called (a method's "self" or "cls" is left out). At most MAX_CALLS are
+recorded, the innermost ones; "more" counts the outer calls cut off. Class bodies, comprehensions and generators are not calls here.
+While the call stack is watched, a call's return is also a frame of its own: event "return", the line it returns from,
+its locals, and that call's "returning" the repr of the value it returns (a call left by an exception, through a finally or not, has no return frame).
+The next frame after it has "returned": which function returned what, and "to", the id of the call it returned to (null
+when that is the module, or a call that isn't recorded).
+
 A row's "key" is only its label: the repr, clipped, so two different keys can read the same. Its "id" is what tells
 rows apart, and the same key has the same id at every step of the run. "hits" says which of the frame's variables hold
 a key (or member) of the table, by Python's own equality: `1.0` finds the key `1`, `True` too, whatever their reprs say.
@@ -42,6 +55,7 @@ A hit's id is the id of the row it found, which is not among the rows when that 
 """
 import collections
 import contextlib
+import dis
 import io
 import itertools
 import json
@@ -59,6 +73,7 @@ MAX_ROWS = 20          # dict entries / set members recorded per frame (the rest
 MAX_SORT = 500         # sets bigger than this are shown in iteration order rather than paying to sort them at every step
 MAX_NODES = 30         # linked-list nodes recorded per frame (the rest are counted in "more")
 MAX_WALK = 1000        # linked-list nodes followed per frame at most, so a huge list doesn't slow every step
+MAX_CALLS = 12         # calls on the stack recorded per frame, the innermost (the rest are counted in "more")
 MAX_CELL_REPR = 24     # characters of an array cell's, or a table key's or value's, repr
 MAX_OUTPUT = 4000      # characters of stdout kept
 
@@ -258,6 +273,90 @@ def _tables(frame, watch, shown, identities):
     return found
 
 
+_CO_OPTIMIZED = 0x01                   # set for a function's code, not a module's or a class body's
+_SKIPPED_FLAGS = 0x20 | 0x80 | 0x200   # CO_GENERATOR, CO_COROUTINE, CO_ASYNC_GENERATOR
+
+# A "return" event comes both for a real return and for a call an exception is leaving (with None for the value). Only a real
+# return is on one of these instructions; one an exception leaves is on whatever raised or re-raised, a finally's RERAISE among
+# them. (A finally runs lines as the exception passes through, so a line event is no sign the exception was caught.)
+_RETURN_OPS = frozenset(dis.opmap[name] for name in ("RETURN_VALUE", "RETURN_CONST") if name in dis.opmap)
+
+
+def _returns_normally(frame):
+    lasti = frame.f_lasti
+    return 0 <= lasti < len(frame.f_code.co_code) and frame.f_code.co_code[lasti] in _RETURN_OPS
+
+
+def _call_stack_entry(watch):
+    return next((e for e in watch if isinstance(e, dict) and e.get("as") == "call_stack"), None)
+
+
+def _is_shown_call(code, entry):
+    """Whether a call of this code goes on the recorded call stack: a function (or lambda) of the learner's, not a class body, a generator or a comprehension."""
+    if not code.co_flags & _CO_OPTIMIZED or code.co_flags & _SKIPPED_FLAGS or (code.co_name.startswith("<") and code.co_name != "<lambda>"):
+        return False
+    functions = entry.get("functions")
+    return not functions or code.co_name in functions
+
+
+def _args(frame):
+    code = frame.f_code
+    count = code.co_argcount + code.co_kwonlyargcount + bool(code.co_flags & 0x04) + bool(code.co_flags & 0x08)
+    names = code.co_varnames[:count]
+    if names and names[0] in ("self", "cls"):
+        names = names[1:]
+    values = frame.f_locals
+    return [{"name": name, "repr": _repr(values[name], MAX_CELL_REPR) if name in values else "?"} for name in names]
+
+
+class _Calls:
+    """The learner's calls that are under way, by frame. A frame is kept until its call returns, so its id() can't be reused meanwhile."""
+
+    def __init__(self, entry):
+        self.entry = entry
+        self._by_frame = {}
+        self._taken = 0
+        self.returned = None    # what the last return handed back, for the next frame recorded
+
+    def enter(self, frame):
+        if _is_shown_call(frame.f_code, self.entry):
+            self._by_frame[id(frame)] = (frame, {"id": self._taken, "function": frame.f_code.co_name, "args": _args(frame)})
+            self._taken += 1
+
+    def call_of(self, frame):
+        entry = self._by_frame.get(id(frame))
+        return entry[1] if entry is not None and entry[0] is frame else None
+
+    def caller_of(self, frame):
+        frame = frame.f_back
+        while frame is not None:
+            call = self.call_of(frame)
+            if call is not None:
+                return call
+            frame = frame.f_back
+        return None
+
+    def leave(self, frame, value):
+        call = self.call_of(frame)
+        if call is not None and _returns_normally(frame):
+            caller = self.caller_of(frame)
+            self.returned = {"function": call["function"], "value": _repr(value, MAX_CELL_REPR),
+                             "to": None if caller is None else caller["id"]}
+        self._by_frame.pop(id(frame), None)
+
+    def record(self, frame, returning=None):
+        stack = []
+        while frame is not None:
+            call = self.call_of(frame)
+            if call is not None:
+                stack.append(dict(call, returning=returning if not stack else None))
+            frame = frame.f_back
+        stack.reverse()
+        recorded = {"frames": stack[-MAX_CALLS:], "more": max(0, len(stack) - MAX_CALLS), "returned": self.returned}
+        self.returned = None
+        return recorded
+
+
 def _error_trace(exc):
     frames = [f for f in traceback.extract_tb(exc.__traceback__) if f.filename == LEARNER_FILE]
     line = frames[-1].lineno if frames else None
@@ -287,6 +386,8 @@ def trace_code(code, watch_json, max_frames=MAX_FRAMES):
     frames = []
     identities = _Identities()
     nodes = _Nodes()
+    entry = _call_stack_entry(watch)
+    calls = _Calls(entry) if entry is not None else None
     out = io.StringIO()
 
     try:
@@ -295,25 +396,37 @@ def trace_code(code, watch_json, max_frames=MAX_FRAMES):
         tb, line = _error_trace(exc)
         return _result("error", frames, message="Python couldn't read this code.", tb=tb, line=line)
 
-    def record(event, frame, line):
+    def record(event, frame, line, returning=None):
         if len(frames) >= max_frames:
             raise _TraceLimit()
         shown = _shown(frame.f_globals if frame.f_code.co_name == "<module>" else frame.f_locals)
-        frames.append({
+        recorded = {
             "event": event, "line": line, "function": frame.f_code.co_name,
             "locals": _locals(shown), "tracked": _tracked(frame, watch), "tables": _tables(frame, watch, shown, identities),
             "lists": _lists(frame, watch, nodes),
-        })
+        }
+        if calls is not None:
+            recorded["calls"] = calls.record(frame, returning)
+        frames.append(recorded)
 
     def on_line(frame, event, arg):
         if event == "line":
             record("line", frame, frame.f_lineno)
-        elif event == "return" and frame.f_code.co_name == "<module>":
-            record("return", frame, None)
+        elif event == "return":
+            if frame.f_code.co_name == "<module>":
+                record("return", frame, None)
+            elif calls is not None:
+                if calls.call_of(frame) is not None and _returns_normally(frame):
+                    record("return", frame, frame.f_lineno, _repr(arg, MAX_CELL_REPR))
+                calls.leave(frame, arg)
         return on_line
 
     def on_call(frame, event, arg):
-        return on_line if frame.f_code.co_filename == LEARNER_FILE else None
+        if frame.f_code.co_filename != LEARNER_FILE:
+            return None
+        if calls is not None:
+            calls.enter(frame)
+        return on_line
 
     status, message, tb, error_line = "ok", None, None, None
     previous = sys.gettrace()

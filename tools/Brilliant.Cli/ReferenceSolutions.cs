@@ -200,6 +200,9 @@ internal static class ReferenceSolutionChecker
                         $"variable '{visual.Variable}' is never a list or deque in the trace, so there is no {visual.As} to draw.",
                     Visual.LinkedList =>
                         $"variable '{visual.Variable}' never holds a node (an object with a '{visual.Next}' attribute) in the trace, so there is no list to draw.",
+                    Visual.CallStack => visual.Functions.Count == 0
+                        ? "the code never calls a function of its own, so the call stack has nothing to draw."
+                        : $"the code never calls {string.Join(" or ", visual.Functions.Select(f => $"'{f}'"))}, so the call stack has nothing to draw.",
                     _ => $"variable '{visual.Variable}' is never a list, tuple or deque in the trace, so there is nothing to draw.",
                 };
                 continue;
@@ -207,6 +210,13 @@ internal static class ReferenceSolutionChecker
             if (visual.As == Visual.LinkedList)
             {
                 foreach (var problem in DescribeList(result, visual)) yield return problem;
+                continue;
+            }
+            if (visual.As == Visual.CallStack)
+            {
+                foreach (var function in visual.Functions)
+                    if (!result.Frames.Any(f => f.Calls?.Frames.Any(c => c.Function == function) == true))
+                        yield return $"function '{function}' (of the call stack) is never called in the trace.";
                 continue;
             }
             foreach (var pointer in visual.Pointers)
@@ -236,6 +246,7 @@ internal static class ReferenceSolutionChecker
     private static bool Draws(TraceFrame frame, Visual visual) => visual.As switch
     {
         Visual.LinkedList => frame.Lists is not null && frame.Lists.TryGetValue(visual.Variable, out var list) && list.Head is not null,
+        Visual.CallStack => frame.Calls is { Frames.Count: > 0 },
         _ when Visual.Sequences.Contains(visual.As) => frame.Tracked.TryGetValue(visual.Variable, out var tracked) && visual.Draws(tracked.Type),
         _ => frame.Tables is not null && frame.Tables.TryGetValue(visual.Variable, out var table) && table.Kind == visual.As,
     };

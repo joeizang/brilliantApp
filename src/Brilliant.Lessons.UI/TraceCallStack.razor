@@ -1,0 +1,166 @@
+@* The call stack in the Trace Player: one frame per call under way, the code that started it all (the module) at the bottom and the
+   running call on top, each showing the call as it was made, fact(n=3). A new call grows in on top; a call keeps its place for as long
+   as it stays, so the frames under it never move; one that returns says what it returns, then rises away the step after while the
+   value it handed back pops up on the frame it went to. *@
+@using Brilliant.Core.Python
+
+<figure class="call-stack mx-0 my-4 rounded-md border border-hairline bg-surface-raised px-4 pt-2 pb-4" data-kind="call_stack">
+    <figcaption class="call-stack-name mb-1 text-[.9rem] text-fg-secondary">Call stack <span class="ml-[.4rem] text-[.8rem]">running call on top</span></figcaption>
+    <div class="call-stack-scroll max-h-[30rem] overflow-auto">
+        @* Laid out in user units and sized in rem (16 units to 1rem), with the text in the same units, as the other drawings are. *@
+        <svg class="call-stack-svg block max-w-none overflow-visible" role="img" aria-label="@Describe()" style="@Size" viewBox="0 0 @Width @Height">
+            <g class="call-base" data-slot="0" transform="translate(@BoxX @SlotY(0))">
+                @* An element opens each branch: in Razor code a bare <text> is Razor's own tag, not the SVG one. *@
+                @if (View.More > 0)
+                {
+                    <g class="more">
+                        <text class="fill-fg-secondary font-mono" font-size="@U(SmallText)" x="@BoxPadX" y="@(FrameH / 2)" dominant-baseline="central">+@View.More more @(View.More == 1 ? "call" : "calls") below</text>
+                    </g>
+                }
+                else
+                {
+                    <g class="module">
+                        <rect class="fill-none stroke-border stroke-2 [stroke-dasharray:4_4]" width="@FrameW" height="@FrameH" rx="6" />
+                        <text class="fill-fg-secondary italic" font-size="@U(SmallText)" x="@BoxPadX" y="@(FrameH / 2)" dominant-baseline="central">module</text>
+                        @if (View.ToModule is { } back)
+                        {
+                            @Badges(back, null)
+                        }
+                    </g>
+                }
+            </g>
+
+            @for (var i = 0; i < View.Frames.Count; i++)
+            {
+                var frame = View.Frames[i];
+                var running = i == View.Frames.Count - 1;
+                <g class="@FrameClass(frame, running) transition-transform duration-450 ease-app" data-id="@frame.Id" data-depth="@i" style="@At(BoxX, SlotY(i + 1))" @key="@($"call-{frame.Id}")">
+                    <title>@frame.Label</title>
+                    <g class="frame-body origin-center [transform-box:fill-box] @(frame.Pushed ? "animate-cell-in" : "")">
+                        <rect class="frame-box fill-surface stroke-2 @(running ? "stroke-accent" : "stroke-border")" width="@FrameW" height="@FrameH" rx="6" />
+                        <text class="frame-label fill-fg font-mono" font-size="@U(LabelText)" x="@BoxPadX" y="@(FrameH / 2)" dominant-baseline="central">@frame.Label</text>
+                    </g>
+                    @Badges(frame.Received, frame.Returning)
+                </g>
+            }
+
+            @for (var i = 0; i < View.Gone.Count; i++)
+            {
+                var gone = View.Gone[i];
+                <g class="call gone" aria-hidden="true" data-id="@gone.Id" style="@At(BoxX, SlotY(View.Frames.Count + 1 + i))" @key="@($"gone-{gone.Id}")">
+                    <g class="frame-body animate-cell-out">
+                        <rect class="frame-box fill-surface stroke-border stroke-2 [stroke-dasharray:4_3]" width="@FrameW" height="@FrameH" rx="6" />
+                        <text class="frame-label fill-fg-secondary font-mono" font-size="@U(LabelText)" x="@BoxPadX" y="@(FrameH / 2)" dominant-baseline="central">@gone.Label</text>
+                    </g>
+                </g>
+            }
+
+            @if (View.Running is { } top)
+            {
+                @* The marker slides with the top of the stack. *@
+                <g class="running-marker transition-transform duration-450 ease-app" data-id="@top.Id" style="@At(Pad, SlotY(View.Frames.Count) + FrameH / 2)" @key="@("running")">
+                    <text class="fill-accent font-semibold" font-size="@U(SmallText)" x="@(MarkW - 18)" text-anchor="end" dominant-baseline="central">running</text>
+                    <path class="fill-accent" d="@($"M{MarkW - 14} -5 L{MarkW - 6} 0 L{MarkW - 14} 5 Z")" />
+                </g>
+            }
+        </svg>
+    </div>
+    @if (Notes().Count > 0)
+    {
+        <p class="call-note mt-2 mb-0 text-[.9rem] text-fg-secondary">@string.Join(" ", Notes())</p>
+    }
+</figure>
+
+@code {
+    [Parameter, EditorRequired] public CallStackView View { get; set; } = default!;
+
+    /// <summary>The player's step number. A value handed back is keyed by it, so it is a fresh element and pops up again.</summary>
+    [Parameter, EditorRequired] public int Step { get; set; }
+
+    private const int FrameH = 36, RowH = 44, Pad = 8, Top = 8, MarkW = 72, BoxPadX = 12, MinFrameW = 128, BadgeGap = 10, BadgePadX = 8, BadgeH = 24;
+
+    // Text sizes in user units (16 is 1rem). A monospace character is about .6 of its size wide; other text about .55.
+    private const double LabelText = 14.4, SmallText = 12.8, MonoW = .6, SansW = .55;
+
+    private int BoxX => Pad + MarkW;
+
+    /// <summary>The places drawn, bottom up: the module (or "+N more calls"), the calls, then the ones that just left, above them.</summary>
+    private int Slots => 1 + View.Frames.Count + View.Gone.Count;
+
+    private int SlotY(int slot) => Top + (Slots - 1 - slot) * RowH;
+
+    private static int MonoWidth(string text, double size) => (int)Math.Ceiling(text.Length * size * MonoW);
+
+    private int FrameW => Math.Max(MinFrameW,
+        View.Frames.Concat(View.Gone).Select(f => MonoWidth(f.Label, LabelText)).DefaultIfEmpty(0).Max() + 2 * BoxPadX);
+
+    // A value handed back is a pill with an arrow into the frame; a value being returned is plain text after it.
+    private static string ReceivedText(ReturnedValue value) => $"← {value.Value}";
+    private static string ReturningText(string value) => $"returns {value}";
+    private static int ReceivedW(ReturnedValue value) => MonoWidth(ReceivedText(value), SmallText) + 2 * BadgePadX;
+    private static int ReturningW(string value) => (int)Math.Ceiling(ReturningText(value).Length * SmallText * SansW) + BadgePadX;
+
+    private static int BadgesW(ReturnedValue? received, string? returning) =>
+        (received is null ? 0 : ReceivedW(received) + BadgeGap) + (returning is null ? 0 : ReturningW(returning) + BadgeGap);
+
+    private int BadgesWidth => View.Frames.Select(f => BadgesW(f.Received, f.Returning))
+        .Append(View.More == 0 ? BadgesW(View.ToModule, null) : 0).Max();
+
+    private int Width => BoxX + FrameW + BadgesWidth + Pad;
+    private int Height => Top + Slots * RowH - (RowH - FrameH) + Pad / 2;
+
+    private string Size => $"width: {U(Width / 16.0)}rem; height: {U(Height / 16.0)}rem";
+
+    // Numbers written into the drawing in invariant form: "12.8", never a culture's "12,8".
+    private static string U(double value) => value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    // A frame is placed with CSS (not the transform attribute) so that a change of place can be a transition.
+    private static string At(int x, int y) => $"transform: translate({x}px, {y}px)";
+
+    private static string FrameClass(CallFrameView frame, bool running) =>
+        "call" + (running ? " running" : "") + (frame.Pushed ? " pushed" : "") + (frame.Returning is not null ? " returning" : "") + (frame.Received is not null ? " received" : "");
+
+    private RenderFragment Badges(ReturnedValue? received, string? returning) => __builder =>
+    {
+        var x = FrameW + BadgeGap;
+        if (received is not null)
+        {
+            <g class="received" data-from="@received.Function" transform="translate(@x @((FrameH - BadgeH) / 2))" @key="@($"received-{this.Step}")">
+                <g class="origin-center [transform-box:fill-box] animate-pop">
+                    <rect class="fill-accent-tint stroke-accent stroke-1" width="@ReceivedW(received)" height="@BadgeH" rx="12" />
+                    <text class="fill-fg font-mono" font-size="@U(SmallText)" x="@BadgePadX" y="@(BadgeH / 2)" dominant-baseline="central">@ReceivedText(received)</text>
+                </g>
+            </g>
+            x += ReceivedW(received) + BadgeGap;
+        }
+        if (returning is not null)
+        {
+            <g class="returning">
+                <text class="fill-accent font-semibold" font-size="@U(SmallText)" x="@x" y="@(FrameH / 2)" dominant-baseline="central">@ReturningText(returning)</text>
+            </g>
+        }
+    };
+
+    private List<string> Notes()
+    {
+        var notes = new List<string>();
+        foreach (var gone in View.Gone)
+        {
+            var to = View.Frames.FirstOrDefault(f => f.Received is { } r && r.To == f.Id && r.Function == gone.Function);
+            notes.Add(gone.Returning is { } value
+                ? $"{gone.Label} returned {value}" + (to is not null ? $" to {to.Label}." : View.ToModule is not null ? " to the module." : ".")
+                : $"{gone.Label} ended without returning (an exception).");
+        }
+        return notes;
+    }
+
+    private string Describe()
+    {
+        if (View.Frames.Count == 0) return "Call stack: no calls under way" + (View.ToModule is { } m ? $"; {m.Function} returned {m.Value} to the module" : "");
+        var frames = View.Frames.Select((f, i) =>
+            f.Label + (i == View.Frames.Count - 1 ? " (running)" : "")
+            + (f.Received is { } r ? $", got {r.Value} back from {r.Function}" : "")
+            + (f.Returning is { } v ? $", returning {v}" : ""));
+        return "Call stack, outermost first" + (View.More > 0 ? $" ({View.More} more below)" : "") + ": " + string.Join("; ", frames);
+    }
+}
