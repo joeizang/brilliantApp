@@ -158,17 +158,17 @@ steps:
       Along the edges, only one neighbour exists, so take that one. `dp[0][0]` is just `grid[0][0]`.
     comparison:
       csharp: |
-        static int CheapestRoute(int[][] grid)
+        static long CheapestRoute(int[][] grid)
         {
             int rows = grid.Length, cols = grid[0].Length;
-            var dp = new int[rows, cols];
+            var dp = new long[rows, cols];
             for (int r = 0; r < rows; r++)
                 for (int c = 0; c < cols; c++)
                 {
-                    int best = r == 0 && c == 0 ? 0
-                             : r == 0 ? dp[r, c - 1]
-                             : c == 0 ? dp[r - 1, c]
-                             : Math.Min(dp[r - 1, c], dp[r, c - 1]);
+                    long best = r == 0 && c == 0 ? 0
+                              : r == 0 ? dp[r, c - 1]
+                              : c == 0 ? dp[r - 1, c]
+                              : Math.Min(dp[r - 1, c], dp[r, c - 1]);
                     dp[r, c] = grid[r][c] + best;
                 }
             return dp[rows - 1, cols - 1];

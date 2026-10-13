@@ -177,8 +177,9 @@ steps:
 
       The same recurrence, `dp[a] += dp[a - c]`, gives either. Only the loop order changes:
 
-      - **Coins outside**, amounts inside: each coin is added in its own pass, after the coins before it, so a handful is only
-        ever built in one order. Combinations.
+      - **Coins outside**, amounts inside: each coin size is added in its own pass, after the sizes before it, so a handful is
+        only ever built in one order. Combinations. The sizes must be **distinct**: listing `1` twice would give it two passes,
+        and count the same handful twice.
       - **Amounts outside**, coins inside: every amount tries every coin last, so `1 + 2` and `2 + 1` are both counted.
         Orderings, exactly lesson 2's `count_ways`.
     comparison:
@@ -382,7 +383,7 @@ steps:
     patternCue: "\"How many handfuls make the amount\": coins in the outer loop, so each handful is counted once."
     prompt: |
       Arrange the lines into `change_ways(coins, amount)`: the number of handfuls of coins (as many of each as you like) that
-      make `amount`, where the order of the coins doesn't matter.
+      make `amount`, where the order of the coins doesn't matter. `coins` holds distinct positive sizes.
     solution: |
       def change_ways(coins, amount):
           dp = [0] * (amount + 1)
