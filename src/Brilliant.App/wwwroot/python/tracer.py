@@ -44,7 +44,7 @@ of those functions. A call's "id" is the same at every step it is on the stack a
 are the arguments' reprs as they were when it was called (a method's "self" or "cls" is left out). At most MAX_CALLS are
 recorded, the innermost ones; "more" counts the outer calls cut off. Class bodies, comprehensions and generators are not calls here.
 While the call stack is watched, a call's return is also a frame of its own: event "return", the line it returns from,
-its locals, and that call's "returning" the repr of the value it returns (a call left by an exception has no return frame).
+its locals, and that call's "returning" the repr of the value it returns (a call left by an exception, through a finally or not, has no return frame).
 The next frame after it has "returned": which function returned what, and "to", the id of the call it returned to (null
 when that is the module, or a call that isn't recorded).
 
@@ -55,6 +55,7 @@ A hit's id is the id of the row it found, which is not among the rows when that 
 """
 import collections
 import contextlib
+import dis
 import io
 import itertools
 import json
@@ -275,6 +276,16 @@ def _tables(frame, watch, shown, identities):
 _CO_OPTIMIZED = 0x01                   # set for a function's code, not a module's or a class body's
 _SKIPPED_FLAGS = 0x20 | 0x80 | 0x200   # CO_GENERATOR, CO_COROUTINE, CO_ASYNC_GENERATOR
 
+# A "return" event comes both for a real return and for a call an exception is leaving (with None for the value). Only a real
+# return is on one of these instructions; one an exception leaves is on whatever raised or re-raised, a finally's RERAISE among
+# them. (A finally runs lines as the exception passes through, so a line event is no sign the exception was caught.)
+_RETURN_OPS = frozenset(dis.opmap[name] for name in ("RETURN_VALUE", "RETURN_CONST") if name in dis.opmap)
+
+
+def _returns_normally(frame):
+    lasti = frame.f_lasti
+    return 0 <= lasti < len(frame.f_code.co_code) and frame.f_code.co_code[lasti] in _RETURN_OPS
+
 
 def _call_stack_entry(watch):
     return next((e for e in watch if isinstance(e, dict) and e.get("as") == "call_stack"), None)
@@ -305,7 +316,6 @@ class _Calls:
         self.entry = entry
         self._by_frame = {}
         self._taken = 0
-        self._unwinding = set()
         self.returned = None    # what the last return handed back, for the next frame recorded
 
     def enter(self, frame):
@@ -326,23 +336,13 @@ class _Calls:
             frame = frame.f_back
         return None
 
-    def raising(self, frame):
-        self._unwinding.add(id(frame))
-
-    def going_on(self, frame):
-        self._unwinding.discard(id(frame))
-
-    def returns_normally(self, frame):
-        return id(frame) not in self._unwinding
-
     def leave(self, frame, value):
         call = self.call_of(frame)
-        if call is not None and self.returns_normally(frame):
+        if call is not None and _returns_normally(frame):
             caller = self.caller_of(frame)
             self.returned = {"function": call["function"], "value": _repr(value, MAX_CELL_REPR),
                              "to": None if caller is None else caller["id"]}
         self._by_frame.pop(id(frame), None)
-        self._unwinding.discard(id(frame))
 
     def record(self, frame, returning=None):
         stack = []
@@ -411,17 +411,12 @@ def trace_code(code, watch_json, max_frames=MAX_FRAMES):
 
     def on_line(frame, event, arg):
         if event == "line":
-            if calls is not None:
-                calls.going_on(frame)
             record("line", frame, frame.f_lineno)
-        elif event == "exception":
-            if calls is not None:
-                calls.raising(frame)
         elif event == "return":
             if frame.f_code.co_name == "<module>":
                 record("return", frame, None)
             elif calls is not None:
-                if calls.call_of(frame) is not None and calls.returns_normally(frame):
+                if calls.call_of(frame) is not None and _returns_normally(frame):
                     record("return", frame, frame.f_lineno, _repr(arg, MAX_CELL_REPR))
                 calls.leave(frame, arg)
         return on_line

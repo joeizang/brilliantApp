@@ -448,6 +448,37 @@ class CallStacks(unittest.TestCase):
         r = trace(code, self.WATCH)
         self.assertEqual([f["calls"]["frames"][-1]["returning"] for f in r["frames"] if f["event"] == "return" and f["function"] == "safe"], ["0"])
 
+    def returns_of(self, r, function):
+        return [f["calls"]["frames"][-1]["returning"] for f in r["frames"] if f["event"] == "return" and f["function"] == function]
+
+    def test_an_exception_passing_through_a_finally_is_still_no_return(self):
+        code = ("def boom():\n    try:\n        raise ValueError('bad')\n    finally:\n        cleaned = True\n\n"
+                "try:\n    boom()\nexcept ValueError:\n    pass\n")
+        r = trace(code, self.WATCH)
+        self.assertEqual(r["status"], "ok")
+        self.assertIn(5, [f["line"] for f in r["frames"] if f["function"] == "boom"])   # the finally line ran
+        self.assertEqual(self.returns_of(r, "boom"), [])
+        self.assertFalse(any(f["calls"]["returned"] for f in r["frames"]))
+
+    def test_a_return_in_a_finally_overrides_the_exception_and_is_a_return(self):
+        code = "def swallow():\n    try:\n        raise ValueError\n    finally:\n        return 'kept'\n\nswallow()\n"
+        r = trace(code, self.WATCH)
+        self.assertEqual(self.returns_of(r, "swallow"), ["'kept'"])
+        self.assertEqual(r["frames"][-1]["calls"]["returned"], {"function": "swallow", "value": "'kept'", "to": None})
+
+    def test_falling_off_the_end_returns_none_even_after_a_caught_exception(self):
+        code = "def quiet():\n    try:\n        raise ValueError\n    except ValueError:\n        pass\n\ndef plain():\n    x = 1\n\nquiet()\nplain()\n"
+        r = trace(code, self.WATCH)
+        self.assertEqual(self.returns_of(r, "quiet"), ["None"])
+        self.assertEqual(self.returns_of(r, "plain"), ["None"])
+
+    def test_an_exception_leaving_a_caller_too_returns_from_neither(self):
+        code = ("def inner():\n    raise KeyError\n\ndef outer():\n    inner()\n    return 1\n\n"
+                "try:\n    outer()\nexcept KeyError:\n    pass\n")
+        r = trace(code, self.WATCH)
+        self.assertEqual(self.returns_of(r, "inner") + self.returns_of(r, "outer"), [])
+        self.assertEqual(r["frames"][-1]["calls"]["frames"], [])
+
     def test_methods_leave_out_self_and_generators_and_comprehensions_are_not_calls(self):
         code = ("class Box:\n    def put(self, x):\n        return x\n\ndef gen():\n    yield 1\n\n"
                 "Box().put(5)\nlist(gen())\n[y for y in range(2)]\n")

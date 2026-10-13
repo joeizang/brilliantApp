@@ -188,8 +188,10 @@ keeps its id for as long as it lasts and a new one always has a bigger one. Only
 coroutine or async generator, and isn't a comprehension, counts as a call (a class body is not optimised); with `functions`, only those.
 Each function's return is recorded as a frame of its own (`event: "return"` with the line) whose top call has `returning` set to the
 value's repr; the step after has `returned: {function, value, to}`, `to` being the id of the call it went back to (null for the module or
-a call not shown). A call left by an exception gets no return frame: the recorder sees the `exception` event and, unless a `line` event
-says it was caught, takes the call off without one. At most 12 calls are kept, the innermost, and `more` counts the rest.
+a call not shown). A call left by an exception gets no return frame. Python reports a `return` event (value None) for it too, so the
+recorder looks at the instruction the frame stopped on: a real return is on `RETURN_VALUE` (or `RETURN_CONST`), an exception leaving is on
+whatever raised or re-raised. A `line` event is no sign the exception was caught, since a `finally` runs lines while it passes through;
+a `return` inside that `finally` does replace the exception, and is recorded as a return. At most 12 calls are kept, the innermost, and `more` counts the rest.
 
 A linked list is recorded as `{head, nodes, more, pointers}`. Every node gets an id the first time it is met and keeps it for the whole run
 (the recorder holds on to the object, so its id can't be reused by a new one); `head` and each pointer are a node id or null for None. `nodes` are
