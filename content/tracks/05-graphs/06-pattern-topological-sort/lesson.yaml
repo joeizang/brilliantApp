@@ -1,0 +1,651 @@
+id: lesson.pattern-topological-sort
+title: "Pattern: topological sort"
+concepts:
+  - id: concept.topo-order
+    title: A topological order puts every edge's start before its end
+  - id: concept.topo-indegree
+    title: Kahn's algorithm takes nodes whose in-degree has dropped to 0
+  - id: concept.topo-cycle
+    title: A cycle leaves nodes out of the order, which detects it
+  - id: concept.topo-not-unique
+    title: Many orders can be valid; a tie rule picks one
+reviewItems:
+  - id: review.topo.predict-order
+    concept: concept.topo-indegree
+    step: step.topo.predict-order
+  - id: review.topo.direction
+    concept: concept.topo-order
+    step: step.topo.check-direction
+  - id: review.topo.not-unique
+    concept: concept.topo-not-unique
+    step: step.topo.check-not-unique
+  - id: review.topo.predict-cycle
+    concept: concept.topo-cycle
+    step: step.topo.predict-cycle
+  - id: review.topo.which-problem
+    concept: concept.topo-order
+    step: step.topo.check-which-problem
+    kind: pattern
+  - id: review.topo.can-finish
+    concept: concept.topo-cycle
+    step: step.topo.check-can-finish
+    kind: pattern
+patterns:
+  - id: pattern.topo-sort
+    title: Take whatever has nothing left before it
+steps:
+  - id: step.topo.idea
+    type: explain
+    title: What has to come first
+    body: |
+      Courses with prerequisites, build steps, getting dressed (socks before shoes): each is a **directed** graph where an edge
+      `a → b` means "`a` before `b`". A **topological order** lists every node so that each edge points **forward**: every
+      node comes after everything it depends on. One exists exactly when the graph has no cycle (it's a **DAG**, a directed
+      acyclic graph).
+
+      **Kahn's algorithm** builds one. A node's **in-degree** is how many edges point into it: how many things must come before
+      it. Nodes with in-degree `0` can go first. Put them in a queue; each time you take one, add it to the order and remove its
+      edges, which lowers each neighbour's in-degree by 1. A neighbour that reaches `0` has nothing left before it, so it joins
+      the queue. It's O(V + E).
+    comparison:
+      csharp: |
+        var indeg = g.Keys.ToDictionary(n => n, n => 0);
+        foreach (var n in g.Keys)
+            foreach (var nb in g[n]) indeg[nb]++;
+        var queue = new Queue<string>(g.Keys.Where(n => indeg[n] == 0));
+        var order = new List<string>();
+        while (queue.Count > 0)
+        {
+            var node = queue.Dequeue();
+            order.Add(node);
+            foreach (var nb in g[node])
+                if (--indeg[nb] == 0) queue.Enqueue(nb);
+        }
+      python: |
+        indeg = {n: 0 for n in g}
+        for n in g:
+            for nb in g[n]:
+                indeg[nb] += 1
+        queue = deque(n for n in g if indeg[n] == 0)
+        order = []
+        while queue:
+            node = queue.popleft()
+            order.append(node)
+            for nb in g[node]:
+                indeg[nb] -= 1
+                if indeg[nb] == 0:
+                    queue.append(nb)
+  - id: step.topo.trace-kahn
+    type: trace
+    title: Peeling off what's ready
+    body: |
+      First the in-degrees are counted. `wake` has none, so it starts in the queue. Taking it lowers `shower` and `coffee` to
+      `0`, so both join. `dress` needs both of them: it only joins once the second one is taken. Shaded nodes are in `order`,
+      numbered in the order they were taken; ringed nodes wait in the queue.
+    code: |
+      from collections import deque
+
+      g = {"wake": ["shower", "coffee"], "shower": ["dress"], "coffee": ["dress"], "dress": ["leave"], "leave": []}
+      indeg = {node: 0 for node in g}
+      for node in g:
+          for nb in g[node]:
+              indeg[nb] += 1
+      queue = deque(n for n in g if indeg[n] == 0)
+      order = []
+      node = nb = None
+      while queue:
+          node = queue.popleft()
+          order.append(node)
+          for nb in g[node]:
+              indeg[nb] -= 1
+              if indeg[nb] == 0:
+                  queue.append(nb)
+    visualise:
+      - variable: g
+        as: graph
+        directed: true
+        edge: [node, nb]
+        visited: order
+        frontier: queue
+      - variable: indeg
+        as: dict
+        pointers: [nb]
+  - id: step.topo.predict-order
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      What order does Kahn's algorithm give here? Mind the order of the keys.
+    code: |
+      from collections import deque
+
+      g = {"e": [], "d": ["e"], "c": ["e"], "b": ["c", "d"], "a": ["c"]}
+      indeg = {n: 0 for n in g}
+      for n in g:
+          for nb in g[n]:
+              indeg[nb] += 1
+      queue = deque(n for n in g if indeg[n] == 0)
+      order = []
+      while queue:
+          node = queue.popleft()
+          order.append(node)
+          for nb in g[node]:
+              indeg[nb] -= 1
+              if indeg[nb] == 0:
+                  queue.append(nb)
+      print("".join(order))
+    accepted:
+      - "badce"
+    mistakes:
+      - answers:
+          - "abcde"
+        feedback: "The queue starts with the in-degree-0 nodes in key order: `b` comes before `a` in `g`. And `c` needs both `a` and `b`."
+      - answers:
+          - "bcdae"
+          - "bcade"
+        feedback: "`c` has two edges in, from `a` and `b`. Taking `b` only lowers it to 1; it waits until `a` is taken too."
+      - answers:
+          - "edcba"
+        feedback: "That's backwards: `e` has two edges in, so it comes last. Nodes with nothing before them come first."
+    hints:
+      - "Which nodes have in-degree 0, and in what order are they in `g`?"
+      - "Taking `b` lowers `c` and `d`; which of them reaches 0?"
+  - id: step.topo.check-direction
+    type: choice
+    title: Which way do the edges go?
+    prompt: |
+      Prerequisites are given as pairs `[course, before]`: `[2, 0]` means course `0` must be taken before course `2`. Which edge
+      should the graph get, so Kahn's algorithm gives an order to take them in?
+    options:
+      - text: "`0 → 2`: from what comes first to what depends on it."
+        correct: true
+        feedback: "Right. Edges point forward in the order, so `before → course`. In-degree then counts a course's prerequisites."
+      - text: "`2 → 0`, as the pair is written."
+        correct: false
+        feedback: "Then the in-degrees count dependents, and Kahn's algorithm gives the order backwards: `2` before `0`."
+      - text: "Both ways, since the graph is undirected."
+        correct: false
+        feedback: "Order only makes sense with direction. Both ways would make every pair a cycle, and nothing would come out."
+      - text: "It doesn't matter; Kahn's algorithm gives the same order."
+        correct: false
+        feedback: "Flipping every edge flips the order. Read the pair carefully before building the graph."
+    hints:
+      - "An edge `a → b` means `a` comes first."
+  - id: step.topo.check-not-unique
+    type: choice
+    title: The one true order?
+    prompt: |
+      Edges: `a → c` and `b → c`. How many topological orders are there?
+    options:
+      - text: "Two: `a, b, c` and `b, a, c`."
+        correct: true
+        feedback: "Right. `a` and `b` don't depend on each other, so either can go first. Whenever several nodes are ready at once, any of them may go next."
+      - text: "One: `a, b, c`."
+        correct: false
+        feedback: "Nothing says `a` comes before `b`. Only `c` is constrained, to come after both."
+      - text: "Six: any order of three nodes."
+        correct: false
+        feedback: "`c` has to come after both `a` and `b`, which rules out the four orders where it doesn't come last."
+      - text: "None, because `c` has two edges in."
+        correct: false
+        feedback: "Two edges in just means two things come before it. Only a cycle rules out every order."
+    hints:
+      - "Which nodes must `c` follow? Are `a` and `b` constrained against each other?"
+  - id: step.topo.cycles
+    type: explain
+    title: When there's no order
+    body: |
+      If the graph has a **cycle**, `a → b → a`, neither `a` nor `b` can go first: each waits for the other. In Kahn's
+      algorithm their in-degrees never reach `0`, so they never join the queue, and the queue runs dry **early**. That's a
+      free cycle check:
+
+      ```python
+      has_cycle = len(order) < len(g)
+      ```
+
+      So "can every course be finished?" is "does Kahn's algorithm take every node?".
+
+      There's also a DFS way to sort: a node's DFS finishes only after everything after it has finished, so the nodes listed
+      in **post-order**, then reversed, are a topological order. Spotting cycles that way needs three states (unvisited, on the
+      current path, done). Kahn's algorithm is usually simpler, and it's the one used here.
+
+      Many orders can be valid. When a problem wants one particular order, it gives a rule for ties, such as "smallest first".
+      Then take the smallest ready node instead of the oldest one in the queue (a heap does this fast, in Track 6).
+  - id: step.topo.trace-cycle
+    type: trace
+    title: Stuck on a cycle
+    body: |
+      `2` and `3` point at each other. Taking `0` frees `1`, and taking `1` lowers `2` to 1, but `2` still waits for `3`, which
+      waits for `2`. The queue empties with two nodes never shaded: `order` is shorter than the graph, so there's a cycle.
+    code: |
+      from collections import deque
+
+      g = {0: [1], 1: [2], 2: [3], 3: [2]}
+      indeg = {n: 0 for n in g}
+      for n in g:
+          for nb in g[n]:
+              indeg[nb] += 1
+      queue = deque(n for n in g if indeg[n] == 0)
+      order = []
+      node = nb = None
+      while queue:
+          node = queue.popleft()
+          order.append(node)
+          for nb in g[node]:
+              indeg[nb] -= 1
+              if indeg[nb] == 0:
+                  queue.append(nb)
+      has_cycle = len(order) < len(g)
+    visualise:
+      - variable: g
+        as: graph
+        directed: true
+        edge: [node, nb]
+        visited: order
+        frontier: queue
+      - variable: indeg
+        as: dict
+        pointers: [nb]
+  - id: step.topo.predict-cycle
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      What does this print?
+    code: |
+      from collections import deque
+
+      g = {"a": ["b"], "b": ["c"], "c": ["a", "d"], "d": [], "e": ["d"]}
+      indeg = {n: 0 for n in g}
+      for n in g:
+          for nb in g[n]:
+              indeg[nb] += 1
+      queue = deque(n for n in g if indeg[n] == 0)
+      order = []
+      while queue:
+          node = queue.popleft()
+          order.append(node)
+          for nb in g[node]:
+              indeg[nb] -= 1
+              if indeg[nb] == 0:
+                  queue.append(nb)
+      print(order, len(order) == len(g))
+    accepted:
+      - "['e'] False"
+    mistakes:
+      - answers:
+          - "['e', 'd'] False"
+        feedback: "`d` has two edges in, from `c` and `e`. Taking `e` lowers it to 1, and `c` is stuck on the cycle, so `d` never gets to 0."
+      - answers:
+          - "['a', 'b', 'c', 'e', 'd'] True"
+          - "['e', 'a', 'b', 'c', 'd'] True"
+        feedback: "`a → b → c → a` is a cycle: none of them ever has in-degree 0, so none is taken."
+      - answers:
+          - "[] False"
+        feedback: "`e` has nothing pointing into it, so it starts in the queue and is taken."
+    hints:
+      - "Find the cycle first. Which nodes are on it?"
+      - "Which nodes have in-degree 0, and what does taking them free?"
+  - id: step.topo.check-which-problem
+    type: choice
+    title: Which one is a topological sort?
+    prompt: |
+      Which of these is the best fit for a topological sort?
+    options:
+      - text: "An order to build a project's modules, where some modules import others."
+        correct: true
+        feedback: "Right. Each import is an edge from the imported module to the one importing it; a topological order builds each module after what it needs."
+      - text: "The fewest hops between two modules in the import graph."
+        correct: false
+        feedback: "Fewest hops is a BFS distance, not an ordering."
+      - text: "Which modules are connected to each other at all, ignoring direction."
+        correct: false
+        feedback: "That's connected components: a DFS or BFS from each unseen node, or union-find (next lesson)."
+      - text: "Sorting the modules by name."
+        correct: false
+        feedback: "An ordinary sort compares names; it knows nothing about what depends on what."
+    hints:
+      - "Which question is about doing things after what they depend on?"
+  - id: step.topo.check-can-finish
+    type: choice
+    title: Can I finish?
+    prompt: |
+      "There are `n` courses and a list of prerequisite pairs. Can you take them all?" What answers it?
+    options:
+      - text: "Run Kahn's algorithm and check that the order has all `n` courses."
+        correct: true
+        feedback: "Right. All `n` come out exactly when there's no cycle of prerequisites."
+      - text: "Check that no course has more than one prerequisite."
+        correct: false
+        feedback: "A course can have many prerequisites and still be possible. What makes it impossible is a cycle."
+      - text: "Check that some course has no prerequisites."
+        correct: false
+        feedback: "Necessary but not enough: course `0` may be free while `1` and `2` require each other."
+      - text: "BFS from course `0` and check that it reaches everything."
+        correct: false
+        feedback: "Reachability says nothing about cycles, and the courses needn't be connected at all."
+    hints:
+      - "What stops the courses from all being taken?"
+  - id: step.topo.fill-cycle
+    type: fill-blank
+    title: Is there a cycle?
+    pattern: pattern.topo-sort
+    patternCue: "\"Do these dependencies loop?\": Kahn's algorithm takes fewer nodes than the graph has exactly when there's a cycle."
+    prompt: |
+      Fill in the blanks so that `has_cycle(g)` returns whether the directed graph `g` has a cycle. Every node is a key of `g`.
+    template: |
+      from collections import deque
+
+
+      def has_cycle(g):
+          indeg = {n: 0 for n in g}
+          for n in g:
+              for nb in g[n]:
+                  indeg[{{counted}}] += 1
+          queue = deque(n for n in g if indeg[n] == 0)
+          order = []
+          while queue:
+              node = queue.popleft()
+              order.append(node)
+              for nb in g[node]:
+                  indeg[nb] -= 1
+                  if indeg[nb] == {{ready}}:
+                      queue.append(nb)
+          return {{answer}}
+    blanks:
+      - id: counted
+        accepted:
+          - "nb"
+        mistakes:
+          - answers:
+              - "n"
+            feedback: "That counts edges going **out** of `n`. In-degree counts edges coming in, so it's the neighbour's count that goes up."
+      - id: ready
+        accepted:
+          - "0"
+        mistakes:
+          - answers:
+              - "1"
+            feedback: "At 1, one thing still has to come first. A node is ready when nothing is left before it."
+      - id: answer
+        accepted:
+          - "len(order) < len(g)"
+          - "len(order) != len(g)"
+          - "len(g) > len(order)"
+          - "len(g) != len(order)"
+        mistakes:
+          - answers:
+              - "len(order) == len(g)"
+            feedback: "That's true when everything came out, which means there's **no** cycle."
+          - answers:
+              - "not queue"
+              - "len(queue) == 0"
+            feedback: "The queue is always empty once the loop ends. Compare how many nodes came out with how many there are."
+    hints:
+      - "An edge `n → nb` adds one to `nb`'s in-degree."
+      - "Nodes on a cycle never come out of Kahn's algorithm."
+  - id: step.topo.order-kahn
+    type: parsons
+    title: Kahn's algorithm
+    pattern: pattern.topo-sort
+    patternCue: "\"An order where everything comes after what it needs\": count in-degrees, then take nodes as they reach 0."
+    prompt: |
+      Arrange the lines into `topo_order(g)`, which returns a topological order of the directed acyclic graph `g` as a list.
+      Every node is a key of `g`. (`deque` is imported.)
+    solution: |
+      def topo_order(g):
+          indeg = {n: 0 for n in g}
+          for n in g:
+              for nb in g[n]:
+                  indeg[nb] += 1
+          queue = deque(n for n in g if indeg[n] == 0)
+          order = []
+          while queue:
+              node = queue.popleft()
+              order.append(node)
+              for nb in g[node]:
+                  indeg[nb] -= 1
+                  if indeg[nb] == 0:
+                      queue.append(nb)
+          return order
+    hints:
+      - "Count every node's in-degree first, then queue the ones at 0."
+      - "Taking a node lowers each neighbour's in-degree; queue those that reach 0."
+  - id: step.topo.write-can-finish
+    type: write-code
+    largeScreenPreferred: true
+    title: Course schedule
+    pattern: pattern.topo-sort
+    patternCue: "\"Can every course be taken?\": Kahn's algorithm over the prerequisites, then check that all came out."
+    prompt: |
+      There are `n` courses, numbered `0` to `n - 1`. Each pair `[course, before]` in `prereqs` means `before` must be taken
+      before `course`. Write `can_finish(n, prereqs)` that returns whether all `n` courses can be taken.
+
+      `can_finish(2, [[1, 0]])` is `True`; `can_finish(2, [[1, 0], [0, 1]])` is `False`.
+
+      The `deque` import is in the starter; keep it.
+    language: python
+    entrypoint: can_finish
+    starter: |
+      from collections import deque
+
+
+      def can_finish(n, prereqs):
+          pass
+    solution: |
+      from collections import deque
+
+
+      def can_finish(n, prereqs):
+          after = {c: [] for c in range(n)}
+          indeg = [0] * n
+          for course, before in prereqs:
+              after[before].append(course)
+              indeg[course] += 1
+          queue = deque(c for c in range(n) if indeg[c] == 0)
+          taken = 0
+          while queue:
+              c = queue.popleft()
+              taken += 1
+              for nxt in after[c]:
+                  indeg[nxt] -= 1
+                  if indeg[nxt] == 0:
+                      queue.append(nxt)
+          return taken == n
+    tests:
+      - input: "2, [[1, 0]]"
+        expected: "True"
+      - input: "2, [[1, 0], [0, 1]]"
+        expected: "False"
+      - input: "3, []"
+        expected: "True"
+      - input: "4, [[1, 0], [2, 1], [3, 2], [1, 3]]"
+        expected: "False"
+      - input: "1, [[0, 0]]"
+        expected: "False"
+      - input: "5, [[1, 0], [2, 0], [3, 1], [3, 2], [4, 3]]"
+        expected: "True"
+    hints:
+      - "Build the edges `before → course`, counting each course's prerequisites as its in-degree."
+      - "Start with the courses that have none; taking one lowers its dependents' counts."
+      - "All `n` can be taken exactly when Kahn's algorithm takes all `n`."
+    walkthrough:
+      call: "result = can_finish(4, [[1, 0], [2, 1], [3, 2], [1, 3]])"
+      visualise:
+        - variable: after
+          as: graph
+          directed: true
+          edge: [c, nxt]
+          frontier: queue
+        - variable: indeg
+          as: array
+      explanation: |
+        Only course `0` has no prerequisites. Taking it lowers `1` to 1, but `1` also needs `3`, which needs `2`, which needs
+        `1`: a cycle. The queue empties after one course, so the answer is `False`.
+    phoneAlternative:
+      id: step.topo.write-can-finish.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `can_finish(n, prereqs)`, which returns whether all `n` courses can be taken. Arrange the lines instead of typing
+        them.
+      solution: |
+        def can_finish(n, prereqs):
+            after = {c: [] for c in range(n)}
+            indeg = [0] * n
+            for course, before in prereqs:
+                after[before].append(course)
+                indeg[course] += 1
+            queue = deque(c for c in range(n) if indeg[c] == 0)
+            taken = 0
+            while queue:
+                c = queue.popleft()
+                taken += 1
+                for nxt in after[c]:
+                    indeg[nxt] -= 1
+                    if indeg[nxt] == 0:
+                        queue.append(nxt)
+            return taken == n
+      hints:
+        - "Build the graph and in-degrees from the pairs first."
+        - "Count the courses taken, and compare with `n` at the end."
+  - id: step.topo.write-semesters
+    type: write-code
+    largeScreenPreferred: true
+    title: How many semesters?
+    pattern: pattern.topo-sort
+    patternCue: "\"The fewest rounds when each must wait for its prerequisites\": Kahn's algorithm a round at a time."
+    prompt: |
+      There are `n` courses (`n` is at least 1), numbered `0` to `n - 1`, and pairs `[course, before]` as before. In a semester
+      you can take any number of courses whose prerequisites were all taken in **earlier** semesters. Write
+      `semesters(n, prereqs)` that returns the fewest semesters to take every course, or `-1` if that's impossible.
+
+      `semesters(4, [[1, 0], [2, 0], [3, 1], [3, 2]])` is `3`: `0`, then `1` and `2`, then `3`.
+
+      The `deque` import is in the starter; keep it.
+    language: python
+    entrypoint: semesters
+    starter: |
+      from collections import deque
+
+
+      def semesters(n, prereqs):
+          pass
+    solution: |
+      from collections import deque
+
+
+      def semesters(n, prereqs):
+          after = {c: [] for c in range(n)}
+          indeg = [0] * n
+          for course, before in prereqs:
+              after[before].append(course)
+              indeg[course] += 1
+          queue = deque(c for c in range(n) if indeg[c] == 0)
+          taken = 0
+          terms = 0
+          while queue:
+              terms += 1
+              for _ in range(len(queue)):
+                  c = queue.popleft()
+                  taken += 1
+                  for nxt in after[c]:
+                      indeg[nxt] -= 1
+                      if indeg[nxt] == 0:
+                          queue.append(nxt)
+          return terms if taken == n else -1
+    tests:
+      - input: "4, [[1, 0], [2, 0], [3, 1], [3, 2]]"
+        expected: "3"
+      - input: "3, [[1, 0], [2, 1]]"
+        expected: "3"
+      - input: "3, []"
+        expected: "1"
+      - input: "2, [[0, 1], [1, 0]]"
+        expected: "-1"
+      - input: "5, [[4, 0], [4, 1], [4, 2], [4, 3]]"
+        expected: "2"
+      - input: "4, [[1, 0], [3, 2]]"
+        expected: "2"
+    hints:
+      - "This is Kahn's algorithm, taken a round at a time: each round is one semester."
+      - "In a round, take exactly the courses that were ready at its start: `len(queue)` of them."
+      - "If not every course was taken, there's a cycle: return `-1`."
+    walkthrough:
+      call: "result = semesters(4, [[1, 0], [2, 0], [3, 1], [3, 2]])"
+      visualise:
+        - variable: after
+          as: graph
+          directed: true
+          edge: [c, nxt]
+          frontier: queue
+        - variable: indeg
+          as: array
+      explanation: |
+        Semester 1 takes `0`, which frees `1` and `2`. Semester 2 takes both; `3` needs both, so it's freed only by the second
+        of them. Semester 3 takes `3`. All four were taken, so the answer is `3`.
+  - id: step.topo.write-order
+    type: write-code
+    largeScreenPreferred: true
+    title: The smallest order
+    pattern: pattern.topo-sort
+    patternCue: "\"An order to take the courses in\": Kahn's algorithm, here picking the smallest ready course each time."
+    prompt: |
+      There are `n` courses and pairs `[course, before]` as before. Write `find_order(n, prereqs)` that returns an order to
+      take all the courses in, as a list, or `[]` if there is none. Whenever several courses are ready, take the
+      **smallest-numbered** one first, so the answer is unique.
+
+      `find_order(3, [[0, 2]])` is `[1, 2, 0]`: `1` and `2` are ready at the start, so `1` goes first; then `2`, which frees `0`.
+
+      (A heap picks the smallest fast; Track 6 covers it. Here `min` over the ready courses is fine.)
+    language: python
+    entrypoint: find_order
+    starter: |
+      def find_order(n, prereqs):
+          pass
+    solution: |
+      def find_order(n, prereqs):
+          after = {c: [] for c in range(n)}
+          indeg = [0] * n
+          for course, before in prereqs:
+              after[before].append(course)
+              indeg[course] += 1
+          ready = {c for c in range(n) if indeg[c] == 0}
+          order = []
+          while ready:
+              c = min(ready)
+              ready.remove(c)
+              order.append(c)
+              for nxt in after[c]:
+                  indeg[nxt] -= 1
+                  if indeg[nxt] == 0:
+                      ready.add(nxt)
+          return order if len(order) == n else []
+    tests:
+      - input: "3, [[0, 2]]"
+        expected: "[1, 2, 0]"
+      - input: "4, [[1, 0], [2, 0], [3, 1], [3, 2]]"
+        expected: "[0, 1, 2, 3]"
+      - input: "2, [[0, 1], [1, 0]]"
+        expected: "[]"
+      - input: "1, []"
+        expected: "[0]"
+      - input: "4, [[0, 3], [1, 3], [2, 0]]"
+        expected: "[3, 0, 1, 2]"
+      - input: "3, [[0, 1], [0, 2]]"
+        expected: "[1, 2, 0]"
+    hints:
+      - "Kahn's algorithm, but keep the ready courses in a set instead of a queue."
+      - "Each step, take `min(ready)` and remove it."
+      - "If the order doesn't have all `n` courses, there was a cycle: return `[]`."
+    walkthrough:
+      call: "result = find_order(4, [[0, 3], [1, 3], [2, 0]])"
+      visualise:
+        - variable: after
+          as: graph
+          directed: true
+          edge: [c, nxt]
+          visited: order
+        - variable: ready
+          as: set
+      explanation: |
+        Only `3` is ready at first. Taking it frees `0` and `1`; the smaller, `0`, goes next and frees `2`. Now `1` and `2` are
+        ready, so `1` goes before `2`.
