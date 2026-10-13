@@ -468,6 +468,68 @@ class Trees(unittest.TestCase):
         self.assertEqual(tree["visited"], {"ordered": True, "nodes": [], "unmatched": 1})
 
 
+class Grids(unittest.TestCase):
+    def grids(self, code, **options):
+        entry = dict({"variable": "dp", "as": "grid"}, **options)
+        return trace(code, [entry])
+
+    def final(self, code, **options):
+        return self.grids(code, **options)["frames"][-1]["grids"]["dp"]
+
+    def test_records_the_rows_as_reprs(self):
+        grid = self.final("dp = [[0, 1], [2, 'x', None]]\nend = 1\n")
+        self.assertEqual(grid["rows"], [["0", "1"], ["2", "'x'", "None"]])
+        self.assertEqual((grid["lengths"], grid["more"], grid["pointers"]), ([2, 3], 0, {}))
+        self.assertEqual((grid["rowLabels"], grid["colLabels"], grid["highlight"]), (None, None, None))
+
+    def test_a_string_row_gives_its_characters(self):
+        grid = self.final("dp = ['ab', 'cd']\nend = 1\n")
+        self.assertEqual(grid["rows"], [["a", "b"], ["c", "d"]])
+
+    def test_an_empty_list_is_an_empty_grid(self):
+        self.assertEqual(self.final("dp = []\nend = 1\n")["rows"], [])
+
+    def test_a_flat_list_is_not_recorded(self):
+        r = self.grids("dp = [1, 2, 3]\nend = 1\n")
+        self.assertNotIn("dp", r["frames"][-1]["grids"])
+
+    def test_cuts_rows_and_cells_and_counts_them(self):
+        grid = self.final("dp = [list(range(20))] * 18\nend = 1\n")
+        self.assertEqual((len(grid["rows"]), len(grid["rows"][0]), grid["lengths"][0], grid["more"]), (15, 15, 20, 3))
+
+    def test_a_cell_pair_points_at_the_cell(self):
+        grid = self.final("dp = [[0] * 3 for _ in range(3)]\ni, j = 1, 2\nend = 1\n", cells=[["i", "j"]])
+        self.assertEqual(grid["pointers"], {"i,j": [1, 2]})
+
+    def test_a_pair_that_is_not_ints_is_null_and_a_missing_one_is_left_out(self):
+        grid = self.final("dp = [[0]]\ni, j = 0, 'x'\nend = 1\n", cells=[["i", "j"], ["i", "k"]])
+        self.assertEqual(grid["pointers"], {"i,j": None})
+
+    def test_a_pointer_holding_a_pair_or_none(self):
+        grid = self.final("dp = [[0, 0]]\ncell = (0, 1)\ngone = None\nother = 'x'\nend = 1\n", pointers=["cell", "gone", "other"])
+        self.assertEqual(grid["pointers"], {"cell": [0, 1], "gone": None})
+
+    def test_labels_from_a_string_or_a_list(self):
+        grid = self.final("dp = [[0]]\na = 'xyz'\nb = ['p', 2]\nend = 1\n", rowLabels="a", colLabels="b")
+        self.assertEqual((grid["rowLabels"], grid["colLabels"]), (["x", "y", "z"], ["p", "2"]))
+
+    def test_labels_of_another_type_are_null(self):
+        grid = self.final("dp = [[0]]\na = 5\nend = 1\n", rowLabels="a")
+        self.assertIsNone(grid["rowLabels"])
+
+    def test_a_highlight_set_marks_its_cells_and_counts_the_rest(self):
+        grid = self.final("dp = [[0, 0], [0, 0]]\nseen = {(1, 0), (0, 1), (5, 5), 'x'}\nend = 1\n", highlight="seen")
+        self.assertEqual(grid["highlight"], {"cells": [[0, 1], [1, 0]], "unmatched": 2})
+
+    def test_a_highlight_grid_of_flags_marks_the_true_cells(self):
+        grid = self.final("dp = [[0, 0], [0, 0]]\nseen = [[True, False], [False, True]]\nend = 1\n", highlight="seen")
+        self.assertEqual(grid["highlight"], {"cells": [[0, 0], [1, 1]], "unmatched": 0})
+
+    def test_a_highlight_of_another_type_is_null(self):
+        grid = self.final("dp = [[0]]\nseen = 3\nend = 1\n", highlight="seen")
+        self.assertIsNone(grid["highlight"])
+
+
 class CallStacks(unittest.TestCase):
     FACT = "def fact(n):\n    if n <= 1:\n        return 1\n    return n * fact(n - 1)\n\nresult = fact(3)\n"
     WATCH = [{"as": "call_stack"}]

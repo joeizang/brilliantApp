@@ -65,6 +65,20 @@ public sealed record TreeVisited(bool Ordered, IReadOnlyList<VisitedNode> Nodes,
 public sealed record TrackedTree(int? Root, IReadOnlyList<TreeNode> Nodes, int More, IReadOnlyDictionary<string, int?> Pointers,
     TreeVisited? Visited = null);
 
+/// <summary>The cells a grid's highlight marks, as recorded ([row, col] each, sorted), and how many of its members marked no recorded cell.</summary>
+public sealed record GridHighlight(IReadOnlyList<IReadOnlyList<int>> Cells, int Unmatched);
+
+/// <summary>
+/// A watched grid (a list of lists or strings) as recorded at one step: the first rows' first cells' reprs (a string's characters as they
+/// are), each recorded row's full length in <see cref="Lengths"/>, and how many rows were cut off in <see cref="More"/>.
+/// <see cref="Pointers"/> maps each pointer recorded (a pair "i,j" or a variable holding a pair) to its [row, col], or to null when it
+/// holds None or a variable of the pair isn't an int; the pair can be off the grid. The labels are null when not drawn (or their variable
+/// holds neither a string, list nor tuple); likewise <see cref="Highlight"/>.
+/// </summary>
+public sealed record TrackedGrid(IReadOnlyList<IReadOnlyList<string>> Rows, IReadOnlyList<int> Lengths, int More,
+    IReadOnlyDictionary<string, IReadOnlyList<int>?> Pointers, IReadOnlyList<string>? RowLabels = null, IReadOnlyList<string>? ColLabels = null,
+    GridHighlight? Highlight = null);
+
 /// <summary>An argument of a call, as it was when the call was made: its name and the repr of its value, clipped.</summary>
 public sealed record CallArg(string Name, string Repr);
 
@@ -97,7 +111,8 @@ public sealed record TraceFrame(
     IReadOnlyDictionary<string, TrackedTable>? Tables = null,
     IReadOnlyDictionary<string, TrackedList>? Lists = null,
     TrackedCalls? Calls = null,
-    IReadOnlyDictionary<string, TrackedTree>? Trees = null);
+    IReadOnlyDictionary<string, TrackedTree>? Trees = null,
+    IReadOnlyDictionary<string, TrackedGrid>? Grids = null);
 
 /// <summary>What the Python tracer (wwwroot/python/tracer.py) recorded.</summary>
 public sealed record TraceResult(
@@ -124,7 +139,8 @@ public static class TraceResultJson
     /// The variables the tracer should record: a sequence, dict or set by its name, a linked list as an object that also says how to
     /// follow it and which pointers to look up: <c>["nums",{"variable":"head","as":"linked_list","next":"next","value":"val","pointers":["curr"]}]</c>;
     /// a tree likewise: <c>{"variable":"root","as":"tree","left":"left","right":"right","value":"val","pointers":[],"visited":"order"}</c>
-    /// (<c>visited</c> null when none is drawn); the call stack as an object with the functions it keeps (none: all): <c>{"as":"call_stack","functions":["fact"]}</c>.
+    /// (<c>visited</c> null when none is drawn); a grid with its pointers, pairs of int variables, labels and highlight:
+    /// <c>{"variable":"dp","as":"grid","pointers":[],"cells":[["i","j"]],"rowLabels":"a","colLabels":"b","highlight":null}</c>; the call stack as an object with the functions it keeps (none: all): <c>{"as":"call_stack","functions":["fact"]}</c>.
     /// </summary>
     public static string SerializeWatch(IEnumerable<Visual> visuals)
     {
@@ -143,6 +159,12 @@ public static class TraceResultJson
                 {
                     ["variable"] = v.Variable, ["as"] = v.As, ["left"] = v.Left, ["right"] = v.Right, ["value"] = v.Value,
                     ["pointers"] = Names(v.Pointers), ["visited"] = v.Visited,
+                },
+                Visual.Grid => new JsonObject
+                {
+                    ["variable"] = v.Variable, ["as"] = v.As, ["pointers"] = Names(v.Pointers),
+                    ["cells"] = new JsonArray(v.Cells.Select(c => (JsonNode?)Names([c.Row, c.Col])).ToArray()),
+                    ["rowLabels"] = v.RowLabels, ["colLabels"] = v.ColLabels, ["highlight"] = v.Highlight,
                 },
                 Visual.CallStack => new JsonObject { ["as"] = v.As, ["functions"] = Names(v.Functions) },
                 _ => JsonValue.Create(v.Variable),
@@ -277,14 +299,48 @@ public sealed record CallStackView(IReadOnlyList<CallFrameView> Frames, int More
     public CallFrameView? Running => Frames.Count > 0 ? Frames[^1] : null;
 }
 
+/// <summary>
+/// A grid cell. <see cref="Changed"/>: its value differs from the step before; <see cref="Added"/>: there was no cell here the step
+/// before (a row or a cell appended). <see cref="Shaded"/>: the highlight marks it.
+/// </summary>
+public sealed record GridCellView(int Row, int Col, string Text, bool Changed = false, bool Added = false, bool Shaded = false);
+
+/// <summary>A grid row: its cells, and how many more it has beyond the ones recorded.</summary>
+public sealed record GridRowView(int Row, IReadOnlyList<GridCellView> Cells, int More);
+
+/// <summary>
+/// A grid pointer: a pair of int variables (<see cref="RowName"/>, <see cref="ColName"/>) or one variable holding a (row, col) pair (both
+/// names it). <see cref="Defined"/>: its variables exist at this step (every pointer of the visual is listed, so each keeps its place);
+/// <see cref="Row"/> and <see cref="Col"/> are null when it holds None or a variable isn't an int. <see cref="OnGrid"/>: it is on a cell
+/// drawn. <see cref="Moved"/>: its place differs from the step before.
+/// </summary>
+public sealed record GridPointerView(string Name, string RowName, string ColName, int? Row, int? Col, bool Defined, bool OnGrid, bool Moved);
+
+/// <summary>A grid's highlight: the variable, and how many of its members marked no cell drawn.</summary>
+public sealed record GridHighlightView(string Variable, int Unmatched);
+
+/// <summary>
+/// A list of lists or strings drawn as a 2-D table, row 0 on top. <see cref="More"/> counts the rows beyond the ones recorded.
+/// <see cref="RowLabels"/> and <see cref="ColLabels"/>, when drawn, have one entry per row and per column (null: no label there),
+/// lined up by the visual's label offset. <see cref="Highlight"/> is null when no highlight is drawn.
+/// </summary>
+public sealed record GridView(string Variable, IReadOnlyList<GridRowView> Rows, int More, IReadOnlyList<GridPointerView> Pointers,
+    IReadOnlyList<string?>? RowLabels = null, IReadOnlyList<string?>? ColLabels = null, GridHighlightView? Highlight = null)
+{
+    public int Columns => Rows.Count == 0 ? 0 : Rows.Max(r => r.Cells.Count);
+    public GridCellView? At(int row, int col) => row >= 0 && row < Rows.Count && col >= 0 && col < Rows[row].Cells.Count ? Rows[row].Cells[col] : null;
+}
+
 /// <summary>One step of the player: what to highlight and draw. <see cref="Line"/> is null on the final state.</summary>
 public sealed record TraceState(
     int Index, int? Line, string Function, bool IsFinal,
     IReadOnlyList<LocalView> Locals, IReadOnlyList<ArrayView> Arrays, IReadOnlyList<TableView> Tables,
-    IReadOnlyList<LinkedListView>? Lists = null, CallStackView? Calls = null, IReadOnlyList<TreeView>? Trees = null)
+    IReadOnlyList<LinkedListView>? Lists = null, CallStackView? Calls = null, IReadOnlyList<TreeView>? Trees = null,
+    IReadOnlyList<GridView>? Grids = null)
 {
     public IReadOnlyList<LinkedListView> Lists { get; init; } = Lists ?? [];
     public IReadOnlyList<TreeView> Trees { get; init; } = Trees ?? [];
+    public IReadOnlyList<GridView> Grids { get; init; } = Grids ?? [];
 }
 
 /// <summary>
@@ -301,6 +357,7 @@ public static class TraceModel
         var tableVisuals = visuals.Where(v => v.As is Visual.Dict or Visual.Set).ToList();
         var listVisuals = visuals.Where(v => v.As == Visual.LinkedList).ToList();
         var treeVisuals = visuals.Where(v => v.As == Visual.Tree).ToList();
+        var gridVisuals = visuals.Where(v => v.As == Visual.Grid).ToList();
         var drawsCalls = visuals.Any(v => v.As == Visual.CallStack);
         var states = new List<TraceState>(result.Frames.Count);
         TraceFrame? previousFrame = null;
@@ -310,7 +367,8 @@ public static class TraceModel
             var comparable = previous is not null && previousFrame!.Function == frame.Function ? previous : null;
             var state = new TraceState(index, frame.Line, frame.Function, frame.Line is null,
                 Locals(frame, comparable), Arrays(frame, arrayVisuals, comparable), Tables(frame, tableVisuals, comparable),
-                Lists(frame, listVisuals, comparable), drawsCalls ? Calls(frame, previous) : null, Trees(frame, treeVisuals, comparable));
+                Lists(frame, listVisuals, comparable), drawsCalls ? Calls(frame, previous) : null, Trees(frame, treeVisuals, comparable),
+                Grids(frame, gridVisuals, comparable));
             states.Add(state);
             previousFrame = frame;
             previous = state;
@@ -593,6 +651,46 @@ public static class TraceModel
 
             var visitedView = tracked.Visited is { } v && visual.Visited is { } list ? new TreeVisitedView(list, v.Ordered, v.Unmatched) : null;
             views.Add(new TreeView(visual.Variable, nodes, tracked.More, pointers, visitedView));
+        }
+        return views;
+    }
+
+    private static IReadOnlyList<GridView> Grids(TraceFrame frame, List<Visual> visuals, TraceState? previous)
+    {
+        var views = new List<GridView>();
+        foreach (var visual in visuals)
+        {
+            if (frame.Grids is null || !frame.Grids.TryGetValue(visual.Variable, out var tracked)) continue;
+            var before = previous?.Grids.FirstOrDefault(g => g.Variable == visual.Variable);
+            var shaded = (tracked.Highlight?.Cells ?? []).Where(c => c.Count == 2).Select(c => (c[0], c[1])).ToHashSet();
+
+            var rows = tracked.Rows.Select((cells, r) => new GridRowView(r, cells.Select((text, c) =>
+            {
+                var cell = new GridCellView(r, c, text, Shaded: shaded.Contains((r, c)));
+                if (before is null) return cell;
+                return before.At(r, c) is { } old ? cell with { Changed = old.Text != text } : cell with { Added = true };
+            }).ToList(), Math.Max(0, (r < tracked.Lengths.Count ? tracked.Lengths[r] : cells.Count) - cells.Count))).ToList();
+
+            var named = visual.Cells.Select(c => (c.Name, c.Row, c.Col)).Concat(visual.Pointers.Select(p => (Name: p, Row: p, Col: p)));
+            var pointers = named.Select(p =>
+            {
+                var defined = tracked.Pointers.TryGetValue(p.Name, out var at);
+                int? row = at is [var r, _] ? r : null, col = at is [_, var c] ? c : null;
+                var onGrid = row is { } rr && col is { } cc && rr < rows.Count && cc < rows[rr].Cells.Count && rr >= 0 && cc >= 0;
+                var was = before?.Pointers.FirstOrDefault(b => b.Name == p.Name);
+                var moved = was is not null && (was.Defined != defined || was.Row != row || was.Col != col);
+                return new GridPointerView(p.Name, p.Row, p.Col, row, col, defined, onGrid, moved);
+            }).ToList();
+
+            var columns = rows.Count == 0 ? 0 : rows.Max(r => r.Cells.Count);
+            // Labels not recorded (their variable holds no string, list or tuple yet) leave the strip blank.
+            IReadOnlyList<string?> Align(IReadOnlyList<string>? labels, int count) =>
+                Enumerable.Range(0, count).Select(i => i - visual.LabelOffset is var at && at >= 0 && at < (labels?.Count ?? 0) ? labels![at] : null).ToList();
+
+            var highlight = tracked.Highlight is { } h && visual.Highlight is { } variable ? new GridHighlightView(variable, h.Unmatched) : null;
+            views.Add(new GridView(visual.Variable, rows, tracked.More, pointers,
+                visual.RowLabels is null ? null : Align(tracked.RowLabels, rows.Count),
+                visual.ColLabels is null ? null : Align(tracked.ColLabels, columns), highlight));
         }
         return views;
     }

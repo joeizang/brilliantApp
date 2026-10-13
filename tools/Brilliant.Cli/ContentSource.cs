@@ -696,6 +696,47 @@ public static partial class ContentValidator
                         report.Add(file, $"{where}: visited '{v.Visited}' is the tree's own variable; name the list or set of the nodes visited.");
                 }
 
+                // A grid's options say where its cells are pointed at, labelled and shaded; no other drawing has cells in rows.
+                var isGrid = v.As == Visual.Grid;
+                var cells = new List<CellPair>();
+                foreach (var pair in v.Cells ?? [])
+                {
+                    if (!isGrid)
+                    {
+                        report.Add(file, $"{where}: 'cells' is an option of a {Visual.Grid} only, not of '{v.As}'.");
+                        break;
+                    }
+                    if (pair is not { Count: 2 })
+                        report.Add(file, $"{where}: a 'cells' entry is a pair of int variables, the row's and the column's: [i, j].");
+                    else if (pair.Any(n => string.IsNullOrWhiteSpace(n) || !PythonIdentifier.IsMatch(n)))
+                        report.Add(file, $"{where}: cells pair [{string.Join(", ", pair)}] has a name that is not a valid Python name.");
+                    else if (pair.Contains(v.Variable))
+                        report.Add(file, $"{where}: cells pair [{string.Join(", ", pair)}] names the grid's own variable; name the int variables indexing it.");
+                    else if (cells.Contains(new CellPair(pair[0], pair[1])))
+                        report.Add(file, $"{where}: cells pair [{string.Join(", ", pair)}] is listed twice.");
+                    else
+                        cells.Add(new CellPair(pair[0], pair[1]));
+                }
+                foreach (var (option, value) in new[] { ("rowLabels", v.RowLabels), ("colLabels", v.ColLabels), ("highlight", v.Highlight) })
+                {
+                    if (value is null) continue;
+                    if (!isGrid)
+                        report.Add(file, $"{where}: '{option}' is an option of a {Visual.Grid} only, not of '{v.As}'.");
+                    else if (!PythonIdentifier.IsMatch(value))
+                        report.Add(file, $"{where}: {option} '{value}' is not a valid Python name.");
+                    else if (value == v.Variable)
+                        report.Add(file, $"{where}: {option} '{value}' is the grid's own variable; name another.");
+                }
+                if (v.LabelOffset is { } offset)
+                {
+                    if (!isGrid)
+                        report.Add(file, $"{where}: 'labelOffset' is an option of a {Visual.Grid} only, not of '{v.As}'.");
+                    else if (offset < 0)
+                        report.Add(file, $"{where}: labelOffset {offset} is negative; it is the row and column the first label goes on.");
+                    else if (v.RowLabels is null && v.ColLabels is null)
+                        report.Add(file, $"{where}: labelOffset is given but there are no labels; add 'rowLabels' or 'colLabels', or leave it out.");
+                }
+
                 var pointers = new List<string>();
                 foreach (var pointer in v.Pointers ?? [])
                 {
@@ -707,12 +748,17 @@ public static partial class ContentValidator
                         report.Add(file, $"{where}: pointer '{pointer}' is the list's own variable, which is already drawn on its first node.");
                     else if (isTree && pointer == v.Variable)
                         report.Add(file, $"{where}: pointer '{pointer}' is the tree's own variable, which is already drawn on its root.");
+                    else if (isGrid && pointer == v.Variable)
+                        report.Add(file, $"{where}: pointer '{pointer}' is the grid's own variable; a grid pointer holds a (row, col) pair.");
                     else
                         pointers.Add(pointer);
                 }
                 visuals.Add(new Visual(v.As == Visual.CallStack ? "" : v.Variable ?? "", v.As ?? "", pointers,
                     v.Next ?? Visual.DefaultNext, v.Value ?? Visual.DefaultValue, functions,
-                    v.Left ?? Visual.DefaultLeft, v.Right ?? Visual.DefaultRight, v.Visited));
+                    v.Left ?? Visual.DefaultLeft, v.Right ?? Visual.DefaultRight, v.Visited)
+                {
+                    Cells = cells, RowLabels = v.RowLabels, ColLabels = v.ColLabels, LabelOffset = v.LabelOffset ?? 0, Highlight = v.Highlight,
+                });
             }
 
         return visuals;
@@ -862,6 +908,11 @@ public static partial class ContentValidator
         public string? Left { get; set; }
         public string? Right { get; set; }
         public string? Visited { get; set; }
+        public List<List<string>>? Cells { get; set; }
+        public string? RowLabels { get; set; }
+        public string? ColLabels { get; set; }
+        public int? LabelOffset { get; set; }
+        public string? Highlight { get; set; }
     }
     private sealed class BlankDto { public string? Id { get; set; } public List<string>? Accepted { get; set; } public List<MistakeDto>? Mistakes { get; set; } }
     private sealed class TestDto { public string? Input { get; set; } public string? Expected { get; set; } }

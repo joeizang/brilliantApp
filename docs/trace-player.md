@@ -1,9 +1,9 @@
-# Trace Player: arrays, stacks, queues, dicts, sets, linked lists, binary trees and the call stack, stepping and playback
+# Trace Player: arrays, stacks, queues, dicts, sets, linked lists, binary trees, grids and the call stack, stepping and playback
 
 PRD stories 24, 25 and 27 ([#23](https://github.com/joeizang/brilliantApp/issues/23)) and 26, 28, 29 and 65 ([#24](https://github.com/joeizang/brilliantApp/issues/24)).
 A *trace* step runs a small example once, records every line it executes, and lets the learner walk through it: the code with the current
 line highlighted, the watched lists drawn as cells with named pointers that slide as they move, the watched dicts and sets drawn as
-tables whose rows appear, flash and fade, linked lists drawn as nodes joined by arrows that redraw as they are rewired, binary trees drawn level by level with the nodes a walk has visited numbered, the call stack with each value handed back to its caller, and the local variables with what just changed marked. It steps by button or arrow key and
+tables whose rows appear, flash and fade, linked lists drawn as nodes joined by arrows that redraw as they are rewired, binary trees drawn level by level with the nodes a walk has visited numbered, 2-D tables (a DP table, a board) with row and column pointers, the call stack with each value handed back to its caller, and the local variables with what just changed marked. It steps by button or arrow key and
 plays by itself at 0.5×, 1× or 2×.
 
 ```
@@ -43,7 +43,7 @@ offline and takes a few milliseconds once Pyodide has started). `content validat
       as: set
 ```
 
-`as` is `array`, `stack`, `queue`, `dict`, `set`, `linked_list`, `tree` or `call_stack`. A pointer on a dict or set is any variable, of any type, whose value is a key: the row with that key
+`as` is `array`, `stack`, `queue`, `dict`, `set`, `linked_list`, `tree`, `grid` or `call_stack`. A pointer on a dict or set is any variable, of any type, whose value is a key: the row with that key
 is marked with the pointer's name, and when no row has that key the player says *Looking up `word` finds no such key.*
 
 `body` and `code` are required, and there must be at least one visual. A trace step takes no `hints` and can't be a review item.
@@ -62,6 +62,11 @@ The validator rejects, with the file and step in the message:
   or a tree only); the tree's own variable listed as a pointer or as `visited`; `visited` on any other kind, or not an identifier; a
   `variable` that never holds a node; nodes with no `value` attribute; a pointer that never holds a node of the tree; and a `visited`
   variable that is never a list or set, or never marks a node.
+- on a grid: `cells`, `rowLabels`, `colLabels`, `labelOffset` or `highlight` on any other kind; a `cells` entry that isn't a pair of
+  identifiers, is listed twice or names the grid's own variable; the grid's own variable as a pointer, a label or the highlight; a
+  negative `labelOffset`, or one given without labels; a `variable` that is never a non-empty list of lists or strings; a pair or pointer
+  that never lands on a cell; a label variable that is never a string, list or tuple; and a highlight that is never recorded or never
+  marks a cell.
 - on the call stack: a `variable` or `pointers` (it has neither), a second `call_stack`, `functions` on any other kind, a function name
   that isn't an identifier or is listed twice, code that never calls a function of its own (or none of those listed), and a listed
   function that is never called.
@@ -195,6 +200,49 @@ The validator rejects, with the file and step in the message:
 - At most 31 nodes are drawn (five full levels), taken level by level; the rest are *+N more*, and a link to one of them is a short dashed
   stub. A long tree scrolls sideways.
 
+### Grids
+
+```yaml
+- id: step.dp.lcs
+  type: trace
+  title: Filling the LCS table
+  body: |
+    Each cell is the answer for a prefix of `a` and a prefix of `b`. Watch `(i, j)` fill the table row by row.
+  code: |
+    a, b = "abc", "ac"
+    dp = [[0] * (len(b) + 1) for _ in range(len(a) + 1)]
+    for i in range(1, len(a) + 1):
+        for j in range(1, len(b) + 1):
+            if a[i - 1] == b[j - 1]:
+                dp[i][j] = dp[i - 1][j - 1] + 1
+            else:
+                dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
+  visualise:
+    - variable: dp          # a list (or tuple) of lists, tuples or strings
+      as: grid
+      cells: [[i, j]]       # pairs of int variables, row then column, drawn on the cell dp[i][j]
+      rowLabels: a          # a string, list or tuple labelling the rows
+      colLabels: b          # ... and the columns
+      labelOffset: 1        # the first label goes on row / column 1 (dp[i][j] is over a[i - 1], b[j - 1])
+```
+
+Two more options: `pointers` names variables holding a `(row, col)` pair (`cell = (r, c)` on a board), and `highlight` names a list or
+set of `(row, col)` pairs, or a grid of `True`/`False` the same shape (a flood fill's `seen`), whose cells are shaded. The options are
+camelCase, as every other option is (the issue wrote them snake_case).
+
+- A **grid** is a list or tuple whose rows are lists, tuples or strings (a string row's cells are its characters, shown as they are, so
+  a board `["#.#", "..."]` reads as one). Rows can differ in length. An empty list is an empty grid, a dashed box.
+- The cells sit edge to edge, row 0 on top, with the column indexes above and the row indexes to the left; labels, when drawn, stand
+  outside the indexes, lined up from `labelOffset`.
+- A **pointer** (a `cells` pair, named `i,j`, or a variable holding a pair) has a lane of its own on both edges: its column variable's
+  name over the column with an arrow down, its row variable's left of the row with an arrow across, and a ring around the cell. Markers
+  and ring slide as it moves. A pointer off the grid is noted with where it is (*i,j is at (4, 0), off the grid.*); one at `None`, or a
+  pair that isn't two ints, is noted too.
+- A changed cell flashes; a cell or row that came in (an append) grows in. The highlight's cells are filled with the accent tint, and its
+  members that mark no cell shown are counted in a note.
+- At most 15 rows and 15 cells of each are drawn; a longer row ends in *+N*, and the rows cut off are *+N more rows not shown.* A wide
+  grid scrolls sideways.
+
 ### The call stack
 
 ```yaml
@@ -255,6 +303,16 @@ then it is `{ordered, nodes: [{id, order}], unmatched}`. Each of its first 100 m
 whose value equals it (an `__eq__` that raises is no match); in a list a member marks only the first such node not yet marked, so
 `[1, 1]` numbers two nodes holding 1. `order` is the member's place in the list (null for a set), and `unmatched` counts the members that
 mark nothing, plus those past the first 100.
+
+A grid is recorded as `{rows, lengths, more, pointers, rowLabels, colLabels, highlight}`, with the watch entry `{"variable", "as": "grid",
+"pointers", "cells": [["i", "j"]], "rowLabels", "colLabels", "highlight"}`. It is recorded while the variable is a list or tuple whose
+first 15 items are lists, tuples or strings. `rows` are the first 15 rows' first 15 cells (reprs, or a string's characters), `lengths`
+each recorded row's full length and `more` the rows cut off. `pointers` maps a pair (`"i,j"`) or a pointer to `[row, col]` as it is, so
+off the grid too; to null when a pair's variable isn't an int (a bool doesn't count) or the pointer holds None; a pair with a variable not
+defined, or a pointer holding anything else, is left out. The labels are a string's characters or a list's or tuple's items (a string as
+it is, anything else its repr), the first 15, or null. `highlight` is `{cells, unmatched}` when the variable is a list, tuple or set of
+pairs (each of the first 100 members marks its recorded cell; the rest, and members that aren't pairs or mark no recorded cell, are
+`unmatched`) or a grid of bools (each True marks its cell), and null otherwise.
 
 A linked list is recorded as `{head, nodes, more, pointers}`. Every node gets an id the first time it is met and keeps it for the whole run
 (the recorder holds on to the object, so its id can't be reused by a new one); `head` and each pointer are a node id or null for None. `nodes` are
@@ -322,6 +380,11 @@ being "new" isn't a change the learner caused.
   (a node already claimed: a shared child or a cycle), `More` (a node not recorded) or `None`. Compared by id with the step before:
   `Added` a node it didn't have, `Changed` one whose value differs, and `JustVisited` one newly marked or renumbered. `Pointers` are the
   variable itself (on the root) and the recorded pointers, each `Moved` when it holds a different node.
+- **Grids** (`GridView`): `Rows` of `GridCellView`s, each with its row and column, `More` the cells cut off a row and the view's `More`
+  the rows cut off. Compared by place with the step before: `Changed` a cell whose text differs, `Added` a cell the step before didn't
+  have; `Shaded` a cell the highlight marks. `Pointers` lists every pointer of the visual, pairs first, at every step (`Defined` says
+  whether it was recorded), so each keeps its lane; `OnGrid` is a pointer on a cell drawn, `Moved` one whose place differs. The labels are
+  lined up to the rows and columns by `labelOffset` (null where there is none).
 - **The call stack** (`CallStackView`): `Frames` are the calls under way as `CallFrameView`s (`Label` is `fact(n=3)`). A frame is
   `Pushed` when its id is bigger than any the step before had, and `Received` is the value handed back to it since the step before (by
   `returned.to`). `Gone` are the calls the step before had that this one hasn't (ghosts for one step; when the stack is cut off, only
@@ -333,7 +396,7 @@ being "new" isn't a change the learner caused.
 
 - `TracePlayer.razor`: a read-only `CodeEditor` (new `ReadOnly` parameter) with the current line highlighted through the existing
   `HighlightLineAsync`; Previous, Play/Pause and Next; *Step n of m*; the speed buttons; one `TraceSequence` per watched stack or queue; one SVG per watched array; one `TraceTable` per
-  watched dict or set (after the lists, whatever order the lesson names them in); one `TraceLinkedList` per watched linked list; one `TraceTree` per watched tree; a `TraceCallStack` above them all when the call stack is watched; a *Variables* table; and, on the last step only,
+  watched dict or set (after the lists, whatever order the lesson names them in); one `TraceLinkedList` per watched linked list; one `TraceTree` per watched tree; one `TraceGrid` per watched grid; a `TraceCallStack` above them all when the call stack is watched; a *Variables* table; and, on the last step only,
   what the run printed, the error that ended it, or a note that it was cut short (`TraceEnding.razor`).
 - **Animation is CSS.** A pointer is a `<g>` positioned with `style="transform: translate(…)"` and keyed by variable and name, so Blazor
   patches the same element and the browser transitions it from the old cell to the new one. A changed cell is keyed by step too, so it is
@@ -362,6 +425,10 @@ being "new" isn't a change the learner caused.
   draws itself in (`animate-link-in`). Visited nodes are filled with the accent tint; pointer names stack in rows under their node, and a name wider than the leftmost
   node's column moves the drawing's left edge rather than being cut off. The
   SVG's label reads the tree level by level for a screen reader.
+- A grid (`TraceGrid.razor`) is an SVG in a sideways scroll box, sized in rem. Each cell is a `<g>` keyed by its place; a changed one
+  flashes (keyed by step) and a new one grows in. Each pointer is three `<g>`s keyed by its name (the ring, the column marker and the row
+  marker), placed with CSS transforms, so they slide; nested rings stand inside one another when pointers share a cell. The SVG's label
+  reads the grid row by row, with the pointers.
 - The call stack (`TraceCallStack.razor`) is a column of frames drawn bottom up, in user units sized in rem, as wide as its longest call
   and returned value, scrolling sideways (and up and down, at most 30rem) on a phone. Each frame is a `<g>` keyed by its id and placed with
   a CSS transform; a new call grows in (`animate-cell-in`), a gone one rises away (`animate-cell-out`), the *running* marker slides to the
@@ -405,10 +472,10 @@ by the last rung of the hint ladder, see [hints.md](hints.md).
 
 ## Not in this slice
 
-Per-variable speed or scrubbing, trees with more than two children (a general tree or a graph), drawing nested structures (a list of lists, a dict of lists, a node whose value is a node), doubly linked
+Per-variable speed or scrubbing, trees with more than two children (a general tree or a graph), drawing nested structures (a dict of lists, a node whose value is a node), doubly linked
 lists (a `prev` arrow), and reading a trace aloud.
 `Visual.As` is a string and the model builds one `ArrayView` per `array`, `stack` or `queue` visual, one `TableView` per `dict` or `set`
-visual, one `LinkedListView` per `linked_list` visual, one `TreeView` per `tree` visual and one `CallStackView` for the `call_stack`, so another kind slots in beside them.
+visual, one `LinkedListView` per `linked_list` visual, one `TreeView` per `tree` visual, one `GridView` per `grid` visual and one `CallStackView` for the `call_stack`, so another kind slots in beside them.
 
 ## Tests
 
@@ -417,7 +484,7 @@ visual, one `LinkedListView` per `linked_list` visual, one `TreeView` per `tree`
 `tests/Brilliant.Lessons.UI.Tests/TracePlayerTests.cs`, `TraceStepViewTests.cs` and `WalkthroughRungTests.cs` (rendering, stepping, playback on a manual clock, shortcuts,
 line highlight, lesson wiring), `tests/js/shortcuts.test.mjs` (key classification) and `ShortcutTests.cs` (the page listener's mapping).
 bUnit can't observe a CSS transition or element reuse, so the sliding, flashing, the ghost row's fade and the stack and queue cells
-growing in and rising away, a linked list's nodes sliding and arrows drawing in, a tree's nodes sliding, edges drawing in and visit badges popping, and the call stack's frames growing in and values popping up, are checked by looking at the running app.
+growing in and rising away, a linked list's nodes sliding and arrows drawing in, a tree's nodes sliding, edges drawing in and visit badges popping, a grid's pointers sliding and cells flashing, and the call stack's frames growing in and values popping up, are checked by looking at the running app.
 
 Known limit: the recorder keeps only the first 20 rows, so a pointer on a later row is shown as nothing (neither marked nor a miss) beside
 *+N more*.
