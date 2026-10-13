@@ -1,0 +1,524 @@
+id: lesson.pattern-two-sequences
+title: "Pattern: two sequences"
+concepts:
+  - id: concept.twoseq-state
+    title: dp[i][j] answers the question for the first i items of one sequence and the first j of the other
+  - id: concept.twoseq-last-items
+    title: Each cell decides what happens to the last item of each prefix, reading the cells one shorter
+  - id: concept.twoseq-edges
+    title: Row 0 and column 0 are the answers against an empty prefix
+reviewItems:
+  - id: review.twoseq.predict-lcs
+    concept: concept.twoseq-state
+    step: step.twoseq.predict-lcs
+  - id: review.twoseq.mismatch
+    concept: concept.twoseq-last-items
+    step: step.twoseq.check-mismatch
+  - id: review.twoseq.predict-edit
+    concept: concept.twoseq-last-items
+    step: step.twoseq.predict-edit
+  - id: review.twoseq.edges
+    concept: concept.twoseq-edges
+    step: step.twoseq.check-edges
+  - id: review.twoseq.which-problem
+    concept: concept.twoseq-state
+    step: step.twoseq.check-which-problem
+    kind: pattern
+  - id: review.twoseq.cue
+    concept: concept.twoseq-last-items
+    step: step.twoseq.check-cue
+    kind: pattern
+patterns:
+  - id: pattern.dp-two-sequences
+    title: Fill a table over prefixes of both sequences, deciding what happens to their last items
+steps:
+  - id: step.twoseq.idea
+    type: explain
+    title: The longest common subsequence
+    body: |
+      A **subsequence** keeps some items in their order, maybe with gaps: `ace` is a subsequence of `abcde`. What's the longest
+      subsequence two strings share?
+
+      Work on **prefixes of both**. Let `dp[i][j]` = the longest common subsequence of `a[:i]` and `b[:j]`. Look at the **last
+      characters**, `a[i - 1]` and `b[j - 1]`:
+
+      - If they **match**, use them both: `dp[i][j] = dp[i - 1][j - 1] + 1`.
+      - If not, at least one of them isn't in the answer. Drop one or the other and keep the better:
+        `dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])`.
+
+      Row `0` and column `0` are `0`: nothing is shared with an empty string. The answer is `dp[len(a)][len(b)]`.
+    comparison:
+      csharp: |
+        static int Lcs(string a, string b)
+        {
+            var dp = new int[a.Length + 1, b.Length + 1];
+            for (int i = 1; i <= a.Length; i++)
+                for (int j = 1; j <= b.Length; j++)
+                    dp[i, j] = a[i - 1] == b[j - 1]
+                        ? dp[i - 1, j - 1] + 1
+                        : Math.Max(dp[i - 1, j], dp[i, j - 1]);
+            return dp[a.Length, b.Length];
+        }
+      python: |
+        def lcs(a, b):
+            dp = [[0] * (len(b) + 1) for _ in range(len(a) + 1)]
+            for i in range(1, len(a) + 1):
+                for j in range(1, len(b) + 1):
+                    if a[i - 1] == b[j - 1]:
+                        dp[i][j] = dp[i - 1][j - 1] + 1
+                    else:
+                        dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
+            return dp[len(a)][len(b)]
+  - id: step.twoseq.trace-lcs
+    type: trace
+    title: Filling the LCS table
+    body: |
+      The rows are labelled with `a` and the columns with `b`, starting at row and column `1`: row `0` and column `0` are the
+      empty prefixes. Watch each match step down the diagonal, adding `1`, and each mismatch copy the larger of above and left.
+    code: |
+      a, b = "abcde", "ace"
+      dp = [[0] * (len(b) + 1) for _ in range(len(a) + 1)]
+      for i in range(1, len(a) + 1):
+          for j in range(1, len(b) + 1):
+              if a[i - 1] == b[j - 1]:
+                  dp[i][j] = dp[i - 1][j - 1] + 1
+              else:
+                  dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
+      length = dp[len(a)][len(b)]
+    visualise:
+      - variable: dp
+        as: grid
+        cells: [[i, j]]
+        rowLabels: a
+        colLabels: b
+        labelOffset: 1
+  - id: step.twoseq.predict-lcs
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      What does this print?
+    code: |
+      a, b = "abcd", "acbd"
+      dp = [[0] * (len(b) + 1) for _ in range(len(a) + 1)]
+      for i in range(1, len(a) + 1):
+          for j in range(1, len(b) + 1):
+              if a[i - 1] == b[j - 1]:
+                  dp[i][j] = dp[i - 1][j - 1] + 1
+              else:
+                  dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
+      print(dp[len(a)])
+    accepted:
+      - "[0, 1, 2, 2, 3]"
+    mistakes:
+      - answers:
+          - "[0, 1, 2, 3, 4]"
+        feedback: "`abcd` and `acbd` don't share all four in order: `b` and `c` swap places. The longest shared is `abd` or `acd`: `3`."
+      - answers:
+          - "[1, 2, 2, 3]"
+        feedback: "Each row has `len(b) + 1` cells, starting with column `0` for the empty prefix of `b`."
+      - answers:
+          - "[0, 1, 2, 3, 3]"
+        feedback: "`dp[4][3]` compares all of `abcd` with `acb`: the best shared is `ab` or `ac`, so `2`."
+    hints:
+      - "The last row compares all of `a` with each prefix of `b`: `a`, `ac`, `acb`, `acbd`."
+  - id: step.twoseq.check-mismatch
+    type: choice
+    title: When the last characters differ
+    prompt: |
+      On a mismatch, why take `max(dp[i - 1][j], dp[i][j - 1])` rather than just `dp[i - 1][j - 1]`?
+    options:
+      - text: "Only one of the two last characters has to go. The other might still match something earlier, so drop each in turn and keep the better."
+        correct: true
+        feedback: "Right. For `ab` and `ba`, the last characters `b` and `a` differ, yet `ab` and `b` still share the `b`. Dropping both would lose it."
+      - text: "`dp[i - 1][j - 1]` hasn't been filled yet."
+        correct: false
+        feedback: "It has: it's in the row above, one column left. It's just too pessimistic."
+      - text: "They give the same answer; `max` is only style."
+        correct: false
+        feedback: "For `ab` and `ba`, dropping both last characters leaves `a` and `b`: `0`. Dropping one keeps a match: `1`."
+      - text: "To count the mismatch as half a match."
+        correct: false
+        feedback: "A mismatch adds nothing. The question is which shorter pair of prefixes has the better answer."
+    hints:
+      - "Try `ab` against `ba` both ways."
+  - id: step.twoseq.edit-idea
+    type: explain
+    title: Edit distance
+    body: |
+      The fewest single-character **edits** (insert, delete or replace a character) that turn `a` into `b` is the **edit
+      distance**. `horse` becomes `ros` in `3`: replace `h` with `r`, delete the `r`, delete the `e`.
+
+      Let `dp[i][j]` = the fewest edits turning `a[:i]` into `b[:j]`. Look at the last characters again:
+
+      - If they **match**, they cost nothing: `dp[i - 1][j - 1]`.
+      - If not, the last step is one edit: **delete** `a[i - 1]` (`dp[i - 1][j]`), **insert** `b[j - 1]` (`dp[i][j - 1]`) or
+        **replace** one with the other (`dp[i - 1][j - 1]`). Take `1 +` the cheapest.
+
+      The edges are no longer `0`: turning `a[:i]` into nothing takes `i` deletes, and nothing into `b[:j]` takes `j` inserts.
+    comparison:
+      csharp: |
+        static int EditDistance(string a, string b)
+        {
+            var dp = new int[a.Length + 1, b.Length + 1];
+            for (int i = 0; i <= a.Length; i++) dp[i, 0] = i;
+            for (int j = 0; j <= b.Length; j++) dp[0, j] = j;
+            for (int i = 1; i <= a.Length; i++)
+                for (int j = 1; j <= b.Length; j++)
+                    dp[i, j] = a[i - 1] == b[j - 1]
+                        ? dp[i - 1, j - 1]
+                        : 1 + Math.Min(dp[i - 1, j - 1], Math.Min(dp[i - 1, j], dp[i, j - 1]));
+            return dp[a.Length, b.Length];
+        }
+      python: |
+        def edit_distance(a, b):
+            dp = [[0] * (len(b) + 1) for _ in range(len(a) + 1)]
+            for i in range(len(a) + 1):
+                dp[i][0] = i
+            for j in range(len(b) + 1):
+                dp[0][j] = j
+            for i in range(1, len(a) + 1):
+                for j in range(1, len(b) + 1):
+                    if a[i - 1] == b[j - 1]:
+                        dp[i][j] = dp[i - 1][j - 1]
+                    else:
+                        dp[i][j] = 1 + min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1])
+            return dp[len(a)][len(b)]
+  - id: step.twoseq.trace-edit
+    type: trace
+    title: From horse to ros
+    body: |
+      Row `0` counts inserts and column `0` counts deletes. At `(2, 2)`, the `o`s match, so the cell copies the diagonal's `1`
+      for free. The corner ends at `3`.
+    code: |
+      a, b = "horse", "ros"
+      dp = [[0] * (len(b) + 1) for _ in range(len(a) + 1)]
+      for i in range(len(a) + 1):
+          dp[i][0] = i
+      for j in range(len(b) + 1):
+          dp[0][j] = j
+      for i in range(1, len(a) + 1):
+          for j in range(1, len(b) + 1):
+              if a[i - 1] == b[j - 1]:
+                  dp[i][j] = dp[i - 1][j - 1]
+              else:
+                  dp[i][j] = 1 + min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1])
+      edits = dp[len(a)][len(b)]
+    visualise:
+      - variable: dp
+        as: grid
+        cells: [[i, j]]
+        rowLabels: a
+        colLabels: b
+        labelOffset: 1
+  - id: step.twoseq.predict-edit
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      `edit_distance` is the function above. What does this print?
+    code: |
+      def edit_distance(a, b):
+          dp = [[0] * (len(b) + 1) for _ in range(len(a) + 1)]
+          for i in range(len(a) + 1):
+              dp[i][0] = i
+          for j in range(len(b) + 1):
+              dp[0][j] = j
+          for i in range(1, len(a) + 1):
+              for j in range(1, len(b) + 1):
+                  if a[i - 1] == b[j - 1]:
+                      dp[i][j] = dp[i - 1][j - 1]
+                  else:
+                      dp[i][j] = 1 + min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1])
+          return dp[len(a)][len(b)]
+
+      print(edit_distance("kitten", "sitting"), edit_distance("abc", ""))
+    accepted:
+      - "3 3"
+    mistakes:
+      - answers:
+          - "2 3"
+        feedback: "`kitten` to `sitting`: replace `k` with `s`, `e` with `i`, and insert a `g`. Three edits."
+      - answers:
+          - "3 0"
+        feedback: "Turning `abc` into nothing deletes each of its three characters: `dp[3][0] = 3`."
+      - answers:
+          - "4 3"
+        feedback: "Matching characters cost nothing: `itt` and `n` line up. Only the `k`, the `e`, and the missing `g` need edits."
+    hints:
+      - "Line the words up: `kitten` / `sitting`. Which characters differ?"
+  - id: step.twoseq.check-edges
+    type: choice
+    title: The edges of the table
+    prompt: |
+      In the edit-distance table, why is `dp[i][0] = i`?
+    options:
+      - text: "Turning the first `i` characters of `a` into an empty string takes exactly `i` deletes."
+        correct: true
+        feedback: "Right. Row `0` and column `0` answer the question against an empty prefix. For LCS that answer is `0`; for edits it's the length."
+      - text: "It's the row number, used as a label."
+        correct: false
+        feedback: "It's a real answer: the cost of turning `a[:i]` into nothing."
+      - text: "Every cell starts at its row number, then gets smaller."
+        correct: false
+        feedback: "Only column `0` is set that way. Other cells are worked out from their neighbours."
+      - text: "To match LCS, whose edges are also `i`."
+        correct: false
+        feedback: "LCS's edges are `0`: nothing is shared with an empty string."
+    hints:
+      - "What does `dp[i][0]` mean in words?"
+  - id: step.twoseq.pattern
+    type: explain
+    title: Spotting it
+    body: |
+      The cue: **two sequences** (strings, lists) to **compare, align or transform**: the longest thing they share, the cheapest
+      way to turn one into the other, or whether one can be woven from others.
+
+      1. **State**: `dp[i][j]` = the answer for `a[:i]` and `b[:j]`.
+      2. **Choices**: what happens to the last items: match them, or drop (skip, delete, insert) one of them.
+      3. **Base**: row `0` and column `0`, the answers against an empty prefix.
+      4. **Order**: row by row, so the cells above, left and up-left are ready.
+      5. **Answer**: `dp[len(a)][len(b)]`, or the best cell when the thing must end somewhere.
+
+      It's O(len(a) × len(b)) time. Each row reads only the row above, so two rows of memory are enough.
+  - id: step.twoseq.check-which-problem
+    type: choice
+    title: Which problem?
+    prompt: |
+      Which of these fits the two-sequence pattern?
+    options:
+      - text: "The fewest characters to delete from two words, in total, so the words become the same."
+        correct: true
+        feedback: "Right. What's left is a common subsequence, so keep the longest: `len(a) + len(b) - 2 * lcs(a, b)`. Or fill the table directly."
+      - text: "Check whether two words are anagrams."
+        correct: false
+        feedback: "Count the letters of each with a `Counter` and compare. Order doesn't matter, so there's nothing to align."
+      - text: "Merge two sorted lists into one."
+        correct: false
+        feedback: "Two pointers, one pass. Nothing to decide."
+      - text: "Find whether one word appears inside another."
+        correct: false
+        feedback: "That's `b in a`, a substring search."
+    hints:
+      - "Which one lines two sequences up, keeping their order?"
+  - id: step.twoseq.check-cue
+    type: choice
+    title: Read the cue
+    prompt: |
+      *"Find the length of the longest **substring** (consecutive characters) two strings share."* What's a good state?
+    options:
+      - text: "`dp[i][j]` = the longest shared run **ending at** `a[i - 1]` and `b[j - 1]`: the diagonal plus `1` on a match, `0` on a mismatch. The answer is the largest cell."
+        correct: true
+        feedback: "Right. A run must be unbroken, so a mismatch resets to `0` instead of copying a neighbour. Like the best run, fix where it ends."
+      - text: "The LCS table as it is."
+        correct: false
+        feedback: "LCS allows gaps: `abcde` and `ace` share `ace`, but no shared substring is longer than `1`."
+      - text: "`dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])` on a mismatch, and `dp[i - 1][j - 1] + 1` on a match."
+        correct: false
+        feedback: "That's LCS again. Copying a neighbour on a mismatch carries a run across a gap."
+      - text: "Sort both strings and compare."
+        correct: false
+        feedback: "Sorting destroys the order the substring depends on."
+    hints:
+      - "What should a mismatch do to a run that must be consecutive?"
+  - id: step.twoseq.fill-lcs
+    type: fill-blank
+    title: The longest common subsequence
+    pattern: pattern.dp-two-sequences
+    patternCue: "\"The longest subsequence two strings share\": match the last characters, or drop one and keep the better."
+    prompt: |
+      Fill in the blanks so `lcs(a, b)` returns the length of the longest common subsequence of `a` and `b`.
+    template: |
+      def lcs(a, b):
+          dp = [[0] * (len(b) + 1) for _ in range(len(a) + 1)]
+          for i in range(1, len(a) + 1):
+              for j in range(1, len(b) + 1):
+                  if a[i - 1] == b[j - 1]:
+                      dp[i][j] = {{match}}
+                  else:
+                      dp[i][j] = {{skip}}
+          return dp[len(a)][len(b)]
+    blanks:
+      - id: match
+        accepted:
+          - "dp[i - 1][j - 1] + 1"
+          - "dp[i-1][j-1] + 1"
+          - "dp[i-1][j-1]+1"
+          - "1 + dp[i - 1][j - 1]"
+        mistakes:
+          - answers:
+              - "dp[i - 1][j] + 1"
+              - "dp[i-1][j] + 1"
+            feedback: "A match uses both characters, so both prefixes get shorter: `dp[i - 1][j - 1]`."
+          - answers:
+              - "dp[i - 1][j - 1]"
+              - "dp[i-1][j-1]"
+            feedback: "The matched character joins the subsequence: add `1`."
+      - id: skip
+        accepted:
+          - "max(dp[i - 1][j], dp[i][j - 1])"
+          - "max(dp[i-1][j], dp[i][j-1])"
+          - "max(dp[i][j - 1], dp[i - 1][j])"
+          - "max(dp[i][j-1], dp[i-1][j])"
+        mistakes:
+          - answers:
+              - "dp[i - 1][j - 1]"
+              - "dp[i-1][j-1]"
+            feedback: "That drops both last characters, but one of them might still match. Drop one at a time and keep the better."
+          - answers:
+              - "0"
+            feedback: "A mismatch doesn't undo what the shorter prefixes share. Copy the better neighbour."
+    hints:
+      - "Matching uses up the last character of both."
+      - "On a mismatch, drop the last of `a` or the last of `b`."
+  - id: step.twoseq.order-edit
+    type: parsons
+    title: Edit distance
+    pattern: pattern.dp-two-sequences
+    patternCue: "\"The fewest edits from one word to another\": a match is free, otherwise one edit plus the cheapest neighbour."
+    prompt: |
+      Arrange the lines into `edit_distance(a, b)`: the fewest inserts, deletes and replaces that turn `a` into `b`.
+    solution: |
+      def edit_distance(a, b):
+          dp = [[0] * (len(b) + 1) for _ in range(len(a) + 1)]
+          for i in range(len(a) + 1):
+              dp[i][0] = i
+          for j in range(len(b) + 1):
+              dp[0][j] = j
+          for i in range(1, len(a) + 1):
+              for j in range(1, len(b) + 1):
+                  if a[i - 1] == b[j - 1]:
+                      dp[i][j] = dp[i - 1][j - 1]
+                  else:
+                      dp[i][j] = 1 + min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1])
+          return dp[len(a)][len(b)]
+    hints:
+      - "Set the edges first: deletes down column `0`, inserts along row `0`."
+  - id: step.twoseq.write-run
+    type: write-code
+    largeScreenPreferred: true
+    title: The longest shared run
+    pattern: pattern.dp-two-sequences
+    patternCue: "\"The longest substring two strings share\": the run ending at both characters, reset to 0 on a mismatch."
+    prompt: |
+      Write `longest_shared_run(a, b)` that returns the length of the longest **substring** (consecutive characters) that
+      appears in both `a` and `b`.
+
+      `longest_shared_run("abcdxyz", "xyzabcd")` is `4` (`abcd`).
+    language: python
+    entrypoint: longest_shared_run
+    starter: |
+      def longest_shared_run(a, b):
+          pass
+    solution: |
+      def longest_shared_run(a, b):
+          dp = [[0] * (len(b) + 1) for _ in range(len(a) + 1)]
+          best = 0
+          for i in range(1, len(a) + 1):
+              for j in range(1, len(b) + 1):
+                  if a[i - 1] == b[j - 1]:
+                      dp[i][j] = dp[i - 1][j - 1] + 1
+                      best = max(best, dp[i][j])
+          return best
+    tests:
+      - input: "\"abcdxyz\", \"xyzabcd\""
+        expected: "4"
+      - input: "\"abcde\", \"ace\""
+        expected: "1"
+      - input: "\"\", \"abc\""
+        expected: "0"
+      - input: "\"abc\", \"def\""
+        expected: "0"
+      - input: "\"banana\", \"ananas\""
+        expected: "5"
+    hints:
+      - "`dp[i][j]` = the length of the shared run that ends with `a[i - 1]` and `b[j - 1]`."
+      - "On a match, extend the diagonal's run by `1`. On a mismatch, the run is `0`."
+      - "The answer is the largest cell seen, not the corner."
+    walkthrough:
+      call: result = longest_shared_run("banana", "ananas")
+      visualise:
+        - variable: dp
+          as: grid
+          cells: [[i, j]]
+          rowLabels: a
+          colLabels: b
+          labelOffset: 1
+      explanation: |
+        The run `anana` grows along one diagonal: `1, 2, 3, 4, 5`, from `(2, 1)` to `(6, 5)`. The final `s` of `ananas` matches
+        nothing, so no run reaches `6`.
+    phoneAlternative:
+      id: step.twoseq.write-run.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `longest_shared_run(a, b)`: the longest substring both strings contain. Arrange the lines instead of typing them.
+      solution: |
+        def longest_shared_run(a, b):
+            dp = [[0] * (len(b) + 1) for _ in range(len(a) + 1)]
+            best = 0
+            for i in range(1, len(a) + 1):
+                for j in range(1, len(b) + 1):
+                    if a[i - 1] == b[j - 1]:
+                        dp[i][j] = dp[i - 1][j - 1] + 1
+                        best = max(best, dp[i][j])
+            return best
+      hints:
+        - "A mismatch leaves the cell at `0`."
+  - id: step.twoseq.write-weave
+    type: write-code
+    largeScreenPreferred: true
+    title: Weaving two strings
+    pattern: pattern.dp-two-sequences
+    patternCue: "\"Is s woven from a and b, keeping each one's order?\": the last character of s came from a or from b."
+    prompt: |
+      `s` is **woven** from `a` and `b` when it uses every character of both, keeping each string's own order, with their
+      characters mixed in any way. Write `is_woven(a, b, s)` that returns `True` or `False`.
+
+      `is_woven("aab", "axy", "aaxaby")` is `True`: `a a x a b y` takes its first `a` from `b` and its second from `a`, then
+      `x` from `b`, `a` and `b` from `a`, and `y` from `b`.
+    language: python
+    entrypoint: is_woven
+    starter: |
+      def is_woven(a, b, s):
+          pass
+    solution: |
+      def is_woven(a, b, s):
+          if len(a) + len(b) != len(s):
+              return False
+          dp = [[False] * (len(b) + 1) for _ in range(len(a) + 1)]
+          dp[0][0] = True
+          for i in range(len(a) + 1):
+              for j in range(len(b) + 1):
+                  if i > 0 and a[i - 1] == s[i + j - 1] and dp[i - 1][j]:
+                      dp[i][j] = True
+                  if j > 0 and b[j - 1] == s[i + j - 1] and dp[i][j - 1]:
+                      dp[i][j] = True
+          return dp[len(a)][len(b)]
+    tests:
+      - input: "\"aab\", \"axy\", \"aaxaby\""
+        expected: "True"
+      - input: "\"aabcc\", \"dbbca\", \"aadbbcbcac\""
+        expected: "True"
+      - input: "\"aabcc\", \"dbbca\", \"aadbbbaccc\""
+        expected: "False"
+      - input: "\"\", \"\", \"\""
+        expected: "True"
+      - input: "\"ab\", \"c\", \"abcd\""
+        expected: "False"
+      - input: "\"ab\", \"ba\", \"abba\""
+        expected: "True"
+    hints:
+      - "`dp[i][j]` = whether `s[:i + j]` is woven from `a[:i]` and `b[:j]`."
+      - "The last character `s[i + j - 1]` came from `a` (needs `dp[i - 1][j]`) or from `b` (needs `dp[i][j - 1]`)."
+      - "If the lengths don't add up, it's `False` straight away."
+    walkthrough:
+      call: result = is_woven("aab", "axy", "aaxaby")
+      visualise:
+        - variable: dp
+          as: grid
+          cells: [[i, j]]
+          rowLabels: a
+          colLabels: b
+          labelOffset: 1
+      explanation: |
+        The `True` cells trace the weave from the top-left to `(3, 3)`: every step down takes a character from `a`, and every
+        step right takes one from `b`.

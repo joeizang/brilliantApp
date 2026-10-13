@@ -1,0 +1,505 @@
+id: lesson.pattern-lis
+title: "Pattern: increasing subsequences"
+concepts:
+  - id: concept.lis-ending-here
+    title: dp[i] is the best sequence that ends at item i, extended from an earlier, smaller item
+  - id: concept.lis-answer
+    title: The best sequence can end anywhere, so the answer is the max over dp
+  - id: concept.lis-tails
+    title: Keeping the smallest tail for each length gives O(n log n) with binary search
+reviewItems:
+  - id: review.lis.predict-dp
+    concept: concept.lis-ending-here
+    step: step.lis.predict-dp
+  - id: review.lis.answer
+    concept: concept.lis-answer
+    step: step.lis.check-answer
+  - id: review.lis.strict
+    concept: concept.lis-ending-here
+    step: step.lis.check-strict
+  - id: review.lis.predict-tails
+    concept: concept.lis-tails
+    step: step.lis.predict-tails
+  - id: review.lis.which-problem
+    concept: concept.lis-ending-here
+    step: step.lis.check-which-problem
+    kind: pattern
+  - id: review.lis.cue
+    concept: concept.lis-ending-here
+    step: step.lis.check-cue
+    kind: pattern
+  - id: review.lis.not-dp
+    concept: concept.lis-ending-here
+    step: step.lis.check-not-dp
+    kind: pattern
+patterns:
+  - id: pattern.dp-lis
+    title: For each item, extend the best sequence ending at an earlier, smaller item
+steps:
+  - id: step.lis.idea
+    type: explain
+    title: The longest climb
+    body: |
+      A **subsequence** keeps some items in their original order, not necessarily next to each other. In
+      `[10, 9, 2, 5, 3, 7, 101, 18]`, `2, 5, 7, 101` is one that **strictly increases**, and no longer one does.
+
+      "The longest increasing subsequence of the first `i` items" isn't enough to extend: you'd need to know where it ends.
+      So fix the end instead. Let `dp[i]` be the length of the longest increasing subsequence that **ends at item `i`**:
+
+      - on its own, item `i` is a sequence of length `1`;
+      - it can follow any earlier `j` with `nums[j] < nums[i]`, giving `dp[j] + 1`.
+
+      `dp[i]` is the best of those. That's O(n²): each item looks back at all the earlier ones.
+    comparison:
+      csharp: |
+        static int LongestIncreasing(int[] nums)
+        {
+            if (nums.Length == 0) return 0;
+            var dp = new int[nums.Length];
+            for (int i = 0; i < nums.Length; i++)
+            {
+                dp[i] = 1;
+                for (int j = 0; j < i; j++)
+                    if (nums[j] < nums[i])
+                        dp[i] = Math.Max(dp[i], dp[j] + 1);
+            }
+            return dp.Max();
+        }
+      python: |
+        def longest_increasing(nums):
+            if not nums:
+                return 0
+            dp = [1] * len(nums)
+            for i in range(len(nums)):
+                for j in range(i):
+                    if nums[j] < nums[i]:
+                        dp[i] = max(dp[i], dp[j] + 1)
+            return max(dp)
+  - id: step.lis.trace-dp
+    type: trace
+    title: Looking back
+    body: |
+      `i` walks forward and `j` looks back at every earlier item. `7` can follow `2, 5` or `2, 3`, so `dp[5]` is `3`. `101` and
+      `18` can both follow `7`, so both end sequences of length `4`.
+    code: |
+      nums = [10, 9, 2, 5, 3, 7, 101, 18]
+      dp = [1] * len(nums)
+      for i in range(len(nums)):
+          for j in range(i):
+              if nums[j] < nums[i]:
+                  dp[i] = max(dp[i], dp[j] + 1)
+      longest = max(dp)
+    visualise:
+      - variable: nums
+        as: array
+        pointers: [i, j]
+      - variable: dp
+        as: array
+        pointers: [i, j]
+  - id: step.lis.predict-dp
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      What does this print?
+    code: |
+      nums = [4, 1, 3, 2, 5, 4]
+      dp = [1] * len(nums)
+      for i in range(len(nums)):
+          for j in range(i):
+              if nums[j] < nums[i]:
+                  dp[i] = max(dp[i], dp[j] + 1)
+      print(dp)
+    accepted:
+      - "[1, 1, 2, 2, 3, 3]"
+    mistakes:
+      - answers:
+          - "[1, 1, 2, 2, 3, 4]"
+        feedback: "The last `4` can't follow the `5`. Its best is `1, 3, 4` or `1, 2, 4`: length `3`."
+      - answers:
+          - "[1, 1, 2, 3, 4, 4]"
+        feedback: "`2` can't follow `3`, which is bigger. `2` follows only the `1`, so `dp[3]` is `2`."
+      - answers:
+          - "[1, 2, 3, 4, 5, 6]"
+        feedback: "An item only extends a sequence ending at a **smaller** earlier item."
+    hints:
+      - "For each item, which earlier items are smaller? Take the best of their `dp` plus one."
+  - id: step.lis.check-answer
+    type: choice
+    title: Where is the answer?
+    prompt: |
+      Why does the function return `max(dp)` rather than `dp[-1]`?
+    options:
+      - text: "The longest sequence may end anywhere. In `[1, 2, 3, 0]`, `dp[-1]` is `1` but the answer is `3`."
+        correct: true
+        feedback: "Right. `dp[i]` only describes sequences ending at item `i`, and the best one needn't use the last item."
+      - text: "`dp[-1]` would give the same value; `max` is just safer."
+        correct: false
+        feedback: "Try `[1, 2, 3, 0]`: `dp` is `[1, 2, 3, 1]`."
+      - text: "Because `dp` is sorted, so the max is the last cell anyway."
+        correct: false
+        feedback: "`dp` isn't sorted: in `[1, 2, 3, 0]` it's `[1, 2, 3, 1]`."
+      - text: "To handle the empty list."
+        correct: false
+        feedback: "`max([])` raises an error, so the empty list is checked separately."
+    hints:
+      - "Does the longest increasing subsequence have to include the last item?"
+  - id: step.lis.check-strict
+    type: choice
+    title: Equal neighbours
+    prompt: |
+      You now want the longest **non-decreasing** subsequence, so `[2, 2, 3]` counts with length `3`. What changes?
+    options:
+      - text: "`nums[j] < nums[i]` becomes `nums[j] <= nums[i]`."
+        correct: true
+        feedback: "Right. An item may now follow an equal earlier one. Everything else stays the same."
+      - text: "`dp` starts at `0` instead of `1`."
+        correct: false
+        feedback: "Each item alone is still a sequence of length `1`."
+      - text: "`j` loops over every index, not just the earlier ones."
+        correct: false
+        feedback: "A subsequence keeps the original order, so only earlier items can come before."
+      - text: "Nothing: `<` already allows equal items."
+        correct: false
+        feedback: "`2 < 2` is `False`, so the strict version gives `[2, 2, 3]` length `2`."
+    hints:
+      - "Which comparison decides whether `j` can come before `i`?"
+  - id: step.lis.tails-idea
+    type: explain
+    title: Faster, with tails
+    body: |
+      There's an O(n log n) way. Keep `tails`, where `tails[k]` is the **smallest last item** of any increasing subsequence of
+      length `k + 1` found so far. A smaller tail is always better: more items can follow it.
+
+      `tails` is always sorted, so for each `x`, binary search for the first tail `>= x`:
+
+      - if there's none, `x` extends the longest sequence: append it;
+      - otherwise `x` makes a better tail for that length: replace it.
+
+      The answer is `len(tails)`. But `tails` itself is **not** a subsequence of the input, just the best ending for each length.
+    comparison:
+      csharp: |
+        static int LongestIncreasing(int[] nums)
+        {
+            var tails = new List<int>();
+            foreach (var x in nums)
+            {
+                int k = tails.BinarySearch(x);
+                if (k < 0) k = ~k;
+                if (k == tails.Count) tails.Add(x);
+                else tails[k] = x;
+            }
+            return tails.Count;
+        }
+      python: |
+        from bisect import bisect_left
+
+        def longest_increasing(nums):
+            tails = []
+            for x in nums:
+                k = bisect_left(tails, x)
+                if k == len(tails):
+                    tails.append(x)
+                else:
+                    tails[k] = x
+            return len(tails)
+  - id: step.lis.trace-tails
+    type: trace
+    title: Replacing tails
+    body: |
+      `10` is replaced by `9`, then `2`: a length-1 sequence ending at `2` is the most useful. `5` extends it, `3` replaces the
+      `5`, and so on. The final `tails` is `[2, 3, 7, 18]`: length `4`, though `2, 3, 7, 18` happens to be a real one here.
+    code: |
+      from bisect import bisect_left
+      nums = [10, 9, 2, 5, 3, 7, 101, 18]
+      tails = []
+      for x in nums:
+          k = bisect_left(tails, x)
+          if k == len(tails):
+              tails.append(x)
+          else:
+              tails[k] = x
+      longest = len(tails)
+    visualise:
+      - variable: tails
+        as: array
+        pointers: [k]
+  - id: step.lis.predict-tails
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      What does this print?
+    code: |
+      from bisect import bisect_left
+      tails = []
+      for x in [3, 4, 1]:
+          k = bisect_left(tails, x)
+          if k == len(tails):
+              tails.append(x)
+          else:
+              tails[k] = x
+      print(tails)
+    accepted:
+      - "[1, 4]"
+    mistakes:
+      - answers:
+          - "[3, 4]"
+        feedback: "`1` is smaller than every tail, so it replaces `tails[0]`, the `3`."
+      - answers:
+          - "[3, 4, 1]"
+          - "[1, 3, 4]"
+        feedback: "`1` doesn't extend anything: it replaces the first tail `>= 1`."
+    hints:
+      - "`1, 4` isn't a subsequence of `[3, 4, 1]`, and that's fine: only the length matters."
+  - id: step.lis.pattern
+    type: explain
+    title: Spotting it
+    body: |
+      The cue: **a chain** through a sequence, in order, where each item must **beat the one before** (bigger, later, fits
+      inside). The longest chain, the heaviest chain, how many items to remove so the rest is sorted.
+
+      1. **State**: `dp[i]` = the best chain **ending at item `i`**.
+      2. **Choices**: start fresh, or follow any earlier `j` that item `i` may come after.
+      3. **Base**: every item alone.
+      4. **Order**: `i` forwards; `j` over the items before it.
+      5. **Answer**: the best over all `dp[i]`.
+
+      If the items have no order of their own, like boxes, **sort them first**, then look for the chain.
+  - id: step.lis.check-which-problem
+    type: choice
+    title: Which problem?
+    prompt: |
+      Which of these fits the increasing-subsequence pattern?
+    options:
+      - text: "Boxes each have a size. Nest as many as you can, each strictly smaller than the one around it."
+        correct: true
+        feedback: "Right. Sort by size, and each box must beat the one before: the longest increasing subsequence."
+      - text: "Find the largest box."
+        correct: false
+        feedback: "`max()`."
+      - text: "Count how many boxes are bigger than `10`."
+        correct: false
+        feedback: "One pass with a counter, no chain."
+      - text: "Pack boxes into a van of fixed capacity for the most value."
+        correct: false
+        feedback: "That's a knapsack: each box in or out, with a capacity."
+    hints:
+      - "Where must each item beat the one before it?"
+  - id: step.lis.check-cue
+    type: choice
+    title: Read the cue
+    prompt: |
+      *"Find the increasing subsequence with the **largest sum**."* How does the `dp` change?
+    options:
+      - text: "`dp[i]` becomes the largest sum ending at `i`: start at `nums[i]`, and try `dp[j] + nums[i]` for smaller earlier `nums[j]`."
+        correct: true
+        feedback: "Right. Same state and choices; the value is a sum instead of a count."
+      - text: "Find the longest one and add it up."
+        correct: false
+        feedback: "In `[50, 1, 2, 3]` the longest sums to `6`, but `50` alone is bigger."
+      - text: "Sort the list and add up the distinct values."
+        correct: false
+        feedback: "Sorting throws away the order the subsequence has to keep."
+      - text: "Use `tails` with `bisect_left`, adding instead of replacing."
+        correct: false
+        feedback: "`tails` keeps the smallest ending per length, which says nothing about sums."
+    hints:
+      - "What should `dp[i]` hold, if the goal is a sum?"
+  - id: step.lis.check-not-dp
+    type: choice
+    title: Not every climb
+    prompt: |
+      *"Find the longest run of **adjacent** items that keeps increasing."* What's simplest?
+    options:
+      - text: "One pass: grow the current run while each item beats the last, reset it to `1` otherwise, and keep the best."
+        correct: true
+        feedback: "Right. Adjacent items mean the only earlier item that matters is the one just before: no need to look back further."
+      - text: "The O(n²) increasing-subsequence `dp`."
+        correct: false
+        feedback: "It gives a different answer: it may skip items, and a run can't."
+      - text: "`tails` with binary search."
+        correct: false
+        feedback: "That's for subsequences, which may skip items."
+      - text: "Sort, then count."
+        correct: false
+        feedback: "Sorting destroys which items are adjacent."
+    hints:
+      - "Adjacent means no skipping. Which earlier items can matter?"
+  - id: step.lis.fill-dp
+    type: fill-blank
+    title: Ending here
+    pattern: pattern.dp-lis
+    patternCue: "\"The longest strictly increasing subsequence\": for each item, extend the best chain ending at a smaller earlier item."
+    prompt: |
+      Fill in the blanks so `longest_increasing(nums)` returns the length of the longest strictly increasing subsequence.
+    template: |
+      def longest_increasing(nums):
+          if not nums:
+              return 0
+          dp = [1] * len(nums)
+          for i in range(len(nums)):
+              for j in range({{earlier}}):
+                  if {{fits}}:
+                      dp[i] = max(dp[i], dp[j] + 1)
+          return max(dp)
+    blanks:
+      - id: earlier
+        accepted:
+          - "i"
+          - "0, i"
+        mistakes:
+          - answers:
+              - "len(nums)"
+            feedback: "Only items **before** `i` can come before it in the subsequence."
+      - id: fits
+        accepted:
+          - "nums[j] < nums[i]"
+          - "nums[i] > nums[j]"
+        mistakes:
+          - answers:
+              - "nums[j] <= nums[i]"
+              - "nums[i] >= nums[j]"
+            feedback: "Strictly increasing: equal items can't follow each other."
+          - answers:
+              - "dp[j] < dp[i]"
+            feedback: "Compare the items themselves, not the lengths."
+    hints:
+      - "Which items can come before item `i`?"
+      - "Item `i` may follow `j` when it is bigger."
+  - id: step.lis.order-tails
+    type: parsons
+    title: The fast version
+    pattern: pattern.dp-lis
+    patternCue: "\"The longest increasing subsequence, fast\": keep the smallest tail per length and binary search it."
+    prompt: |
+      Arrange the lines into the O(n log n) `longest_increasing(nums)`.
+    solution: |
+      from bisect import bisect_left
+
+      def longest_increasing(nums):
+          tails = []
+          for x in nums:
+              k = bisect_left(tails, x)
+              if k == len(tails):
+                  tails.append(x)
+              else:
+                  tails[k] = x
+          return len(tails)
+    hints:
+      - "Find where `x` belongs in `tails` first."
+      - "Past the end means append; otherwise replace."
+  - id: step.lis.write-sum
+    type: write-code
+    largeScreenPreferred: true
+    title: The heaviest climb
+    pattern: pattern.dp-lis
+    patternCue: "\"The strictly increasing subsequence with the largest sum\": the best sum ending at each item, from smaller earlier items."
+    prompt: |
+      Write `max_increasing_sum(nums)` that returns the largest sum of a strictly increasing subsequence of the positive whole
+      numbers `nums`, or `0` if `nums` is empty.
+
+      `max_increasing_sum([1, 101, 2, 3, 100])` is `106`: `1 + 2 + 3 + 100`.
+    language: python
+    entrypoint: max_increasing_sum
+    starter: |
+      def max_increasing_sum(nums):
+          pass
+    solution: |
+      def max_increasing_sum(nums):
+          if not nums:
+              return 0
+          dp = list(nums)
+          for i in range(len(nums)):
+              for j in range(i):
+                  if nums[j] < nums[i]:
+                      dp[i] = max(dp[i], dp[j] + nums[i])
+          return max(dp)
+    tests:
+      - input: "[1, 101, 2, 3, 100]"
+        expected: "106"
+      - input: "[50, 1, 2, 3]"
+        expected: "50"
+      - input: "[]"
+        expected: "0"
+      - input: "[3, 3, 3]"
+        expected: "3"
+      - input: "[10, 5, 4, 3]"
+        expected: "10"
+      - input: "[4, 6, 1, 3, 8, 4, 6]"
+        expected: "18"
+    hints:
+      - "`dp[i]` = the largest sum of an increasing subsequence ending at item `i`. Alone, that's `nums[i]`."
+      - "For each earlier `j` with `nums[j] < nums[i]`, try `dp[j] + nums[i]`."
+      - "The best can end anywhere: return `max(dp)`."
+    phoneAlternative:
+      id: step.lis.write-sum.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `max_increasing_sum(nums)`: the largest sum of a strictly increasing subsequence. Arrange the lines instead of
+        typing them.
+      solution: |
+        def max_increasing_sum(nums):
+            if not nums:
+                return 0
+            dp = list(nums)
+            for i in range(len(nums)):
+                for j in range(i):
+                    if nums[j] < nums[i]:
+                        dp[i] = max(dp[i], dp[j] + nums[i])
+            return max(dp)
+      hints:
+        - "Each item alone is worth itself."
+  - id: step.lis.write-envelopes
+    type: write-code
+    largeScreenPreferred: true
+    title: Nesting envelopes
+    pattern: pattern.dp-lis
+    patternCue: "\"Nest as many as possible, each strictly smaller in both directions\": sort, then the longest increasing chain."
+    prompt: |
+      Each envelope is `[width, height]`. One fits inside another only if it is **strictly smaller in both** width and height,
+      and envelopes can't be rotated. Write `most_nested(envelopes)` that returns the most envelopes you can put one inside
+      another.
+
+      `most_nested([[5, 4], [6, 4], [6, 7], [2, 3]])` is `3`: `[2, 3]` in `[5, 4]` in `[6, 7]`.
+    language: python
+    entrypoint: most_nested
+    starter: |
+      def most_nested(envelopes):
+          pass
+    solution: |
+      from bisect import bisect_left
+
+      def most_nested(envelopes):
+          envelopes = sorted(envelopes, key=lambda e: (e[0], -e[1]))
+          tails = []
+          for _, h in envelopes:
+              k = bisect_left(tails, h)
+              if k == len(tails):
+                  tails.append(h)
+              else:
+                  tails[k] = h
+          return len(tails)
+    tests:
+      - input: "[[5, 4], [6, 4], [6, 7], [2, 3]]"
+        expected: "3"
+      - input: "[[1, 1], [1, 1], [1, 1]]"
+        expected: "1"
+      - input: "[]"
+        expected: "0"
+      - input: "[[4, 5], [4, 6], [6, 7], [2, 3], [1, 1]]"
+        expected: "4"
+      - input: "[[2, 100], [3, 200], [4, 300], [5, 500], [5, 400], [5, 250], [6, 370], [6, 360], [7, 380]]"
+        expected: "5"
+    hints:
+      - "Sort by width. Then the chain must increase in height, a longest increasing subsequence."
+      - "Two envelopes of the same width can't nest. Sort those by height **descending**, so the heights can't chain them."
+      - "Run the `tails` version on the heights."
+    walkthrough:
+      call: result = most_nested([[5, 4], [6, 4], [6, 7], [2, 3]])
+      visualise:
+        - variable: tails
+          as: array
+          pointers: [k]
+      explanation: |
+        Sorted, the heights are `3, 4, 7, 4` (the width-6 envelopes put `7` before `4`). `tails` grows to `[3, 4, 7]`, then the
+        last `4` replaces the `4` already there: length `3`.

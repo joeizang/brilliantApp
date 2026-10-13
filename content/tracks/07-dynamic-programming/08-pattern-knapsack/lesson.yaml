@@ -1,0 +1,529 @@
+id: lesson.pattern-knapsack
+title: "Pattern: 0/1 knapsack"
+concepts:
+  - id: concept.knapsack-take-skip
+    title: Each item is decided once, take it or skip it, from the answers for the items before it
+  - id: concept.knapsack-downward
+    title: In one row, looping the capacity downwards stops an item from being used twice
+  - id: concept.knapsack-greedy
+    title: Taking the best value per weight first fails when items can't be split
+reviewItems:
+  - id: review.knapsack.predict-sums
+    concept: concept.knapsack-take-skip
+    step: step.knapsack.predict-sums
+  - id: review.knapsack.predict-upward
+    concept: concept.knapsack-downward
+    step: step.knapsack.predict-upward
+  - id: review.knapsack.downward
+    concept: concept.knapsack-downward
+    step: step.knapsack.check-downward
+  - id: review.knapsack.predict-value
+    concept: concept.knapsack-take-skip
+    step: step.knapsack.predict-value
+  - id: review.knapsack.greedy
+    concept: concept.knapsack-greedy
+    step: step.knapsack.check-greedy
+  - id: review.knapsack.which-problem
+    concept: concept.knapsack-take-skip
+    step: step.knapsack.check-which-problem
+    kind: pattern
+  - id: review.knapsack.cue
+    concept: concept.knapsack-take-skip
+    step: step.knapsack.check-cue
+    kind: pattern
+patterns:
+  - id: pattern.dp-knapsack
+    title: Decide each item once, take it or skip it, building on the answers without it
+steps:
+  - id: step.knapsack.idea
+    type: explain
+    title: Can some of them add up?
+    body: |
+      Given some positive whole numbers, can you pick **some of them, each at most once**, that add up to a target exactly?
+      This is **subset sum**.
+
+      Go through the items one at a time. Let `dp[i][t]` be `True` when some of the **first `i` items** make `t`. For item
+      `x = nums[i - 1]` there are two choices:
+
+      - **skip** it: the first `i - 1` items must make `t` on their own: `dp[i - 1][t]`;
+      - **take** it: the first `i - 1` items must make the rest: `dp[i - 1][t - x]` (if `x <= t`).
+
+      `dp[0][0]` is `True` (taking nothing makes `0`), and the rest of row `0` is `False`.
+
+      Unlike the coins of lesson 4, every row reads only **the row before**, so an item can't be used twice.
+    comparison:
+      csharp: |
+        static bool SubsetSum(int[] nums, int target)
+        {
+            var dp = new bool[nums.Length + 1, target + 1];
+            dp[0, 0] = true;
+            for (int i = 1; i <= nums.Length; i++)
+            {
+                int x = nums[i - 1];
+                for (int t = 0; t <= target; t++)
+                    dp[i, t] = dp[i - 1, t] || (x <= t && dp[i - 1, t - x]);
+            }
+            return dp[nums.Length, target];
+        }
+      python: |
+        def subset_sum(nums, target):
+            dp = [[False] * (target + 1) for _ in range(len(nums) + 1)]
+            dp[0][0] = True
+            for i in range(1, len(nums) + 1):
+                x = nums[i - 1]
+                for t in range(target + 1):
+                    dp[i][t] = dp[i - 1][t] or (x <= t and dp[i - 1][t - x])
+            return dp[len(nums)][target]
+  - id: step.knapsack.trace-table
+    type: trace
+    title: One row per item
+    body: |
+      Each row is labelled with the item it adds; row `0` is no items. A row copies the one above (skip) and also marks every
+      sum `x` further right of a `True` above (take). With `2`, `3` and `5`, the target `8` turns `True` in the last row:
+      `3 + 5`.
+    code: |
+      nums = [2, 3, 5]
+      target = 8
+      dp = [[False] * (target + 1) for _ in range(len(nums) + 1)]
+      dp[0][0] = True
+      for i in range(1, len(nums) + 1):
+          x = nums[i - 1]
+          for t in range(target + 1):
+              dp[i][t] = dp[i - 1][t] or (x <= t and dp[i - 1][t - x])
+      found = dp[len(nums)][target]
+    visualise:
+      - variable: dp
+        as: grid
+        cells: [[i, t]]
+        rowLabels: nums
+        labelOffset: 1
+  - id: step.knapsack.one-row
+    type: explain
+    title: One row, counting down
+    body: |
+      Row `i` reads only row `i - 1`, so one row can be updated in place. But the order matters.
+
+      `dp[t] = dp[t] or dp[t - x]` reads a cell to the **left**. Loop `t` **downwards**, and the left cells still hold the
+      previous row's values when you read them: the item is used at most once.
+
+      Loop upwards, and `dp[t - x]` may already include `x`, so `x` gets used again: that's lesson 4's unbounded coins.
+    comparison:
+      csharp: |
+        static bool SubsetSum(int[] nums, int target)
+        {
+            var dp = new bool[target + 1];
+            dp[0] = true;
+            foreach (var x in nums)
+                for (int t = target; t >= x; t--)
+                    dp[t] = dp[t] || dp[t - x];
+            return dp[target];
+        }
+      python: |
+        def subset_sum(nums, target):
+            dp = [True] + [False] * target
+            for x in nums:
+                for t in range(target, x - 1, -1):
+                    dp[t] = dp[t] or dp[t - x]
+            return dp[target]
+  - id: step.knapsack.predict-sums
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      What does this print?
+    code: |
+      nums = [3, 5, 7]
+      target = 12
+      dp = [True] + [False] * target
+      for x in nums:
+          for t in range(target, x - 1, -1):
+              dp[t] = dp[t] or dp[t - x]
+      print([t for t in range(target + 1) if dp[t]])
+    accepted:
+      - "[0, 3, 5, 7, 8, 10, 12]"
+    mistakes:
+      - answers:
+          - "[3, 5, 7, 8, 10, 12]"
+        feedback: "`dp[0]` is `True`: taking nothing makes `0`."
+      - answers:
+          - "[0, 3, 5, 6, 7, 8, 9, 10, 12]"
+        feedback: "Each number is used at most once, so `6` (`3 + 3`) and `9` aren't reachable. The downward loop makes sure of that."
+      - answers:
+          - "[0, 3, 5, 7, 8, 10, 12, 15]"
+        feedback: "The table stops at the target, `12`, though `3 + 5 + 7 = 15` would be a sum too."
+    hints:
+      - "List the sums of every subset of `3, 5, 7` up to `12`."
+  - id: step.knapsack.predict-upward
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      The loop now counts **up**. What does this print?
+    code: |
+      nums = [3]
+      target = 9
+      dp = [True] + [False] * target
+      for x in nums:
+          for t in range(x, target + 1):
+              dp[t] = dp[t] or dp[t - x]
+      print([t for t in range(target + 1) if dp[t]])
+    accepted:
+      - "[0, 3, 6, 9]"
+    mistakes:
+      - answers:
+          - "[0, 3]"
+        feedback: "That's the downward loop's answer. Going up, `dp[6]` reads `dp[3]`, which this same pass just set: the `3` is used again."
+      - answers:
+          - "[3, 6, 9]"
+        feedback: "`dp[0]` stays `True`."
+    hints:
+      - "When `t = 6`, has `dp[3]` been changed in this pass yet?"
+  - id: step.knapsack.check-downward
+    type: choice
+    title: Why count down?
+    prompt: |
+      In the one-row version, why must `t` go from `target` down to `x`?
+    options:
+      - text: "So `dp[t - x]`, to the left, still holds the answer without this item, and the item is used at most once."
+        correct: true
+        feedback: "Right. Counting down, the cells to the left haven't been touched in this pass. Counting up would let the item build on itself."
+      - text: "Because larger targets are more likely to be reachable."
+        correct: false
+        feedback: "The order doesn't change which sums are reachable in principle. It changes whether an item can be reused by mistake."
+      - text: "It's faster."
+        correct: false
+        feedback: "Both orders do the same amount of work."
+      - text: "So the answer ends up in `dp[0]`."
+        correct: false
+        feedback: "The answer is still `dp[target]`. `dp[0]` is always `True`."
+    hints:
+      - "In which order would `dp[t - x]` already include `x`?"
+  - id: step.knapsack.value-idea
+    type: explain
+    title: The knapsack itself
+    body: |
+      Items now have a **weight** and a **value**, and a bag holds at most `capacity` weight. Take each item at most once to get
+      the most value.
+
+      The same take-or-skip, with `max` instead of `or`. With `dp[c]` = the most value within weight `c`:
+
+      `dp[c] = max(dp[c], dp[c - w] + v)`, for `c` from `capacity` **down** to `w`.
+
+      Every cell starts at `0` (an empty bag), and the answer is `dp[capacity]`.
+
+      **Partition** is subset sum in disguise: two groups with equal sums each make `sum(nums) // 2`, so check that the total is
+      even and that half is reachable.
+    comparison:
+      csharp: |
+        static long BestValue(int[] weights, int[] values, int capacity)
+        {
+            var dp = new long[capacity + 1];
+            for (int i = 0; i < weights.Length; i++)
+                for (int c = capacity; c >= weights[i]; c--)
+                    dp[c] = Math.Max(dp[c], dp[c - weights[i]] + values[i]);
+            return dp[capacity];
+        }
+      python: |
+        def best_value(weights, values, capacity):
+            dp = [0] * (capacity + 1)
+            for w, v in zip(weights, values):
+                for c in range(capacity, w - 1, -1):
+                    dp[c] = max(dp[c], dp[c - w] + v)
+            return dp[capacity]
+  - id: step.knapsack.trace-value
+    type: trace
+    title: Packing the bag
+    body: |
+      Weights `1`, `3`, `4` with values `15`, `20`, `30`, and capacity `4`. After the first two items, `dp[4]` is `35` (weights
+      `1 + 3`). The `4` alone is only worth `30`, so `dp[4]` keeps `35`.
+    code: |
+      weights = [1, 3, 4]
+      values = [15, 20, 30]
+      capacity = 4
+      dp = [0] * (capacity + 1)
+      for w, v in zip(weights, values):
+          for c in range(capacity, w - 1, -1):
+              dp[c] = max(dp[c], dp[c - w] + v)
+      best = dp[capacity]
+    visualise:
+      - variable: dp
+        as: array
+        pointers: [c]
+  - id: step.knapsack.predict-value
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      What does this print?
+    code: |
+      weights = [2, 3, 4, 5]
+      values = [3, 4, 5, 6]
+      capacity = 5
+      dp = [0] * (capacity + 1)
+      for w, v in zip(weights, values):
+          for c in range(capacity, w - 1, -1):
+              dp[c] = max(dp[c], dp[c - w] + v)
+      print(dp)
+    accepted:
+      - "[0, 0, 3, 4, 5, 7]"
+    mistakes:
+      - answers:
+          - "[0, 0, 3, 4, 6, 7]"
+        feedback: "`dp[4]` can't take the weight-`2` item twice. Its best is the weight-`4` item alone, worth `5`."
+      - answers:
+          - "[0, 0, 3, 4, 5, 6]"
+        feedback: "Weights `2 + 3` fit in `5` and are worth `3 + 4 = 7`, more than the weight-`5` item's `6`."
+      - answers:
+          - "[0, 3, 4, 5, 7]"
+        feedback: "`dp` has `capacity + 1` cells, from weight `0`."
+    hints:
+      - "Nothing weighs `1`, so `dp[1]` stays `0`. For `5`, compare `2 + 3` with `5` alone."
+  - id: step.knapsack.check-greedy
+    type: choice
+    title: Why not the best value per weight?
+    prompt: |
+      Weights `10`, `20`, `30` with values `60`, `100`, `120`, and capacity `50`. Someone takes items in order of value per
+      weight (`6`, `5`, `4`) while they fit. What do they get, and what's best?
+    options:
+      - text: "Greedy gets `160` (the first two, weight `30`); the best is `220` (the last two, weight `50`)."
+        correct: true
+        feedback: "Right. Greedy left `20` of the bag empty, and the third item doesn't fit. Whole items need the table, not a ratio."
+      - text: "Both get `220`."
+        correct: false
+        feedback: "Greedy takes weight `10` and `20` first. Then `30` more won't fit in the `20` left."
+      - text: "Both get `160`."
+        correct: false
+        feedback: "Weights `20 + 30 = 50` fit exactly, worth `100 + 120 = 220`."
+      - text: "Greedy gets `280`, all three."
+        correct: false
+        feedback: "All three weigh `60`, over the capacity of `50`."
+    hints:
+      - "After the two best-ratio items, how much room is left?"
+  - id: step.knapsack.pattern
+    type: explain
+    title: Spotting it
+    body: |
+      The cue: **a set of items, each used at most once**, and a **target or capacity**. Can you hit it, how many ways, the most
+      value within it, or the closest you can get?
+
+      1. **State**: `dp[t]` = the answer for target (or capacity) `t`, using the items seen so far.
+      2. **Choices**: for each item, skip it (`dp[t]`) or take it (`dp[t - w]` plus its value).
+      3. **Base**: `dp[0]` (`True`, `1` way, or `0` value).
+      4. **Order**: items outside; `t` **downwards** inside.
+      5. **Answer**: `dp[target]`, or the best reachable `t`.
+
+      It's O(items × target). Compare lesson 4: there, items could repeat, so `t` went **up**.
+  - id: step.knapsack.check-which-problem
+    type: choice
+    title: Which problem?
+    prompt: |
+      Which of these fits the 0/1 knapsack pattern?
+    options:
+      - text: "Choose songs from a list, each at most once, to fill a 60-minute playlist exactly."
+        correct: true
+        feedback: "Right. Each song is an item used once, and `60` is the target: subset sum on their lengths."
+      - text: "Fill 60 minutes with any number of 3- and 4-minute jingles, repeats allowed."
+        correct: false
+        feedback: "Repeats allowed makes that lesson 4's unbounded pattern: count `t` upwards."
+      - text: "Play the songs in order of length."
+        correct: false
+        feedback: "That's `sorted()`, no target to hit."
+      - text: "Find the longest song."
+        correct: false
+        feedback: "`max()`."
+    hints:
+      - "Where is each item used at most once, towards a target?"
+  - id: step.knapsack.check-cue
+    type: choice
+    title: Read the cue
+    prompt: |
+      *"Put a `+` or `-` in front of each number so the total is `target`. How many ways?"* Numbers are positive. What does it
+      become?
+    options:
+      - text: "Counting subsets: the `+` numbers sum to `P` and the rest to `total - P`, so `P = (total + target) / 2`. Count the subsets making `P`."
+        correct: true
+        feedback: "Right. `P - (total - P) = target` gives `P`. If `total + target` is odd or negative, there are none."
+      - text: "Try all `2ⁿ` sign patterns."
+        correct: false
+        feedback: "Correct, but exponential. Choosing signs is choosing which numbers are positive: a subset."
+      - text: "Lesson 4's coin counting, since each number can be used often."
+        correct: false
+        feedback: "Each number gets exactly one sign, so it's used exactly once."
+      - text: "Sort, then add the big ones and subtract the small ones."
+        correct: false
+        feedback: "That gives one total, not a count of the ways."
+    hints:
+      - "Which numbers get a `+`? What must they add up to?"
+  - id: step.knapsack.fill-split
+    type: fill-blank
+    title: Two equal halves
+    pattern: pattern.dp-knapsack
+    patternCue: "\"Split into two groups with equal sums\": can some of them, each once, make half the total?"
+    prompt: |
+      Fill in the blanks so `can_split(nums)` returns `True` when the positive whole numbers `nums` can be split into two groups
+      with equal sums.
+    template: |
+      def can_split(nums):
+          total = sum(nums)
+          if total % 2:
+              return False
+          half = total // 2
+          dp = [True] + [False] * half
+          for x in nums:
+              for t in range({{start}}, x - 1, -1):
+                  dp[t] = dp[t] or {{take}}
+          return dp[half]
+    blanks:
+      - id: start
+        accepted:
+          - "half"
+        mistakes:
+          - answers:
+              - "x"
+            feedback: "The loop counts **down** from the top of the table, `half`, to `x`."
+          - answers:
+              - "total"
+            feedback: "The table only goes up to `half`."
+      - id: take
+        accepted:
+          - "dp[t - x]"
+          - "dp[t-x]"
+        mistakes:
+          - answers:
+              - "dp[x]"
+            feedback: "Taking `x` leaves `t - x` for the other items to make."
+          - answers:
+              - "dp[t - 1]"
+              - "dp[t-1]"
+            feedback: "The item is `x`, not `1`: the rest is `t - x`."
+    hints:
+      - "Count down from the largest sum the table holds."
+      - "Taking `x`, the other items must make `t - x`."
+  - id: step.knapsack.order-value
+    type: parsons
+    title: The most valuable bag
+    pattern: pattern.dp-knapsack
+    patternCue: "\"The most value within a weight limit, each item once\": take or skip, capacity counting down."
+    prompt: |
+      Arrange the lines into `best_value(weights, values, capacity)`: the most total value from items (each at most once)
+      whose weights add up to no more than `capacity`.
+    solution: |
+      def best_value(weights, values, capacity):
+          dp = [0] * (capacity + 1)
+          for w, v in zip(weights, values):
+              for c in range(capacity, w - 1, -1):
+                  dp[c] = max(dp[c], dp[c - w] + v)
+          return dp[capacity]
+    hints:
+      - "Items outside, capacity inside."
+      - "Which way does `c` go, so an item is taken once?"
+  - id: step.knapsack.write-count
+    type: write-code
+    largeScreenPreferred: true
+    title: Counting the subsets
+    pattern: pattern.dp-knapsack
+    patternCue: "\"How many subsets make the target\": add the ways without the item to the ways with it, counting down."
+    prompt: |
+      Write `count_subsets(nums, target)` that returns how many subsets of `nums` (positive whole numbers) add up to `target`
+      (`target >= 0`). Each **position** is its own item, so `[1, 1]` with target `1` has `2` subsets.
+
+      `count_subsets([1, 2, 3, 4], 5)` is `2`: `1 + 4` and `2 + 3`.
+    language: python
+    entrypoint: count_subsets
+    starter: |
+      def count_subsets(nums, target):
+          pass
+    solution: |
+      def count_subsets(nums, target):
+          dp = [1] + [0] * target
+          for x in nums:
+              for t in range(target, x - 1, -1):
+                  dp[t] += dp[t - x]
+          return dp[target]
+    tests:
+      - input: "[1, 2, 3, 4], 5"
+        expected: "2"
+      - input: "[1, 1], 1"
+        expected: "2"
+      - input: "[2, 4], 3"
+        expected: "0"
+      - input: "[5], 0"
+        expected: "1"
+      - input: "[1, 1, 1, 1], 2"
+        expected: "6"
+      - input: "[2, 3, 5, 6, 8, 10], 10"
+        expected: "3"
+    hints:
+      - "`dp[t]` = the number of subsets of the items so far that make `t`. One way to make `0`: take nothing."
+      - "For each item `x`, the subsets making `t` either skip it (`dp[t]`) or take it (`dp[t - x]`): add them."
+      - "Count `t` down, so each item is used at most once."
+    walkthrough:
+      call: result = count_subsets([2, 3, 5, 6, 8, 10], 10)
+      visualise:
+        - variable: dp
+          as: array
+          pointers: [t]
+      explanation: |
+        By the end, `dp[10]` is `3`: `2 + 3 + 5`, `2 + 8` and `10`.
+    phoneAlternative:
+      id: step.knapsack.write-count.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `count_subsets(nums, target)`: how many subsets add up to `target`. Arrange the lines instead of typing them.
+      solution: |
+        def count_subsets(nums, target):
+            dp = [1] + [0] * target
+            for x in nums:
+                for t in range(target, x - 1, -1):
+                    dp[t] += dp[t - x]
+            return dp[target]
+      hints:
+        - "Ways without the item, plus ways with it."
+  - id: step.knapsack.write-closest
+    type: write-code
+    largeScreenPreferred: true
+    title: The fairest split
+    pattern: pattern.dp-knapsack
+    patternCue: "\"Split into two groups as evenly as possible\": find the reachable sum closest to half the total."
+    prompt: |
+      Write `smallest_gap(nums)` that splits the non-negative whole numbers `nums` into two groups (either may be empty) and
+      returns the smallest possible difference between their sums.
+
+      `smallest_gap([1, 6, 11, 5])` is `1`: `1 + 5 + 6 = 12` against `11`.
+    language: python
+    entrypoint: smallest_gap
+    starter: |
+      def smallest_gap(nums):
+          pass
+    solution: |
+      def smallest_gap(nums):
+          total = sum(nums)
+          half = total // 2
+          dp = [True] + [False] * half
+          for x in nums:
+              for t in range(half, x - 1, -1):
+                  dp[t] = dp[t] or dp[t - x]
+          best = max(t for t in range(half + 1) if dp[t])
+          return total - 2 * best
+    tests:
+      - input: "[1, 6, 11, 5]"
+        expected: "1"
+      - input: "[3, 1, 4, 2, 2]"
+        expected: "0"
+      - input: "[]"
+        expected: "0"
+      - input: "[7]"
+        expected: "7"
+      - input: "[2, 7, 4, 1, 8, 1]"
+        expected: "1"
+    hints:
+      - "If one group sums to `s`, the other sums to `total - s`, and the gap is `total - 2 * s`."
+      - "So find the reachable `s` closest to half the total, from below."
+      - "Subset sum up to `total // 2`, then take the largest reachable `t`."
+    walkthrough:
+      call: result = smallest_gap([1, 6, 11, 5])
+      visualise:
+        - variable: dp
+          as: array
+          pointers: [t]
+      explanation: |
+        The total is `23`, so the table runs to `11`. `11` itself is reachable (the `11`, or `5 + 6`), so the gap is
+        `23 - 22 = 1`.
