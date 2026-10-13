@@ -1,0 +1,595 @@
+id: lesson.pattern-union-find
+title: "Pattern: connected components and union-find"
+concepts:
+  - id: concept.components
+    title: A connected component is a group of nodes joined by some path
+  - id: concept.union-find-union
+    title: Union-find keeps each group as a tree; union links one root under the other
+  - id: concept.union-find-compression
+    title: Path compression keeps the trees flat, so finds stay fast
+  - id: concept.union-find-when
+    title: Union-find suits edges that arrive over time, and undirected cycles
+reviewItems:
+  - id: review.union-find.predict-groups
+    concept: concept.components
+    step: step.union-find.predict-groups
+  - id: review.union-find.link-roots
+    concept: concept.union-find-union
+    step: step.union-find.check-link-roots
+  - id: review.union-find.predict-compress
+    concept: concept.union-find-compression
+    step: step.union-find.predict-compress
+  - id: review.union-find.why-not-dfs
+    concept: concept.union-find-when
+    step: step.union-find.check-why-not-dfs
+  - id: review.union-find.which-problem
+    concept: concept.union-find-when
+    step: step.union-find.check-which-problem
+    kind: pattern
+  - id: review.union-find.cycle
+    concept: concept.union-find-when
+    step: step.union-find.check-cycle
+    kind: pattern
+patterns:
+  - id: pattern.union-find
+    title: Merge groups, then ask which group
+steps:
+  - id: step.union-find.idea
+    type: explain
+    title: Who's in which group?
+    body: |
+      In an undirected graph, a **connected component** is a group of nodes joined to each other by some path, and to nothing
+      outside. You already know one way to find them: a DFS from every node not yet seen, counting one new component per
+      start (lesson 2), or a flood fill on a grid (lesson 4).
+
+      **Union-find** (also called a *disjoint-set union*) is another way, built for edges that **arrive one at a time**. It keeps
+      each group as a little tree in a `parent` list: every node points to a parent in its group, and the group's **root**
+      points to itself. Two operations:
+
+      - **find(x)**: follow parents up from `x` to the root. Two nodes are in the same group exactly when they have the same root.
+      - **union(a, b)**: find both roots; if they differ, point one root at the other, merging the groups.
+
+      At the start every node is its own group: `parent = list(range(n))`.
+    comparison:
+      csharp: |
+        int[] parent = Enumerable.Range(0, n).ToArray();
+
+        int Find(int x)
+        {
+            while (parent[x] != x) x = parent[x];
+            return x;
+        }
+
+        bool Union(int a, int b)
+        {
+            int ra = Find(a), rb = Find(b);
+            if (ra == rb) return false;   // already together
+            parent[rb] = ra;
+            return true;
+        }
+      python: |
+        parent = list(range(n))
+
+        def find(x):
+            while parent[x] != x:
+                x = parent[x]
+            return x
+
+        def union(a, b):
+            ra, rb = find(a), find(b)
+            if ra == rb:
+                return False   # already together
+            parent[rb] = ra
+            return True
+  - id: step.union-find.trace-union
+    type: trace
+    title: Groups merging
+    body: |
+      Each edge finds the roots of its two ends, `ra` and `rb`, by following `parent` until a node points to itself. Different
+      roots mean different groups: `rb` is pointed at `ra`. The third edge, `(1, 2)`, joins the group rooted at `0` with the
+      group rooted at `2`. At the end, the roots (nodes with `parent[i] == i`) are `0` and `4`: two groups.
+    code: |
+      n = 6
+      parent = list(range(n))
+      edges = [(0, 1), (2, 3), (1, 2), (4, 5)]
+      a = b = ra = rb = None
+      for a, b in edges:
+          ra = a
+          while parent[ra] != ra:
+              ra = parent[ra]
+          rb = b
+          while parent[rb] != rb:
+              rb = parent[rb]
+          if ra != rb:
+              parent[rb] = ra
+    visualise:
+      - variable: parent
+        as: array
+        pointers: [a, b, ra, rb]
+  - id: step.union-find.predict-groups
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      Seven nodes, `0` to `6`, and four edges. How many groups are there at the end?
+    code: |
+      n = 7
+      parent = list(range(n))
+
+      def find(x):
+          while parent[x] != x:
+              x = parent[x]
+          return x
+
+      for a, b in [(0, 1), (2, 3), (1, 3), (5, 6)]:
+          ra, rb = find(a), find(b)
+          if ra != rb:
+              parent[rb] = ra
+
+      print(sum(parent[i] == i for i in range(n)))
+    accepted:
+      - "3"
+    mistakes:
+      - answers:
+          - "2"
+        feedback: "Node `4` has no edges, so it's a group of its own: `{0, 1, 2, 3}`, `{4}` and `{5, 6}`."
+      - answers:
+          - "4"
+        feedback: "`(1, 3)` joins the group of `0` and `1` with the group of `2` and `3`, making one group of four."
+      - answers:
+          - "7"
+        feedback: "Each union that joins two groups leaves one fewer root. All four edges join groups here: seven roots, less four, leaves three."
+    hints:
+      - "Each group has exactly one root, a node with `parent[i] == i`."
+      - "Work out which nodes end up together, and don't forget nodes with no edges."
+  - id: step.union-find.check-link-roots
+    type: choice
+    title: Link the roots
+    prompt: |
+      Someone writes `union(a, b)` as just `parent[b] = a`. What goes wrong?
+    options:
+      - text: "`b` leaves its old group behind: the rest of `b`'s group still points to the old root, so the two groups aren't merged."
+        correct: true
+        feedback: "Right. Only a root speaks for its whole group. Pointing `b`'s **root** at `a`'s root moves every member at once."
+      - text: "Nothing: `a` and `b` now have the same root."
+        correct: false
+        feedback: "They do, but the nodes that pointed up through `b`'s old root didn't move with `b`, and some may now be cut off from it."
+      - text: "It's only slower."
+        correct: false
+        feedback: "It gives wrong answers: groups that should have merged stay apart."
+      - text: "It makes a cycle in `parent` every time."
+        correct: false
+        feedback: "Not every time, but groups split apart. Linking roots is what keeps each group one tree."
+    hints:
+      - "What about the other members of `b`'s group?"
+  - id: step.union-find.compression
+    type: explain
+    title: Keeping the trees flat
+    body: |
+      Linked carelessly, a group's tree can become one long chain, and every `find` walks all of it: O(n). Two small changes fix
+      that.
+
+      **Path compression**: once `find` knows the root, point every node it passed straight at the root. The recursive form
+      does it on the way back:
+
+      ```python
+      def find(x):
+          if parent[x] != x:
+              parent[x] = find(parent[x])
+          return parent[x]
+      ```
+
+      **Union by size**: keep a `size` for each root and link the smaller group under the larger, so trees stay shallow.
+
+      With both, each operation is so close to O(1) that it's treated as constant in practice. Even path compression alone is
+      usually plenty.
+
+      Where union-find wins over DFS: **edges that arrive over time**, with questions in between ("are these two connected
+      **now**?", "how many groups after each new road?"), where a DFS would have to start again each time. And in an
+      undirected graph, an edge whose two ends already share a root closes a **cycle**. It only handles **undirected**
+      connection: one-way edges need a DFS or BFS.
+  - id: step.union-find.trace-compress
+    type: trace
+    title: Flattening a chain
+    body: |
+      `parent` is a chain: `4 → 3 → 2 → 1 → 0`. The recursive `find(4)` walks up to the root, `0`. Then, as each call returns,
+      it points its node straight at the root: `parent[1]`, `parent[2]`, `parent[3]` and `parent[4]` all become `0`. The next
+      `find` on any of them takes one step.
+    code: |
+      parent = [0, 0, 1, 2, 3]
+
+      def find(x):
+          if parent[x] != x:
+              parent[x] = find(parent[x])
+          return parent[x]
+
+      root = find(4)
+    visualise:
+      - as: call_stack
+        functions: [find]
+      - variable: parent
+        as: array
+        pointers: [x]
+  - id: step.union-find.predict-compress
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      What does this print?
+    code: |
+      parent = [0, 0, 1, 2, 4, 4]
+
+      def find(x):
+          if parent[x] != x:
+              parent[x] = find(parent[x])
+          return parent[x]
+
+      find(3)
+      print(parent)
+    accepted:
+      - "[0, 0, 0, 0, 4, 4]"
+    mistakes:
+      - answers:
+          - "[0, 0, 1, 2, 4, 4]"
+        feedback: "`find` doesn't just read: `parent[x] = find(parent[x])` points each node it passes straight at the root."
+      - answers:
+          - "[0, 0, 1, 0, 4, 4]"
+        feedback: "Every node on the way up is repointed, not only `3`: `2` passes through the same line in its own call."
+      - answers:
+          - "[0, 0, 0, 0, 0, 0]"
+        feedback: "`4` and `5` are a separate group with root `4`. `find(3)` never touches them."
+    hints:
+      - "Which nodes does `find(3)` pass on its way to the root?"
+      - "Each of them is pointed at the root as its call returns."
+  - id: step.union-find.check-why-not-dfs
+    type: choice
+    title: Why not just DFS?
+    prompt: |
+      Roads are built one at a time, and after each one you're asked how many separate groups of towns there are. Why is
+      union-find a better fit than a DFS?
+    options:
+      - text: "A union per road updates the count in near-constant time; a DFS would have to search the whole graph again after every road."
+        correct: true
+        feedback: "Right. With `r` roads and `n` towns, DFS each time is O(r × (n + r)); union-find is about O(n + r) in all."
+      - text: "A DFS can't count components."
+        correct: false
+        feedback: "It can, by starting from every unseen node. It just has to start over each time the graph changes."
+      - text: "Union-find also gives the shortest route between towns."
+        correct: false
+        feedback: "It only knows who's in which group, not how far apart they are. Routes need BFS."
+      - text: "A DFS only works on directed graphs."
+        correct: false
+        feedback: "DFS works on both. Union-find is the one that only handles undirected connection."
+    hints:
+      - "What does each approach have to redo when one road is added?"
+  - id: step.union-find.check-which-problem
+    type: choice
+    title: Which one is union-find?
+    prompt: |
+      Which of these is the best fit for union-find?
+    options:
+      - text: "Friendships are announced one by one; after each, say whether two given people are now linked through friends."
+        correct: true
+        feedback: "Right. Each friendship is a union; \"linked\" is whether their finds give the same root."
+      - text: "The fewest introductions needed between two people."
+        correct: false
+        feedback: "Fewest steps is a BFS distance. Union-find knows whether they're linked, not how closely."
+      - text: "Whether you can reach one web page from another by following links."
+        correct: false
+        feedback: "Links are one-way. Union-find treats every edge as two-way, so it would say yes too often: use a DFS or BFS."
+      - text: "An order to run build steps in, each after the steps it needs."
+        correct: false
+        feedback: "That's a topological sort of a directed graph."
+    hints:
+      - "Which question is about undirected groups that grow over time?"
+  - id: step.union-find.check-cycle
+    type: choice
+    title: The extra cable
+    prompt: |
+      Computers are linked by cables, given in order. You want the first cable whose two computers were **already** linked
+      through earlier cables. How does union-find find it?
+    options:
+      - text: "Union each cable's ends in order; the first cable whose ends already have the same root is the one."
+        correct: true
+        feedback: "Right. Same root means a path already joins them, so this cable closes a cycle."
+      - text: "Union everything first, then look for the cable with the most connections."
+        correct: false
+        feedback: "After all the unions every cable's ends share a root. The check has to happen as each cable arrives."
+      - text: "Look for a computer with more than two cables."
+        correct: false
+        feedback: "A computer can have many cables in a tree with no cycle, like the centre of a star."
+      - text: "Union-find can't detect cycles; use a topological sort."
+        correct: false
+        feedback: "Topological sort finds cycles in **directed** graphs. For undirected ones, a union that finds both ends already together is the check."
+    hints:
+      - "What does it mean when both ends already have the same root?"
+  - id: step.union-find.fill-union
+    type: fill-blank
+    title: Merge two groups
+    pattern: pattern.union-find
+    patternCue: "\"Join these two groups\": find both roots, and if they differ, link one root under the other."
+    prompt: |
+      Fill in the blanks so that `connect(parent, a, b)` merges the groups of `a` and `b` and returns `True`, or returns `False`
+      if they were already in the same group.
+    template: |
+      def find(parent, x):
+          while parent[x] != x:
+              x = parent[x]
+          return x
+
+
+      def connect(parent, a, b):
+          ra, rb = find(parent, a), find(parent, b)
+          if ra == rb:
+              return {{same}}
+          parent[{{link}}] = ra
+          return True
+    blanks:
+      - id: same
+        accepted:
+          - "False"
+        mistakes:
+          - answers:
+              - "True"
+            feedback: "`True` means two groups were merged. Here they were already one group, so nothing changes."
+      - id: link
+        accepted:
+          - "rb"
+        mistakes:
+          - answers:
+              - "b"
+            feedback: "Repointing `b` leaves the rest of its group with the old root. Link `b`'s root, `rb`, to move them all."
+          - answers:
+              - "ra"
+            feedback: "`ra` is already a root pointing at itself; setting `parent[ra] = ra` changes nothing. It's `rb` that moves."
+    hints:
+      - "Same root: nothing to merge."
+      - "Point one root at the other."
+  - id: step.union-find.order-count
+    type: parsons
+    title: Count the groups
+    pattern: pattern.union-find
+    patternCue: "\"How many separate groups\": start with n, and every union that joins two groups takes one away."
+    prompt: |
+      Arrange the lines into `count_components(n, edges)`, which returns how many connected components the undirected graph on
+      nodes `0` to `n - 1` has.
+    solution: |
+      def count_components(n, edges):
+          parent = list(range(n))
+
+          def find(x):
+              while parent[x] != x:
+                  x = parent[x]
+              return x
+
+          groups = n
+          for a, b in edges:
+              ra, rb = find(a), find(b)
+              if ra != rb:
+                  parent[rb] = ra
+                  groups -= 1
+          return groups
+    hints:
+      - "Every node starts as its own group, so there are `n` groups."
+      - "A union that joins two different roots leaves one fewer group."
+  - id: step.union-find.write-redundant
+    type: write-code
+    largeScreenPreferred: true
+    title: The redundant cable
+    pattern: pattern.union-find
+    patternCue: "\"The first link that was already connected\": union in order; the first edge with both ends on one root closes a cycle."
+    prompt: |
+      `n` computers, numbered `0` to `n - 1`, are linked by two-way cables, listed in `edges` in the order they're laid. Write
+      `redundant(n, edges)` that returns the first cable (the pair as given) whose two computers were already linked through
+      earlier cables, or `None` if there's no such cable.
+
+      `redundant(3, [[0, 1], [1, 2], [0, 2]])` is `[0, 2]`.
+    language: python
+    entrypoint: redundant
+    starter: |
+      def redundant(n, edges):
+          pass
+    solution: |
+      def redundant(n, edges):
+          parent = list(range(n))
+          size = [1] * n
+
+          def find(x):
+              if parent[x] != x:
+                  parent[x] = find(parent[x])
+              return parent[x]
+
+          for edge in edges:
+              ra, rb = find(edge[0]), find(edge[1])
+              if ra == rb:
+                  return edge
+              if size[ra] < size[rb]:
+                  ra, rb = rb, ra
+              parent[rb] = ra
+              size[ra] += size[rb]
+          return None
+    tests:
+      - input: "3, [[0, 1], [1, 2], [0, 2]]"
+        expected: "[0, 2]"
+      - input: "4, [[0, 1], [2, 3]]"
+        expected: "None"
+      - input: "5, [[0, 1], [1, 2], [2, 3], [1, 3], [3, 4]]"
+        expected: "[1, 3]"
+      - input: "2, [[0, 1], [1, 0]]"
+        expected: "[1, 0]"
+      - input: "1, [[0, 0]]"
+        expected: "[0, 0]"
+      - input: "2000, [[i, i - 1] for i in range(1, 2000)] + [[0, 1999]]"
+        expected: "[0, 1999]"
+    hints:
+      - "Start every computer as its own group."
+      - "For each cable, find both roots. The same root means they were already linked."
+      - "Otherwise union them by size, smaller group under the larger root, so thousands of cables in a line can't build a chain too deep for a recursive `find`. `None` if no cable repeats a link."
+    walkthrough:
+      call: "result = redundant(5, [[0, 1], [1, 2], [2, 3], [1, 3], [3, 4]])"
+      visualise:
+        - variable: parent
+          as: array
+          pointers: [ra, rb]
+      explanation: |
+        The first three cables each join two groups, chaining `0`, `1`, `2` and `3` together. For `[1, 3]`, both finds reach
+        root `0`: they were already linked, so that cable is returned and `[3, 4]` is never looked at.
+    phoneAlternative:
+      id: step.union-find.write-redundant.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `redundant(n, edges)`, which returns the first cable whose ends were already linked, or `None`. Arrange the lines
+        instead of typing them.
+      solution: |
+        def redundant(n, edges):
+            parent = list(range(n))
+            size = [1] * n
+
+            def find(x):
+                if parent[x] != x:
+                    parent[x] = find(parent[x])
+                return parent[x]
+
+            for edge in edges:
+                ra, rb = find(edge[0]), find(edge[1])
+                if ra == rb:
+                    return edge
+                if size[ra] < size[rb]:
+                    ra, rb = rb, ra
+                parent[rb] = ra
+                size[ra] += size[rb]
+            return None
+      hints:
+        - "The check comes before the union."
+        - "Return the cable itself when its ends share a root."
+        - "Otherwise the smaller group goes under the larger root, and the sizes add up."
+  - id: step.union-find.write-over-time
+    type: write-code
+    largeScreenPreferred: true
+    title: Groups over time
+    pattern: pattern.union-find
+    patternCue: "\"How many groups after each new link\": a running count, one less for each union that joins two groups."
+    prompt: |
+      There are `n` towns, numbered `0` to `n - 1`, and two-way roads are built in the order given by `roads`. Write
+      `groups_after(n, roads)` that returns a list with the number of separate groups of towns after each road is built.
+
+      `groups_after(4, [[0, 1], [2, 3], [1, 2], [0, 3]])` is `[3, 2, 1, 1]`.
+    language: python
+    entrypoint: groups_after
+    starter: |
+      def groups_after(n, roads):
+          pass
+    solution: |
+      def groups_after(n, roads):
+          parent = list(range(n))
+          size = [1] * n
+
+          def find(x):
+              if parent[x] != x:
+                  parent[x] = find(parent[x])
+              return parent[x]
+
+          groups = n
+          counts = []
+          for a, b in roads:
+              ra, rb = find(a), find(b)
+              if ra != rb:
+                  if size[ra] < size[rb]:
+                      ra, rb = rb, ra
+                  parent[rb] = ra
+                  size[ra] += size[rb]
+                  groups -= 1
+              counts.append(groups)
+          return counts
+    tests:
+      - input: "4, [[0, 1], [2, 3], [1, 2], [0, 3]]"
+        expected: "[3, 2, 1, 1]"
+      - input: "3, []"
+        expected: "[]"
+      - input: "5, [[0, 1], [0, 1], [3, 4]]"
+        expected: "[4, 4, 3]"
+      - input: "1, [[0, 0]]"
+        expected: "[1]"
+      - input: "6, [[0, 1], [2, 3], [4, 5], [1, 3], [3, 5], [0, 4]]"
+        expected: "[5, 4, 3, 2, 1, 1]"
+      - input: "2000, [[i, i - 1] for i in range(1, 2000)] + [[0, 1999]]"
+        expected: "list(range(1999, 0, -1)) + [1]"
+    hints:
+      - "There are `n` groups before any road."
+      - "A road between two different groups merges them: one fewer group."
+      - "Record the count after every road, whether it merged anything or not. Union by size keeps the trees shallow, even for thousands of roads in a line."
+    walkthrough:
+      call: "result = groups_after(4, [[0, 1], [2, 3], [1, 2], [0, 3]])"
+      visualise:
+        - variable: parent
+          as: array
+          pointers: [a, b, ra, rb]
+        - variable: counts
+          as: array
+      explanation: |
+        The first three roads each join two groups, taking the count from 4 down to 1. The last road, `[0, 3]`, finds both
+        towns on root `0` already, so the count stays at 1.
+  - id: step.union-find.write-largest
+    type: write-code
+    largeScreenPreferred: true
+    title: The biggest group
+    pattern: pattern.union-find
+    patternCue: "\"The size of the largest group\": union by size, keeping each root's group size."
+    prompt: |
+      `n` people (at least one), numbered `0` to `n - 1`, and a list of two-way friendships `pairs`. Write
+      `largest_group(n, pairs)` that returns how many people are in the largest group linked through friends. Someone with no
+      friends is a group of one.
+
+      `largest_group(5, [[0, 1], [1, 2], [3, 4]])` is `3`.
+
+      Keep a `size` for each root, and when two groups merge, add the smaller one's size to the larger's.
+    language: python
+    entrypoint: largest_group
+    starter: |
+      def largest_group(n, pairs):
+          pass
+    solution: |
+      def largest_group(n, pairs):
+          parent = list(range(n))
+          size = [1] * n
+
+          def find(x):
+              if parent[x] != x:
+                  parent[x] = find(parent[x])
+              return parent[x]
+
+          for a, b in pairs:
+              ra, rb = find(a), find(b)
+              if ra == rb:
+                  continue
+              if size[ra] < size[rb]:
+                  ra, rb = rb, ra
+              parent[rb] = ra
+              size[ra] += size[rb]
+          return max(size[find(x)] for x in range(n))
+    tests:
+      - input: "5, [[0, 1], [1, 2], [3, 4]]"
+        expected: "3"
+      - input: "3, []"
+        expected: "1"
+      - input: "6, [[0, 1], [2, 3], [1, 3], [4, 5]]"
+        expected: "4"
+      - input: "4, [[0, 1], [1, 0], [2, 2]]"
+        expected: "2"
+      - input: "7, [[5, 6], [4, 5], [0, 1], [3, 4], [1, 2], [2, 3]]"
+        expected: "7"
+    hints:
+      - "Each person starts as a group of size 1."
+      - "When two different roots merge, link the smaller under the larger and add the sizes."
+      - "The answer is the largest size held by any root."
+    walkthrough:
+      call: "result = largest_group(6, [[0, 1], [2, 3], [1, 3], [4, 5]])"
+      visualise:
+        - variable: parent
+          as: array
+          pointers: [ra, rb]
+        - variable: size
+          as: array
+          pointers: [ra, rb]
+      explanation: |
+        `[0, 1]` and `[2, 3]` make two groups of 2. `[1, 3]` merges them: root `0` takes root `2` under it, and `size[0]` becomes
+        4. `[4, 5]` makes another group of 2. The largest size at a root is 4.
