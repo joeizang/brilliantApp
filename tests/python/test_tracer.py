@@ -368,6 +368,107 @@ class LinkedLists(unittest.TestCase):
         self.assertEqual(len(last["lists"]["head"]["nodes"]), 1)
 
 
+class CallStacks(unittest.TestCase):
+    FACT = "def fact(n):\n    if n <= 1:\n        return 1\n    return n * fact(n - 1)\n\nresult = fact(3)\n"
+    WATCH = [{"as": "call_stack"}]
+
+    def stack(self, frame):
+        return [(c["function"], [a["repr"] for a in c["args"]]) for c in frame["calls"]["frames"]]
+
+    def test_records_the_active_calls_outermost_first_with_their_arguments(self):
+        r = trace(self.FACT, self.WATCH)
+        deepest = max(r["frames"], key=lambda f: len(f["calls"]["frames"]))
+        self.assertEqual(self.stack(deepest), [("fact", ["3"]), ("fact", ["2"]), ("fact", ["1"])])
+        self.assertEqual(deepest["calls"]["frames"][0]["args"], [{"name": "n", "repr": "3"}])
+        self.assertEqual(r["frames"][0]["calls"], {"frames": [], "more": 0, "returned": None})
+
+    def test_a_return_is_a_frame_with_the_value_and_the_next_frame_says_where_it_went(self):
+        r = trace(self.FACT, self.WATCH)
+        returns = [f for f in r["frames"] if f["event"] == "return" and f["function"] == "fact"]
+        self.assertEqual([(f["line"], f["calls"]["frames"][-1]["returning"]) for f in returns], [(3, "1"), (4, "2"), (4, "6")])
+        self.assertTrue(all(c["returning"] is None for f in returns for c in f["calls"]["frames"][:-1]))
+        ids = [c["id"] for c in returns[0]["calls"]["frames"]]
+        self.assertEqual(returns[1]["calls"]["returned"], {"function": "fact", "value": "1", "to": ids[1]})
+        self.assertEqual(returns[2]["calls"]["returned"], {"function": "fact", "value": "2", "to": ids[0]})
+        self.assertEqual(r["frames"][-1]["calls"]["returned"], {"function": "fact", "value": "6", "to": None})
+        self.assertEqual(local(r["frames"][-1], "result")["repr"], "6")
+
+    def test_returned_is_reported_once(self):
+        r = trace(self.FACT, self.WATCH)
+        self.assertEqual(sum(f["calls"]["returned"] is not None for f in r["frames"]), 3)
+
+    def test_a_call_keeps_its_id_and_ids_are_never_reused(self):
+        r = trace("def f(x):\n    return x\n\nf(1)\nf(2)\n", self.WATCH)
+        ids = {}
+        for frame in r["frames"]:
+            for call in frame["calls"]["frames"]:
+                ids.setdefault(call["id"], call["args"][0]["repr"])
+                self.assertEqual(ids[call["id"]], call["args"][0]["repr"])
+        self.assertEqual(sorted(ids.values()), ["1", "2"])
+
+    def test_the_value_returns_to_the_caller_even_when_another_call_is_on_top(self):
+        code = "def fib(n):\n    if n < 2:\n        return n\n    return fib(n - 1) + fib(n - 2)\n\nfib(2)\n"
+        r = trace(code, self.WATCH)
+        frame = next(f for f in r["frames"] if f["calls"]["returned"] and f["event"] == "line")
+        outer = frame["calls"]["frames"][0]
+        self.assertEqual(self.stack(frame), [("fib", ["2"]), ("fib", ["0"])])
+        self.assertEqual(frame["calls"]["returned"], {"function": "fib", "value": "1", "to": outer["id"]})
+
+    def test_functions_limits_the_calls_recorded(self):
+        code = "def helper(x):\n    return x + 1\n\ndef main():\n    return helper(1)\n\nmain()\n"
+        r = trace(code, [{"as": "call_stack", "functions": ["helper"]}])
+        self.assertTrue(all(c["function"] == "helper" for f in r["frames"] for c in f["calls"]["frames"]))
+        self.assertFalse(any(f["event"] == "return" and f["function"] == "main" for f in r["frames"]))
+        returned = [f["calls"]["returned"] for f in r["frames"] if f["calls"]["returned"]]
+        self.assertEqual(returned, [{"function": "helper", "value": "2", "to": None}])
+
+    def test_deep_stacks_keep_the_innermost_calls_and_count_the_rest(self):
+        code = "def down(n):\n    if n == 0:\n        return 0\n    return down(n - 1)\n\ndown(15)\n"
+        r = trace(code, self.WATCH)
+        deepest = max(r["frames"], key=lambda f: len(f["calls"]["frames"]) + f["calls"]["more"])
+        self.assertEqual(len(deepest["calls"]["frames"]), tracer.MAX_CALLS)
+        self.assertEqual(deepest["calls"]["more"], 16 - tracer.MAX_CALLS)
+        self.assertEqual(deepest["calls"]["frames"][-1]["args"][0]["repr"], "0")
+
+    def test_runaway_recursion_is_cut_at_the_frame_limit(self):
+        r = trace("def f(n):\n    return f(n + 1)\n\nf(0)\n", self.WATCH, max_frames=50)
+        self.assertEqual(r["status"], "truncated")
+        self.assertEqual(len(r["frames"]), 50)
+
+    def test_a_call_left_by_an_exception_has_no_return(self):
+        code = "def boom():\n    raise ValueError\n\ntry:\n    boom()\nexcept ValueError:\n    pass\n"
+        r = trace(code, self.WATCH)
+        self.assertEqual(r["status"], "ok")
+        self.assertFalse(any(f["event"] == "return" and f["function"] == "boom" for f in r["frames"]))
+        self.assertFalse(any(f["calls"]["returned"] for f in r["frames"]))
+        self.assertEqual(r["frames"][-1]["calls"]["frames"], [])
+
+    def test_an_exception_caught_inside_the_call_still_returns(self):
+        code = "def safe():\n    try:\n        raise ValueError\n    except ValueError:\n        return 0\n\nsafe()\n"
+        r = trace(code, self.WATCH)
+        self.assertEqual([f["calls"]["frames"][-1]["returning"] for f in r["frames"] if f["event"] == "return" and f["function"] == "safe"], ["0"])
+
+    def test_methods_leave_out_self_and_generators_and_comprehensions_are_not_calls(self):
+        code = ("class Box:\n    def put(self, x):\n        return x\n\ndef gen():\n    yield 1\n\n"
+                "Box().put(5)\nlist(gen())\n[y for y in range(2)]\n")
+        r = trace(code, self.WATCH)
+        functions = {c["function"] for f in r["frames"] for c in f["calls"]["frames"]}
+        self.assertEqual(functions, {"put"})
+        put = next(c for f in r["frames"] for c in f["calls"]["frames"])
+        self.assertEqual(put["args"], [{"name": "x", "repr": "5"}])
+
+    def test_without_the_call_stack_nothing_is_added(self):
+        r = trace(self.FACT)
+        self.assertTrue(all("calls" not in f for f in r["frames"]))
+        self.assertEqual([f["function"] for f in r["frames"] if f["event"] == "return"], ["<module>"])
+
+    def test_the_call_stack_is_recorded_alongside_other_watches(self):
+        code = "memo = {}\ndef f(n):\n    memo[n] = n\n    return n\n\nf(1)\n"
+        r = trace(code, ["memo", {"as": "call_stack"}])
+        frame = next(f for f in r["frames"] if f["calls"]["frames"] and "memo" in f["tables"])
+        self.assertEqual(self.stack(frame), [("f", ["1"])])
+
+
 class Problems(unittest.TestCase):
     def test_a_syntax_error_has_no_frames_and_a_line(self):
         r = trace("a = (\n")
