@@ -66,11 +66,11 @@ the step or its phone alternative, is a **warning**: `brilliant validate`, `pack
 | `pattern.fast-slow-pointers` (Fast and slow pointers) | Track 3 lesson 7 | its 6 problems; lesson 9 `remove_nth` (fill and write) |
 | `pattern.merge-sorted-lists` (Merge with a tail pointer) | Track 3 lesson 8 | its 5 problems |
 | `pattern.recursive-decomposition` (Solve it from a smaller call) | Track 4 lesson 2 | its 5 problems (lesson 1's `count_digits`, `digit_sum` and `gcd` are recursion drills, untagged) |
-| `pattern.dfs-traversal` (Pick the walk: pre-order, in-order or post-order) | Track 4 lesson 3 | its 5 problems |
-| `pattern.bfs-level-order` (Level by level with a queue) | Track 4 lesson 4 | its 5 problems |
-| `pattern.dfs-return-values` (Combine the children's answers) | Track 4 lesson 5 | its 5 problems |
-| `pattern.bst-ordering` (Let the BST order pick the side) | Track 4 lesson 6 | its 5 problems |
-| `pattern.top-down-state` (Carry what the path knows down as arguments) | Track 4 lesson 7 | its 5 problems |
+| `pattern.dfs-traversal` (Pick the walk: pre-order, in-order or post-order) | Track 4 lesson 3 | its 5 problems; lesson 9 `kth_smallest` |
+| `pattern.bfs-level-order` (Level by level with a queue) | Track 4 lesson 4 | its 5 problems; lesson 9 `zigzag` (Parsons) |
+| `pattern.dfs-return-values` (Combine the children's answers) | Track 4 lesson 5 | its 5 problems; lesson 9 `max_path_sum` |
+| `pattern.bst-ordering` (Let the BST order pick the side) | Track 4 lesson 6 | its 5 problems; lesson 9 `lca` (fill) |
+| `pattern.top-down-state` (Carry what the path knows down as arguments) | Track 4 lesson 7 | its 5 problems; lesson 9 `max_ancestor_diff` |
 | `pattern.backtracking` (Choose, explore, unchoose) | Track 4 lesson 8 | its 5 problems |
 
 Left untagged: every problem in Track 1 lessons 1–6 (Python and Big-O drills), Track 2 lesson 6's `count_subarrays` (its prompt says
