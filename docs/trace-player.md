@@ -1,9 +1,9 @@
-# Trace Player: arrays, stacks, queues, dicts, sets and linked lists, stepping and playback
+# Trace Player: arrays, stacks, queues, dicts, sets, linked lists and the call stack, stepping and playback
 
 PRD stories 24, 25 and 27 ([#23](https://github.com/joeizang/brilliantApp/issues/23)) and 26, 28, 29 and 65 ([#24](https://github.com/joeizang/brilliantApp/issues/24)).
 A *trace* step runs a small example once, records every line it executes, and lets the learner walk through it: the code with the current
 line highlighted, the watched lists drawn as cells with named pointers that slide as they move, the watched dicts and sets drawn as
-tables whose rows appear, flash and fade, linked lists drawn as nodes joined by arrows that redraw as they are rewired, and the local variables with what just changed marked. It steps by button or arrow key and
+tables whose rows appear, flash and fade, linked lists drawn as nodes joined by arrows that redraw as they are rewired, the call stack with each value handed back to its caller, and the local variables with what just changed marked. It steps by button or arrow key and
 plays by itself at 0.5×, 1× or 2×.
 
 ```
@@ -43,7 +43,7 @@ offline and takes a few milliseconds once Pyodide has started). `content validat
       as: set
 ```
 
-`as` is `array`, `stack`, `queue`, `dict`, `set` or `linked_list`. A pointer on a dict or set is any variable, of any type, whose value is a key: the row with that key
+`as` is `array`, `stack`, `queue`, `dict`, `set`, `linked_list` or `call_stack`. A pointer on a dict or set is any variable, of any type, whose value is a key: the row with that key
 is marked with the pointer's name, and when no row has that key the player says *Looking up `word` finds no such key.*
 
 `body` and `code` are required, and there must be at least one visual. A trace step takes no `hints` and can't be a review item.
@@ -58,6 +58,9 @@ The validator rejects, with the file and step in the message:
 - on a linked list: `next` or `value` on any other kind, or not a Python attribute name; the list's own variable listed as a pointer (it is
   already drawn on the first node); a `variable` that never holds a node; nodes that have no `value` attribute to show (the message says to
   set `value`); and a pointer that never holds a node of the list.
+- on the call stack: a `variable` or `pointers` (it has neither), a second `call_stack`, `functions` on any other kind, a function name
+  that isn't an identifier or is listed twice, code that never calls a function of its own (or none of those listed), and a listed
+  function that is never called.
 
 ### Stacks and queues
 
@@ -138,6 +141,38 @@ The validator rejects, with the file and step in the message:
   that was rewired draws itself in, in the accent colour, and a value that changed flashes. A new node grows in.
 - At most 30 nodes are drawn; the rest of the list is *+N more*. A pointer on a node past them is named under the list.
 
+### The call stack
+
+```yaml
+- id: step.recursion.factorial
+  type: trace
+  title: Calls waiting on calls
+  body: |
+    Each call of `fact` waits for the one it made. Watch the values come back down the stack.
+  code: |
+    def fact(n):
+        if n <= 1:
+            return 1
+        return n * fact(n - 1)
+
+    print(fact(3))
+  visualise:
+    - as: call_stack        # no variable: it draws the calls under way
+      functions: [fact]     # optional: only these functions' calls (the default is every function of the example's own)
+```
+
+- One **frame** per call under way, the module at the bottom and the running call on top (marked *running*), each shown as it was
+  called: `fact(n=3)`, with each argument's repr. `self` and `cls` are left out. Only the example's own functions count: no calls into
+  Python's library, and no class bodies, comprehensions or generators.
+- While the call stack is watched, a function **returning** is a step of its own: the line it returns from, with *returns 6* beside
+  its frame. On the next step the frame rises away (a dashed ghost) and the value pops up beside the frame it went back to, *← 6*, or
+  beside the module. A note under the drawing says *fact(n=1) returned 1 to fact(n=2).*; a call ended by an exception *ended without
+  returning*.
+- A frame keeps its place for as long as the call lasts, so the frames under a new call never move.
+- At most 12 frames are drawn, the innermost; the rest are counted where the module would be, *+N more calls below*.
+- It is drawn above the other visuals and works alongside them. Locals are still compared only within one function; the call stack is
+  compared by depth (which calls are new, which have gone).
+
 
 
 `trace_code(code, watch_json)` runs the code with `sys.settrace` and returns JSON. It is plain stdlib Python so the CLI runs the same file
@@ -146,6 +181,15 @@ no line). A frame holds the function name, the locals (name, type, clipped repr)
 or `collections.deque`: `type` and the first cells' reprs, front to back; a deque can't be sliced, so they are taken with `islice`), `tables` (a dict or set: `kind`, the Python `type` name, the first rows as `{id, key, value}` and `hits`) or `lists` (a linked list, below).
 The watch list names the variables: a plain name for an array, stack, queue, dict or set, and for a linked list an object,
 `{"variable", "as": "linked_list", "next", "value", "pointers"}`.
+
+With `{"as": "call_stack", "functions": [...]}` in the watch list, every frame also has `calls`: `{frames, more, returned}`. `frames` are
+the calls under way, outermost first, as `{id, function, args: [{name, repr}], returning}`; `id` grows with every call made, so a call
+keeps its id for as long as it lasts and a new one always has a bigger one. Only a code object with `CO_OPTIMIZED` that isn't a generator,
+coroutine or async generator, and isn't a comprehension, counts as a call (a class body is not optimised); with `functions`, only those.
+Each function's return is recorded as a frame of its own (`event: "return"` with the line) whose top call has `returning` set to the
+value's repr; the step after has `returned: {function, value, to}`, `to` being the id of the call it went back to (null for the module or
+a call not shown). A call left by an exception gets no return frame: the recorder sees the `exception` event and, unless a `line` event
+says it was caught, takes the call off without one. At most 12 calls are kept, the innermost, and `more` counts the rest.
 
 A linked list is recorded as `{head, nodes, more, pointers}`. Every node gets an id the first time it is met and keeps it for the whole run
 (the recorder holds on to the object, so its id can't be reused by a new one); `head` and each pointer are a node id or null for None. `nodes` are
@@ -206,6 +250,10 @@ being "new" isn't a change the learner caused.
   `Changed` is a node whose value differs, `Relinked` one whose link now holds a different node, and `Added` a node the step before didn't
   have. `Pointers` are the variable itself (on the head) and then the recorded pointers, each `Moved` when it holds a different node (or
   None) than before.
+- **The call stack** (`CallStackView`): `Frames` are the calls under way as `CallFrameView`s (`Label` is `fact(n=3)`). A frame is
+  `Pushed` when its id is bigger than any the step before had, and `Received` is the value handed back to it since the step before (by
+  `returned.to`). `Gone` are the calls the step before had that this one hasn't (ghosts for one step; when the stack is cut off, only
+  those above the bottom one shown), and `ToModule` is a value handed back to the module or to a call not drawn.
 - `PointerView.Index`: the cell the pointer's variable indexes (on an array, stack or queue alike). Null when the variable is missing, isn't an `int`, or is outside the
   recorded cells (negative, or past the end). `Moved` is true when the index differs from the previous state's.
 
@@ -213,7 +261,7 @@ being "new" isn't a change the learner caused.
 
 - `TracePlayer.razor`: a read-only `CodeEditor` (new `ReadOnly` parameter) with the current line highlighted through the existing
   `HighlightLineAsync`; Previous, Play/Pause and Next; *Step n of m*; the speed buttons; one `TraceSequence` per watched stack or queue; one SVG per watched array; one `TraceTable` per
-  watched dict or set (after the lists, whatever order the lesson names them in); one `TraceLinkedList` per watched linked list; a *Variables* table; and, on the last step only,
+  watched dict or set (after the lists, whatever order the lesson names them in); one `TraceLinkedList` per watched linked list; a `TraceCallStack` above them all when the call stack is watched; a *Variables* table; and, on the last step only,
   what the run printed, the error that ended it, or a note that it was cut short (`TraceEnding.razor`).
 - **Animation is CSS.** A pointer is a `<g>` positioned with `style="transform: translate(…)"` and keyed by variable and name, so Blazor
   patches the same element and the browser transitions it from the old cell to the new one. A changed cell is keyed by step too, so it is
@@ -236,6 +284,10 @@ being "new" isn't a change the learner caused.
   a CSS transform, the arrow to the next node part of it. A rewired arrow is keyed by step and has `pathLength="1"`, so `animate-link-in`
   draws it from its node to the next; its head pops. Pointer names on one node take rows above it where they clear their neighbours', and a
   name wider than the first node moves the drawing's left edge rather than being cut off. A long list scrolls sideways.
+- The call stack (`TraceCallStack.razor`) is a column of frames drawn bottom up, in user units sized in rem, as wide as its longest call
+  and returned value, scrolling sideways (and up and down, at most 30rem) on a phone. Each frame is a `<g>` keyed by its id and placed with
+  a CSS transform; a new call grows in (`animate-cell-in`), a gone one rises away (`animate-cell-out`), the *running* marker slides to the
+  new top, and a value handed back is keyed by step, so it pops (`animate-pop`) every time.
 - A trace step is finished with *Continue* (or Return), like an explanation: it records `StepCompleted`, nothing else.
 
 ### Playback
@@ -278,7 +330,7 @@ by the last rung of the hint ladder, see [hints.md](hints.md).
 Per-variable speed or scrubbing, drawing nested structures (a list of lists, a dict of lists, a node whose value is a node), doubly linked
 lists (a `prev` arrow), and reading a trace aloud.
 `Visual.As` is a string and the model builds one `ArrayView` per `array`, `stack` or `queue` visual, one `TableView` per `dict` or `set`
-visual and one `LinkedListView` per `linked_list` visual, so another kind slots in beside them.
+visual, one `LinkedListView` per `linked_list` visual and one `CallStackView` for the `call_stack`, so another kind slots in beside them.
 
 ## Tests
 
@@ -287,7 +339,7 @@ visual and one `LinkedListView` per `linked_list` visual, so another kind slots 
 `tests/Brilliant.Lessons.UI.Tests/TracePlayerTests.cs`, `TraceStepViewTests.cs` and `WalkthroughRungTests.cs` (rendering, stepping, playback on a manual clock, shortcuts,
 line highlight, lesson wiring), `tests/js/shortcuts.test.mjs` (key classification) and `ShortcutTests.cs` (the page listener's mapping).
 bUnit can't observe a CSS transition or element reuse, so the sliding, flashing, the ghost row's fade and the stack and queue cells
-growing in and rising away, and a linked list's nodes sliding and arrows drawing in, are checked by looking at the running app.
+growing in and rising away, a linked list's nodes sliding and arrows drawing in, and the call stack's frames growing in and values popping up, are checked by looking at the running app.
 
 Known limit: the recorder keeps only the first 20 rows, so a pointer on a later row is shown as nothing (neither marked nor a miss) beside
 *+N more*.
