@@ -278,22 +278,23 @@ steps:
     type: choice
     title: Why not just sort?
     prompt: |
-      You could copy both lists' values into a Python list, call `sorted`, and build new nodes. Why merge instead?
+      You could copy both lists' values into a Python list, call `sorted`, and build new nodes from the result. Why merge
+      instead?
     options:
-      - text: "Merging uses that both are sorted: `O(n + m)` time and no extra memory, against `O((n + m) log(n + m))` time and a copy of everything."
+      - text: "Merging relinks the nodes you already have, with `O(1)` extra memory. The `sorted` route copies every value into a list and builds a whole new set of nodes."
         correct: true
-        feedback: "Right. *Each input is already sorted* is the cue: one pass, comparing heads, is enough."
+        feedback: "Right. *Merge the lists*, *don't create new nodes*, *`O(1)` extra space* are the cues: compare the two heads and relink, one pass."
+      - text: "`sorted` takes `O((n + m) log(n + m))` time here, so merging is asymptotically faster."
+        correct: false
+        feedback: "Not for Python's `sorted`. Copying two sorted lists one after the other gives two ascending runs, and Timsort finds those runs and merges them in linear time. The cost of the `sorted` route is the copy and the new nodes."
       - text: "`sorted` doesn't work on numbers from a linked list."
         correct: false
-        feedback: "Once copied into a Python list they're ordinary values and `sorted` works. It's just slower and copies everything."
-      - text: "Merging is faster only when the lists are the same length."
+        feedback: "Once copied into a Python list they're ordinary values and `sorted` works. But it needs that copy, and new nodes to hold the answer."
+      - text: "Merging only works when the lists are the same length."
         correct: false
-        feedback: "Merging is `O(n + m)` whatever the lengths; when one runs out, the other's rest is attached in one step."
-      - text: "There is no difference; both are `O(n + m)`."
-        correct: false
-        feedback: "Sorting from scratch is `O(k log k)` for `k = n + m` values. Merging is linear because the inputs are already in order."
+        feedback: "Merging works whatever the lengths: when one runs out, the other's rest is attached in one step."
     hints:
-      - "What does the merge know about its inputs that `sorted` ignores?"
+      - "Both routes can take linear time. What does the `sorted` route have to build that the merge doesn't?"
   - id: step.merge.fill
     type: fill-blank
     title: Complete sort_list
