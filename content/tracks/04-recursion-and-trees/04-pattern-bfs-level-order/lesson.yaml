@@ -1,0 +1,669 @@
+id: lesson.bfs-level-order
+title: "Pattern: level-order BFS with a deque"
+concepts:
+  - id: concept.bfs-queue
+    title: A queue visits the tree level by level
+  - id: concept.bfs-level-size
+    title: Take the queue's length to process one level at a time
+  - id: concept.bfs-nearest-first
+    title: BFS reaches the shallowest nodes first
+reviewItems:
+  - id: review.bfs.predict-order
+    concept: concept.bfs-queue
+    step: step.bfs.predict-order
+  - id: review.bfs.pop-zero
+    concept: concept.bfs-queue
+    step: step.bfs.check-pop-zero
+  - id: review.bfs.predict-levels
+    concept: concept.bfs-level-size
+    step: step.bfs.predict-levels
+  - id: review.bfs.which-problem
+    concept: concept.bfs-nearest-first
+    step: step.bfs.check-which-problem
+    kind: pattern
+  - id: review.bfs.why-not-dfs
+    concept: concept.bfs-nearest-first
+    step: step.bfs.check-why-not-dfs
+    kind: pattern
+patterns:
+  - id: pattern.bfs-level-order
+    title: Level by level with a queue
+steps:
+  - id: step.bfs.idea
+    type: explain
+    title: Across before down
+    body: |
+      A DFS dives to the bottom of one subtree before it looks at the next. A **breadth-first search** (BFS) goes the other
+      way: the root, then every node one level down, then every node two levels down, left to right across each level.
+
+      A **queue** makes it happen. Start with the root in the queue. Then, until the queue is empty: take the node at the
+      **front**, visit it, and add its children at the **back**. Children always join behind everything already waiting, so a
+      level is finished before the next one starts.
+
+      In Python the queue is a `collections.deque`, as in Track 3: `append` to the back and `popleft` from the front, both
+      O(1). C# has `Queue<T>` with `Enqueue` and `Dequeue`.
+    comparison:
+      csharp: |
+        var order = new List<int>();
+        var queue = new Queue<Node>();
+        if (root != null) queue.Enqueue(root);
+        while (queue.Count > 0)
+        {
+            var node = queue.Dequeue();
+            order.Add(node.Val);
+            if (node.Left != null) queue.Enqueue(node.Left);
+            if (node.Right != null) queue.Enqueue(node.Right);
+        }
+      python: |
+        from collections import deque
+
+        order = []
+        queue = deque([root] if root else [])
+        while queue:
+            node = queue.popleft()
+            order.append(node.val)
+            if node.left:
+                queue.append(node.left)
+            if node.right:
+                queue.append(node.right)
+  - id: step.bfs.trace-order
+    type: trace
+    title: The queue runs the walk
+    body: |
+      Watch the queue under the tree. Each step takes the node at the front, numbers it, and puts its children at the back. `2`
+      and `3` join before `2`'s children, so the whole second level is numbered before the third.
+    code: |
+      from collections import deque
+
+
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      root = Node(1, Node(2, Node(4), Node(5)), Node(3, None, Node(6)))
+      order = []
+      queue = deque([root])
+      while queue:
+          node = queue.popleft()
+          order.append(node.val)
+          if node.left:
+              queue.append(node.left)
+          if node.right:
+              queue.append(node.right)
+    visualise:
+      - variable: root
+        as: tree
+        pointers: [node]
+        visited: order
+      - variable: queue
+        as: queue
+  - id: step.bfs.predict-order
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      The tree is drawn in the comment. In what order does the BFS visit it?
+    code: |
+      from collections import deque
+
+
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+
+      #        A
+      #       / \
+      #      B   C
+      #       \   / \
+      #        D E   F
+      root = Node("A", Node("B", None, Node("D")), Node("C", Node("E"), Node("F")))
+      order = []
+      queue = deque([root])
+      while queue:
+          node = queue.popleft()
+          order.append(node.val)
+          if node.left:
+              queue.append(node.left)
+          if node.right:
+              queue.append(node.right)
+      print("".join(order))
+    accepted:
+      - "ABCDEF"
+    mistakes:
+      - answers:
+          - "ABDCEF"
+        feedback: "That is pre-order, a DFS. The queue finishes a level before it starts the next, so `C` comes before `B`'s child `D`."
+      - answers:
+          - "ACBFED"
+        feedback: "Children join the queue left first, so each level is read left to right: `B` before `C`, `D` before `E` and `F`."
+      - answers:
+          - "ABCEFD"
+        feedback: "`D` joined the queue when `B` was visited, before `C` added `E` and `F`, so `D` leaves first."
+    hints:
+      - "Write the queue down after each step. It starts as `[A]`."
+      - "A node's children join at the back, behind everything already waiting."
+  - id: step.bfs.check-pop-zero
+    type: choice
+    title: Why a deque?
+    prompt: |
+      Someone writes the BFS with a plain list: `queue = [root]` and `node = queue.pop(0)`. It gives the same order. What is
+      the problem on a tree of `n` nodes?
+    options:
+      - text: "`pop(0)` moves every item left behind it, so it costs O(n) and the walk can become O(n²)."
+        correct: true
+        feedback: "Right. A list is stored from its front, so removing item 0 shifts the rest. A deque's `popleft` is O(1), and the BFS stays O(n)."
+      - text: "`pop(0)` takes from the back, so the walk becomes a DFS."
+        correct: false
+        feedback: "`pop(0)` does take from the front, so the order is still breadth-first. The cost is the problem: it shifts the rest of the list."
+      - text: "None: `pop(0)` and `popleft()` cost the same."
+        correct: false
+        feedback: "A deque is built so that both ends are O(1). A list is only fast at its back; `pop(0)` shifts every item after it."
+      - text: "A list can't hold `Node` objects."
+        correct: false
+        feedback: "A list can hold anything. It's removing from its front that is slow."
+    hints:
+      - "Where are a list's items stored, and what has to happen when item 0 goes?"
+  - id: step.bfs.levels
+    type: explain
+    title: One level at a time
+    body: |
+      Many BFS problems need to know **where one level ends**: list the levels separately, find the largest value on each
+      level, or count the levels. The trick is that when a level starts, the queue holds **exactly that level** and nothing
+      else. So take its length first and pop exactly that many:
+
+      ```python
+      while queue:
+          level = []
+          for _ in range(len(queue)):     # len is read once, before any children join
+              node = queue.popleft()
+              level.append(node.val)
+              if node.left:
+                  queue.append(node.left)
+              if node.right:
+                  queue.append(node.right)
+          levels.append(level)
+      ```
+
+      The children added inside the `for` wait at the back for the next pass of the `while`. `range(len(queue))` is worked out
+      once, when the `for` starts, so they don't stretch the current level.
+
+      This is the **level-order BFS** pattern. Reach for it when a problem talks about **levels** or **depth from the top**:
+      per-level values, a view from one side, or the **shallowest** node with some property, where BFS can stop at the first
+      one it meets.
+  - id: step.bfs.trace-levels
+    type: trace
+    title: Levels in the queue
+    body: |
+      At the top of each pass of the `while`, the queue holds one whole level. `size` is its length, and the `for` takes exactly
+      that many nodes, so `levels` grows by one list per level: `[1]`, then `[2, 3]`, then `[4, 5, 6]`.
+    code: |
+      from collections import deque
+
+
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      root = Node(1, Node(2, Node(4), Node(5)), Node(3, None, Node(6)))
+      levels = []
+      queue = deque([root])
+      while queue:
+          size = len(queue)
+          level = []
+          for _ in range(size):
+              node = queue.popleft()
+              level.append(node.val)
+              if node.left:
+                  queue.append(node.left)
+              if node.right:
+                  queue.append(node.right)
+          levels.append(level)
+    visualise:
+      - variable: root
+        as: tree
+        pointers: [node]
+      - variable: queue
+        as: queue
+  - id: step.bfs.predict-levels
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      This BFS counts the nodes on each level. What does it print?
+    code: |
+      from collections import deque
+
+
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+
+      root = Node(1, Node(2, Node(4, Node(7))), Node(3, Node(5), Node(6)))
+      counts = []
+      queue = deque([root])
+      while queue:
+          counts.append(len(queue))
+          for _ in range(len(queue)):
+              node = queue.popleft()
+              if node.left:
+                  queue.append(node.left)
+              if node.right:
+                  queue.append(node.right)
+      print(counts)
+    accepted:
+      - "[1, 2, 3, 1]"
+    mistakes:
+      - answers:
+          - "[1, 2, 4, 8]"
+        feedback: "That is a full tree. Count the nodes that are really there: the third level is `4`, `5` and `6`, and the last is only `7`."
+      - answers:
+          - "[1, 2, 3]"
+        feedback: "`7` is `4`'s left child, a fourth level of its own."
+      - answers:
+          - "[7]"
+        feedback: "`counts` gets one entry per pass of the `while`, and each pass is one level."
+    hints:
+      - "Draw the tree: `1` at the top, `2` and `3` under it, then `2`'s child `4` and `3`'s children `5` and `6`."
+      - "Each pass of the `while` records how many nodes the level has."
+  - id: step.bfs.check-which-problem
+    type: choice
+    title: Which one is a BFS?
+    prompt: |
+      Which of these problems is the best fit for a level-order BFS?
+    options:
+      - text: "The value at the right-hand end of each level, top to bottom, as seen from the right-hand side of the tree."
+        correct: true
+        feedback: "Right. Each level is one pass of the `while`; the last node popped in that pass is the one seen from the right."
+      - text: "The tree's values in sorted order, for a binary search tree."
+        correct: false
+        feedback: "That is an in-order DFS: in a binary search tree it visits the values smallest first."
+      - text: "The total of every node's value."
+        correct: false
+        feedback: "Any walk adds them all up. Nothing about levels matters, and a short recursive DFS is simplest."
+      - text: "Whether two trees have the same shape."
+        correct: false
+        feedback: "Compare the two trees node by node with a DFS: same value, then the same for the left subtrees and the right."
+    hints:
+      - "Which problem talks about levels?"
+  - id: step.bfs.check-why-not-dfs
+    type: choice
+    title: Why stop early?
+    prompt: |
+      The **minimum depth** of a tree is the number of nodes on the shortest path from the root down to a leaf. A tree has a
+      leaf at depth 2 and a million nodes in its other subtree. Why is a level-order BFS a good fit?
+    options:
+      - text: "BFS meets the shallowest leaf first, so it can return at depth 2 without looking at the big subtree."
+        correct: true
+        feedback: "Right. Levels come out top to bottom, so the first leaf BFS pops is the shallowest one, and it can stop there."
+      - text: "BFS is always faster than DFS."
+        correct: false
+        feedback: "Both are O(n) to walk the whole tree. BFS wins here only because it can stop at the first leaf it meets."
+      - text: "A DFS can't find leaves."
+        correct: false
+        feedback: "A DFS finds every leaf, but it may walk the whole big subtree before it reaches the shallow one."
+      - text: "BFS uses less memory than DFS on every tree."
+        correct: false
+        feedback: "A BFS queue can hold a whole level, which in a wide tree is about half the nodes. Memory isn't the reason."
+    hints:
+      - "Which leaf does BFS meet first?"
+  - id: step.bfs.fill-levels
+    type: fill-blank
+    title: One level per pass
+    pattern: pattern.bfs-level-order
+    patternCue: "\"Group the values by level\": pop exactly `len(queue)` nodes per pass, and that pass is one level."
+    prompt: |
+      Fill in the blanks so that `level_sums(root)` returns the sum of each level, top to bottom. The tree has at least one node.
+    template: |
+      from collections import deque
+
+
+      def level_sums(root):
+          sums = []
+          queue = deque([root])
+          while queue:
+              total = 0
+              for _ in range({{size}}):
+                  node = queue.{{take}}()
+                  total += node.val
+                  if node.left:
+                      queue.append(node.left)
+                  if node.right:
+                      queue.append(node.right)
+              sums.append(total)
+          return sums
+    blanks:
+      - id: size
+        accepted:
+          - "len(queue)"
+        mistakes:
+          - answers:
+              - "len(sums)"
+            feedback: "`sums` counts the levels done so far. The level being summed is what's in the queue right now."
+          - answers:
+              - "2"
+            feedback: "A level can have any number of nodes. When the pass starts, the queue holds exactly this level."
+      - id: take
+        accepted:
+          - "popleft"
+        mistakes:
+          - answers:
+              - "pop"
+            feedback: "`pop` takes from the back, where the newest children are, so the levels would get mixed up. Take from the front."
+    hints:
+      - "When the `for` starts, the queue holds one whole level."
+      - "A queue is first in, first out: take from the front."
+  - id: step.bfs.order-right-view
+    type: parsons
+    title: The view from the right
+    pattern: pattern.bfs-level-order
+    patternCue: "\"What you see from the right side\": one BFS pass per level, keeping the last node of each pass."
+    prompt: |
+      Arrange the lines into `right_view(root)`, which returns the last value on each level, top to bottom. The tree has at
+      least one node.
+    solution: |
+      def right_view(root):
+          seen = []
+          queue = deque([root])
+          while queue:
+              size = len(queue)
+              for i in range(size):
+                  node = queue.popleft()
+                  if i == size - 1:
+                      seen.append(node.val)
+                  if node.left:
+                      queue.append(node.left)
+                  if node.right:
+                      queue.append(node.right)
+          return seen
+    hints:
+      - "Read the level's size before the `for`, so you know which node is the last."
+      - "The last node of a pass is at `i == size - 1`."
+  - id: step.bfs.write-level-order
+    type: write-code
+    largeScreenPreferred: true
+    title: The levels of a tree
+    pattern: pattern.bfs-level-order
+    patternCue: "\"The values, level by level\": a deque of nodes, and `len(queue)` pops per pass make one level's list."
+    prompt: |
+      Write `level_order(root)` that returns the tree's values as a list of levels, top to bottom, each level left to right.
+      `level_order(Node(1, Node(2), Node(3, Node(4))))` is `[[1], [2, 3], [4]]`, and the empty tree gives `[]`.
+
+      `Node` and the `deque` import are in the starter; keep them.
+    language: python
+    entrypoint: level_order
+    starter: |
+      from collections import deque
+
+
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def level_order(root):
+          pass
+    solution: |
+      from collections import deque
+
+
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def level_order(root):
+          if root is None:
+              return []
+          levels = []
+          queue = deque([root])
+          while queue:
+              level = []
+              for _ in range(len(queue)):
+                  node = queue.popleft()
+                  level.append(node.val)
+                  if node.left:
+                      queue.append(node.left)
+                  if node.right:
+                      queue.append(node.right)
+              levels.append(level)
+          return levels
+    tests:
+      - input: "Node(1, Node(2), Node(3, Node(4)))"
+        expected: "[[1], [2, 3], [4]]"
+      - input: "None"
+        expected: "[]"
+      - input: "Node(5)"
+        expected: "[[5]]"
+      - input: "Node(1, Node(2, Node(4), Node(5)), Node(3, None, Node(6)))"
+        expected: "[[1], [2, 3], [4, 5, 6]]"
+      - input: "Node(1, Node(2, Node(3, Node(4))))"
+        expected: "[[1], [2], [3], [4]]"
+    hints:
+      - "The empty tree has no levels. Otherwise start the queue with the root."
+      - "At the top of each pass, the queue holds exactly one level: pop `len(queue)` nodes into a new list."
+      - "Children go to the back of the queue, left before right, for the next pass."
+    walkthrough:
+      call: result = level_order(Node(1, Node(2, Node(4), Node(5)), Node(3, None, Node(6))))
+      visualise:
+        - variable: queue
+          as: queue
+      explanation: |
+        The queue starts as `[Node 1]`: one node, one pop, `[1]`. That pop added `2` and `3`, so the next pass pops two:
+        `[2, 3]`, adding `4`, `5` and `6`. The last pass pops three, adds nothing, and the empty queue ends the loop.
+    phoneAlternative:
+      id: step.bfs.write-level-order.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `level_order(root)`, which returns the tree's values as a list of levels. Arrange the lines instead of typing them.
+      solution: |
+        def level_order(root):
+            if root is None:
+                return []
+            levels = []
+            queue = deque([root])
+            while queue:
+                level = []
+                for _ in range(len(queue)):
+                    node = queue.popleft()
+                    level.append(node.val)
+                    if node.left:
+                        queue.append(node.left)
+                    if node.right:
+                        queue.append(node.right)
+                levels.append(level)
+            return levels
+      hints:
+        - "One pass of the `while` is one level."
+        - "Pop exactly `len(queue)` nodes in the pass."
+  - id: step.bfs.write-min-depth
+    type: write-code
+    largeScreenPreferred: true
+    title: The shallowest leaf
+    pattern: pattern.bfs-level-order
+    patternCue: "\"The shortest path from the root to a leaf\": BFS meets the levels top down, so the first leaf it pops is the answer."
+    prompt: |
+      Write `min_depth(root)` that returns the number of nodes on the shortest path from the root down to a **leaf** (a node
+      with no children). A single node has depth `1`, and the empty tree `0`. Stop as soon as you know the answer.
+
+      `Node` and the `deque` import are in the starter; keep them.
+    language: python
+    entrypoint: min_depth
+    starter: |
+      from collections import deque
+
+
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def min_depth(root):
+          pass
+    solution: |
+      from collections import deque
+
+
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def min_depth(root):
+          if root is None:
+              return 0
+          queue = deque([root])
+          depth = 0
+          while queue:
+              depth += 1
+              for _ in range(len(queue)):
+                  node = queue.popleft()
+                  if node.left is None and node.right is None:
+                      return depth
+                  if node.left:
+                      queue.append(node.left)
+                  if node.right:
+                      queue.append(node.right)
+    tests:
+      - input: "Node(1, Node(2, Node(4), Node(5)), Node(3))"
+        expected: "2"
+      - input: "None"
+        expected: "0"
+      - input: "Node(1)"
+        expected: "1"
+      - input: "Node(1, Node(2, Node(3, Node(4))))"
+        expected: "4"
+      - input: "Node(1, Node(2), Node(3, Node(4, Node(5), Node(6)), Node(7, Node(8))))"
+        expected: "2"
+      - input: "Node(1, None, Node(2, Node(3), Node(4)))"
+        expected: "3"
+    hints:
+      - "Count the levels as the `while` passes them."
+      - "The first leaf you pop is on the shallowest level that has one: return the level's number there."
+      - "A node with one child isn't a leaf: `Node(1, None, Node(2))` has depth 2, not 1."
+    walkthrough:
+      call: result = min_depth(Node(1, Node(2, Node(4), Node(5)), Node(3)))
+      visualise:
+        - variable: queue
+          as: queue
+      explanation: |
+        Level 1 is `1`, which has children, so `2` and `3` join the queue. Level 2 pops `2`, which has children too, then `3`,
+        which has none: it is a leaf, so the answer is `2`. `4` and `5` are still waiting in the queue, never looked at.
+  - id: step.bfs.write-largest
+    type: write-code
+    largeScreenPreferred: true
+    title: The largest value on each level
+    pattern: pattern.bfs-level-order
+    patternCue: "\"The largest on each level\": one BFS pass per level, keeping a running maximum for the pass."
+    prompt: |
+      Write `largest_per_level(root)` that returns a list with the largest value on each level of the tree, top to bottom.
+      The empty tree gives `[]`.
+
+      `Node` and the `deque` import are in the starter; keep them.
+    language: python
+    entrypoint: largest_per_level
+    starter: |
+      from collections import deque
+
+
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def largest_per_level(root):
+          pass
+    solution: |
+      from collections import deque
+
+
+      class Node:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+          def __repr__(self):
+              return f"Node({self.val})"
+
+
+      def largest_per_level(root):
+          if root is None:
+              return []
+          result = []
+          queue = deque([root])
+          while queue:
+              best = None
+              for _ in range(len(queue)):
+                  node = queue.popleft()
+                  if best is None or node.val > best:
+                      best = node.val
+                  if node.left:
+                      queue.append(node.left)
+                  if node.right:
+                      queue.append(node.right)
+              result.append(best)
+          return result
+    tests:
+      - input: "Node(1, Node(3, Node(5), Node(3)), Node(2, None, Node(9)))"
+        expected: "[1, 3, 9]"
+      - input: "None"
+        expected: "[]"
+      - input: "Node(-4)"
+        expected: "[-4]"
+      - input: "Node(0, Node(-5), Node(-2, Node(-7)))"
+        expected: "[0, -2, -7]"
+      - input: "Node(1, Node(2, Node(4, Node(8)), Node(5)), Node(3, Node(6), Node(7)))"
+        expected: "[1, 3, 7, 8]"
+    hints:
+      - "Each pass of the `while` is one level: keep the largest value seen in that pass."
+      - "Start each level's maximum from its first node (or `None`), not from `0`: values can be negative."
+    walkthrough:
+      call: result = largest_per_level(Node(1, Node(3, Node(5), Node(3)), Node(2, None, Node(9))))
+      visualise:
+        - variable: queue
+          as: queue
+      explanation: |
+        Each pass of the `while` empties one level from the front of the queue: `[1]`, then `[3, 2]`, then `[5, 3, 9]`, and
+        keeps the largest of each: `1`, `3` and `9`.
