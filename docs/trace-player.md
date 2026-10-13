@@ -210,16 +210,23 @@ The validator rejects, with the file and step in the message:
 ### Heaps
 
 ```yaml
-- kind: trace
+- id: step.heaps.push
+  type: trace
   title: Pushing onto a heap
   body: |
-    A push puts the value at the end, then swaps it with its parent while it is the smaller of the two.
+    A push puts the value at the end, then swaps it with its parent for as long as it is the smaller of the two.
   code: |
     import heapq
-    heap = [2, 5, 4]
-    heapq.heappush(heap, 1)
+
+    heap = [2, 5, 4, 8]
+    heap.append(1)
+    i = len(heap) - 1
+    while i > 0 and heap[i] < heap[(i - 1) // 2]:
+        parent = (i - 1) // 2
+        heap[i], heap[parent] = heap[parent], heap[i]
+        i = parent
     smallest = heapq.heappop(heap)
-  visuals:
+  visualise:
     - variable: heap
       as: heap
       pointers: [i]         # int variables: the cell they index, and its node
