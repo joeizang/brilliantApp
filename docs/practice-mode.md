@@ -70,6 +70,8 @@ the step or its phone alternative, is a **warning**: `brilliant validate`, `pack
 | `pattern.bfs-level-order` (Level by level with a queue) | Track 4 lesson 4 | its 5 problems |
 | `pattern.dfs-return-values` (Combine the children's answers) | Track 4 lesson 5 | its 5 problems |
 | `pattern.bst-ordering` (Let the BST order pick the side) | Track 4 lesson 6 | its 5 problems |
+| `pattern.top-down-state` (Carry what the path knows down as arguments) | Track 4 lesson 7 | its 5 problems |
+| `pattern.backtracking` (Choose, explore, unchoose) | Track 4 lesson 8 | its 5 problems |
 
 Left untagged: every problem in Track 1 lessons 1–6 (Python and Big-O drills), Track 2 lesson 6's `count_subarrays` (its prompt says
 "prefix sums and a dict" on purpose, to teach when a window fails) and `count_palindromes` (expand-around-centre, not one of the eight).

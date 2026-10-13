@@ -1,0 +1,625 @@
+id: lesson.backtracking
+title: "Backtracking: subsets and permutations"
+concepts:
+  - id: concept.choose-explore-unchoose
+    title: Choose, explore, then undo the choice
+  - id: concept.decision-tree-size
+    title: The decision tree's size is the cost
+  - id: concept.pruning
+    title: Prune branches that can't lead to an answer
+reviewItems:
+  - id: review.backtracking.predict-subsets
+    concept: concept.choose-explore-unchoose
+    step: step.backtracking.predict-subsets
+  - id: review.backtracking.count
+    concept: concept.decision-tree-size
+    step: step.backtracking.check-count
+  - id: review.backtracking.forget-reset
+    concept: concept.choose-explore-unchoose
+    step: step.backtracking.predict-forget-reset
+  - id: review.backtracking.which-problem
+    concept: concept.choose-explore-unchoose
+    step: step.backtracking.check-which-problem
+    kind: pattern
+  - id: review.backtracking.prune
+    concept: concept.pruning
+    step: step.backtracking.check-prune
+    kind: pattern
+patterns:
+  - id: pattern.backtracking
+    title: Choose, explore, unchoose
+steps:
+  - id: step.backtracking.idea
+    type: explain
+    title: A tree of choices
+    body: |
+      "List every subset of `[1, 2, 3]`" has no tree in it, but the search for the answers does. Picture the choices as a
+      tree: at the root nothing is chosen; each branch adds one more number. Every node of that **decision tree** is a subset,
+      and a walk over it lists them all.
+
+      The walk never builds the tree. It keeps one `path`, the choices made so far, and at each node it tries every next
+      choice the same way:
+
+      ```python
+      for i in range(start, len(nums)):
+          path.append(nums[i])     # choose
+          explore(i + 1)           # explore everything that follows from it
+          path.pop()               # unchoose, ready for the next option
+      ```
+
+      That is **backtracking**: choose, explore, unchoose. It is lesson 7's append and pop, with a loop over the options in
+      place of "left, then right". Starting the loop at `start`, after the last number used, means each subset is built in
+      one order only: `[1, 2]` appears, `[2, 1]` doesn't.
+
+      In C#, `path` is a `List<int>`, unchoose is `path.RemoveAt(path.Count - 1)`, and a saved answer is `new List<int>(path)`.
+    comparison:
+      csharp: |
+        static List<List<int>> Subsets(int[] nums)
+        {
+            var result = new List<List<int>>();
+            var path = new List<int>();
+
+            void Explore(int start)
+            {
+                result.Add(new List<int>(path));
+                for (int i = start; i < nums.Length; i++)
+                {
+                    path.Add(nums[i]);
+                    Explore(i + 1);
+                    path.RemoveAt(path.Count - 1);
+                }
+            }
+
+            Explore(0);
+            return result;
+        }
+      python: |
+        def subsets(nums):
+            result = []
+            path = []
+
+            def explore(start):
+                result.append(path[:])
+                for i in range(start, len(nums)):
+                    path.append(nums[i])
+                    explore(i + 1)
+                    path.pop()
+
+            explore(0)
+            return result
+  - id: step.backtracking.trace-subsets
+    type: trace
+    title: Every subset of [1, 2, 3]
+    body: |
+      Each call saves `path` as it finds it, then tries each later number. `path` goes `[1]`, `[1, 2]`, `[1, 2, 3]`, and the
+      pops take it back to `[1]` so `3` can follow `1` directly. The call stack is never deeper than the number of values.
+    code: |
+      def subsets(nums):
+          result = []
+          path = []
+
+          def explore(start):
+              result.append(path[:])
+              for i in range(start, len(nums)):
+                  path.append(nums[i])
+                  explore(i + 1)
+                  path.pop()
+
+          explore(0)
+          return result
+
+
+      result = subsets([1, 2, 3])
+    visualise:
+      - as: call_stack
+        functions: [subsets, explore]
+      - variable: path
+        as: array
+  - id: step.backtracking.predict-subsets
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      In what order does `subsets` list them? What does this print?
+    code: |
+      def subsets(nums):
+          result = []
+          path = []
+
+          def explore(start):
+              result.append(path[:])
+              for i in range(start, len(nums)):
+                  path.append(nums[i])
+                  explore(i + 1)
+                  path.pop()
+
+          explore(0)
+          return result
+
+
+      print(subsets(["a", "b", "c"]))
+    accepted:
+      - "[[], ['a'], ['a', 'b'], ['a', 'b', 'c'], ['a', 'c'], ['b'], ['b', 'c'], ['c']]"
+    mistakes:
+      - answers:
+          - "[[], ['a'], ['b'], ['c'], ['a', 'b'], ['a', 'c'], ['b', 'c'], ['a', 'b', 'c']]"
+        feedback: "That is by size, as a BFS would give. The walk is depth-first: after `['a']` it goes straight on to `['a', 'b']` and `['a', 'b', 'c']`."
+      - answers:
+          - "[['a', 'b', 'c'], ['a', 'b'], ['a', 'c'], ['a'], ['b', 'c'], ['b'], ['c'], []]"
+        feedback: "Each call saves `path` *before* its loop, so a subset is saved before the longer ones that grow from it. `[]` comes first."
+      - answers:
+          - "[[], ['a'], ['a', 'b'], ['a', 'b', 'c'], ['a', 'c'], ['b'], ['b', 'a'], ['b', 'c'], ['c']]"
+        feedback: "The loop starts at `start`, after the last value used, so `'a'` never follows `'b'`."
+    hints:
+      - "The first call saves `[]`, then chooses `'a'`. What does the call after that save?"
+      - "After everything starting with `'a'` is done, `'a'` is popped and `'b'` is chosen."
+  - id: step.backtracking.check-count
+    type: choice
+    title: How big is the tree?
+    prompt: |
+      `subsets` saves one list per node of its decision tree. How many lists does it save for 20 values?
+    options:
+      - text: "2²⁰, just over a million: each value is either in a subset or not."
+        correct: true
+        feedback: "Right. The cost is the size of the decision tree. Each saved list is also copied, up to 20 values, so the total work is O(n · 2ⁿ)."
+      - text: "20 × 20 = 400."
+        correct: false
+        feedback: "Two choices per value, in or out, multiply: 2 × 2 × … twenty times."
+      - text: "20! (about 2.4 × 10¹⁸)."
+        correct: false
+        feedback: "That is the number of orderings. A subset has no order, so each value only has two options: in or out."
+      - text: "20: one per value."
+        correct: false
+        feedback: "That counts the subsets of size one. There are also the empty set, the pairs, the triples and so on."
+    hints:
+      - "Each value has two options. How many combinations of options are there?"
+  - id: step.backtracking.permutations
+    type: explain
+    title: Orderings need a used list
+    body: |
+      For **permutations**, every ordering of the values, order matters: `[1, 2]` and `[2, 1]` are different answers. So the
+      loop can't start after the last value used; at each level it tries **every** value that isn't on the path yet. A list of
+      booleans, `used`, says which those are:
+
+      - a path is finished when it holds every value: save a copy and return
+      - otherwise try each unused value: mark it used and append it (choose), explore, then pop it and unmark it (unchoose)
+
+      Both pieces of state are undone. Forget `used[i] = False` and the value stays blocked for every later branch.
+
+      The decision tree now has `n` choices at the top, `n - 1` below each, and so on: `n!` leaves. That grows much faster than
+      `2ⁿ`: 10 values have 3,628,800 orderings. Backtracking can list them, but nothing can list them quickly, because the
+      answer itself is that long.
+
+      Python's `itertools.permutations` and `itertools.combinations` produce these as tuples, in the same order; .NET has no
+      built-in equivalent.
+    comparison:
+      csharp: |
+        var used = new bool[nums.Length];
+
+        void Explore()
+        {
+            if (path.Count == nums.Length)
+            {
+                result.Add(new List<int>(path));
+                return;
+            }
+            for (int i = 0; i < nums.Length; i++)
+            {
+                if (used[i]) continue;
+                used[i] = true;
+                path.Add(nums[i]);
+                Explore();
+                path.RemoveAt(path.Count - 1);
+                used[i] = false;
+            }
+        }
+      python: |
+        used = [False] * len(nums)
+
+
+        def explore():
+            if len(path) == len(nums):
+                result.append(path[:])
+                return
+            for i in range(len(nums)):
+                if used[i]:
+                    continue
+                used[i] = True
+                path.append(nums[i])
+                explore()
+                path.pop()
+                used[i] = False
+  - id: step.backtracking.trace-permutations
+    type: trace
+    title: Every ordering of [1, 2, 3]
+    body: |
+      Watch `used` alongside `path`. After `[1, 2, 3]` is saved, `3` and then `2` are popped and unmarked, so the call that
+      chose `1` can try `3` next and then `2` after it: `[1, 3, 2]`. Six leaves, one per ordering.
+    code: |
+      def permutations(nums):
+          result = []
+          path = []
+          used = [False] * len(nums)
+
+          def explore():
+              if len(path) == len(nums):
+                  result.append(path[:])
+                  return
+              for i in range(len(nums)):
+                  if used[i]:
+                      continue
+                  used[i] = True
+                  path.append(nums[i])
+                  explore()
+                  path.pop()
+                  used[i] = False
+
+          explore()
+          return result
+
+
+      result = permutations([1, 2, 3])
+    visualise:
+      - as: call_stack
+        functions: [permutations, explore]
+      - variable: path
+        as: array
+      - variable: used
+        as: array
+  - id: step.backtracking.predict-forget-reset
+    type: predict-output
+    title: Predict the output
+    prompt: |
+      This version forgets to set `used[i]` back to `False`. What does it print?
+    code: |
+      def permutations(nums):
+          result = []
+          path = []
+          used = [False] * len(nums)
+
+          def explore():
+              if len(path) == len(nums):
+                  result.append(path[:])
+                  return
+              for i in range(len(nums)):
+                  if used[i]:
+                      continue
+                  used[i] = True
+                  path.append(nums[i])
+                  explore()
+                  path.pop()
+
+          explore()
+          return result
+
+
+      print(permutations([1, 2, 3]))
+    accepted:
+      - "[[1, 2, 3]]"
+    mistakes:
+      - answers:
+          - "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]"
+        feedback: "That needs each value freed again after its branch. Here, once `1`, `2` and `3` are marked, every later loop skips all of them."
+      - answers:
+          - "[]"
+        feedback: "The first branch runs before anything goes wrong: `1`, `2`, `3` are each still unused when chosen, so `[1, 2, 3]` is saved."
+      - answers:
+          - "[[1, 2, 3], [1, 3, 2]]"
+        feedback: "To try `3` before `2`, the call that chose `1` needs `2` and `3` free again, but they stay marked."
+    hints:
+      - "Which values are marked used after `[1, 2, 3]` is saved?"
+      - "The `path.pop()` still runs. Does that help the `used` checks?"
+  - id: step.backtracking.check-which-problem
+    type: choice
+    title: Which one needs backtracking?
+    prompt: |
+      Which of these problems calls for backtracking?
+    options:
+      - text: "List every way to write 10 as a sum of the numbers 2, 3 and 5."
+        correct: true
+        feedback: "Right. Every answer has to be listed, and each is a sequence of choices: choose a number, explore the rest of the sum, unchoose."
+      - text: "How many subsets does a list of 30 values have?"
+        correct: false
+        feedback: "That is `2 ** 30`, a formula. Walking a billion subsets to count them would be far too slow."
+      - text: "The largest sum of any subset of a list of positive numbers."
+        correct: false
+        feedback: "With only positive numbers, the best subset is all of them: just add them up."
+      - text: "The fewest moves for a knight between two squares."
+        correct: false
+        feedback: "\"Fewest steps\" is a shortest path: a BFS, level by level, finds it."
+    hints:
+      - "Which one asks for every combination itself, not a count or a single best?"
+  - id: step.backtracking.check-prune
+    type: choice
+    title: Stop early
+    prompt: |
+      `candidates` is sorted and `remaining` is how much of the target is left. Why `break`, not `continue`, when a candidate
+      is too large?
+
+      ```python
+      for i in range(start, len(candidates)):
+          c = candidates[i]
+          if c > remaining:
+              break
+          path.append(c)
+          explore(i, remaining - c)
+          path.pop()
+      ```
+    options:
+      - text: "The candidates are sorted, so every later one is at least as large and can't fit either."
+        correct: true
+        feedback: "Right. That is **pruning**: cutting whole branches that can't lead to an answer, instead of exploring them to find out."
+      - text: "`continue` would skip the next candidate, which might fit."
+        correct: false
+        feedback: "`continue` moves on to the next candidate. That would be correct too, just slower: on sorted input none of the later ones can fit."
+      - text: "`continue` would loop forever."
+        correct: false
+        feedback: "The loop is bounded by `range`. `continue` would just check each later candidate, finding each one too large."
+      - text: "`break` returns from `explore`, undoing the choice."
+        correct: false
+        feedback: "`break` only leaves the loop. The function then returns, and the caller's `pop` undoes the caller's choice."
+    hints:
+      - "If `c` is too large, what do you know about `candidates[i + 1]`?"
+  - id: step.backtracking.fill-permutations
+    type: fill-blank
+    title: Unchoose
+    pattern: pattern.backtracking
+    patternCue: "\"Every ordering\": try each unused value at each level, then undo both the path and the used mark."
+    prompt: |
+      Fill in the blanks so that `explore` adds every ordering of `nums` to `result`.
+    template: |
+      def explore():
+          if len(path) == len(nums):
+              result.append({{saved}})
+              return
+          for i in range(len(nums)):
+              if used[i]:
+                  continue
+              used[i] = True
+              path.append(nums[i])
+              explore()
+              {{undo-path}}
+              {{undo-used}}
+    blanks:
+      - id: saved
+        accepted:
+          - "path[:]"
+          - "list(path)"
+          - "path.copy()"
+        mistakes:
+          - answers:
+              - "path"
+            feedback: "That saves the shared list itself, which the pops empty. Save a copy."
+      - id: undo-path
+        accepted:
+          - "path.pop()"
+        mistakes:
+          - answers:
+              - "path.remove(nums[i])"
+            feedback: "That searches the list for the value. The value just added is at the end: `path.pop()` removes it in O(1)."
+      - id: undo-used
+        accepted:
+          - "used[i] = False"
+        mistakes:
+          - answers:
+              - "used[i] = True"
+            feedback: "It is already `True`. Unchoosing sets it back to `False`, so later branches can use it."
+    hints:
+      - "A saved answer must not change when `path` does."
+      - "Undo both choices made before `explore()`."
+  - id: step.backtracking.order-subsets
+    type: parsons
+    title: Every subset
+    pattern: pattern.backtracking
+    patternCue: "\"Every subset\": save the path at every node, then try each later value: choose, explore, unchoose."
+    prompt: |
+      Arrange the lines into `explore(start)`, which adds every subset of `nums` to `result`. `path` and `result` are lists
+      defined outside.
+    solution: |
+      def explore(start):
+          result.append(path[:])
+          for i in range(start, len(nums)):
+              path.append(nums[i])
+              explore(i + 1)
+              path.pop()
+    hints:
+      - "Every node of the decision tree is a subset, so save before the loop."
+      - "The next call starts after the value just chosen."
+  - id: step.backtracking.write-combine
+    type: write-code
+    largeScreenPreferred: true
+    title: Choose k of n
+    pattern: pattern.backtracking
+    patternCue: "\"Every way to choose k\": a subset walk that saves only paths of length k, and stops going deeper there."
+    prompt: |
+      Write `combine(n, k)` that returns every way to choose `k` different numbers from `1` to `n`. Each combination is a list
+      in increasing order, and the combinations are in sorted order: `combine(3, 2)` is `[[1, 2], [1, 3], [2, 3]]`.
+    language: python
+    entrypoint: combine
+    starter: |
+      def combine(n, k):
+          pass
+    solution: |
+      def combine(n, k):
+          result = []
+          path = []
+
+          def explore(start):
+              if len(path) == k:
+                  result.append(path[:])
+                  return
+              for x in range(start, n + 1):
+                  path.append(x)
+                  explore(x + 1)
+                  path.pop()
+
+          explore(1)
+          return result
+    tests:
+      - input: "4, 2"
+        expected: "[[1, 2], [1, 3], [1, 4], [2, 3], [2, 4], [3, 4]]"
+      - input: "3, 3"
+        expected: "[[1, 2, 3]]"
+      - input: "3, 1"
+        expected: "[[1], [2], [3]]"
+      - input: "2, 0"
+        expected: "[[]]"
+      - input: "5, 3"
+        expected: "[[1, 2, 3], [1, 2, 4], [1, 2, 5], [1, 3, 4], [1, 3, 5], [1, 4, 5], [2, 3, 4], [2, 3, 5], [2, 4, 5], [3, 4, 5]]"
+    hints:
+      - "It is the subsets walk, but only a path of length `k` is saved."
+      - "When the path has `k` numbers, save a copy and return: going deeper can only make it longer."
+      - "Start the loop after the last number chosen, so each combination comes out in increasing order, and the list sorted."
+    walkthrough:
+      call: result = combine(4, 2)
+      visualise:
+        - as: call_stack
+          functions: [combine, explore]
+        - variable: path
+          as: array
+      explanation: |
+        `1` is chosen, then `2`, `3` and `4` in turn complete a pair. Each pair is saved and popped. Then `1` is popped and `2`
+        chosen, and only `3` and `4` can follow it. Choosing `4` first finds nothing after it to complete a pair.
+    phoneAlternative:
+      id: step.backtracking.write-combine.arrange
+      type: parsons
+      title: Arrange the lines
+      prompt: |
+        Write `combine(n, k)`, which lists every way to choose `k` of the numbers `1` to `n`. Arrange the lines instead of
+        typing them.
+      solution: |
+        def combine(n, k):
+            result = []
+            path = []
+
+            def explore(start):
+                if len(path) == k:
+                    result.append(path[:])
+                    return
+                for x in range(start, n + 1):
+                    path.append(x)
+                    explore(x + 1)
+                    path.pop()
+
+            explore(1)
+            return result
+      hints:
+        - "A full path is saved and the call returns, before the loop."
+  - id: step.backtracking.write-combination-sum
+    type: write-code
+    largeScreenPreferred: true
+    title: Sums from candidates
+    pattern: pattern.backtracking
+    patternCue: "\"Every way to reach the target, reusing values\": recurse with the same start index, and break once a sorted candidate is too large."
+    prompt: |
+      `candidates` holds different positive numbers. Write `combination_sum(candidates, target)` that returns every
+      combination of candidates adding up to `target`, where each candidate can be used any number of times. Each
+      combination is a list in non-decreasing order, and the combinations are in sorted order.
+    language: python
+    entrypoint: combination_sum
+    starter: |
+      def combination_sum(candidates, target):
+          pass
+    solution: |
+      def combination_sum(candidates, target):
+          candidates = sorted(candidates)
+          result = []
+          path = []
+
+          def explore(start, remaining):
+              if remaining == 0:
+                  result.append(path[:])
+                  return
+              for i in range(start, len(candidates)):
+                  c = candidates[i]
+                  if c > remaining:
+                      break
+                  path.append(c)
+                  explore(i, remaining - c)
+                  path.pop()
+
+          explore(0, target)
+          return result
+    tests:
+      - input: "[2, 3, 6, 7], 7"
+        expected: "[[2, 2, 3], [7]]"
+      - input: "[2, 3, 5], 8"
+        expected: "[[2, 2, 2, 2], [2, 3, 3], [3, 5]]"
+      - input: "[2], 1"
+        expected: "[]"
+      - input: "[5, 3, 2], 8"
+        expected: "[[2, 2, 2, 2], [2, 3, 3], [3, 5]]"
+      - input: "[1], 3"
+        expected: "[[1, 1, 1]]"
+    hints:
+      - "Sort the candidates first: it gives sorted output and makes pruning possible."
+      - "To allow reuse, the next call starts at `i`, not `i + 1`. Starting at `i` (not `0`) keeps each combination non-decreasing."
+      - "Save when `remaining` is `0`. Break when a candidate is larger than `remaining`."
+    walkthrough:
+      call: result = combination_sum([2, 3, 6, 7], 7)
+      visualise:
+        - as: call_stack
+          functions: [combination_sum, explore]
+        - variable: path
+          as: array
+      explanation: |
+        `2, 2, 2` leaves `1`, and every candidate is larger, so the loop breaks at once. `2, 2, 3` reaches `0` and is saved.
+        `6` leaves `1`, nothing fits; `7` reaches `0` exactly. The pruning cuts each dead branch at its first oversized candidate.
+  - id: step.backtracking.write-parentheses
+    type: write-code
+    largeScreenPreferred: true
+    title: Balanced parentheses
+    pattern: pattern.backtracking
+    patternCue: "\"Every valid string\": at each position choose '(' or ')', pruning any choice that can no longer be valid."
+    prompt: |
+      Write `generate_parentheses(n)` that returns every string of `n` pairs of balanced parentheses, in sorted order.
+      `generate_parentheses(2)` is `["(())", "()()"]`.
+    language: python
+    entrypoint: generate_parentheses
+    starter: |
+      def generate_parentheses(n):
+          pass
+    solution: |
+      def generate_parentheses(n):
+          result = []
+          path = []
+
+          def explore(opened, closed):
+              if len(path) == 2 * n:
+                  result.append("".join(path))
+                  return
+              if opened < n:
+                  path.append("(")
+                  explore(opened + 1, closed)
+                  path.pop()
+              if closed < opened:
+                  path.append(")")
+                  explore(opened, closed + 1)
+                  path.pop()
+
+          explore(0, 0)
+          return result
+    tests:
+      - input: "1"
+        expected: "['()']"
+      - input: "2"
+        expected: "['(())', '()()']"
+      - input: "3"
+        expected: "['((()))', '(()())', '(())()', '()(())', '()()()']"
+      - input: "0"
+        expected: "['']"
+      - input: "4"
+        expected: "['(((())))', '((()()))', '((())())', '((()))()', '(()(()))', '(()()())', '(()())()', '(())(())', '(())()()', '()((()))', '()(()())', '()(())()', '()()(())', '()()()()']"
+    hints:
+      - "Two choices at each position: `(` or `)`. Count how many of each are on the path."
+      - "Prune: `(` only while fewer than `n` are open; `)` only while fewer are closed than opened."
+      - "`(` sorts before `)`, so trying `(` first produces the strings in sorted order."
+    walkthrough:
+      call: result = generate_parentheses(2)
+      visualise:
+        - as: call_stack
+          functions: [generate_parentheses, explore]
+        - variable: path
+          as: array
+      explanation: |
+        `(` then `(` uses both opens, so only `)` `)` can follow: `(())`. Back at one `(`, the second branch closes it, `()`, and
+        then `(` and `)` give `()()`. A `)` is never tried when nothing is open to close.
