@@ -217,11 +217,12 @@ public sealed record PackManifest(string PackId, string Version, int FormatVersi
 /// <see cref="Array"/> (a list, tuple or deque shown as cells), <see cref="Stack"/> (a list or deque, bottom to top),
 /// <see cref="Queue"/> (a list or deque, front to back), <see cref="Dict"/> (key/value rows), <see cref="Set"/> (members),
 /// <see cref="LinkedList"/> (nodes joined by arrows, from the node the variable holds), <see cref="Tree"/> (a binary tree, from the
-/// root node the variable holds, laid out level by level), <see cref="Grid"/> (a list of lists or strings, as a 2-D table), <see cref="Graph"/>
+/// root node the variable holds, laid out level by level), <see cref="Heap"/> (a list kept in heap order, shown as cells and as the
+/// tree they stand for, the children of cell i at 2i+1 and 2i+2), <see cref="Grid"/> (a list of lists or strings, as a 2-D table), <see cref="Graph"/>
 /// (a dict of each node's neighbours, its nodes round a circle) or <see cref="CallStack"/> (the calls under way,
 /// one frame each, the running one on top; it draws no variable, so <see cref="Variable"/> is empty).
-/// <see cref="Pointers"/> name variables drawn as labelled markers: for an array, stack or queue, int variables, on the cell they
-/// index; for a dict or set, variables holding a key, on the row with that key (a lookup); for a linked list or a tree, variables
+/// <see cref="Pointers"/> name variables drawn as labelled markers: for an array, stack, queue or heap, int variables, on the cell they
+/// index (a heap's on its tree's node too); for a dict or set, variables holding a key, on the row with that key (a lookup); for a linked list or a tree, variables
 /// holding a node, on that node (or at None). <see cref="Next"/> and <see cref="Value"/> are a linked list's node attributes: the link
 /// to the next node and the value shown (<see cref="Value"/> is a tree node's too). <see cref="Left"/> and <see cref="Right"/> are a
 /// tree node's links to its children. <see cref="Visited"/>, for a tree, names a list or set whose members (values, or the nodes
@@ -234,7 +235,7 @@ public sealed record PackManifest(string PackId, string Version, int FormatVersi
 /// keys are); <see cref="Directed"/> draws its edges as arrows; a dict of neighbours is weighted by its values,
 /// and with <see cref="Weights"/> a neighbour given as a (node, weight) pair is that node with that weight; <see cref="Edge"/> names the variables holding the ends of the edge being explored,
 /// which is emphasised; <see cref="Visited"/> names a list, set or dict of the nodes visited and <see cref="Frontier"/> a list or deque of
-/// those waiting (a queue or a stack), each marking its nodes.
+/// those waiting (a queue or a stack), each marking its nodes. <see cref="Max"/> labels a heap a max-heap; it changes nothing else.
 /// </summary>
 public sealed record Visual(string Variable, string As, IReadOnlyList<string> Pointers,
     string Next = Visual.DefaultNext, string Value = Visual.DefaultValue, IReadOnlyList<string>? Functions = null,
@@ -255,6 +256,9 @@ public sealed record Visual(string Variable, string As, IReadOnlyList<string> Po
     public EdgeNames? Edge { get; init; }
     public string? Frontier { get; init; }
 
+    /// <summary>A heap is labelled a max-heap rather than a min-heap; it is only a label.</summary>
+    public bool Max { get; init; }
+
     public const string Array = "array";
     public const string Stack = "stack";
     public const string Queue = "queue";
@@ -262,6 +266,7 @@ public sealed record Visual(string Variable, string As, IReadOnlyList<string> Po
     public const string Set = "set";
     public const string LinkedList = "linked_list";
     public const string Tree = "tree";
+    public const string Heap = "heap";
     public const string Grid = "grid";
     public const string Graph = "graph";
     public const string CallStack = "call_stack";
@@ -272,7 +277,7 @@ public sealed record Visual(string Variable, string As, IReadOnlyList<string> Po
     public const string DefaultRight = "right";
 
     /// <summary>Every drawing the player knows, in the order the docs list them.</summary>
-    public static readonly IReadOnlyList<string> Kinds = [Array, Stack, Queue, Dict, Set, LinkedList, Tree, Grid, Graph, CallStack];
+    public static readonly IReadOnlyList<string> Kinds = [Array, Stack, Queue, Dict, Set, LinkedList, Tree, Heap, Grid, Graph, CallStack];
 
     /// <summary>The drawings of a sequence as cells, whose pointers are indexes.</summary>
     public static readonly IReadOnlyList<string> Sequences = [Array, Stack, Queue];

@@ -115,6 +115,9 @@ public sealed record ReturnedValue(string Function, string Value, int? To);
 /// </summary>
 public sealed record TrackedCalls(IReadOnlyList<RecordedCall> Frames, int More, ReturnedValue? Returned);
 
+/// <summary>A heap's cells, front (index 0, its root) first, at most five levels of them; <paramref name="More"/> counts the rest.</summary>
+public sealed record TrackedHeap(string Type, IReadOnlyList<string> Cells, int More);
+
 /// <summary>
 /// The state just before <see cref="Line"/> ran (<see cref="Event"/> "line"), the state the module finished in
 /// (<see cref="Event"/> "return", <see cref="Line"/> null), or, while the call stack is watched, a function's state as it returns
@@ -131,7 +134,8 @@ public sealed record TraceFrame(
     TrackedCalls? Calls = null,
     IReadOnlyDictionary<string, TrackedTree>? Trees = null,
     IReadOnlyDictionary<string, TrackedGrid>? Grids = null,
-    IReadOnlyDictionary<string, TrackedGraph>? Graphs = null);
+    IReadOnlyDictionary<string, TrackedGraph>? Graphs = null,
+    IReadOnlyDictionary<string, TrackedHeap>? Heaps = null);
 
 /// <summary>What the Python tracer (wwwroot/python/tracer.py) recorded.</summary>
 public sealed record TraceResult(
@@ -161,7 +165,8 @@ public static class TraceResultJson
     /// (<c>visited</c> null when none is drawn); a grid with its pointers, pairs of int variables, labels and highlight:
     /// <c>{"variable":"dp","as":"grid","pointers":[],"cells":[["i","j"]],"rowLabels":"a","colLabels":"b","highlight":null}</c>; a graph with the
     /// pointers to look up (the edge's ends among them), whether neighbours carry weights, and its visited and frontier variables:
-    /// <c>{"variable":"graph","as":"graph","weights":false,"pointers":["node","nb"],"visited":"seen","frontier":"queue"}</c>; the call stack as an object with the functions it keeps (none: all): <c>{"as":"call_stack","functions":["fact"]}</c>.
+    /// <c>{"variable":"graph","as":"graph","weights":false,"pointers":["node","nb"],"visited":"seen","frontier":"queue"}</c>; a heap by its
+    /// name and kind, its pointers read from the locals: <c>{"variable":"heap","as":"heap"}</c>; the call stack as an object with the functions it keeps (none: all): <c>{"as":"call_stack","functions":["fact"]}</c>.
     /// </summary>
     public static string SerializeWatch(IEnumerable<Visual> visuals)
     {
@@ -193,6 +198,7 @@ public static class TraceResultJson
                     ["pointers"] = Names(v.Pointers.Concat(v.Edge is { } e ? [e.From, e.To] : []).Distinct()),
                     ["visited"] = v.Visited, ["frontier"] = v.Frontier,
                 },
+                Visual.Heap => new JsonObject { ["variable"] = v.Variable, ["as"] = v.As },
                 Visual.CallStack => new JsonObject { ["as"] = v.As, ["functions"] = Names(v.Functions) },
                 _ => JsonValue.Create(v.Variable),
             });
@@ -388,13 +394,34 @@ public sealed record GraphView(string Variable, bool Directed, IReadOnlyList<Gra
     public GraphNodeView? Node(int id) => Nodes.FirstOrDefault(n => n.Id == id);
 }
 
+/// <summary>
+/// A heap cell, drawn in the array and as a node of the tree. <see cref="Id"/> is the same while its value stays in the heap, so a cell
+/// moved by a swap slides to its new place in both. <see cref="Moved"/>: it was at another index the step before; <see cref="Changed"/>:
+/// its index held another value that didn't move anywhere else (<c>heap[0] = x</c>); <see cref="Added"/>: a value new to the heap (a push).
+/// </summary>
+public sealed record HeapCellView(int Id, string Text, bool Changed = false, bool Added = false, bool Moved = false);
+
+/// <summary>A heap cell whose value left since the step before (a pop), shown for one step at the <see cref="Index"/> it left from.</summary>
+public sealed record HeapGoneCell(int Id, string Text, int Index);
+
+/// <summary>
+/// A heap: its cells by index, drawn as an array and as the implicit tree (the children of cell i at 2i+1 and 2i+2). <see cref="Pointers"/>
+/// are int variables, on the cell and on the node they index. <see cref="Max"/> labels it a max-heap rather than a min-heap.
+/// </summary>
+public sealed record HeapView(string Variable, IReadOnlyList<HeapCellView> Cells, int More, IReadOnlyList<PointerView> Pointers, bool Max,
+    IReadOnlyList<HeapGoneCell>? Gone = null)
+{
+    public IReadOnlyList<HeapGoneCell> Gone { get; init; } = Gone ?? [];
+}
+
 /// <summary>One step of the player: what to highlight and draw. <see cref="Line"/> is null on the final state.</summary>
 public sealed record TraceState(
     int Index, int? Line, string Function, bool IsFinal,
     IReadOnlyList<LocalView> Locals, IReadOnlyList<ArrayView> Arrays, IReadOnlyList<TableView> Tables,
     IReadOnlyList<LinkedListView>? Lists = null, CallStackView? Calls = null, IReadOnlyList<TreeView>? Trees = null,
-    IReadOnlyList<GridView>? Grids = null, IReadOnlyList<GraphView>? Graphs = null)
+    IReadOnlyList<GridView>? Grids = null, IReadOnlyList<GraphView>? Graphs = null, IReadOnlyList<HeapView>? Heaps = null)
 {
+    public IReadOnlyList<HeapView> Heaps { get; init; } = Heaps ?? [];
     public IReadOnlyList<LinkedListView> Lists { get; init; } = Lists ?? [];
     public IReadOnlyList<TreeView> Trees { get; init; } = Trees ?? [];
     public IReadOnlyList<GridView> Grids { get; init; } = Grids ?? [];
@@ -417,6 +444,7 @@ public static class TraceModel
         var treeVisuals = visuals.Where(v => v.As == Visual.Tree).ToList();
         var gridVisuals = visuals.Where(v => v.As == Visual.Grid).ToList();
         var graphVisuals = visuals.Where(v => v.As == Visual.Graph).ToList();
+        var heapVisuals = visuals.Where(v => v.As == Visual.Heap).ToList();
         var slots = graphVisuals.ToDictionary(v => v.Variable, v => Slots(result, v.Variable));
         var drawsCalls = visuals.Any(v => v.As == Visual.CallStack);
         var states = new List<TraceState>(result.Frames.Count);
@@ -428,7 +456,7 @@ public static class TraceModel
             var state = new TraceState(index, frame.Line, frame.Function, frame.Line is null,
                 Locals(frame, comparable), Arrays(frame, arrayVisuals, comparable), Tables(frame, tableVisuals, comparable),
                 Lists(frame, listVisuals, comparable), drawsCalls ? Calls(frame, previous) : null, Trees(frame, treeVisuals, comparable),
-                Grids(frame, gridVisuals, comparable), Graphs(frame, graphVisuals, slots, comparable));
+                Grids(frame, gridVisuals, comparable), Graphs(frame, graphVisuals, slots, comparable), Heaps(frame, heapVisuals, comparable));
             states.Add(state);
             previousFrame = frame;
             previous = state;
@@ -543,6 +571,75 @@ public static class TraceModel
                 if (score > bestScore) (best, bestScore) = ((from, to, length), score);
             }
         return best;
+    }
+
+    private static IReadOnlyList<HeapView> Heaps(TraceFrame frame, List<Visual> visuals, TraceState? previous)
+    {
+        var views = new List<HeapView>();
+        foreach (var visual in visuals)
+        {
+            if (frame.Heaps is null || !frame.Heaps.TryGetValue(visual.Variable, out var tracked)) continue;
+            var before = previous?.Heaps.FirstOrDefault(h => h.Variable == visual.Variable);
+            var (cells, gone) = HeapCells(tracked, before);
+            var pointers = visual.Pointers.Select(name =>
+            {
+                var index = PointerIndex(frame, name, cells.Count);
+                var was = before?.Pointers.FirstOrDefault(p => p.Name == name);
+                return new PointerView(name, index, before is not null && was?.Index != index);
+            }).ToList();
+            views.Add(new HeapView(visual.Variable, cells, tracked.More, pointers, visual.Max, gone));
+        }
+        return views;
+    }
+
+    /// <summary>
+    /// A heap's cells, matched with the step before's so that a value a swap or a sift moved keeps its id: a cell whose index holds
+    /// the same value as before stayed; a value at a new index takes the unmatched cell of the same value nearest it, which moved; a
+    /// value still unmatched takes the unmatched cell at its own index, which changed; anything left is a value that came in (a push)
+    /// or one that left (a pop). Past five levels, cells move in and out of view as the cut-off shifts, which is neither.
+    /// </summary>
+    private static (List<HeapCellView> Cells, List<HeapGoneCell> Gone) HeapCells(TrackedHeap tracked, HeapView? before)
+    {
+        var now = tracked.Cells;
+        if (before is null)
+            return (now.Select((text, i) => new HeapCellView(i, text)).ToList(), []);
+
+        var was = before.Cells;
+        var nextId = was.Select(c => c.Id).Concat(before.Gone.Select(g => g.Id)).DefaultIfEmpty(-1).Max() + 1;
+        var cut = before.More > 0 || tracked.More > 0;
+        var cells = new HeapCellView?[now.Count];
+        var taken = new bool[was.Count];
+
+        for (var i = 0; i < Math.Min(now.Count, was.Count); i++)
+            if (was[i].Text == now[i])
+            {
+                cells[i] = new HeapCellView(was[i].Id, now[i]);
+                taken[i] = true;
+            }
+        for (var i = 0; i < now.Count; i++)
+        {
+            if (cells[i] is not null) continue;
+            var nearest = Enumerable.Range(0, was.Count)
+                .Where(j => !taken[j] && was[j].Text == now[i])
+                .OrderBy(j => Math.Abs(j - i)).ThenBy(j => j)
+                .Select(j => (int?)j).FirstOrDefault();
+            if (nearest is { } j2)
+            {
+                cells[i] = new HeapCellView(was[j2].Id, now[i], Moved: true);
+                taken[j2] = true;
+            }
+        }
+        for (var i = 0; i < Math.Min(now.Count, was.Count); i++)
+            if (cells[i] is null && !taken[i])
+            {
+                cells[i] = new HeapCellView(was[i].Id, now[i], Changed: true);
+                taken[i] = true;
+            }
+        for (var i = 0; i < now.Count; i++)
+            cells[i] ??= new HeapCellView(nextId++, now[i], Added: !cut);
+
+        var gone = cut ? [] : Enumerable.Range(0, was.Count).Where(j => !taken[j]).Select(j => new HeapGoneCell(was[j].Id, was[j].Text, j)).ToList();
+        return (cells.Select(c => c!).ToList(), gone);
     }
 
     private static int? PointerIndex(TraceFrame frame, string name, int cellCount)
