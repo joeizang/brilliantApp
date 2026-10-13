@@ -65,6 +65,7 @@ the step or its phone alternative, is a **warning**: `brilliant validate`, `pack
 | `pattern.reverse-linked-list` (Reverse with prev, cur and nxt) | Track 3 lesson 6 | its 5 problems; lesson 9 `reorder` |
 | `pattern.fast-slow-pointers` (Fast and slow pointers) | Track 3 lesson 7 | its 6 problems; lesson 9 `remove_nth` (fill and write) |
 | `pattern.merge-sorted-lists` (Merge with a tail pointer) | Track 3 lesson 8 | its 5 problems |
+| `pattern.recursive-decomposition` (Solve it from a smaller call) | Track 4 lesson 2 | its 5 problems (lesson 1's `count_digits`, `digit_sum` and `gcd` are recursion drills, untagged) |
 
 Left untagged: every problem in Track 1 lessons 1–6 (Python and Big-O drills), Track 2 lesson 6's `count_subarrays` (its prompt says
 "prefix sums and a dict" on purpose, to teach when a window fails) and `count_palindromes` (expand-around-centre, not one of the eight).
