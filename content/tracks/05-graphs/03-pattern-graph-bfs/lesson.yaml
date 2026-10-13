@@ -538,9 +538,10 @@ steps:
     pattern: pattern.graph-bfs
     patternCue: "\"The fewest one-letter changes\": each word is a node and each change an edge, so BFS over words."
     prompt: |
-      Change `begin` into `end` one letter at a time; every word along the way (and `end`) must be in the list `words`. Write
-      `ladder(begin, end, words)` that returns how many words the shortest such sequence has, **counting both `begin` and
-      `end`**, or `0` if there is none. All words have the same length.
+      Change `begin` into `end` one letter at a time. `begin` needn't be in the list `words`, but every word after it, `end`
+      included, must be. Write `ladder(begin, end, words)` that returns how many words the shortest such sequence has,
+      **counting both `begin` and `end`**, or `0` if there is none (so `0` whenever `end` isn't in `words`, even if it equals
+      `begin`). All words have the same length.
 
       `ladder("hit", "cog", ["hot", "dot", "dog", "lot", "log", "cog"])` is `5`: `hit → hot → dot → dog → cog`.
 
@@ -562,6 +563,8 @@ steps:
           def one_apart(a, b):
               return sum(x != y for x, y in zip(a, b)) == 1
 
+          if end not in words:
+              return 0
           dist = {begin: 1}
           queue = deque([begin])
           while queue:
@@ -582,11 +585,15 @@ steps:
         expected: "2"
       - input: "'cat', 'cot', ['cot']"
         expected: "2"
+      - input: "'hit', 'hit', []"
+        expected: "0"
+      - input: "'hit', 'hit', ['hit']"
+        expected: "1"
       - input: "'cold', 'warm', ['cord', 'card', 'ward', 'wold', 'word', 'worm', 'wore', 'warm']"
         expected: "5"
     hints:
       - "Each word is a node. Two words are neighbours when they differ in exactly one position."
-      - "BFS from `begin`, with `begin` at distance 1, since the count includes it."
+      - "If `end` isn't in `words`, no sequence is allowed. Otherwise BFS from `begin`, with `begin` at distance 1, since the count includes it."
       - "Return the distance when `end` is popped; `0` if the queue runs dry."
     walkthrough:
       call: "result = ladder('hit', 'cog', ['hot', 'dot', 'dog', 'lot', 'log', 'cog'])"
