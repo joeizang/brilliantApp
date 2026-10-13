@@ -85,6 +85,9 @@ the step or its phone alternative, is a **warning**: `brilliant validate`, `pack
 | `pattern.top-k` (Keep the k best in a heap of size k, with the weakest of them at the root) | Track 6 lessons 5, 8 | lesson 5's 5 problems, lesson 8's `furthest` |
 | `pattern.k-way-merge` (Merge k sorted sequences with a heap holding one head from each) | Track 6 lesson 6 | its 4 problems |
 | `pattern.two-heaps` (Split the items between two heaps, and read the answer from their roots) | Track 6 lesson 7 | its 4 problems |
+| `pattern.memoisation` (Recurse on smaller subproblems, caching each answer the first time) | Track 7 lesson 1 | its 4 problems |
+| `pattern.tabulation` (Fill a table from the smallest subproblems up, then read the answer from it) | Track 7 lesson 2 | its 4 problems |
+| `pattern.dp-1d-decisions` (At each position, take the best of a few choices built from the answers just before) | Track 7 lesson 3 | its 5 problems |
 
 Left untagged: every problem in Track 1 lessons 1–6 (Python and Big-O drills), Track 5 lesson 1's graph-building drills, Track 2 lesson 6's `count_subarrays` (its prompt says
 "prefix sums and a dict" on purpose, to teach when a window fails) and `count_palindromes` (expand-around-centre, not one of the eight).
