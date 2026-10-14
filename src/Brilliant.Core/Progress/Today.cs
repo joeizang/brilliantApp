@@ -21,6 +21,15 @@ public sealed record TodayState(int GoalSteps, int DoneToday, int Streak, Lesson
 
     public bool GoalMet => DoneToday >= GoalSteps;
 
+    /// <summary>
+    /// Consecutive days, up to today (or yesterday while today has none yet), with at least one practice or interview answer that counted
+    /// (#128). It has nothing to do with the goal or <see cref="Streak"/>.
+    /// </summary>
+    public int PracticeStreak { get; init; }
+
+    /// <summary>A practice or interview answer counted today.</summary>
+    public bool PractisedToday { get; init; }
+
     /// <summary>Whether there is anything for a session to do.</summary>
     public bool HasWork => ReviewsDue > 0 || NextLesson is not null;
 

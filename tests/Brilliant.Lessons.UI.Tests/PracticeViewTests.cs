@@ -18,6 +18,7 @@ public class PracticeViewTests : ShortcutContext
     {
         public DateTimeOffset Now { get; set; } = T0;
         public override DateTimeOffset GetUtcNow() => Now;
+        public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
     }
 
     private sealed class MemoryLog : IProgressEventLog
@@ -153,6 +154,77 @@ public class PracticeViewTests : ShortcutContext
         cut.Find("button.practice-card").Click();
         cut.Find(".practice-bar button").Click();
         Assert.Contains("Tracks", cut.Find("nav.phone-nav [aria-current=page]").TextContent);
+    }
+
+    // --- The streak and Today's suggestion (#128) ----------------------------------------------------------------------
+
+    // One answered pick on the given day, for pattern a's problem.
+    private void PractiseOn(int day)
+    {
+        _clock.Now = T0.AddDays(day);
+        _recorder.PracticePicked("lesson.a", "step.a.p", "pattern.a", true, TimeSpan.FromSeconds(10), PracticeMode.Practice, $"run.{day}");
+    }
+
+    private IRenderedComponent<TodayView> Today(Action? onPractice = null) =>
+        Render<TodayView>(p => p.Add(c => c.Content, Content).Add(c => c.OnOpenPractice, () => onPractice?.Invoke()));
+
+    [Fact]
+    public void The_Tracks_card_shows_the_practice_streak_and_asks_for_today_until_it_is_practised()
+    {
+        Finish(3);
+        Assert.Empty(Tracks().FindAll(".practice-streak"));
+
+        PractiseOn(0);
+        PractiseOn(1);
+        Assert.Equal("2-day practice streak", Tracks().Find(".practice-card .practice-streak").TextContent.Trim());
+
+        _clock.Now = T0.AddDays(2);
+        Assert.Equal("2-day practice streak · practise today to keep it", Tracks().Find(".practice-card .practice-streak").TextContent.Trim());
+    }
+
+    [Fact]
+    public void With_reviews_done_Today_suggests_the_two_weakest_patterns_and_opens_Practice()
+    {
+        Finish(3);
+        PractiseOn(0);
+        var opened = false;
+
+        var card = Today(() => opened = true).Find("button.today-practice");
+
+        Assert.Equal("Reviews are done. Practise your weakest patterns: Pattern b and Pattern c.", card.QuerySelector(".card-meta")!.ChildNodes[0].TextContent.Trim());
+        Assert.Equal("1-day practice streak", card.QuerySelector(".practice-streak")!.TextContent.Trim());
+        card.Click();
+        Assert.True(opened);
+    }
+
+    [Fact]
+    public void Today_suggests_no_practice_while_reviews_are_due_before_Practice_opens_or_without_a_handler()
+    {
+        Finish(2);
+        Assert.Empty(Today().FindAll(".today-practice"));                         // two patterns: Practice is locked
+
+        Finish(3);
+        Assert.Empty(Render<TodayView>(p => p.Add(c => c.Content, Content)).FindAll(".today-practice"));
+
+        PractiseOn(0);
+        _clock.Now = T0.AddDays(30);                                              // the pick item has come due
+        Assert.Empty(Today().FindAll(".today-practice"));
+    }
+
+    [Fact]
+    public void Practice_opened_from_Today_goes_back_to_Today()
+    {
+        Finish(3);
+        var cut = Render<CourseShell>(p => p.Add(c => c.Content, Content));
+
+        cut.Find("button.today-practice").Click();
+        Assert.Single(cut.FindAll(".practice-title"));
+        cut.InvokeAsync(() => Press(StepCommand.Back)).Wait();
+        Assert.Contains("Today", cut.Find("nav.phone-nav [aria-current=page]").TextContent);
+
+        cut.Find("button.today-practice").Click();
+        cut.Find(".practice-bar button").Click();
+        Assert.Contains("Today", cut.Find("nav.phone-nav [aria-current=page]").TextContent);
     }
 
     // --- The flow ------------------------------------------------------------------------------------------------------

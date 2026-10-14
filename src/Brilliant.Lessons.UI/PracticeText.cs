@@ -16,6 +16,19 @@ internal static class PracticeText
     public static string? Weakest(LearnerState state) =>
         state.Patterns.Where(p => p.IsLearned).OrderBy(p => p.Mastery).FirstOrDefault() is { } weakest ? Standing(weakest) : null;
 
+    /// <summary>
+    /// The practice streak as the Practice cards say it: "3-day practice streak", with "practise today to keep it" until today has an
+    /// answer. Null without a streak.
+    /// </summary>
+    public static string? Streak(TodayState today) =>
+        today.PracticeStreak == 0 ? null
+        : $"{today.PracticeStreak}-day practice streak" + (today.PractisedToday ? "" : " · practise today to keep it");
+
+    /// <summary>The patterns Today suggests, by title: "Prefix sums", "Prefix sums and Two pointers".</summary>
+    public static string Titles(IReadOnlyList<PatternMastery> patterns) =>
+        patterns.Count <= 1 ? string.Concat(patterns.Select(p => p.Pattern.Title))
+        : string.Join(", ", patterns.SkipLast(1).Select(p => p.Pattern.Title)) + " and " + patterns[^1].Pattern.Title;
+
     /// <summary>A pattern's title, level and mastery: "Prefix sums: learning, 34%".</summary>
     public static string Standing(PatternMastery pattern) =>
         $"{pattern.Pattern.Title}: {ConceptText.Level(pattern.Level).ToLowerInvariant()}, {(int)Math.Round(100 * pattern.Mastery)}%";

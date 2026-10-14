@@ -1,9 +1,12 @@
 @* Today: the daily goal, the streak, what is due and what is next, and the one button that starts (or resumes) the day's session. *@
+@using Brilliant.Core.Practice
 @using Brilliant.Core.Progress
 @inject ProgressRecorder Recorder
 
 @{
-    var today = Recorder.Project(Content).Today;
+    var learner = Recorder.Project(Content);
+    var today = learner.Today;
+    var suggestion = OnOpenPractice.HasDelegate ? PracticeSelector.Suggestion(learner) : [];
     var pct = Math.Min(100, 100 * today.DoneToday / today.GoalSteps);
     var arc = $"stroke-dashoffset:{100 - pct}" + (pct == 0 ? ";opacity:0" : "");   // an empty ring would still draw the round cap
 }
@@ -58,6 +61,15 @@
         </button>
     }
 
+    @* With the review queue done, Practice is what keeps the patterns sharp (#128): suggest the weakest. *@
+    @if (suggestion.Count > 0)
+    {
+        <button class="today-practice @Styling.PracticeCard" @onclick="() => OnOpenPractice.InvokeAsync()">
+            <span class="card-title text-[1.2rem] font-semibold tracking-[-.01em]">Practice</span>
+            <span class="card-meta text-[.9rem] text-fg-secondary">Reviews are done. Practise your weakest @(suggestion.Count == 1 ? "pattern" : "patterns"): @PracticeText.Titles(suggestion).@if (PracticeText.Streak(today) is { } streak){<br /><span class="practice-streak">@streak</span>}</span>
+        </button>
+    }
+
     @if (today.NextLesson is { } next)
     {
         <section class="today-next panel grid gap-[.2rem] px-6 py-5 shadow-(--shadow-card)">
@@ -98,6 +110,9 @@
 
     [Parameter] public EventCallback OnBrowse { get; set; }
     [Parameter] public EventCallback OnOpenReview { get; set; }
+
+    /// <summary>Opens Practice. Without it Today suggests no practice.</summary>
+    [Parameter] public EventCallback OnOpenPractice { get; set; }
 
     private void SetGoal(int steps) => Recorder.SetDailyGoal(Math.Clamp(steps, MinGoal, MaxGoal));
 
