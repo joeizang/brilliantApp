@@ -393,6 +393,7 @@ steps:
     largeScreenPreferred: true
     title: Reverse a linked list
     pattern: pattern.reverse-linked-list
+    difficulty: easy
     patternCue: "\"Reverse the list, in place\": no new nodes, just turn every arrow round with `prev`, `cur` and `nxt`."
     compare: linked_list
     prompt: |

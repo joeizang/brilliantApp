@@ -460,6 +460,7 @@ steps:
     largeScreenPreferred: true
     title: The last stone
     pattern: pattern.heap-repeated-min
+    difficulty: easy
     patternCue: "\"Smash the two heaviest, put what's left back\": a max-heap (negated values), two pops and maybe a push each turn."
     prompt: |
       Each turn, take the two **heaviest** stones, `x <= y`, and smash them together. If they weigh the same, both are

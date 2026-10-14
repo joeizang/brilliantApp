@@ -487,6 +487,7 @@ steps:
     largeScreenPreferred: true
     title: Reorder a list
     pattern: pattern.reverse-linked-list
+    difficulty: hard
     patternCue: "\"First, last, second, second to last...\", in place: taking from the end means reversing the second half, found with fast and slow, then weaving the halves."
     compare: linked_list
     prompt: |

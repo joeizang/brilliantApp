@@ -394,6 +394,7 @@ steps:
   - id: step.grouping.write-group-by-length
     type: write-code
     pattern: pattern.grouping-by-key
+    difficulty: easy
     patternCue: "\"A dict from each length to the list of words of that length\": the key is right there (the length), and each word is appended to its key's list."
     largeScreenPreferred: true
     title: Group by length

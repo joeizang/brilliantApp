@@ -319,6 +319,7 @@ steps:
   - id: step.readwrite.write-dedupe
     type: write-code
     pattern: pattern.reader-writer
+    difficulty: easy
     patternCue: "\"Removes the duplicate values in place, without building a second list\" and returns `nums[:k]`: the reader scans, and the writer only advances when it sees a new value. `k` is the writer."
     largeScreenPreferred: true
     title: Remove duplicates
@@ -421,6 +422,7 @@ steps:
   - id: step.readwrite.write-subsequence
     type: write-code
     pattern: pattern.reader-writer
+    difficulty: easy
     patternCue: "\"Appear in `t` in the same order, though not necessarily next to each other\": one pointer walks `t` reading every letter, and the other only moves on through `s` when it finds a match."
     largeScreenPreferred: true
     title: Is it a subsequence?

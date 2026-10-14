@@ -311,6 +311,7 @@ steps:
   - id: step.frequency.write-can-build
     type: write-code
     pattern: pattern.counting
+    difficulty: easy
     patternCue: "\"Each magazine letter used at most once\": you need to know how many of each letter the magazine has and whether the note needs more. That is a comparison of letter counts."
     largeScreenPreferred: true
     title: Can you build the note?

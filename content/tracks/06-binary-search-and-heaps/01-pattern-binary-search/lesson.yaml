@@ -420,6 +420,7 @@ steps:
     largeScreenPreferred: true
     title: Binary search
     pattern: pattern.binary-search
+    difficulty: easy
     patternCue: "\"Find it in a sorted list\": lo and hi around the part it can be in, mid in between."
     prompt: |
       Write `search(nums, target)` that returns the index of `target` in `nums`, a list sorted from smallest to largest with

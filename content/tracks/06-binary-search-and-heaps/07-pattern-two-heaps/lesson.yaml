@@ -389,6 +389,7 @@ steps:
     largeScreenPreferred: true
     title: The running median
     pattern: pattern.two-heaps
+    difficulty: hard
     patternCue: "\"The median after each number\": two heaps, each number passed through lower into upper and balanced back."
     prompt: |
       Write `running_median(nums)` that returns a list with the median of `nums[:1]`, `nums[:2]`, and so on. With an even
@@ -456,6 +457,7 @@ steps:
     largeScreenPreferred: true
     title: Pick the projects
     pattern: pattern.two-heaps
+    difficulty: hard
     patternCue: "\"The most profitable project you can afford, as your money grows\": projects by capital gate a max-heap by profit."
     prompt: |
       You start with money `w`. Project `i` needs `capital[i]` to start (it isn't spent) and adds `profits[i]` to your money

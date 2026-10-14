@@ -488,6 +488,7 @@ steps:
     largeScreenPreferred: true
     title: How deep is it nested?
     pattern: pattern.recursive-decomposition
+    difficulty: easy
     patternCue: "\"How deeply nested\": a list is one level deeper than its deepest item, and each item's depth is the same question, smaller."
     prompt: |
       Write `depth(nested)` that returns how deeply a list is nested. A list of only numbers, or an empty list, has depth `1`.

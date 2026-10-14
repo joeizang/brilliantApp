@@ -3,6 +3,7 @@ problems:
     type: write-code
     title: Cheapest in every window
     pattern: pattern.window-deque
+    difficulty: hard
     patternCue: "\"The smallest in every window of k\": keep a deque of indexes whose values increase, dropping the ones that left the window from the front."
     prompt: |
       `prices` is a list of numbers and `k` is between `1` and `len(prices)`. Write `window_mins(prices, k)` that returns the

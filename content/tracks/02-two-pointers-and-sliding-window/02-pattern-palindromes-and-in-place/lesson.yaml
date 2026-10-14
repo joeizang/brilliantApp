@@ -295,6 +295,7 @@ steps:
   - id: step.palindrome.write-palindrome
     type: write-code
     pattern: pattern.converging-pointers
+    difficulty: easy
     patternCue: "\"Reads the same forwards and backwards\": compare from both ends towards the middle, each pointer skipping what isn't a letter or digit, so no cleaned copy is needed."
     largeScreenPreferred: true
     title: Valid palindrome
