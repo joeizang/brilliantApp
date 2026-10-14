@@ -48,12 +48,17 @@ public static class PracticeSelector
     public static PracticeAvailability Availability(LearnerState state) =>
         new(state.Patterns.Count(p => p.IsLearned), Eligible(state).Count);
 
-    /// <summary>The next problem, or null when Practice isn't available.</summary>
+    /// <summary>How many problems on offer are of this difficulty (#128).</summary>
+    public static int Count(LearnerState state, Difficulty level) => Eligible(state).Count(e => e.Step.Step.Level == level);
+
+    /// <summary>The next problem, or null when Practice isn't available or nothing on offer is of <paramref name="level"/>.</summary>
     /// <param name="previousStepId">The step offered last in this visit, never offered twice in a row.</param>
-    public static PracticeProblem? Next(LearnerState state, Random random, string? previousStepId = null)
+    /// <param name="level">Only problems of this difficulty (#128); any when null. The ranking is the same within it.</param>
+    public static PracticeProblem? Next(LearnerState state, Random random, string? previousStepId = null, Difficulty? level = null)
     {
         if (!Availability(state).IsAvailable) return null;
-        var ranked = Ranked(state);
+        var ranked = Ranked(state).Where(e => level is null || e.Step.Step.Level == level).ToList();
+        if (ranked.Count == 0) return null;
         if (ranked.Count > 1) ranked = ranked.Where(e => e.Step.Step.Id != previousStepId).ToList();
         var chosen = Draw(ranked, random);
         return new PracticeProblem(chosen.Step, chosen.Pattern.Pattern, Choices(state, chosen.Pattern.Pattern, random));

@@ -334,6 +334,7 @@ steps:
     largeScreenPreferred: true
     title: Where it goes
     pattern: pattern.binary-search-boundary
+    difficulty: easy
     patternCue: "\"Its index, or where it would go\": the first index with nums[i] >= target."
     prompt: |
       Write `search_insert(nums, target)`. `nums` is sorted with no repeats. Return the index of `target` if it's there, and
@@ -386,6 +387,7 @@ steps:
     largeScreenPreferred: true
     title: The first bad version
     pattern: pattern.binary-search-boundary
+    difficulty: easy
     patternCue: "\"Every one after the first bad one is bad too\": a test that switches once, so binary search the switch."
     prompt: |
       `broken` is a list of `True` and `False`, with every `False` before every `True`: `broken[v]` says whether version `v`
@@ -499,6 +501,7 @@ steps:
     largeScreenPreferred: true
     title: The next letter
     pattern: pattern.binary-search-boundary
+    difficulty: easy
     patternCue: "\"The smallest one bigger than x\": bisect_right, wrapping round to the start."
     prompt: |
       `letters` is a sorted list of lowercase letters, with at least two different ones (and maybe repeats). Write

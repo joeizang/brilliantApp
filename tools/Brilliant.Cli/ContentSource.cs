@@ -319,9 +319,10 @@ public static partial class ContentValidator
 
         var pattern = LoadPatternTag(dto, label, file, report, isAlternative);
         var cue = LoadPatternCue(dto, label, file, report, isAlternative);
+        var difficulty = LoadDifficulty(dto, label, file, report, isAlternative);
 
-        if (step is null || (!preferred && alternative is null && pattern is null && cue is null)) return step;
-        return step with { LargeScreenPreferred = preferred, PhoneAlternative = alternative, Pattern = pattern, PatternCue = cue };
+        if (step is null || (!preferred && alternative is null && pattern is null && cue is null && difficulty is null)) return step;
+        return step with { LargeScreenPreferred = preferred, PhoneAlternative = alternative, Pattern = pattern, PatternCue = cue, Difficulty = difficulty };
     }
 
     /// <summary>
@@ -365,6 +366,29 @@ public static partial class ContentValidator
         else if (dto.Pattern is null)
             report.Add(file, $"{label}: 'patternCue' explains a 'pattern'; add the 'pattern' it explains or remove it.");
         return dto.PatternCue.Trim();
+    }
+
+    /// <summary>
+    /// A tagged step's <c>difficulty</c> (#128): easy, medium or hard. Optional: without it the step type's default applies
+    /// (<see cref="Step.Level"/>), so it is only worth saying when that default is wrong. Meaningless without a <c>pattern</c>.
+    /// </summary>
+    private static Difficulty? LoadDifficulty(StepDto dto, string label, string file, ValidationReport report, bool isAlternative)
+    {
+        if (dto.Difficulty is null) return null;
+        Difficulty? difficulty = dto.Difficulty.Trim() switch
+        {
+            "easy" => Difficulty.Easy,
+            "medium" => Difficulty.Medium,
+            "hard" => Difficulty.Hard,
+            _ => null,
+        };
+        if (difficulty is null)
+            report.Add(file, $"{label}: 'difficulty' must be easy, medium or hard (found '{dto.Difficulty}').");
+        else if (isAlternative)
+            report.Add(file, $"{label}: a phone alternative is the same problem as its step; put 'difficulty' on the step itself.");
+        else if (string.IsNullOrWhiteSpace(dto.Pattern))
+            report.Add(file, $"{label}: 'difficulty' is for problems Practice offers; add the 'pattern' that solves it or remove it.");
+        return difficulty;
     }
 
     private static Step? LoadStepBody(StepDto dto, string label, string file, ValidationReport report,
@@ -974,6 +998,7 @@ public static partial class ContentValidator
         public StepDto? PhoneAlternative { get; set; }
         public string? Pattern { get; set; }
         public string? PatternCue { get; set; }
+        public string? Difficulty { get; set; }
     }
     private sealed class WalkthroughDto { public string? Call { get; set; } public List<VisualDto>? Visualise { get; set; } public string? Explanation { get; set; } }
     private sealed class VisualDto

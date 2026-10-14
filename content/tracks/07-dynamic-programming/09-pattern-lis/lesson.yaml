@@ -454,6 +454,7 @@ steps:
     largeScreenPreferred: true
     title: Nesting envelopes
     pattern: pattern.dp-lis
+    difficulty: hard
     patternCue: "\"Nest as many as possible, each strictly smaller in both directions\": sort, then the longest increasing chain."
     prompt: |
       Each envelope is `[width, height]`. One fits inside another only if it is **strictly smaller in both** width and height,

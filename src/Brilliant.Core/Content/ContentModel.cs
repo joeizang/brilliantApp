@@ -30,6 +30,10 @@ public enum ReviewKind
     Resolve,
 }
 
+/// <summary>How hard a tagged problem is (#128), for choosing what to practise. Authored as <c>difficulty</c>, or the step type's default.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<Difficulty>))]
+public enum Difficulty { Easy, Medium, Hard }
+
 /// <summary>
 /// A question introduced by a lesson that Review will later resurface. It reuses an existing answerable
 /// step (<see cref="StepId"/>) of the same lesson as its question, and belongs to one <see cref="ConceptId"/>.
@@ -105,6 +109,16 @@ public abstract record Step(string Id, string Title) : ContentItem(Id)
     /// wrong. Every tagged step has one; null when <see cref="Pattern"/> is.
     /// </summary>
     public string? PatternCue { get; init; }
+
+    /// <summary>The authored difficulty of a tagged step, or null to take the default (<see cref="Level"/>).</summary>
+    public Difficulty? Difficulty { get; init; }
+
+    /// <summary>
+    /// How hard this problem is: its authored <see cref="Difficulty"/>, else fill-in-the-blank and Parsons are easy (the code is mostly
+    /// given) and anything else is medium. Only hard needs saying.
+    /// </summary>
+    [JsonIgnore]
+    public Difficulty Level => Difficulty ?? (this is FillBlankStep or ParsonsStep ? Content.Difficulty.Easy : Content.Difficulty.Medium);
 
     /// <summary>The form of this question to put in front of the learner on a screen of this class: the phone alternative on a phone, else the step itself.</summary>
     public Step For(ScreenClass screen) => screen == ScreenClass.Phone && PhoneAlternative is { } alt ? alt : this;

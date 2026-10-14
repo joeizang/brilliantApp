@@ -221,6 +221,40 @@ public sealed class PatternValidatorTests : IDisposable
         Assert.Contains(Errors(), e => e.Contains("'patternCue' explains a 'pattern'; add the 'pattern' it explains or remove it"));
     }
 
+    // --- Difficulty (#128) --------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void A_tagged_step_may_say_how_hard_it_is_and_otherwise_takes_its_types_default()
+    {
+        Write("tracks/t/l1/lesson.yaml", Lesson("one", PrefixSums, Tagged + "    difficulty: hard\n"));
+        Write("tracks/t/l2/lesson.yaml", Lesson("two", stepExtra: Tagged));
+        var outPath = Path.Combine(_root, "out", "p.zip");
+
+        var report = ContentPacker.Pack(_root, outPath);
+
+        Assert.True(report.IsValid, string.Join("\n", report.Errors));
+        var graph = ContentPackFormat.Load(outPath);
+        Assert.Equal((Difficulty.Hard, Difficulty.Hard), (graph.Get<Step>("step.one.p").Difficulty, graph.Get<Step>("step.one.p").Level));
+        Assert.Equal((null, Difficulty.Easy), (graph.Get<Step>("step.two.p").Difficulty, graph.Get<Step>("step.two.p").Level));   // Parsons
+    }
+
+    [Fact]
+    public void An_unknown_difficulty_is_rejected()
+    {
+        Write("tracks/t/l1/lesson.yaml", Lesson("one", PrefixSums, Tagged + "    difficulty: brutal\n"));
+
+        var error = Assert.Single(Errors());
+        Assert.Contains("'difficulty' must be easy, medium or hard (found 'brutal')", error);
+    }
+
+    [Fact]
+    public void A_difficulty_without_a_pattern_is_rejected()
+    {
+        Write("tracks/t/l1/lesson.yaml", Lesson("one", stepExtra: "    difficulty: easy\n"));
+
+        Assert.Contains(Errors(), e => e.Contains("'difficulty' is for problems Practice offers; add the 'pattern' that solves it or remove it"));
+    }
+
     [Fact]
     public void An_empty_cue_is_rejected()
     {

@@ -7,10 +7,27 @@
 
 <div class="practice-bar content-column mt-2 flex items-center gap-4 text-[.9rem]">
     <button class="link btn-link" @onclick="() => OnExit.InvokeAsync()"><Icon Name="back" Class="size-5" /> Back</button>
+    @if (_availability.IsAvailable)
+    {
+        @* Applies to the next problem, or straight away if this one hasn't been answered yet. *@
+        <label class="ml-auto flex items-center gap-2">Difficulty
+            <select class="practice-difficulty rounded-md border border-hairline bg-surface-raised px-2 py-1" value="@LevelKey(_level)" @onchange="ChooseLevel">
+                <option value="any">Any</option>
+                @foreach (var level in Enum.GetValues<Difficulty>())
+                {
+                    <option value="@LevelKey(level)">@level (@_counts.GetValueOrDefault(level))</option>
+                }
+            </select>
+        </label>
+    }
 </div>
 <h1 class="practice-title content-column mt-2 mb-0">Practice</h1>
 
-@if (_problem is not { } problem)
+@if (_problem is null && _availability.IsAvailable && _level is { } chosen)
+{
+    <p class="practice-none-at-level content-column mt-8 text-[1.05rem]">No @chosen.ToString().ToLowerInvariant() problems are on offer yet. Choose another difficulty, or finish more lessons.</p>
+}
+else if (_problem is not { } problem)
 {
     <p class="practice-unavailable content-column mt-8 text-[1.05rem]">@PracticeText.Unavailable(_availability)</p>
     <div class="practice-actions content-column pt-4 pb-6"><button class="primary btn-primary" @onclick="() => OnExit.InvokeAsync()">Back to tracks</button></div>
@@ -18,6 +35,7 @@
 else
 {
     <div @key="(problem.Step.Id, _count)">
+        <p class="practice-level content-column mt-1 mb-0 text-[.9rem] text-fg-secondary">@problem.Step.Level</p>
         @if (_phase == Phase.Pick)
         {
             <ProblemPrompt Step="_presented" />
@@ -96,6 +114,8 @@ else
     private bool? _picked, _solved;
     private int _hintsUsed;
     private IReadOnlyList<(string Label, DateTimeOffset Due)> _comesBack = [];
+    private Difficulty? _level;   // null: any
+    private Dictionary<Difficulty, int> _counts = [];
 
     protected override void OnInitialized()
     {
@@ -107,7 +127,8 @@ else
     {
         var state = Recorder.Project(Content, Screen.Class);
         _availability = PracticeSelector.Availability(state);
-        _problem = PracticeSelector.Next(state, _random, previousStepId);
+        _counts = Enum.GetValues<Difficulty>().ToDictionary(l => l, l => PracticeSelector.Count(state, l));
+        _problem = PracticeSelector.Next(state, _random, previousStepId, _level);
         if (_problem is null) return;
         _presented = _problem.Step.For(Screen.Class);
         (_phase, _picked, _solved, _hintsUsed, _comesBack, _shownAt) = (Phase.Pick, null, null, 0, [], Recorder.Now);
@@ -155,6 +176,16 @@ else
     }
 
     private void NextProblem() => Show(_problem?.Step.Id);
+
+    private static string LevelKey(Difficulty? level) => level?.ToString().ToLowerInvariant() ?? "any";
+
+    // A problem not yet answered that isn't of the new difficulty is swapped for one that is; otherwise the choice waits for the next.
+    private void ChooseLevel(ChangeEventArgs e)
+    {
+        _level = Enum.TryParse<Difficulty>(e.Value as string, ignoreCase: true, out var level) ? level : null;
+        if (_problem is null) Show(null);
+        else if (_phase == Phase.Pick && _picked is null && _level is { } chosen && _problem.Step.Level != chosen) Show(_problem.Step.Id);
+    }
 
     internal static RenderFragment Mark(bool right) => right
         ? @<span class="practice-mark right grid size-7 flex-none place-items-center rounded-full bg-success-tint text-success"><Icon Name="check" Class="size-4" /><span class="sr-only">right</span></span>

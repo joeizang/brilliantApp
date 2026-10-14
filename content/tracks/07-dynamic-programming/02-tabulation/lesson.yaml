@@ -411,6 +411,7 @@ steps:
     largeScreenPreferred: true
     title: A row of Pascal's triangle
     pattern: pattern.tabulation
+    difficulty: easy
     patternCue: "\"Each row from the one above\": keep one row and update it in place, right to left."
     prompt: |
       Each row of Pascal's triangle starts and ends with `1`, and every other entry is the sum of the two above it:

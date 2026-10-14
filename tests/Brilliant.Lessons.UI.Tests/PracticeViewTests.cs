@@ -155,6 +155,74 @@ public class PracticeViewTests : ShortcutContext
         Assert.Contains("Tracks", cut.Find("nav.phone-nav [aria-current=page]").TextContent);
     }
 
+    // --- Difficulty (#128) -------------------------------------------------------------------------------------------------
+
+    // Four lessons whose problems are easy (fill-in-the-blank) and one whose problem is authored hard.
+    private static readonly Lesson Hard = Teaching("h") is var h ? h with { Steps = [((FillBlankStep)h.Steps[0]) with { Difficulty = Difficulty.Hard }] } : null!;
+
+    private static readonly ContentGraph Mixed =
+        new(new PackManifest("pack.t", "1.0.0", 1), [new Track("track.t", "T", [.. Lessons.Select(l => l.Id), Hard.Id])], [.. Lessons, Hard]);
+
+    private IRenderedComponent<PracticeView> OpenMixed()
+    {
+        Finish(3);
+        foreach (var s in Hard.Steps) _recorder.CompleteStep(Hard, s.Id);
+        return Render<PracticeView>(p => p.Add(c => c.Content, Mixed).Add(c => c.Random, new Random(1)));
+    }
+
+    [Fact]
+    public void Practice_offers_each_difficulty_with_its_count_and_shows_the_problems_level()
+    {
+        var cut = OpenMixed();
+
+        Assert.Equal(["Any", "Easy (3)", "Medium (0)", "Hard (1)"], cut.FindAll("select.practice-difficulty option").Select(o => o.TextContent.Trim()));
+        Assert.Equal("any", cut.Find("select.practice-difficulty").GetAttribute("value"));
+        Assert.Contains(cut.Find(".practice-level").TextContent.Trim(), new[] { "Easy", "Hard" });
+    }
+
+    [Fact]
+    public void Choosing_a_difficulty_swaps_an_unanswered_problem_for_one_of_it()
+    {
+        var cut = OpenMixed();
+
+        cut.Find("select.practice-difficulty").Change("hard");
+        Assert.Equal(("h", "Hard"), (Shown(cut), cut.Find(".practice-level").TextContent.Trim()));
+
+        cut.Find("select.practice-difficulty").Change("easy");
+        Assert.NotEqual("h", Shown(cut));
+        Assert.Equal("Easy", cut.Find(".practice-level").TextContent.Trim());
+    }
+
+    [Fact]
+    public void Once_the_pattern_is_picked_a_new_difficulty_waits_for_the_next_problem()
+    {
+        var cut = OpenMixed();
+        cut.Find("select.practice-difficulty").Change("easy");
+        var shown = Shown(cut);
+        PickPattern(cut, "Pattern " + shown);
+
+        cut.Find("select.practice-difficulty").Change("hard");
+        Assert.Equal(shown, Shown(cut));
+
+        cut.Find(".pattern-pick button.primary").Click();   // Solve it
+        Solve(cut, "x");
+        cut.Find(".fill-step button.primary").Click();      // the result
+        cut.Find(".practice-actions button.primary").Click();   // Next problem
+        Assert.Equal("h", Shown(cut));
+    }
+
+    [Fact]
+    public void A_difficulty_with_nothing_on_offer_says_so()
+    {
+        var cut = OpenMixed();
+
+        cut.Find("select.practice-difficulty").Change("medium");
+
+        Assert.Equal("No medium problems are on offer yet. Choose another difficulty, or finish more lessons.", cut.Find(".practice-none-at-level").TextContent.Trim());
+        cut.Find("select.practice-difficulty").Change("any");
+        Assert.Empty(cut.FindAll(".practice-none-at-level"));
+    }
+
     // --- The flow ------------------------------------------------------------------------------------------------------
 
     [Fact]

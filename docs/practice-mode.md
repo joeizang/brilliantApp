@@ -353,10 +353,34 @@ two heaps (running lower middle), window deque (minimum of every window) and dum
 Tests: `tests/Brilliant.Cli.Tests/PracticeProblemValidatorTests.cs`, the "Practice-only problems" section of
 `tests/Brilliant.Core.Tests/PracticeTests.cs`, `FlaggedStepsTests` and `PracticeViewTests`.
 
+## Difficulty (#128)
+
+Part of issue [#128](https://github.com/joeizang/brilliantApp/issues/128). A problem Practice offers can carry a difficulty, and the
+learner can ask Practice for only one level.
+
+**Authoring.** An optional `difficulty: easy | medium | hard` on a step that has a `pattern` (a tagged lesson step or a practice
+problem). Without one, fill-blank and Parsons problems count as easy and write-code problems as medium, so only the exceptions are
+marked. The validator rejects any other value, a `difficulty` on a step without a `pattern` (Practice never offers it) and one on a
+phone alternative (put it on the step itself). The pack format stays at version 1: `difficulty` is optional and an older app ignores it.
+
+**In the model.** `Step.Difficulty` is what the author wrote; `Step.Level` is that or the default above.
+
+**In Practice.** The bar above the problem has a difficulty menu: "Any" (the default) or a level, each with how many problems are on
+offer at it right now. Choosing a level filters the selector's ranked list (`PracticeSelector.Next(..., level)`), so weak patterns and
+due problems still come first within the level. If the current problem hasn't been picked yet and isn't at the new level, it is swapped
+for one that is; otherwise the choice applies from the next problem. With nothing at that level, Practice says so and suggests another
+level or more lessons. Each problem shows its level. The choice isn't saved: Practice opens on "Any". Interview sets ignore difficulty.
+
+**First batch.** 11 well-known hard problems are marked hard (merge k lists, sort a list, reorder a list, maximum path sum, word ladder,
+running median, IPO, Russian dolls, window maximum and minimum, palindromic substrings) and 20 short write-code warm-ups are marked easy
+(two sum, valid parentheses, the middle node, reverse a list, binary search, insert position and so on).
+
+Tests: the "Difficulty (#128)" section of `tests/Brilliant.Cli.Tests/PatternValidatorTests.cs`, `PracticeTests` and `PracticeViewTests`.
+
 ## Not in this slice
 
 - Standalone problems authored for Practice: done in [#127](#practice-only-problems-127).
-- Per-problem timers, a custom time limit, difficulty levels, a practice streak or a Today suggestion.
+- Per-problem timers, a custom time limit, a practice streak or a Today suggestion. Difficulty levels: done in [#128](#difficulty-128).
 - Interview mode on a phone is supported, but code-heavy problems keep the existing "best on a larger screen" note ([responsive-layouts.md](responsive-layouts.md)).
 - Tuning FSRS for practice answers. Done in [#129](https://github.com/joeizang/brilliantApp/issues/129): see [review.md](review.md#practice-and-interview-answers).
 
