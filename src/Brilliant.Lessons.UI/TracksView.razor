@@ -97,7 +97,7 @@ else
     private static readonly string InterviewCard = Styling.PracticeCard.Replace("practice-card", "interview-card");
 
     private string InterviewStatus(InterviewRun? run, PracticeAvailability practice) =>
-        run is null ? practice.IsAvailable ? "2 or 3 problems against one clock." : PracticeText.Unavailable(practice)
+        run is null ? practice.IsAvailable ? "1 to 5 problems against one clock." : PracticeText.Unavailable(practice)
         : run.IsOver(Recorder.Now) ? "Time's up. See how you did."
         : $"In progress: {Math.Max(1, (int)Math.Ceiling(run.Left(Recorder.Now).TotalMinutes))} min left.";
 }

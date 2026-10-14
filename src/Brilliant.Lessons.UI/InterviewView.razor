@@ -26,6 +26,27 @@
     else if (_confirming is { } preset)
     {
         <section class="interview-confirm content-column mt-8" role="alertdialog" aria-labelledby="interview-confirm-text">
+            @if (preset == InterviewPreset.Custom)
+            {
+                <div class="interview-custom flex flex-wrap gap-4 pb-2">
+                    <label class="grid gap-1 text-[.95rem]">Problems
+                        <select class="custom-problems rounded-lg border border-hairline bg-surface-raised px-3 py-2" @bind="_customProblems">
+                            @for (var n = InterviewPresets.CustomProblems.Min; n <= MaxCustomProblems; n++)
+                            {
+                                <option value="@n">@n</option>
+                            }
+                        </select>
+                    </label>
+                    <label class="grid gap-1 text-[.95rem]">Minutes
+                        <select class="custom-minutes rounded-lg border border-hairline bg-surface-raised px-3 py-2" @bind="_customMinutes">
+                            @for (var m = InterviewPresets.CustomMinutes.Min; m <= InterviewPresets.CustomMinutes.Max; m += 5)
+                            {
+                                <option value="@m">@m</option>
+                            }
+                        </select>
+                    </label>
+                </div>
+            }
             <p id="interview-confirm-text" class="text-[1.05rem]">
                 <strong>@InterviewPresets.Title(preset)</strong>: @Plan(preset). The clock starts now and can't be paused.
             </p>
@@ -44,7 +65,7 @@
                 var choice = p;
                 <button class="interview-preset @Styling.PracticeCard" @onclick="() => _confirming = choice">
                     <span class="card-title text-[1.2rem] font-semibold tracking-[-.01em]">@InterviewPresets.Title(choice)</span>
-                    <span class="card-meta text-[.9rem] text-fg-secondary">@Plan(choice)</span>
+                    <span class="card-meta text-[.9rem] text-fg-secondary">@(choice == InterviewPreset.Custom ? "Your own number of problems and time limit" : Plan(choice))</span>
                 </button>
             }
         </div>
@@ -64,7 +85,7 @@ else if (_run.IsFinished)
                     <h3 class="mt-0 mb-2 text-[1.05rem] font-semibold">Problem @(i + 1)@(StepOf(problem) is { } step ? $": {step.Title}" : "")</h3>
                     <p class="result-pick my-1 flex items-center gap-3">@PracticeView.Mark(pick?.Correct == true) <span>It was <strong>@PatternTitle(PatternOf(problem))</strong>. @PickedText(pick)</span></p>
                     <p class="result-solve my-1 flex items-center gap-3">@PracticeView.Mark(solve?.Correct == true) <span>@(solve?.Correct == true ? "The solution passed." : "The solution didn't pass.")</span></p>
-                    <p class="result-time mt-1 mb-0 text-[.95rem] text-fg-secondary">Time: @(Spent(pick, solve) is { } t ? PracticeView.Duration(t) : "none")</p>
+                    <p class="result-time mt-1 mb-0 text-[.95rem] text-fg-secondary">@TimeText(Spent(pick, solve), _run.Budget)</p>
                 </li>
             }
         </ol>
@@ -95,6 +116,7 @@ else
                 </button>
             }
         </nav>
+        <span class="@BudgetClass(problem)" aria-label="Time on this problem">@Clock(SpentNow(problem)) of @Clock(_run.Budget)@(SpentNow(problem) > _run.Budget ? " (over budget)" : "")</span>
         <button class="interview-finish link btn-link ml-auto" @onclick="() => _confirmingFinish = true">Finish early</button>
     </div>
     @if (_confirmingFinish)
@@ -175,6 +197,11 @@ else
     private PracticeAvailability _availability = new(0, 0);
     private InterviewRun? _run;
     private InterviewPreset? _confirming;
+    private int _customProblems = InterviewPresets.Problems(InterviewPreset.Custom);
+    private int _customMinutes = (int)InterviewPresets.Limit(InterviewPreset.Custom).TotalMinutes;
+
+    // A custom run can't ask for more problems than there are to draw from.
+    private int MaxCustomProblems => Math.Max(InterviewPresets.CustomProblems.Min, Math.Min(InterviewPresets.CustomProblems.Max, _availability.Problems));
     private bool _confirmingFinish, _submitting;
     private int _active;
     private WriteCodeStepView? _write;
@@ -195,9 +222,10 @@ else
     private void Start(InterviewPreset preset)
     {
         var state = Recorder.Project(Content, Screen.Class);
-        var set = PracticeSelector.Set(state, Random ?? new Random(), InterviewPresets.Problems(preset));
+        var custom = preset == InterviewPreset.Custom;
+        var set = PracticeSelector.Set(state, Random ?? new Random(), custom ? Math.Min(_customProblems, MaxCustomProblems) : InterviewPresets.Problems(preset));
         _confirming = null;
-        if (Recorder.StartInterview(preset, set) is { } run) Resume(run);
+        if (Recorder.StartInterview(preset, set, custom ? TimeSpan.FromMinutes(_customMinutes) : null) is { } run) Resume(run);
         else if (InterviewRuns.Open(Recorder.Log.ReadAll()) is { } open) Resume(open);   // another device started one first
     }
 
@@ -342,8 +370,22 @@ else
         return total > TimeSpan.Zero ? total : null;
     }
 
-    private static string Plan(InterviewPreset preset) =>
-        $"{InterviewPresets.Problems(preset)} problems, {(int)InterviewPresets.Limit(preset).TotalMinutes} minutes";
+    private string Plan(InterviewPreset preset) => preset == InterviewPreset.Custom
+        ? $"{Problems(Math.Min(_customProblems, MaxCustomProblems))}, {_customMinutes} minutes"
+        : $"{Problems(InterviewPresets.Problems(preset))}, {(int)InterviewPresets.Limit(preset).TotalMinutes} minutes";
+
+    private static string TimeText(TimeSpan? spent, TimeSpan budget) =>
+        spent is not { } t ? "Time: none"
+        : $"Time: {PracticeView.Duration(t)} of a {PracticeView.Duration(budget)} budget" + (t > budget ? " (over)" : "");
+
+    private static string Problems(int count) => count == 1 ? "1 problem" : $"{count} problems";
+
+    // The time on the problem on screen so far, counting since it was last shown.
+    private TimeSpan SpentNow(InterviewProblem problem) => _spent.GetValueOrDefault(problem.StepId) + (Recorder.Now - _since);
+
+    // The budget is soft: going over it is shown, never enforced.
+    private string BudgetClass(InterviewProblem problem) =>
+        "interview-budget font-mono text-[.95rem] tabular-nums text-fg-secondary" + (SpentNow(problem) > _run!.Budget ? " over text-danger" : "");
 
     private static string Clock(TimeSpan left) => $"{(int)left.TotalMinutes}:{left.Seconds:00}";
 

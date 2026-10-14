@@ -120,6 +120,56 @@ public class InterviewTests
         Assert.Equal(run, InterviewRuns.Open(_log.Items), new RunComparer());
     }
 
+    // --- Custom runs and the per-problem budget (#128) ----------------------------------------------------------------
+
+    [Fact]
+    public void A_custom_run_keeps_its_own_problem_count_and_limit()
+    {
+        Finish(A, B, C);
+        var set = PracticeSelector.Set(Project(), new Random(1), 4);
+
+        var run = Recorder.StartInterview(InterviewPreset.Custom, set, TimeSpan.FromMinutes(60))!;
+
+        var data = JsonDocument.Parse(Assert.Single(_log.Items, e => e.Type == ProgressEventTypes.InterviewStarted).Data!).RootElement;
+        Assert.Equal(("custom", 3600), (data.GetProperty("preset").GetString(), data.GetProperty("limitSeconds").GetInt32()));
+        var read = InterviewRuns.Get(_log.Items, run.Id)!;
+        Assert.Equal((InterviewPreset.Custom, 4, TimeSpan.FromMinutes(60)), (read.Preset, read.Problems.Count, read.Limit));
+        Assert.Equal(TimeSpan.FromMinutes(15), read.Budget);
+    }
+
+    [Theory]
+    [InlineData(0, 30)]
+    [InlineData(6, 30)]
+    [InlineData(2, 9)]
+    [InlineData(2, 91)]
+    public void A_custom_run_outside_its_bounds_is_refused(int problems, int minutes)
+    {
+        Finish(A, B, C, D);
+        var set = PracticeSelector.Set(Project(), new Random(1), problems);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => Recorder.StartInterview(InterviewPreset.Custom, set, TimeSpan.FromMinutes(minutes)));
+        Assert.DoesNotContain(_log.Items, e => e.Type == ProgressEventTypes.InterviewStarted);
+    }
+
+    [Fact]
+    public void A_custom_run_needs_a_whole_number_of_minutes_and_a_limit()
+    {
+        Finish(A, B, C);
+        var set = PracticeSelector.Set(Project(), new Random(1), 2);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => Recorder.StartInterview(InterviewPreset.Custom, set, TimeSpan.FromSeconds(1830)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => Recorder.StartInterview(InterviewPreset.Custom, set));
+    }
+
+    [Theory]
+    [InlineData(InterviewPreset.PhoneScreen, 15)]
+    [InlineData(InterviewPreset.Interview, 15)]
+    public void The_budget_shares_the_limit_evenly(InterviewPreset preset, int minutes)
+    {
+        Finish(A, B, C);
+        Assert.Equal(TimeSpan.FromMinutes(minutes), Start(preset).Budget);
+    }
+
     [Fact]
     public void Only_one_run_is_open_at_a_time()
     {

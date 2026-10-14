@@ -3,21 +3,52 @@ using Brilliant.Core.Progress;
 
 namespace Brilliant.Core.Practice;
 
-/// <summary>The two kinds of timed interview run: how many problems, against how long a clock.</summary>
-public enum InterviewPreset { PhoneScreen, Interview }
+/// <summary>
+/// The kinds of timed interview run. Phone screen and Interview are fixed (problems, minutes); Custom takes the learner's own, within
+/// <see cref="InterviewPresets.CustomProblems"/> and <see cref="InterviewPresets.CustomMinutes"/> (#128).
+/// </summary>
+public enum InterviewPreset { PhoneScreen, Interview, Custom }
 
 public static class InterviewPresets
 {
-    public static int Problems(InterviewPreset preset) => preset == InterviewPreset.PhoneScreen ? 2 : 3;
+    /// <summary>The problem counts a Custom run may ask for.</summary>
+    public static readonly (int Min, int Max) CustomProblems = (1, 5);
 
+    /// <summary>The limits, in minutes, a Custom run may set.</summary>
+    public static readonly (int Min, int Max) CustomMinutes = (10, 90);
+
+    /// <summary>A preset's problem count; for Custom, what its setup starts at.</summary>
+    public static int Problems(InterviewPreset preset) => preset switch { InterviewPreset.PhoneScreen => 2, _ => 3 };
+
+    /// <summary>A preset's limit; for Custom, what its setup starts at.</summary>
     public static TimeSpan Limit(InterviewPreset preset) => TimeSpan.FromMinutes(preset == InterviewPreset.PhoneScreen ? 30 : 45);
 
-    public static string Title(InterviewPreset preset) => preset == InterviewPreset.PhoneScreen ? "Phone screen" : "Interview";
+    public static string Title(InterviewPreset preset) => preset switch
+    {
+        InterviewPreset.PhoneScreen => "Phone screen",
+        InterviewPreset.Interview => "Interview",
+        _ => "Custom",
+    };
 
-    internal static string Key(InterviewPreset preset) => preset == InterviewPreset.PhoneScreen ? "phone-screen" : "interview";
+    /// <summary>Whether a Custom run may have this many problems against this limit (whole minutes only).</summary>
+    public static bool IsValidCustom(int problems, TimeSpan limit) =>
+        problems >= CustomProblems.Min && problems <= CustomProblems.Max
+        && limit.Ticks % TimeSpan.TicksPerMinute == 0 && limit.TotalMinutes >= CustomMinutes.Min && limit.TotalMinutes <= CustomMinutes.Max;
 
-    internal static InterviewPreset? Parse(string? key) =>
-        key switch { "phone-screen" => InterviewPreset.PhoneScreen, "interview" => InterviewPreset.Interview, _ => null };
+    internal static string Key(InterviewPreset preset) => preset switch
+    {
+        InterviewPreset.PhoneScreen => "phone-screen",
+        InterviewPreset.Interview => "interview",
+        _ => "custom",
+    };
+
+    internal static InterviewPreset? Parse(string? key) => key switch
+    {
+        "phone-screen" => InterviewPreset.PhoneScreen,
+        "interview" => InterviewPreset.Interview,
+        "custom" => InterviewPreset.Custom,
+        _ => null,
+    };
 }
 
 /// <summary>One problem of an interview run, fixed when the run starts: the step, its lesson and the patterns offered, in order.</summary>
@@ -40,6 +71,11 @@ public sealed record InterviewRun(string Id, InterviewPreset Preset, IReadOnlyLi
     public bool IsOver(DateTimeOffset now) => IsFinished || now >= EndsAt;
 
     public PracticeAnswer? Answer(string stepId, PracticePart part) => Answers.FirstOrDefault(a => a.Step == stepId && a.Part == part);
+
+    /// <summary>
+    /// The soft time budget for one problem: the limit shared evenly. Nothing enforces it; the run shows how each problem's time compares.
+    /// </summary>
+    public TimeSpan Budget => Limit / Problems.Count;
 
     /// <summary>Both parts of every problem are answered: the run can end.</summary>
     public bool IsComplete => Problems.All(p => Answer(p.StepId, PracticePart.Pick) is not null && Answer(p.StepId, PracticePart.Solve) is not null);

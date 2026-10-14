@@ -32,7 +32,7 @@ public static class ProgressEventTypes
     public const string PracticeAnswered = "PracticeAnswered";
 
     /// <summary>
-    /// A timed interview run began. Data holds the <c>run</c> ID, the <c>preset</c> ("phone-screen" or "interview"), the problems as
+    /// A timed interview run began. Data holds the <c>run</c> ID, the <c>preset</c> ("phone-screen", "interview" or "custom"), the problems as
     /// <c>steps</c> (each <c>{ step, lesson, choices }</c>, the patterns offered in order) and <c>limitSeconds</c>. The problem set and the
     /// start time (the event's own time) are fixed here, so the clock runs on whether the app is open or not. Lesson-level, empty IDs.
     /// </summary>
