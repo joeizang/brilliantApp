@@ -140,11 +140,12 @@ public class InterviewViewTests : ShortcutContext
         var cut = Open();
 
         var presets = cut.FindAll("button.interview-preset");
-        Assert.Equal(2, presets.Count);
+        Assert.Equal(3, presets.Count);
         Assert.Equal("Phone screen", presets[0].QuerySelector(".card-title")!.TextContent.Trim());
         Assert.Equal("2 problems, 30 minutes", presets[0].QuerySelector(".card-meta")!.TextContent.Trim());
         Assert.Equal("Interview", presets[1].QuerySelector(".card-title")!.TextContent.Trim());
         Assert.Equal("3 problems, 45 minutes", presets[1].QuerySelector(".card-meta")!.TextContent.Trim());
+        Assert.Equal("Custom", presets[2].QuerySelector(".card-title")!.TextContent.Trim());
 
         cut.FindAll("button.interview-preset")[1].Click();
         Assert.Contains("The clock starts now and can't be paused.", cut.Find(".interview-confirm").TextContent);
@@ -159,6 +160,130 @@ public class InterviewViewTests : ShortcutContext
         Assert.Equal(3, Run.Problems.Count);
         Assert.Equal("45:00", cut.Find(".interview-clock").TextContent.Trim());
         Assert.Equal(3, cut.FindAll("button.interview-tab").Count);
+    }
+
+    // --- Custom runs and the budget (#128) -----------------------------------------------------------------------------
+
+    [Fact]
+    public void A_custom_run_asks_for_the_problem_count_and_minutes_then_starts_with_them()
+    {
+        Finish(4);
+        var cut = Open();
+        cut.FindAll("button.interview-preset").Single(b => b.TextContent.Contains("Custom")).Click();
+
+        // Only as many problems as there are to draw from (four lessons, one problem each).
+        Assert.Equal(["1", "2", "3", "4"], cut.FindAll("select.custom-problems option").Select(o => o.TextContent));
+        Assert.Equal("10", cut.FindAll("select.custom-minutes option").First().TextContent);
+        Assert.Equal("90", cut.FindAll("select.custom-minutes option").Last().TextContent);
+
+        cut.Find("select.custom-problems").Change("4");
+        cut.Find("select.custom-minutes").Change("20");
+        Assert.Contains("Custom: 4 problems, 20 minutes.", cut.Find("#interview-confirm-text").TextContent);
+        cut.Find("button.interview-start").Click();
+
+        Assert.Equal((InterviewPreset.Custom, 4, TimeSpan.FromMinutes(20)), (Run.Preset, Run.Problems.Count, Run.Limit));
+        Assert.Equal("20:00", cut.Find(".interview-clock").TextContent.Trim());
+        Assert.Equal("0:00 of 5:00", cut.Find(".interview-budget").TextContent.Trim());
+    }
+
+    [Fact]
+    public void A_custom_run_of_one_problem_says_so()
+    {
+        Finish(3);
+        var cut = Open();
+        cut.FindAll("button.interview-preset").Single(b => b.TextContent.Contains("Custom")).Click();
+        cut.Find("select.custom-problems").Change("1");
+
+        Assert.Contains("Custom: 1 problem, 45 minutes.", cut.Find("#interview-confirm-text").TextContent);
+    }
+
+    [Fact]
+    public void The_budget_counts_time_on_the_problem_on_screen_and_says_when_it_is_over()
+    {
+        Finish(3);
+        var cut = Start();   // Phone screen: 2 problems, 15 minutes each
+        string Budget() => cut.Find(".interview-budget").TextContent.Trim();
+        Assert.Equal("0:00 of 15:00", Budget());
+
+        _clock.Now = T0.AddMinutes(4);
+        cut.FindAll("button.interview-tab")[1].Click();   // problem 1 keeps its 4 minutes; problem 2 starts from zero
+        Assert.Equal("0:00 of 15:00", Budget());
+
+        _clock.Now = T0.AddMinutes(20);
+        cut.FindAll("button.interview-tab")[1].Click();   // redraws, as the clock's tick does
+        Assert.Equal("16:00 of 15:00 (over budget)", Budget());
+        Assert.Contains("over", cut.Find(".interview-budget").ClassList);
+
+        cut.FindAll("button.interview-tab")[0].Click();
+        Assert.Equal("4:00 of 15:00", Budget());
+        Assert.DoesNotContain("over", cut.Find(".interview-budget").ClassList);
+    }
+
+    [Fact]
+    public void The_summary_says_when_a_problem_went_over_its_budget()
+    {
+        Finish(3);
+        var cut = Start();
+        _clock.Now = T0.AddMinutes(16);
+        PickPattern(cut, "Pattern " + Shown(cut));
+        cut.Find("button.interview-finish").Click();
+        cut.Find(".interview-finish-confirm button.primary").Click();
+
+        Assert.Equal("Time: 16m 00s of a 15m 00s budget (over)", cut.FindAll(".result-time")[0].TextContent.Trim());
+    }
+
+    [Fact]
+    public void Finishing_before_any_answer_keeps_the_time_spent()
+    {
+        Finish(3);
+        var cut = Start();
+        _clock.Now = T0.AddMinutes(16);
+        cut.Render();   // as the clock's tick does
+        Assert.Equal("16:00 of 15:00 (over budget)", cut.Find(".interview-budget").TextContent.Trim());
+
+        cut.Find("button.interview-finish").Click();
+        cut.Find(".interview-finish-confirm button.primary").Click();
+
+        var times = cut.FindAll(".result-time").Select(t => t.TextContent.Trim()).ToList();
+        Assert.Equal(["Time: 16m 00s of a 15m 00s budget (over)", "Time: none"], times);
+    }
+
+    [Fact]
+    public async Task Leaving_and_reopening_a_run_keeps_each_problems_time_but_not_the_time_away()
+    {
+        Finish(3);
+        var cut = Start();
+        _clock.Now = T0.AddMinutes(4);
+        cut.FindAll("button.interview-tab")[1].Click();
+        _clock.Now = T0.AddMinutes(6);
+        await DisposeComponentsAsync();   // left with problem 2 on screen: 2 minutes on it
+
+        _clock.Now = T0.AddMinutes(10);
+        var again = Open();
+        Assert.Equal("4:00 of 15:00", again.Find(".interview-budget").TextContent.Trim());   // back on the first problem not submitted
+        again.FindAll("button.interview-tab")[1].Click();
+        Assert.Equal("2:00 of 15:00", again.Find(".interview-budget").TextContent.Trim());
+    }
+
+    [Fact]
+    public void Time_on_screen_is_recorded_every_so_often_so_closing_the_app_loses_little()
+    {
+        Finish(3);
+        var cut = Start(tick: TimeSpan.FromMilliseconds(20));
+        _clock.Now = T0.AddMinutes(3);
+
+        cut.WaitForAssertion(() => Assert.Equal(TimeSpan.FromMinutes(3), Run.TimeOn(Run.Problems[0].StepId)));
+    }
+
+    [Fact]
+    public void Time_after_the_clock_ran_out_does_not_count()
+    {
+        Finish(3);
+        var cut = Start();
+        _clock.Now = T0.AddMinutes(45);   // the phone screen ended at 30
+        PickPattern(cut, "Pattern " + Shown(cut));
+
+        Assert.Equal("Time: 30m 00s of a 15m 00s budget (over)", cut.FindAll(".result-time")[0].TextContent.Trim());
     }
 
     // --- The run -------------------------------------------------------------------------------------------------------
@@ -362,7 +487,7 @@ public class InterviewViewTests : ShortcutContext
 
         Assert.Contains($"It was Pattern {first}. You picked it.", results[0].QuerySelector(".result-pick")!.TextContent);
         Assert.Contains("The solution passed.", results[0].QuerySelector(".result-solve")!.TextContent);
-        Assert.Equal("Time: 1m 30s", results[0].QuerySelector(".result-time")!.TextContent.Trim());
+        Assert.Equal("Time: 1m 30s of a 15m 00s budget", results[0].QuerySelector(".result-time")!.TextContent.Trim());
 
         Assert.Contains($"It was Pattern {second}. You picked {wrong}.", results[1].QuerySelector(".result-pick")!.TextContent);
         Assert.Contains("You didn't submit a solution.", results[1].QuerySelector(".result-solve")!.TextContent);
@@ -408,7 +533,7 @@ public class InterviewViewTests : ShortcutContext
         var opened = false;
         var card = Tracks(() => opened = true).Find("button.interview-card");
         Assert.False(card.HasAttribute("disabled"));
-        Assert.Equal("2 or 3 problems against one clock.", card.QuerySelector(".interview-status")!.TextContent.Trim());
+        Assert.Equal("1 to 5 problems against one clock.", card.QuerySelector(".interview-status")!.TextContent.Trim());
         card.Click();
         Assert.True(opened);
 

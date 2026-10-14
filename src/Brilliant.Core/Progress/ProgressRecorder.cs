@@ -140,14 +140,18 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
 
     /// <summary>
     /// Starts a timed interview run on <paramref name="problems"/> (from <see cref="PracticeSelector.Set"/>) and returns it. The clock
-    /// starts now. Returns null, recording nothing, when another run is still open: at most one runs at a time.
+    /// starts now. Returns null, recording nothing, when another run is still open: at most one runs at a time. <paramref name="limit"/>
+    /// is the clock: the preset's own when omitted, and required for <see cref="InterviewPreset.Custom"/>, whose problem count and limit
+    /// must be <see cref="InterviewPresets.IsValidCustom">within its bounds</see>.
     /// </summary>
-    public InterviewRun? StartInterview(InterviewPreset preset, IReadOnlyList<PracticeProblem> problems)
+    public InterviewRun? StartInterview(InterviewPreset preset, IReadOnlyList<PracticeProblem> problems, TimeSpan? limit = null)
     {
+        if (preset == InterviewPreset.Custom && (limit is not { } custom || !InterviewPresets.IsValidCustom(problems.Count, custom)))
+            throw new ArgumentOutOfRangeException(nameof(limit), "A custom interview needs 1 to 5 problems and a limit of 10 to 90 whole minutes.");
         if (problems.Count == 0 || InterviewRuns.Open(log.ReadAll()) is not null) return null;
         var run = Guid.NewGuid().ToString("N");
         var set = problems.Select(p => new InterviewProblem(p.Lesson.Id, p.Step.Id, p.Choices.Select(c => c.Id).ToList())).ToList();
-        Append(ProgressEventTypes.InterviewStarted, "", "", InterviewRuns.StartedJson(run, preset, set, InterviewPresets.Limit(preset)));
+        Append(ProgressEventTypes.InterviewStarted, "", "", InterviewRuns.StartedJson(run, preset, set, limit ?? InterviewPresets.Limit(preset)));
         return InterviewRuns.Get(log.ReadAll(), run);
     }
 
@@ -169,6 +173,16 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
                     PracticeMode.Interview, run.Id) { Answered = false });
         }
         Append(ProgressEventTypes.InterviewFinished, "", "", InterviewRuns.FinishedJson(run.Id));
+    }
+
+    /// <summary>
+    /// Records <paramref name="spent"/> as the total time on a problem of an open interview run so far, answered or not. Nothing for a
+    /// finished run, or no time.
+    /// </summary>
+    public void InterviewTimeSpent(string runId, string stepId, TimeSpan spent)
+    {
+        if (spent <= TimeSpan.Zero || InterviewRuns.Get(log.ReadAll(), runId) is not { IsFinished: false }) return;
+        Append(ProgressEventTypes.InterviewTimeSpent, "", "", InterviewRuns.SpentJson(runId, stepId, spent));
     }
 
     /// <summary>Records the daily goal in steps (kept within <see cref="TodayState.MinGoal"/>–<see cref="TodayState.MaxGoal"/>). Returns the goal as stored.</summary>

@@ -124,24 +124,37 @@ A session has no fixed length; the learner stops when they like. Practice is not
 
 ## Timed interview simulation
 
-**Setup.** Two presets, *Phone screen* (2 problems, 30 minutes) and *Interview* (3 problems, 45 minutes). The problems are chosen like Practice, preferring a different pattern for each. Starting asks for confirmation ("The clock starts now and can't be paused").
+**Setup.** Three presets: *Phone screen* (2 problems, 30 minutes), *Interview* (3 problems, 45 minutes), and *Custom* (#128): 1 to 5
+problems (no more than there are to draw from) and 10 to 90 minutes in steps of 5, starting at 3 and 45. The problems are chosen like Practice, preferring a different pattern for each. Starting asks for confirmation ("The clock starts now and can't be paused").
 
 **During the run.**
 - One countdown for the whole run, always visible, turning urgent in the last 5 minutes.
+- Beside it, the time on the problem on screen against a **soft per-problem budget** (#128): the limit shared evenly (15 minutes each
+  in a Phone screen). Going over shows "(over budget)" and nothing else happens; the run's clock is the only hard limit. The time counts
+  whether or not the problem is answered, and is kept in the log (`InterviewTimeSpent`, below), so it survives switching problems,
+  leaving, closing the app and finishing early. Time after the run's clock ran out doesn't count.
 - Each problem is the same pick-then-solve flow, but **no hints, no feedback, no "Check" results beyond the code runner's test output** (as in a real exercise, the learner can run their code against the visible tests). The pattern pick is locked on submit and its correctness is not shown until the end.
 - The learner can move between the run's problems freely and submit each when ready. *Finish early* ends the run.
 - Leaving the screen, switching apps or closing the app does **not** pause anything.
 
 **Ending.** The run ends when the clock reaches zero, the learner finishes early, or every problem is submitted. An unsubmitted problem counts as unanswered (a failed pick and a failed solve).
 
-**The summary.** For each problem: the pattern it was, what the learner picked, whether the solution passed, and the time used. Then a one-line read on the weakest pattern of the run and a note that the results are now in Review. This is the one place the answers are revealed.
+**The summary.** For each problem: the pattern it was, what the learner picked, whether the solution passed, and the time used
+against the budget ("Time: 16m 00s of a 15m 00s budget (over)"). Then a one-line read on the weakest pattern of the run and a note that the results are now in Review. This is the one place the answers are revealed.
 
 **Interruption.** The run is stored as events, so it survives a closed app and syncs like everything else:
 
-- `InterviewStarted` `{ run, preset, steps[], limitSeconds }` — the problem set and the start time are fixed here. Each `steps[]` entry
+- `InterviewStarted` `{ run, preset: "phone-screen"|"interview"|"custom", steps[], limitSeconds }`. A custom run's problem count is
+  its `steps[]` and its limit is `limitSeconds`, so nothing else is new; `ProgressRecorder.StartInterview(preset, problems, limit)`
+  refuses a custom run outside its bounds. An app older than #128 doesn't know `custom` and ignores that run (its answers still schedule). — the problem set and the start time are fixed here. Each `steps[]` entry
   is `{ step, lesson, choices[] }`: the pattern choices are fixed at the start too, so a resumed run (on any device) offers the same
   options in the same order.
 - `InterviewFinished` `{ run }` — written when the run ends by any route.
+- `InterviewTimeSpent` `{ run, step, spentMs }` — a problem's total time on screen so far, answered or not (#128). Written when the
+  learner switches problems, answers, leaves or finishes, and every 30 seconds while the problem stays on screen; the largest total
+  counts, and a finished run takes no more. A problem's time is that total, or its answers' elapsed times if they say more.
+  Banking stops at the run's end, so a total over the run's limit (from another device's event) is capped to the limit, and one a
+  `TimeSpan` can't hold is ignored.
 
 The time left is always `startedAt + limit − now`. If the app is reopened with time left, the run resumes; with none left, the summary is shown and any unanswered problems are recorded. A run is *open* until a `InterviewFinished` exists for it, and at most one run is open at a time. Because the clock is wall time, a device with a wrong clock would shorten or lengthen a run; that is accepted for a personal tool.
 
@@ -276,13 +289,13 @@ unfinished run; a malformed `InterviewStarted` is ignored. `InterviewRun.Left(no
 **Choosing the set.** `PracticeSelector.Set(state, random, count)` draws problems as Practice does (weakest patterns first), taking a
 pattern already in the set only once every learned pattern has one. Each problem's choices come from `PracticeSelector.Choices`.
 
-**Recording.** `ProgressRecorder.StartInterview(preset, problems)` writes `InterviewStarted` unless a run is already open.
+**Recording.** `ProgressRecorder.StartInterview(preset, problems, limit?)` writes `InterviewStarted` unless a run is already open.
 `FinishInterview(run, steps)` records each unanswered pick (with no `picked`) and each unanswered solve as wrong and `answered: false`,
 with zero elapsed time so the summary's times are only what was spent, then writes `InterviewFinished`. Unanswered parts create and
 move no review item (#129); the summary says "You didn't submit a solution." and, when anything was left, that it doesn't count against you. It does nothing for a finished or unknown run. Two
 devices that both finish the same run before syncing may each record the gaps; the projector keeps the first answer per part.
 
-**The card.** Tracks shows a *Timed interview* card under Practice: "2 or 3 problems against one clock", Practice's reason while
+**The card.** Tracks shows a *Timed interview* card under Practice: "1 to 5 problems against one clock", Practice's reason while
 Practice is closed, "In progress: 18 min left." during a run, and "Time's up. See how you did." once an open run has run out. A run in
 progress opens whatever Practice's state. In `CourseShell` the interview is a second Practice screen (`_interview` alongside
 `_practising`): no bottom tabs, and Back returns to Tracks without touching the run.
@@ -299,11 +312,11 @@ progress opens whatever Practice's state. In `CourseShell` the interview is a se
   the synced draft store), so switching problems, leaving or resuming on another device loses no work. A
   submit moves to the next unsubmitted problem; the last one ends the run.
 - *Time per problem* is counted while the problem is on screen: the pick's elapsed is the time up to locking it, the solve's the rest.
-  Resuming starts each problem from what its answers recorded.
+  Resuming starts each problem from its recorded time (`InterviewRun.TimeOn`), so time spent without answering is kept.
 - *The clock* is checked every second; at zero the run finishes and the summary shows. Opening the screen with an open run resumes it
   on its first unsubmitted problem, or, if its time is up, finishes it and shows the summary.
 - *Summary*: per problem, "It was Pattern X." with the pick ("You picked it.", "You picked Y.", "You gave no answer."), whether the
-  solution passed, and the time ("none" when nothing was answered). Then the weakest of the run's patterns (`PracticeText.Standing`)
+  solution passed, and the time ("none" when the problem was never on screen). Then the weakest of the run's patterns (`PracticeText.Standing`)
   and "Your answers are now in Review."
 
 ## Practice-only problems (#127)
@@ -401,7 +414,7 @@ Tests: the "Difficulty (#128)" section of `tests/Brilliant.Cli.Tests/PatternVali
 ## Not in this slice
 
 - Standalone problems authored for Practice: done in [#127](#practice-only-problems-127).
-- Per-problem timers, a custom time limit.
+- Per-problem times and a custom time limit: shipped in #128 (see the timed interview above).
 - A practice streak and a Today suggestion: done in [#128](#practice-streak-and-todays-suggestion-128).
 - Difficulty levels: done in [#128](#difficulty-128).
 - Interview mode on a phone is supported, but code-heavy problems keep the existing "best on a larger screen" note ([responsive-layouts.md](responsive-layouts.md)).
