@@ -152,6 +152,8 @@ against the budget ("Time: 16m 00s of a 15m 00s budget (over)"). Then a one-line
 - `InterviewTimeSpent` `{ run, step, spentMs }` — a problem's total time on screen so far, answered or not (#128). Written when the
   learner switches problems, answers, leaves or finishes, and every 30 seconds while the problem stays on screen; the largest total
   counts, and a finished run takes no more. A problem's time is that total, or its answers' elapsed times if they say more.
+  Banking stops at the run's end, so a total over the run's limit (from another device's event) is capped to the limit, and one a
+  `TimeSpan` can't hold is ignored.
 
 The time left is always `startedAt + limit − now`. If the app is reopened with time left, the run resumes; with none left, the summary is shown and any unanswered problems are recorded. A run is *open* until a `InterviewFinished` exists for it, and at most one run is open at a time. Because the clock is wall time, a device with a wrong clock would shorten or lengthen a run; that is accepted for a personal tool.
 

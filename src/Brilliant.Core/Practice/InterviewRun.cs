@@ -120,7 +120,9 @@ public static class InterviewRuns
             if (Started(e) is not { } run || runs.Any(r => r.Id == run.Id)) continue;
             // The first answer to each part counts.
             var first = answers[run.Id].GroupBy(a => (a.Step, a.Part)).Select(g => g.First()).ToList();
-            runs.Add(run with { IsFinished = finished.Contains(run.Id), Answers = first, TimeSpent = spent.GetValueOrDefault(run.Id) ?? run.TimeSpent });
+            // Banking stops at EndsAt, so no problem's total can be more than the limit; a larger one is capped to it.
+            var times = spent.GetValueOrDefault(run.Id)?.ToDictionary(t => t.Key, t => t.Value > run.Limit ? run.Limit : t.Value) ?? run.TimeSpent;
+            runs.Add(run with { IsFinished = finished.Contains(run.Id), Answers = first, TimeSpent = times });
         }
         return runs;
     }
@@ -145,6 +147,9 @@ public static class InterviewRuns
     internal static string SpentJson(string run, string step, TimeSpan spent) =>
         JsonSerializer.Serialize(new { run, step, spentMs = (long)spent.TotalMilliseconds });
 
+    // The largest total a TimeSpan holds; a synced event can carry any long.
+    private static readonly long MaxSpentMs = (long)TimeSpan.MaxValue.TotalMilliseconds;
+
     private static (string, string, TimeSpan)? Spent(ProgressEvent e)
     {
         if (e.Data is null) return null;
@@ -153,7 +158,7 @@ public static class InterviewRuns
             using var doc = JsonDocument.Parse(e.Data);
             var root = doc.RootElement;
             if (root.ValueKind != JsonValueKind.Object || String(root, "run") is not { Length: > 0 } run || String(root, "step") is not { Length: > 0 } step) return null;
-            if (!root.TryGetProperty("spentMs", out var ms) || ms.ValueKind != JsonValueKind.Number || !ms.TryGetInt64(out var value) || value < 0) return null;
+            if (!root.TryGetProperty("spentMs", out var ms) || ms.ValueKind != JsonValueKind.Number || !ms.TryGetInt64(out var value) || value < 0 || value > MaxSpentMs) return null;
             return (run, step, TimeSpan.FromMilliseconds(value));
         }
         catch (JsonException) { return null; }

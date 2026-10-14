@@ -323,6 +323,23 @@ public class InterviewTests
     }
 
     [Fact]
+    public void A_time_total_out_of_range_is_ignored_and_one_over_the_limit_is_capped()
+    {
+        Finish(A, B, C);
+        var run = Start();
+        var (first, second) = (run.Problems[0].StepId, run.Problems[1].StepId);
+        _log.Append(new ProgressEvent("huge", "device", T0, ProgressEventTypes.InterviewTimeSpent, "", "",
+            $$"""{"run":"{{run.Id}}","step":"{{first}}","spentMs":9223372036854775807}"""));
+        _log.Append(new ProgressEvent("over", "device", T0, ProgressEventTypes.InterviewTimeSpent, "", "",
+            $$"""{"run":"{{run.Id}}","step":"{{second}}","spentMs":{{(long)TimeSpan.FromDays(2).TotalMilliseconds}}}"""));
+
+        var replayed = InterviewRuns.Get(_log.ReadAll(), run.Id)!;
+
+        Assert.Equal(TimeSpan.Zero, replayed.TimeOn(first));
+        Assert.Equal(run.Limit, replayed.TimeOn(second));
+    }
+
+    [Fact]
     public void A_malformed_start_is_ignored()
     {
         foreach (var data in new[] { null, "[]", "{}", "{\"run\":\"r\",\"preset\":\"marathon\",\"limitSeconds\":60,\"steps\":[{\"step\":\"s\",\"lesson\":\"l\"}]}",
