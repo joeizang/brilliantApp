@@ -332,7 +332,8 @@ A problem is an ordinary step: the same fields, the same checks (the reference s
 an optional walkthrough). On top of a lesson step's rules, the validator requires a `pattern` (Practice only draws problems by
 pattern) and rejects any other step type; an empty `problems` list is an error, and the file is optional. The pattern rules are the
 ones above: it must be taught by this lesson or an earlier one in the track, or by another track, and a prompt naming its pattern
-is a warning. Practice doesn't use phone alternatives, so a practice problem doesn't need one.
+is a warning. A practice problem may have a `phoneAlternative` like any step; Practice and Interview show it on a phone
+(`Step.For`). None of the first problems has one, so a phone gets the problem as written.
 
 **In the model.** `Lesson.Practice` holds them, apart from `Lesson.Steps`: they never appear in the lesson, don't count toward
 completing it and don't change "new steps" or replay. `Lesson.AllSteps()` is the steps followed by the practice problems, and is what
