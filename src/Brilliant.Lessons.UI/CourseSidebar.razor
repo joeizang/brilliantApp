@@ -2,58 +2,87 @@
 @inject ProgressRecorder Recorder
 
 @{
-    var learner = Recorder.Project(Content);
+    var learner = _learner = Recorder.Project(Content);
     var due = learner.Queue.Items.Count;
     var flagged = Recorder.Log.ReadAll().Count(e => e.Type == ProgressEventTypes.StepFlagged);
 }
 <nav class="sidebar grid content-start gap-6" aria-label="Course">
-    <button class="side-today @(TodayActive ? "current" : "") @NavItem(TodayActive)" aria-current="@(TodayActive ? "page" : null)" @onclick="() => OnOpenToday.InvokeAsync()">
-        <span>Today</span>
-        @if (learner.Today.Streak > 0)
+    <div class="side-links grid gap-1">
+        <button class="side-today @(TodayActive ? "current" : "") @NavItem(TodayActive)" aria-current="@(TodayActive ? "page" : null)" @onclick="() => OnOpenToday.InvokeAsync()">
+            <span>Today</span>
+            @if (learner.Today.Streak > 0)
+            {
+                <small class="streak-count flex items-center gap-1 text-[.9rem] font-semibold text-fg-secondary tabular-nums" aria-label="@learner.Today.Streak day streak"><Flame Size="1.1rem" /> @learner.Today.Streak</small>
+            }
+        </button>
+        <button class="side-review @(ReviewActive ? "current" : "") @NavItem(ReviewActive)" aria-current="@(ReviewActive ? "page" : null)" @onclick="() => OnOpenReview.InvokeAsync()">
+            <span>Review</span>
+            @if (due > 0)
+            {
+                <small class="due-count min-w-[1.4rem] rounded-full bg-accent px-[.45rem] py-[.05rem] text-center text-[.75rem] font-bold text-on-accent" aria-label="@due due">@due</small>
+            }
+        </button>
+        <button class="side-flagged @(FlaggedActive ? "current" : "") @NavItem(FlaggedActive)" aria-current="@(FlaggedActive ? "page" : null)" @onclick="() => OnOpenFlagged.InvokeAsync()">
+            <span>Flagged steps</span>
+            @if (flagged > 0)
+            {
+                <small class="flagged-count text-[.8rem] font-semibold text-fg-secondary tabular-nums" aria-label="@flagged flagged">@flagged</small>
+            }
+        </button>
+        <button class="side-sync @(SyncActive ? "current" : "") @NavItem(SyncActive)" aria-current="@(SyncActive ? "page" : null)" @onclick="() => OnOpenSync.InvokeAsync()">
+            <span>Sync</span>
+        </button>
+    </div>
+    <div class="side-tracks grid gap-1">
+        @foreach (var track in learner.Tracks)
         {
-            <small class="streak-count flex items-center gap-1 text-[.9rem] font-semibold text-fg-secondary tabular-nums" aria-label="@learner.Today.Streak day streak"><Flame Size="1.1rem" /> @learner.Today.Streak</small>
+            var id = track.Track.Id;
+            var open = IsOpen(track);
+            var current = id == CurrentTrack?.Id;
+            var panel = "side-track-" + id.Replace('.', '-');
+            <section class="side-track @(open ? "open" : "")">
+                <button class="side-track-title @(current ? "current" : "") @TrackTitle(current)" aria-expanded="@(open ? "true" : "false")" aria-controls="@panel"
+                        title="Option-click to fold or unfold every track" @onclick="e => Toggle(track, e.AltKey)">
+                    <Icon Name="chevron" Class="@($"size-4 flex-none self-center text-fg-secondary transition-transform duration-300 ease-app {(open ? "rotate-90" : "")}")" />
+                    <span class="min-w-0 flex-1">@track.Track.Title</span>
+                    <span class="flex flex-none items-center gap-1.5 self-center text-[.78rem] font-semibold text-fg-secondary tabular-nums whitespace-nowrap" aria-label="@track.CompletedLessons of @track.TotalLessons lessons done">
+                        @track.CompletedLessons/@track.TotalLessons
+                        <ProgressRing Done="track.CompletedLessons" Total="track.TotalLessons" />
+                    </span>
+                </button>
+                <div id="@panel" class="side-track-panel grid transition-[grid-template-rows,opacity] duration-300 ease-app @(open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")" inert="@(!open)">
+                    <ol class="m-0 grid min-h-0 list-none gap-0.5 overflow-hidden p-0 pt-1">
+                        <li>
+                            <button class="side-overview @(current && CurrentLesson is null ? "current" : "") @LessonItem(LessonStatus.Available, current && CurrentLesson is null)"
+                                    aria-current="@(current && CurrentLesson is null ? "page" : null)" @onclick="() => OnOpenTrack.InvokeAsync(track.Track)">
+                                <span class="status flex-none text-fg-secondary" aria-hidden="true"><Icon Name="tracks" Class="size-5" /></span>
+                                <span class="text-fg-secondary">Overview</span>
+                            </button>
+                        </li>
+                        @for (var i = 0; i < track.Lessons.Count; i++)
+                        {
+                            var l = track.Lessons[i];
+                            var last = i == track.Lessons.Count - 1;
+                            <li class="relative">
+                                @* The path between lessons: green below a finished one, a hairline below the rest. *@
+                                @if (!last)
+                                {
+                                    <span class="side-path pointer-events-none absolute top-[1.85rem] -bottom-[.35rem] left-[1.35rem] w-0.5 rounded-full @(l.Status == LessonStatus.Completed ? "bg-success/60" : "bg-hairline")" aria-hidden="true"></span>
+                                }
+                                <button class="side-lesson @l.Status.ToString().ToLowerInvariant() @(l.Lesson.Id == CurrentLesson?.Id ? "current" : "") @LessonItem(l.Status, l.Lesson.Id == CurrentLesson?.Id)"
+                                        disabled="@(l.Status == LessonStatus.Locked)"
+                                        aria-current="@(l.Lesson.Id == CurrentLesson?.Id ? "page" : null)"
+                                        @onclick="() => OnOpenLesson.InvokeAsync((track.Track, l.Lesson, l.Status == LessonStatus.Completed && l.NewStepCount == 0))">
+                                    <span class="status flex-none @(l.Status == LessonStatus.Completed ? "text-success" : l.Status == LessonStatus.InProgress ? "text-ember-text" : "")" aria-hidden="true"><Icon Name="@IconName(l.Status)" Class="size-5" /></span>
+                                    <span>@l.Lesson.Title</span>
+                                </button>
+                            </li>
+                        }
+                    </ol>
+                </div>
+            </section>
         }
-    </button>
-    <button class="side-review @(ReviewActive ? "current" : "") @NavItem(ReviewActive)" aria-current="@(ReviewActive ? "page" : null)" @onclick="() => OnOpenReview.InvokeAsync()">
-        <span>Review</span>
-        @if (due > 0)
-        {
-            <small class="due-count min-w-[1.4rem] rounded-full bg-accent px-[.45rem] py-[.05rem] text-center text-[.75rem] font-bold text-on-accent" aria-label="@due due">@due</small>
-        }
-    </button>
-    <button class="side-flagged @(FlaggedActive ? "current" : "") @NavItem(FlaggedActive)" aria-current="@(FlaggedActive ? "page" : null)" @onclick="() => OnOpenFlagged.InvokeAsync()">
-        <span>Flagged steps</span>
-        @if (flagged > 0)
-        {
-            <small class="flagged-count text-[.8rem] font-semibold text-fg-secondary tabular-nums" aria-label="@flagged flagged">@flagged</small>
-        }
-    </button>
-    <button class="side-sync @(SyncActive ? "current" : "") @NavItem(SyncActive)" aria-current="@(SyncActive ? "page" : null)" @onclick="() => OnOpenSync.InvokeAsync()">
-        <span>Sync</span>
-    </button>
-    @foreach (var track in learner.Tracks)
-    {
-        <section class="side-track">
-            <button class="side-track-title @(track.Track.Id == CurrentTrack?.Id ? "current" : "") @TrackTitle(track.Track.Id == CurrentTrack?.Id)" @onclick="() => OnOpenTrack.InvokeAsync(track.Track)">
-                @track.Track.Title
-                <small class="[font-size:inherit] font-normal">@track.CompletedLessons / @track.TotalLessons</small>
-            </button>
-            <ol class="mt-1 mb-0 grid list-none gap-0.5 p-0">
-                @foreach (var l in track.Lessons)
-                {
-                    <li>
-                        <button class="side-lesson @l.Status.ToString().ToLowerInvariant() @(l.Lesson.Id == CurrentLesson?.Id ? "current" : "") @LessonItem(l.Status, l.Lesson.Id == CurrentLesson?.Id)"
-                                disabled="@(l.Status == LessonStatus.Locked)"
-                                aria-current="@(l.Lesson.Id == CurrentLesson?.Id ? "page" : null)"
-                                @onclick="() => OnOpenLesson.InvokeAsync((track.Track, l.Lesson, l.Status == LessonStatus.Completed && l.NewStepCount == 0))">
-                            <span class="status flex-none @(l.Status == LessonStatus.Completed ? "text-success" : l.Status == LessonStatus.InProgress ? "text-ember-text" : "")" aria-hidden="true"><Icon Name="@IconName(l.Status)" Class="size-5" /></span>
-                            <span>@l.Lesson.Title</span>
-                        </button>
-                    </li>
-                }
-            </ol>
-        </section>
-    }
+    </div>
 </nav>
 
 @code {
@@ -73,6 +102,37 @@
     /// <summary>A lesson was picked: its track, the lesson, and whether to replay it (it is already complete).</summary>
     [Parameter] public EventCallback<(Track Track, Lesson Lesson, bool Review)> OnOpenLesson { get; set; }
 
+    // Fold state the learner chose, by track ID. A track without a choice is open when it holds where the learner is (the current
+    // track or lesson) or, with neither, when it is the first track not yet finished; the rest start folded.
+    private readonly Dictionary<string, bool> _open = new();
+    private string? _lastLesson;
+    private LearnerState _learner = default!;
+
+    protected override void OnParametersSet()
+    {
+        // Arriving at a lesson (from Today, Review or a track page) unfolds its track, even one the learner folded.
+        if (CurrentLesson?.Id is { } lesson && lesson != _lastLesson && Content.Tracks.FirstOrDefault(t => t.LessonIds.Contains(lesson)) is { } holder)
+            _open.Remove(holder.Id);
+        _lastLesson = CurrentLesson?.Id;
+    }
+
+    private bool IsOpen(TrackState track) => _open.TryGetValue(track.Track.Id, out var open) ? open : OpenByDefault(track);
+
+    private bool OpenByDefault(TrackState track)
+    {
+        if (CurrentTrack is not null || CurrentLesson is not null)
+            return track.Track.Id == CurrentTrack?.Id || track.Lessons.Any(l => l.Lesson.Id == CurrentLesson?.Id);
+        return _learner.Tracks.FirstOrDefault(t => t.CompletedLessons < t.TotalLessons)?.Track.Id == track.Track.Id;
+    }
+
+    // Option-click (as in Finder) folds or unfolds every track to match the one clicked.
+    private void Toggle(TrackState track, bool all)
+    {
+        var open = !IsOpen(track);
+        if (!all) { _open[track.Track.Id] = open; return; }
+        foreach (var t in _learner.Tracks) _open[t.Track.Id] = open;
+    }
+
     // The sidebar's buttons take the surrounding type and have no border or fill of their own. The current one is tinted, and (as the
     // tint is set instead of the hover fill) stays tinted under the pointer.
     private const string Button = "btn-reset w-full border-0 text-inherit transition-[background-color] duration-150 ease-app";
@@ -81,11 +141,11 @@
         $"{Button} flex min-h-9 items-center justify-between gap-2 rounded-sm px-3 py-[.45rem] text-[.95rem] font-semibold " + (current ? "bg-accent/20" : "bg-transparent hover:bg-surface");
 
     private static string TrackTitle(bool current) =>
-        "btn-reset flex w-full items-baseline justify-between gap-2 rounded-sm border-0 bg-transparent px-3 py-[.4rem] text-[.8rem] font-semibold tracking-[.04em] uppercase hover:bg-surface "
-        + (current ? "text-fg" : "text-fg-secondary");
+        "btn-reset flex w-full items-start gap-2 rounded-sm border-0 bg-transparent px-2 py-[.5rem] text-left text-[.9rem] leading-snug font-bold "
+        + "transition-[background-color] duration-150 ease-app hover:bg-surface " + (current ? "text-fg" : "text-fg/85");
 
     private static string LessonItem(LessonStatus status, bool current) =>
-        $"{Button} flex min-h-9 items-baseline gap-[.6rem] rounded-sm px-3 py-[.45rem] text-[.95rem] "
+        $"{Button} flex min-h-9 items-start gap-[.6rem] rounded-sm px-3 text-left py-[.45rem] text-[.95rem] "
         + (current ? "bg-accent/20 font-semibold" : "bg-transparent hover:not-disabled:bg-surface")
         + (status == LessonStatus.Locked ? " cursor-default opacity-50" : "");
 

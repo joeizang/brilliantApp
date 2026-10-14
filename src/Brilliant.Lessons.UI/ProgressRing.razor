@@ -1,0 +1,18 @@
+@* A small ring that fills clockwise with the share done: the accent while under way, green once everything is done. Decorative:
+   the caller says the numbers in text. *@
+<svg class="progress-ring size-[1.05rem] flex-none -rotate-90" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+    <circle cx="10" cy="10" r="8" fill="none" stroke-width="3" class="stroke-hairline" />
+    @if (Done > 0)
+    {
+        <circle cx="10" cy="10" r="8" fill="none" stroke-width="3" stroke-linecap="round" pathLength="100"
+                class="@(Done >= Total ? "stroke-success" : "stroke-accent") transition-[stroke-dashoffset] duration-500 ease-app"
+                stroke-dasharray="100" stroke-dashoffset="@Offset" />
+    }
+</svg>
+
+@code {
+    [Parameter] public int Done { get; set; }
+    [Parameter] public int Total { get; set; }
+
+    private string Offset => (100 - (Total <= 0 ? 0 : Math.Clamp(100.0 * Done / Total, 0, 100))).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+}

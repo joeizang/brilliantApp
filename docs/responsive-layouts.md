@@ -28,6 +28,16 @@ In `.razor` files an `@` in a class name has to be written `@@` (`@@container`, 
 
 Below `wide` the sidebar is hidden and a fixed bar at the bottom offers **Today, Tracks, Review (with the due count), Sync**. Flagged steps stay under Tracks. The bar is CSS-visible (`wide:hidden`), so it needs no script. It shows on the places you move between and hides inside a lesson, a session or a review, where the screen has its own Back. The page gets bottom padding so nothing sits under the bar. On Android the web view already ends above the system navigation bar ([android.md](android.md)), so the bar needs no inset of its own.
 
+## Desktop: the sidebar's folding tracks (`CourseSidebar.razor`)
+
+From `wide` up, the sidebar lists Today, Review, Flagged steps and Sync, followed by one section per track. A track's header shows a chevron, its title, a done/total count and a `ProgressRing`. The ring fills with the accent colour and turns green once the track is finished. Clicking the header folds or unfolds that track. Option-click folds or unfolds every track, as in Finder.
+
+- **Panel contents:** an **Overview** row (the track page) and the lessons. A thin path joins the lesson icons and turns green below each finished lesson.
+- **What starts open:** the track holding the current lesson or track page. Elsewhere, the first unfinished track.
+- **Moving between lessons:** arriving at a lesson unfolds its track, even if the learner had folded it.
+- **Fold state:** kept in memory only.
+- **Animation:** the panel animates `grid-template-rows` from `0fr` to `1fr`, so no height is measured in script. A folded panel is `inert`, which keeps its buttons out of Tab order and away from screen readers. Reduced motion turns the animation off through `theme.css`.
+
 ## Tablet: code beside the trace
 
 The trace player is a container-query grid. When its own box is wide enough (`3xl`, 48rem), the code, controls and status sit on the left (sticky) and the arrays, tables and locals on the right; narrower, they stack as before. Trace lessons are allowed a wider column (`max-w-5xl`).
