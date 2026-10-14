@@ -522,6 +522,38 @@ public class PracticeTests
         Assert.Equal(["step.a.p1", "step.b.p1", "step.b.p2"], offered.Order());
     }
 
+    // --- Difficulty (#128) --------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void A_problem_is_as_hard_as_authored_else_easy_when_the_code_is_given_and_medium_otherwise()
+    {
+        var fill = new FillBlankStep("f", "f", "?", "python", "y = {{b}}", [new Blank("b", ["x"], [])]);
+        var parsons = new ParsonsStep("p", "p", "?", "python", [new ParsonsLine("x = 1", 0)]);
+        Assert.Equal(Difficulty.Easy, fill.Level);
+        Assert.Equal(Difficulty.Easy, parsons.Level);
+        Assert.Equal(Difficulty.Medium, Problem("w", "pattern.a").Level);
+        Assert.Equal(Difficulty.Hard, (Problem("w", "pattern.a") with { Difficulty = Difficulty.Hard }).Level);
+        Assert.Equal(Difficulty.Medium, (fill with { Difficulty = Difficulty.Medium }).Level);
+    }
+
+    [Fact]
+    public void The_selector_offers_only_the_chosen_difficulty_and_counts_each()
+    {
+        var hard = new Lesson("lesson.h", "h", "track.t", [Problem("step.h.p1", "pattern.a") with { Difficulty = Difficulty.Hard }]);
+        var content = Graph(A, B, C, hard);
+        Finish(A, B, C, hard);
+        var state = Project(content);
+
+        Assert.Equal((0, 6, 1), (PracticeSelector.Count(state, Difficulty.Easy), PracticeSelector.Count(state, Difficulty.Medium), PracticeSelector.Count(state, Difficulty.Hard)));
+        for (var seed = 0; seed < 10; seed++)
+        {
+            Assert.Equal("step.h.p1", PracticeSelector.Next(state, new Random(seed), level: Difficulty.Hard)!.Step.Id);
+            Assert.NotEqual("step.h.p1", PracticeSelector.Next(state, new Random(seed), level: Difficulty.Medium)!.Step.Id);
+        }
+        Assert.Equal("step.h.p1", PracticeSelector.Next(state, new Random(1), previousStepId: "step.h.p1", level: Difficulty.Hard)!.Step.Id);   // the only one
+        Assert.Null(PracticeSelector.Next(state, new Random(1), level: Difficulty.Easy));
+    }
+
     // --- Practice-only problems (#127) ----------------------------------------------------------------------------
 
     // E teaches pattern.e with one in-lesson problem and two practice-only ones, the second using A's pattern.

@@ -536,6 +536,7 @@ steps:
     largeScreenPreferred: true
     title: Word ladder
     pattern: pattern.graph-bfs
+    difficulty: hard
     patternCue: "\"The fewest one-letter changes\": each word is a node and each change an edge, so BFS over words."
     prompt: |
       Change `begin` into `end` one letter at a time. `begin` needn't be in the list `words`, but every word after it, `end`

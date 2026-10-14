@@ -398,6 +398,7 @@ steps:
     largeScreenPreferred: true
     title: The middle node
     pattern: pattern.fast-slow-pointers
+    difficulty: easy
     patternCue: "\"Return the middle node\": no length, one pass, so `slow` moves one and `fast` two."
     compare: linked_list
     prompt: |

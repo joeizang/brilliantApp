@@ -318,6 +318,7 @@ steps:
   - id: step.hashlookup.write-two-sum
     type: write-code
     pattern: pattern.hash-map-lookup
+    difficulty: easy
     patternCue: "\"Two numbers that add up to `target`\", positions returned, and nothing says the list is sorted: each number's partner is `target - x`, so a dict from value to position finds it in one look instead of a second loop."
     largeScreenPreferred: true
     title: Write Two Sum

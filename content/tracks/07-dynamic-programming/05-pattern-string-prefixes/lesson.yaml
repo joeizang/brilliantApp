@@ -477,6 +477,7 @@ steps:
     largeScreenPreferred: true
     title: The fewest palindromes
     pattern: pattern.dp-string-prefixes
+    difficulty: hard
     patternCue: "\"Cut into the fewest palindromes\": the last piece is any palindrome ending here."
     prompt: |
       Write `fewest_palindromes(s)` that returns the fewest pieces `s` can be cut into so that each piece reads the same

@@ -567,6 +567,7 @@ steps:
     largeScreenPreferred: true
     title: The same tree?
     pattern: pattern.dfs-return-values
+    difficulty: easy
     patternCue: "\"Are two trees the same\": the roots match and both pairs of subtrees are the same, each pair answered by a recursive call."
     prompt: |
       Write `same_tree(a, b)` that returns whether two trees have the same shape and the same value at every node.

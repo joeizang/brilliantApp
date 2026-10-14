@@ -602,6 +602,7 @@ steps:
     largeScreenPreferred: true
     title: The largest path sum
     pattern: pattern.dfs-return-values
+    difficulty: hard
     patternCue: "\"The best path anywhere\": return the best path going down, and record the best path bending through each node."
     prompt: |
       A **path** joins nodes by edges, going up then down at most once, and holds at least one node. Write

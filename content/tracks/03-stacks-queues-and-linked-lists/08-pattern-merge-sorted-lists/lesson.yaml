@@ -459,6 +459,7 @@ steps:
     largeScreenPreferred: true
     title: Merge k sorted lists
     pattern: pattern.merge-sorted-lists
+    difficulty: hard
     patternCue: "\"Merge `k` sorted linked lists\": merging is two at a time, so fold the lists into one result with `merge`."
     compare: linked_list
     prompt: |
@@ -552,6 +553,7 @@ steps:
     largeScreenPreferred: true
     title: Sort a linked list
     pattern: pattern.merge-sorted-lists
+    difficulty: hard
     patternCue: "\"Sort a linked list in `O(n log n)`\": fast and slow find the middle, cut there, sort each half, and merge them."
     compare: linked_list
     prompt: |

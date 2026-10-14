@@ -306,6 +306,7 @@ steps:
   - id: step.window.write-max-sum
     type: write-code
     pattern: pattern.fixed-window
+    difficulty: easy
     patternCue: "\"Any `k` consecutive items\": every candidate is a window of exactly `k`. Keep a running window sum and update it with one add and one subtract per step."
     largeScreenPreferred: true
     title: Largest sum of k in a row

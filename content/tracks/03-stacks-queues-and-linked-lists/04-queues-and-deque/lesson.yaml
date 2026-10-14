@@ -495,6 +495,7 @@ steps:
     largeScreenPreferred: true
     title: Highest reading in each block
     pattern: pattern.window-deque
+    difficulty: hard
     patternCue: "\"The highest in every run of `k`\": a maximum can't be subtracted when it leaves, so keep a deque of indices with falling values and read its front."
     prompt: |
       A sensor gives a list of readings `nums`. Write `window_max(nums, k)` that returns the highest reading in every run of

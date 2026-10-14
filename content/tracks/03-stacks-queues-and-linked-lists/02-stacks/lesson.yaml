@@ -351,6 +351,7 @@ steps:
     largeScreenPreferred: true
     title: Valid brackets
     pattern: pattern.stack-matching
+    difficulty: easy
     patternCue: "\"Every closer matches the right opener, in the right order\": push openers; a closer must find its partner on top."
     prompt: |
       Write `is_valid(s)`. `s` contains only the characters `()[]{}`. Return `True` if every opening bracket is closed by the same
@@ -401,6 +402,7 @@ steps:
     largeScreenPreferred: true
     title: Remove adjacent pairs
     pattern: pattern.stack-matching
+    difficulty: easy
     patternCue: "\"Removing a pair can bring two new letters together\": a stack of survivors means each new letter only has to compare with the top."
     prompt: |
       Write `remove_pairs(s)`. Repeatedly delete any two equal letters that are next to each other, until no such pair is left,
@@ -447,6 +449,7 @@ steps:
     largeScreenPreferred: true
     title: Typing with backspace
     pattern: pattern.stack-matching
+    difficulty: easy
     patternCue: "\"Backspace deletes the most recent character still standing\": push each character, and pop on `#` when there is something to pop."
     prompt: |
       Someone types `s` into a text box, where `#` is the backspace key. Write `typed(s)` that returns the text left in the box.
