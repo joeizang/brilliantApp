@@ -236,7 +236,7 @@ public class InterviewTests
     }
 
     [Fact]
-    public void Finishing_records_every_unanswered_part_as_wrong_then_the_finish()
+    public void Finishing_records_every_unanswered_part_as_wrong_and_unanswered_then_the_finish()
     {
         Finish(A, B, C);
         var run = Start(InterviewPreset.PhoneScreen);
@@ -254,13 +254,13 @@ public class InterviewTests
         Assert.Equal(one.Choices[0], ended.Answer(one.StepId, PracticePart.Pick)!.Picked);   // the pick made is kept
 
         var missed = new[] { ended.Answer(one.StepId, PracticePart.Solve)!, ended.Answer(two.StepId, PracticePart.Pick)!, ended.Answer(two.StepId, PracticePart.Solve)! };
-        Assert.All(missed, a => Assert.Equal((false, Rating.Again, PracticeMode.Interview, TimeSpan.Zero), (a.Correct, a.Rating, a.Mode, a.Elapsed)));
+        Assert.All(missed, a => Assert.Equal((false, false, PracticeMode.Interview, TimeSpan.Zero), (a.Correct, a.Answered, a.Mode, a.Elapsed)));
         Assert.Null(missed[1].Picked);
 
-        // Both parts of the unanswered problem now come back in Review.
+        // A part the run ended without is no evidence either way: it creates no review item. The pick that was made still counts.
         var state = Project();
-        Assert.Equal(Rating.Again, state.Reviews.Single(r => r.Item.Id == "pick." + two.StepId).LastRating);
-        Assert.Equal(Rating.Again, state.Reviews.Single(r => r.Item.Id == "resolve." + two.StepId).LastRating);
+        Assert.DoesNotContain(state.Reviews, r => r.Item.Id is var id && (id == "pick." + two.StepId || id == "resolve." + two.StepId || id == "resolve." + one.StepId));
+        Assert.Equal(1, state.Reviews.Single(r => r.Item.Id == "pick." + one.StepId).Answers);
     }
 
     [Fact]

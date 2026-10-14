@@ -84,7 +84,7 @@ else if (_run.IsFinished)
                 <li class="interview-result rounded-lg border border-hairline bg-surface-raised px-4 py-3">
                     <h3 class="mt-0 mb-2 text-[1.05rem] font-semibold">Problem @(i + 1)@(StepOf(problem) is { } step ? $": {step.Title}" : "")</h3>
                     <p class="result-pick my-1 flex items-center gap-3">@PracticeView.Mark(pick?.Correct == true) <span>It was <strong>@PatternTitle(PatternOf(problem))</strong>. @PickedText(pick)</span></p>
-                    <p class="result-solve my-1 flex items-center gap-3">@PracticeView.Mark(solve?.Correct == true) <span>@(solve?.Correct == true ? "The solution passed." : "The solution didn't pass.")</span></p>
+                    <p class="result-solve my-1 flex items-center gap-3">@PracticeView.Mark(solve?.Correct == true) <span>@SolvedText(solve)</span></p>
                     <p class="result-time mt-1 mb-0 text-[.95rem] text-fg-secondary">@TimeText(Spent(pick, solve), _run.Budget)</p>
                 </li>
             }
@@ -93,7 +93,7 @@ else if (_run.IsFinished)
         {
             <p class="interview-weakest mt-4">Weakest pattern this run: @weakest</p>
         }
-        <p class="interview-review mt-1 text-[.95rem] text-fg-secondary">Your answers are now in Review.</p>
+        <p class="interview-review mt-1 text-[.95rem] text-fg-secondary">@ReviewText(_run)</p>
     </section>
     <div class="practice-actions content-column pt-6 pb-6"><button class="primary btn-primary" @onclick="() => OnExit.InvokeAsync()">Back to tracks</button></div>
 }
@@ -363,6 +363,18 @@ else
         pick?.Picked is not { } picked ? "You gave no answer."
         : pick.Correct ? "You picked it."
         : $"You picked {PatternTitle(picked)}.";
+
+    private static string SolvedText(PracticeAnswer? solve) =>
+        solve is not { Answered: true } ? "You didn't submit a solution."
+        : solve.Correct ? "The solution passed."
+        : "The solution didn't pass.";
+
+    // Parts the run ended without schedule nothing (docs/review.md), so the summary doesn't claim they went to Review.
+    private static string ReviewText(InterviewRun run) => run.Answers.Count(a => a.Answered) is var answered && answered == 0
+        ? "Nothing was answered, so Review is unchanged."
+        : answered < run.Problems.Count * 2
+            ? "Your answers are now in Review. What you didn't answer doesn't count against you."
+            : "Your answers are now in Review.";
 
     private static TimeSpan? Spent(PracticeAnswer? pick, PracticeAnswer? solve)
     {

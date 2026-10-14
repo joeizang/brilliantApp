@@ -163,9 +163,9 @@ A practice answer is scheduled on a review item, scored by the same rating infer
 Both items are **derived**, never authored, like re-solves today. Differences from today's rules, which the implementation must change in `LearnerStateProjector`:
 
 1. A `resolve.<step>` item currently exists only if the lesson attempt failed or used a hint. It now **also exists once the step has been practised**, so a correct practice solve starts its own schedule. A `pick.<step>` item exists once the step has been practised.
-2. Practice and interview answers are written as a new event type, `PracticeAnswered` `{ step, part: "pick"|"solve", correct, picked?, hintsUsed, elapsedMs, rating, mode, run? }`, which the projector folds through FSRS like `ReviewAnswered` but which is ignored by lesson progress. (A separate event keeps the log honest about where an answer came from, and keeps today's `ReviewAnswered` meaning unchanged.)
+2. Practice and interview answers are written as a new event type, `PracticeAnswered` `{ step, part: "pick"|"solve", correct, picked?, hintsUsed, elapsedMs, rating, mode, run? }` (plus `answered` and `day` since #129), which the projector folds through FSRS like `ReviewAnswered` but which is ignored by lesson progress. (A separate event keeps the log honest about where an answer came from, and keeps today's `ReviewAnswered` meaning unchanged.)
 3. Only the **first** answer to a part in a given practice visit or interview run is scheduled; retrying is practice, as in Review.
-4. Interview unanswered problems are recorded as `Again` for both parts when the run ends.
+4. Interview unanswered problems are recorded for both parts when the run ends. (Originally rated `Again`; since #129 they are marked `answered: false` and schedule nothing. See [review.md](review.md#practice-and-interview-answers).)
 
 **The chosen pattern is persisted.** A `pick` answer carries `picked`: the stable ID of the pattern the learner chose, so two different wrong choices are distinguishable. A pick that was never made (an interview problem left unanswered) is written by the finishing step with `picked: null` and `correct: false`. Anything that shows a pick reads it from the log, never from UI state:
 
@@ -283,8 +283,9 @@ unfinished run; a malformed `InterviewStarted` is ignored. `InterviewRun.Left(no
 pattern already in the set only once every learned pattern has one. Each problem's choices come from `PracticeSelector.Choices`.
 
 **Recording.** `ProgressRecorder.StartInterview(preset, problems, limit?)` writes `InterviewStarted` unless a run is already open.
-`FinishInterview(run, steps)` records each unanswered pick (with no `picked`) and each unanswered solve as wrong, with zero elapsed time
-so the summary's times are only what was spent, then writes `InterviewFinished`. It does nothing for a finished or unknown run. Two
+`FinishInterview(run, steps)` records each unanswered pick (with no `picked`) and each unanswered solve as wrong and `answered: false`,
+with zero elapsed time so the summary's times are only what was spent, then writes `InterviewFinished`. Unanswered parts create and
+move no review item (#129); the summary says "You didn't submit a solution." and, when anything was left, that it doesn't count against you. It does nothing for a finished or unknown run. Two
 devices that both finish the same run before syncing may each record the gaps; the projector keeps the first answer per part.
 
 **The card.** Tracks shows a *Timed interview* card under Practice: "1 to 5 problems against one clock", Practice's reason while
@@ -364,7 +365,7 @@ Tests: `tests/Brilliant.Cli.Tests/PracticeProblemValidatorTests.cs`, the "Practi
 - Standalone problems authored for Practice: done in [#127](#practice-only-problems-127).
 - Difficulty levels, a practice streak or a Today suggestion (#128, later slices). Per-problem times and a custom limit shipped in #128.
 - Interview mode on a phone is supported, but code-heavy problems keep the existing "best on a larger screen" note ([responsive-layouts.md](responsive-layouts.md)).
-- Tuning FSRS for practice answers.
+- Tuning FSRS for practice answers. Done in [#129](https://github.com/joeizang/brilliantApp/issues/129): see [review.md](review.md#practice-and-interview-answers).
 
 ## Proposed slices
 

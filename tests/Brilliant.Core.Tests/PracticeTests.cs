@@ -99,7 +99,7 @@ public class PracticeTests
         Assert.Equal((A.Id, "step.a.p1"), (e.LessonId, e.StepId));
         var answer = PracticeAnswer.From(e)!;
         Assert.Equal(new PracticeAnswer("step.a.p1", PracticePart.Pick, false, "pattern.b", 0, TimeSpan.FromSeconds(30), Rating.Again,
-            PracticeMode.Practice, "run.1"), answer);
+            PracticeMode.Practice, "run.1") { Day = AnswerDay.Today(_clock) }, answer);
         Assert.Equal(Rating.Again, rating);
         Assert.Equal("pick.step.a.p1", answer.ItemId);
     }

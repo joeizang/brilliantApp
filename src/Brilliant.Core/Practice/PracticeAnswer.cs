@@ -28,6 +28,19 @@ public enum PracticePart
 public sealed record PracticeAnswer(string Step, PracticePart Part, bool Correct, string? Picked, int HintsUsed, TimeSpan Elapsed, Rating Rating,
     PracticeMode Mode, string? Run)
 {
+    /// <summary>
+    /// False for a part an interview run ended without: recorded so the run is complete everywhere, but no evidence of what the learner
+    /// knows, so it creates and schedules no review item. Absent in older events: a pick that names no pattern was unanswered, anything
+    /// else was answered.
+    /// </summary>
+    public bool Answered { get; init; } = true;
+
+    /// <summary>
+    /// The learner's local date when this was answered, fixed when it was recorded so the same log gives the same schedule on every
+    /// device and in every time zone. Null in older events; see <see cref="AnswerDay"/>.
+    /// </summary>
+    public DateOnly? Day { get; init; }
+
     public const string PickPrefix = "pick.";
     public const string ResolvePrefix = "resolve.";
 
@@ -48,6 +61,8 @@ public sealed record PracticeAnswer(string Step, PracticePart Part, bool Correct
         rating = (int)Rating,
         mode = Mode == PracticeMode.Interview ? "interview" : "practice",
         run = Run,
+        answered = Answered,
+        day = Day?.ToString(AnswerDay.Format, System.Globalization.CultureInfo.InvariantCulture),
     });
 
     /// <summary>
@@ -67,9 +82,14 @@ public sealed record PracticeAnswer(string Step, PracticePart Part, bool Correct
             if (part is null) return null;
             if (!root.TryGetProperty("correct", out var ok) || ok.ValueKind is not (JsonValueKind.True or JsonValueKind.False)) return null;
             if (Int(root, "rating") is not { } grade || grade is < 1 or > 4) return null;
-            return new PracticeAnswer(step, part.Value, ok.GetBoolean(), part == PracticePart.Pick ? String(root, "picked") : null,
+            var picked = part == PracticePart.Pick ? String(root, "picked") : null;
+            var answered = root.TryGetProperty("answered", out var a) && a.ValueKind is JsonValueKind.True or JsonValueKind.False
+                ? a.GetBoolean()
+                : part == PracticePart.Solve || picked is not null;
+            return new PracticeAnswer(step, part.Value, ok.GetBoolean(), picked,
                 Math.Max(0, Int(root, "hintsUsed") ?? 0), TimeSpan.FromMilliseconds(Math.Max(0, Int(root, "elapsedMs") ?? 0)), (Rating)grade,
-                String(root, "mode") == "interview" ? PracticeMode.Interview : PracticeMode.Practice, String(root, "run"));
+                String(root, "mode") == "interview" ? PracticeMode.Interview : PracticeMode.Practice, String(root, "run"))
+            { Answered = answered, Day = AnswerDay.Parse(String(root, "day")) };
         }
         catch (JsonException) { return null; }
     }
