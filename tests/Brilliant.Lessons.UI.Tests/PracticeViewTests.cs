@@ -378,4 +378,28 @@ public class PracticeViewTests : ShortcutContext
         Assert.Contains("You'll see this again", review.Markup);
         Assert.Contains($"points to pattern {name}", review.Find(".pattern-pick .pattern-cue").TextContent);
     }
+
+    // --- Practice-only problems (#127) ---------------------------------------------------------------------------------
+
+    [Fact]
+    public void A_practice_only_problem_is_offered_solved_and_recorded_against_its_lesson()
+    {
+        // Each lesson is a single explanation; its problem lives only in Practice.
+        var lessons = Lessons.Select(l => l with { Steps = [new ExplainStep($"{l.Id}.intro", "Intro", "Read me", [], null)], Practice = l.Steps }).ToArray();
+        var content = new ContentGraph(new PackManifest("pack.t", "1.0.0", 1), [new Track("track.t", "T", lessons.Select(l => l.Id).ToList())], lessons);
+        foreach (var lesson in lessons.Take(3))
+            _recorder.CompleteStep(lesson, lesson.Steps[0].Id);
+
+        var cut = Render<PracticeView>(p => p.Add(c => c.Content, content).Add(c => c.Random, new Random(1)).Add(c => c.OnExit, () => { }));
+        var name = Shown(cut);
+        PickPattern(cut, "Pattern " + name);
+        cut.Find(".pattern-pick button.primary").Click();
+        Solve(cut, "x");
+
+        var solve = Practice.Last();
+        Assert.Equal(("solve", true), (solve.GetProperty("part").GetString(), solve.GetProperty("correct").GetBoolean()));
+        var recorded = _log.Items.Last(e => e.Type == ProgressEventTypes.PracticeAnswered);
+        Assert.Equal(($"lesson.{name}", $"step.{name}.p"), (recorded.LessonId, recorded.StepId));
+        Assert.Contains(LearnerStateProjector.Project(_log.ReadAll(), content, _clock.Now).Reviews, r => r.Item.Id == $"resolve.step.{name}.p");
+    }
 }

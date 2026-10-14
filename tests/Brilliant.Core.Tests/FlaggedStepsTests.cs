@@ -136,4 +136,19 @@ public class FlaggedStepsTests
 
         Assert.Contains("(`step.deleted`), 2026-10-10, step no longer exists", FlaggedSteps.ToMarkdown(Flags));
     }
+
+    [Fact]
+    public void A_flagged_practice_problem_is_found_and_sorts_after_its_lessons_steps()
+    {
+        var problem = new ParsonsStep("step.1.extra", "Extra", "Order these", "python", [new ParsonsLine("x = 1", 0)]) { Pattern = "pattern.p" };
+        var lesson = L1 with { Practice = [problem] };
+        var content = new ContentGraph(new PackManifest("pack.t", "1.0.0", 1), [new Track("track.a", "A", [lesson.Id])], [lesson]);
+        Recorder.StepFlagged("lesson.1", "step.1.extra", "the cue is vague");
+        _clock.Now = _clock.Now.AddMinutes(1);
+        Recorder.StepFlagged("lesson.1", "step.1.b", null);
+
+        var flags = FlaggedSteps.From(_log.ReadAll(), content);
+        Assert.Equal(["step.1.b", "step.1.extra"], flags.Select(f => f.StepId));
+        Assert.Equal(("Extra", false), (flags[1].StepTitle, flags[1].Step is null));
+    }
 }

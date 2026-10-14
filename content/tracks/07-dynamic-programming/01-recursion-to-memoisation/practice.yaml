@@ -1,0 +1,45 @@
+problems:
+  - id: step.memo.practice.stairs
+    type: write-code
+    title: Climbing with three step sizes
+    pattern: pattern.memoisation
+    patternCue: "\"How many ways\" by taking 1, 2 or 3 steps: the same smaller staircases are counted over and over, so remember each answer."
+    prompt: |
+      You climb a staircase of `n` steps, taking 1, 2 or 3 steps at a time. Write `climbs(n)` that returns how many different
+      orders of moves reach the top exactly. Your function must be fast for `n = 60`; the plain recursion is far too slow.
+
+      `climbs(3)` is `4`: 1+1+1, 1+2, 2+1 and 3.
+    language: python
+    entrypoint: climbs
+    starter: |
+      def climbs(n):
+          pass
+    solution: |
+      def climbs(n):
+          memo = {}
+
+          def ways(left):
+              if left == 0:
+                  return 1
+              if left < 0:
+                  return 0
+              if left not in memo:
+                  memo[left] = ways(left - 1) + ways(left - 2) + ways(left - 3)
+              return memo[left]
+
+          return ways(n)
+    tests:
+      - input: "0"
+        expected: "1"
+      - input: "1"
+        expected: "1"
+      - input: "3"
+        expected: "4"
+      - input: "5"
+        expected: "13"
+      - input: "60"
+        expected: "4680045560037375"
+    hints:
+      - "The last move took 1, 2 or 3 steps, so the count for `n` is the sum of the counts for `n - 1`, `n - 2` and `n - 3`."
+      - "Written plainly, that recursion asks for the same smaller staircase thousands of times."
+      - "Keep a dict from `left` to its count. Look it up before computing, and store it after."

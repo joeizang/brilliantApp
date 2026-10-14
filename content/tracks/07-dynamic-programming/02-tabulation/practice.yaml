@@ -1,0 +1,41 @@
+problems:
+  - id: step.tab.practice.tiles
+    type: write-code
+    title: Tiling a strip
+    pattern: pattern.tabulation
+    patternCue: "\"How many ways to tile a strip of length n\" with 1- and 2-long tiles: fill a table from the empty strip up, each entry from the two before it."
+    prompt: |
+      A strip `n` units long is covered with tiles that are 1 or 2 units long, but there are **two colours** of 1-unit tiles
+      (red and blue) and one kind of 2-unit tile. Write `tilings(n)` that returns how many different coverings there are.
+      Build the answers from the smallest strip up, without recursion.
+
+      `tilings(1)` is `2` (red, blue) and `tilings(2)` is `5` (rr, rb, br, bb, and one long tile).
+    language: python
+    entrypoint: tilings
+    starter: |
+      def tilings(n):
+          pass
+    solution: |
+      def tilings(n):
+          table = [0] * (n + 1)
+          table[0] = 1
+          for i in range(1, n + 1):
+              table[i] = 2 * table[i - 1]
+              if i >= 2:
+                  table[i] += table[i - 2]
+          return table[n]
+    tests:
+      - input: "0"
+        expected: "1"
+      - input: "1"
+        expected: "2"
+      - input: "2"
+        expected: "5"
+      - input: "3"
+        expected: "12"
+      - input: "10"
+        expected: "5741"
+    hints:
+      - "Look at the tile at the right end: a 1-unit tile (in either colour) or a 2-unit tile."
+      - "`table[i] = 2 * table[i - 1] + table[i - 2]`."
+      - "`table[0]` is `1`: the empty strip has one covering, the one with no tiles. Fill `table` from `1` to `n` in order."

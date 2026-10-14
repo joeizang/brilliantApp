@@ -1,0 +1,47 @@
+problems:
+  - id: step.two-heaps.practice.lower-middles
+    type: write-code
+    title: Running middle score
+    pattern: pattern.two-heaps
+    patternCue: "\"After each new score, the middle one so far\": keep the lower half in a max-heap and the upper half in a min-heap."
+    prompt: |
+      Scores arrive one at a time. After each one, report the **lower middle** score so far: with an odd count, the middle
+      one; with an even count, the smaller of the two in the middle. Write `lower_middles(scores)` that returns the list of
+      those reports. It should take about `log n` work per score, not a sort each time.
+
+      For `[5, 15, 1, 3]` it's `[5, 5, 5, 3]`.
+    language: python
+    entrypoint: lower_middles
+    starter: |
+      import heapq
+
+      def lower_middles(scores):
+          pass
+    solution: |
+      import heapq
+
+      def lower_middles(scores):
+          low, high = [], []
+          result = []
+          for s in scores:
+              heapq.heappush(low, -s)
+              heapq.heappush(high, -heapq.heappop(low))
+              if len(high) > len(low):
+                  heapq.heappush(low, -heapq.heappop(high))
+              result.append(-low[0])
+          return result
+    tests:
+      - input: "[5, 15, 1, 3]"
+        expected: "[5, 5, 5, 3]"
+      - input: "[]"
+        expected: "[]"
+      - input: "[7]"
+        expected: "[7]"
+      - input: "[1, 2, 3, 4, 5]"
+        expected: "[1, 1, 2, 2, 3]"
+      - input: "[4, 4, 4, 1]"
+        expected: "[4, 4, 4, 4]"
+    hints:
+      - "Split the scores into a lower half and an upper half; the answer is the largest of the lower half."
+      - "A max-heap (store negatives with `heapq`) for the lower half and a min-heap for the upper half. The lower half may hold one more."
+      - "Push into the lower half, move its largest to the upper half, then move one back if the upper half got bigger."

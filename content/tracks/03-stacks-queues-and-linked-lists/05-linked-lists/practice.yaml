@@ -1,0 +1,28 @@
+problems:
+  - id: step.linked-lists.practice.remove-repeated
+    type: parsons
+    title: Drop every repeated value
+    pattern: pattern.dummy-head
+    patternCue: "\"Remove every node whose value appears more than once\": the first nodes may all go, so start from a node in front of the head."
+    prompt: |
+      `head` is a sorted linked list of `Node`s (`val`, `next`). Arrange the lines of `unique_only(head)` so it removes
+      **every** node whose value appears more than once, and returns the head of what is left. For `1 → 1 → 2 → 3 → 3`
+      the result is `2`.
+    language: python
+    solution: |
+      def unique_only(head):
+          dummy = Node(0, head)
+          prev = dummy
+          while prev.next:
+              val = prev.next.val
+              if prev.next.next and prev.next.next.val == val:
+                  node = prev.next
+                  while node and node.val == val:
+                      node = node.next
+                  prev.next = node
+              else:
+                  prev = prev.next
+          return dummy.next
+    hints:
+      - "If the list starts with repeats, the head itself is removed. What do you hold on to then?"
+      - "Keep `prev`, the last node you are keeping. When the next value repeats, skip past all of its nodes."

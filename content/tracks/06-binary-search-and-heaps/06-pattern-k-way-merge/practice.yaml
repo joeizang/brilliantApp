@@ -1,0 +1,45 @@
+problems:
+  - id: step.k-way.practice.kth-smallest
+    type: write-code
+    title: The k-th smallest across lists
+    pattern: pattern.k-way-merge
+    patternCue: "\"Several sorted lists\" and \"the k-th smallest overall\": keep the front of each list in a heap and pop k times."
+    prompt: |
+      `lists` is a list of sorted lists of numbers (some may be empty). Write `kth_smallest(lists, k)` that returns the `k`-th
+      smallest number across all of them, counting from `1`. There are always at least `k` numbers. Don't flatten and sort
+      everything: take numbers in order, only as many as you need.
+
+      For `[[1, 5, 9], [2, 3], [4]]` and `k = 4` it's `4`.
+    language: python
+    entrypoint: kth_smallest
+    starter: |
+      import heapq
+
+      def kth_smallest(lists, k):
+          pass
+    solution: |
+      import heapq
+
+      def kth_smallest(lists, k):
+          heap = [(lst[0], i, 0) for i, lst in enumerate(lists) if lst]
+          heapq.heapify(heap)
+          for _ in range(k - 1):
+              _, i, j = heapq.heappop(heap)
+              if j + 1 < len(lists[i]):
+                  heapq.heappush(heap, (lists[i][j + 1], i, j + 1))
+          return heap[0][0]
+    tests:
+      - input: "[[1, 5, 9], [2, 3], [4]], 4"
+        expected: "4"
+      - input: "[[1, 5, 9], [2, 3], [4]], 1"
+        expected: "1"
+      - input: "[[1, 5, 9], [2, 3], [4]], 6"
+        expected: "9"
+      - input: "[[], [7], [], [3, 8]], 2"
+        expected: "7"
+      - input: "[[2, 2], [2]], 3"
+        expected: "2"
+    hints:
+      - "The smallest number left is always at the front of one of the lists."
+      - "Put each list's first number in a heap with where it came from. Popping gives the next smallest; push the next number from that same list."
+      - "Pop `k - 1` times; the k-th smallest is then on top of the heap."

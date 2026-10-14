@@ -1,0 +1,43 @@
+problems:
+  - id: step.prefixdp.practice.decode-ways
+    type: write-code
+    title: Ways to read the digits
+    pattern: pattern.dp-string-prefixes
+    patternCue: "\"How many ways can the whole string be read\": the count for each prefix comes from the prefixes one and two characters shorter."
+    prompt: |
+      Letters are encoded as numbers: `A` is `1`, `B` is `2`, … `Z` is `26`. Write `ways(digits)` that returns how many
+      different messages a string of digits could be. A part can't start with `0`, so `"06"` is not a letter.
+
+      `"12"` could be `AB` or `L`, so `ways("12")` is `2`. `"226"` is `3`. `"06"` is `0`.
+    language: python
+    entrypoint: ways
+    starter: |
+      def ways(digits):
+          pass
+    solution: |
+      def ways(digits):
+          count = [0] * (len(digits) + 1)
+          count[0] = 1
+          for i in range(1, len(digits) + 1):
+              if digits[i - 1] != "0":
+                  count[i] += count[i - 1]
+              if i >= 2 and digits[i - 2] != "0" and int(digits[i - 2:i]) <= 26:
+                  count[i] += count[i - 2]
+          return count[len(digits)]
+    tests:
+      - input: "\"12\""
+        expected: "2"
+      - input: "\"226\""
+        expected: "3"
+      - input: "\"06\""
+        expected: "0"
+      - input: "\"10\""
+        expected: "1"
+      - input: "\"11106\""
+        expected: "2"
+      - input: "\"\""
+        expected: "1"
+    hints:
+      - "Think about the last letter of the message: it used either the last digit alone or the last two digits."
+      - "`count[i]` = the number of ways to read the first `i` digits. It adds `count[i - 1]` and `count[i - 2]` when those last parts are valid letters."
+      - "`count[0]` is `1`: there is one way to read nothing. A single `0` is never a letter; two digits are a letter from `10` to `26`."

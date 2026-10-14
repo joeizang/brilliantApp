@@ -74,13 +74,13 @@ public class PracticeTests
 
     private Rating Pick(Lesson lesson, string stepId, string? picked, string run = "run.1", int seconds = 20, PracticeMode mode = PracticeMode.Practice)
     {
-        var step = lesson.Steps.Single(s => s.Id == stepId);
+        var step = lesson.AllSteps().Single(s => s.Id == stepId);
         return Recorder.PracticePicked(lesson.Id, stepId, picked, picked == step.Pattern, TimeSpan.FromSeconds(seconds), mode, run);
     }
 
     private Rating Solve(Lesson lesson, string stepId, bool correct, string run = "run.1", int hints = 0, int seconds = 120)
     {
-        var step = lesson.Steps.Single(s => s.Id == stepId);
+        var step = lesson.AllSteps().Single(s => s.Id == stepId);
         return Recorder.PracticeSolved(lesson.Id, step, stepId, correct, hints, TimeSpan.FromSeconds(seconds), PracticeMode.Practice, run);
     }
 
@@ -520,5 +520,67 @@ public class PracticeTests
 
         var offered = Enumerable.Range(0, 100).Select(i => PracticeSelector.Next(state, new Random(i))!.Step.Id).ToHashSet();
         Assert.Equal(["step.a.p1", "step.b.p1", "step.b.p2"], offered.Order());
+    }
+
+    // --- Practice-only problems (#127) ----------------------------------------------------------------------------
+
+    // E teaches pattern.e with one in-lesson problem and two practice-only ones, the second using A's pattern.
+    private static readonly Lesson E = Teaching("e") with
+    {
+        Practice = [Problem("step.e.extra", "pattern.e"), Problem("step.e.extra-a", "pattern.a")],
+    };
+
+    [Fact]
+    public void Practice_problems_are_not_steps_of_the_lesson()
+    {
+        Finish(E);
+        var lesson = Project(Graph(A, E)).Track("track.t")!.Lessons.Single(l => l.Lesson.Id == E.Id);
+        Assert.Equal((LessonStatus.Completed, 3, 3), (lesson.Status, lesson.Progress.CompletedCount, lesson.Progress.TotalSteps));
+    }
+
+    [Fact]
+    public void A_completed_lessons_practice_problems_join_their_patterns()
+    {
+        var content = Graph(A, E);
+        Assert.Empty(Project(content).Pattern("pattern.e")!.Steps);   // not yet: E isn't completed
+
+        Finish(A, E);
+        var state = Project(content);
+        Assert.Equal(["step.e.p1", "step.e.p2", "step.e.extra"], state.Pattern("pattern.e")!.Steps.Select(s => s.Step.Id));
+        Assert.Equal(["step.a.p1", "step.a.p2", "step.e.extra-a"], state.Pattern("pattern.a")!.Steps.Select(s => s.Step.Id));
+    }
+
+    [Fact]
+    public void A_practice_problem_is_offered_and_scheduled_like_a_lesson_problem()
+    {
+        var content = Graph(A, B, E);
+        Finish(A, B, E);
+        var everything = PracticeSelector.Set(Project(content), new Random(1), 100);
+        Assert.Contains(everything, p => p.Step.Id == "step.e.extra" && p.Pattern.Id == "pattern.e");
+
+        Pick(E, "step.e.extra", "pattern.e");
+        Solve(E, "step.e.extra", false);
+
+        var state = Project(content);
+        var resolve = Item(state, "resolve.step.e.extra")!;
+        Assert.Equal((ReviewKind.Resolve, Rating.Again, true), (resolve.Item.Kind, resolve.LastRating, resolve.IsUnlocked));
+        Assert.Same(E.Practice[0], resolve.Question);
+        Assert.NotNull(Item(state, "pick.step.e.extra"));
+    }
+
+    [Fact]
+    public void An_untagged_practice_problem_is_a_reference_problem()
+    {
+        var untagged = Teaching("e") with { Practice = [Problem("step.e.extra", null)] };
+        Assert.Contains("Practice problem 'step.e.extra' has no pattern, so Practice could never draw it.", Graph(untagged).ReferenceProblems());
+        Assert.Empty(Graph(E, A).ReferenceProblems());
+    }
+
+    [Fact]
+    public void A_practice_problem_shares_the_packs_ids()
+    {
+        var clash = Teaching("e") with { Practice = [Problem("step.e.p1", "pattern.e")] };
+        Assert.Throws<ContentPackException>(() => Graph(clash));
+        Assert.Same(E.Practice[0], Graph(A, E).Get<Step>("step.e.extra"));
     }
 }
