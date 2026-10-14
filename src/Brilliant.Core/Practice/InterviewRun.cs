@@ -72,6 +72,20 @@ public sealed record InterviewRun(string Id, InterviewPreset Preset, IReadOnlyLi
 
     public PracticeAnswer? Answer(string stepId, PracticePart part) => Answers.FirstOrDefault(a => a.Step == stepId && a.Part == part);
 
+    /// <summary>Each problem's largest recorded <see cref="ProgressEventTypes.InterviewTimeSpent"/> total, by step ID.</summary>
+    public IReadOnlyDictionary<string, TimeSpan> TimeSpent { get; init; } = new Dictionary<string, TimeSpan>();
+
+    /// <summary>
+    /// The time spent on a problem: its recorded total, or its answers' elapsed times if they say more (a run recorded before time
+    /// was banked). Zero when it was never on screen.
+    /// </summary>
+    public TimeSpan TimeOn(string stepId)
+    {
+        var answered = (Answer(stepId, PracticePart.Pick)?.Elapsed ?? TimeSpan.Zero) + (Answer(stepId, PracticePart.Solve)?.Elapsed ?? TimeSpan.Zero);
+        var banked = TimeSpent.GetValueOrDefault(stepId);
+        return banked > answered ? banked : answered;
+    }
+
     /// <summary>
     /// The soft time budget for one problem: the limit shared evenly. Nothing enforces it; the run shows how each problem's time compares.
     /// </summary>
@@ -96,13 +110,17 @@ public static class InterviewRuns
             .OrderBy(x => x.Event.OccurredAt).ThenBy(x => x.Event.Id, StringComparer.Ordinal)
             .Select(x => x.Answer!)
             .ToLookup(a => a.Run!);
+        var spent = list.Where(e => e.Type == ProgressEventTypes.InterviewTimeSpent).Select(Spent).OfType<(string Run, string Step, TimeSpan Time)>()
+            .GroupBy(s => s.Run)
+            .ToDictionary(g => g.Key, g => (IReadOnlyDictionary<string, TimeSpan>)g.GroupBy(s => s.Step).ToDictionary(s => s.Key, s => s.Max(x => x.Time)));
+
         var runs = new List<InterviewRun>();
         foreach (var e in list.Where(e => e.Type == ProgressEventTypes.InterviewStarted).OrderBy(e => e.OccurredAt).ThenBy(e => e.Id, StringComparer.Ordinal))
         {
             if (Started(e) is not { } run || runs.Any(r => r.Id == run.Id)) continue;
             // The first answer to each part counts.
             var first = answers[run.Id].GroupBy(a => (a.Step, a.Part)).Select(g => g.First()).ToList();
-            runs.Add(run with { IsFinished = finished.Contains(run.Id), Answers = first });
+            runs.Add(run with { IsFinished = finished.Contains(run.Id), Answers = first, TimeSpent = spent.GetValueOrDefault(run.Id) ?? run.TimeSpent });
         }
         return runs;
     }
@@ -123,6 +141,23 @@ public static class InterviewRuns
         });
 
     internal static string FinishedJson(string run) => JsonSerializer.Serialize(new { run });
+
+    internal static string SpentJson(string run, string step, TimeSpan spent) =>
+        JsonSerializer.Serialize(new { run, step, spentMs = (long)spent.TotalMilliseconds });
+
+    private static (string, string, TimeSpan)? Spent(ProgressEvent e)
+    {
+        if (e.Data is null) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(e.Data);
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object || String(root, "run") is not { Length: > 0 } run || String(root, "step") is not { Length: > 0 } step) return null;
+            if (!root.TryGetProperty("spentMs", out var ms) || ms.ValueKind != JsonValueKind.Number || !ms.TryGetInt64(out var value) || value < 0) return null;
+            return (run, step, TimeSpan.FromMilliseconds(value));
+        }
+        catch (JsonException) { return null; }
+    }
 
     private static InterviewRun? Started(ProgressEvent e)
     {

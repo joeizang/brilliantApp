@@ -232,6 +232,60 @@ public class InterviewViewTests : ShortcutContext
         Assert.Equal("Time: 16m 00s of a 15m 00s budget (over)", cut.FindAll(".result-time")[0].TextContent.Trim());
     }
 
+    [Fact]
+    public void Finishing_before_any_answer_keeps_the_time_spent()
+    {
+        Finish(3);
+        var cut = Start();
+        _clock.Now = T0.AddMinutes(16);
+        cut.Render();   // as the clock's tick does
+        Assert.Equal("16:00 of 15:00 (over budget)", cut.Find(".interview-budget").TextContent.Trim());
+
+        cut.Find("button.interview-finish").Click();
+        cut.Find(".interview-finish-confirm button.primary").Click();
+
+        var times = cut.FindAll(".result-time").Select(t => t.TextContent.Trim()).ToList();
+        Assert.Equal(["Time: 16m 00s of a 15m 00s budget (over)", "Time: none"], times);
+    }
+
+    [Fact]
+    public async Task Leaving_and_reopening_a_run_keeps_each_problems_time_but_not_the_time_away()
+    {
+        Finish(3);
+        var cut = Start();
+        _clock.Now = T0.AddMinutes(4);
+        cut.FindAll("button.interview-tab")[1].Click();
+        _clock.Now = T0.AddMinutes(6);
+        await DisposeComponentsAsync();   // left with problem 2 on screen: 2 minutes on it
+
+        _clock.Now = T0.AddMinutes(10);
+        var again = Open();
+        Assert.Equal("4:00 of 15:00", again.Find(".interview-budget").TextContent.Trim());   // back on the first problem not submitted
+        again.FindAll("button.interview-tab")[1].Click();
+        Assert.Equal("2:00 of 15:00", again.Find(".interview-budget").TextContent.Trim());
+    }
+
+    [Fact]
+    public void Time_on_screen_is_recorded_every_so_often_so_closing_the_app_loses_little()
+    {
+        Finish(3);
+        var cut = Start(tick: TimeSpan.FromMilliseconds(20));
+        _clock.Now = T0.AddMinutes(3);
+
+        cut.WaitForAssertion(() => Assert.Equal(TimeSpan.FromMinutes(3), Run.TimeOn(Run.Problems[0].StepId)));
+    }
+
+    [Fact]
+    public void Time_after_the_clock_ran_out_does_not_count()
+    {
+        Finish(3);
+        var cut = Start();
+        _clock.Now = T0.AddMinutes(45);   // the phone screen ended at 30
+        PickPattern(cut, "Pattern " + Shown(cut));
+
+        Assert.Equal("Time: 30m 00s of a 15m 00s budget (over)", cut.FindAll(".result-time")[0].TextContent.Trim());
+    }
+
     // --- The run -------------------------------------------------------------------------------------------------------
 
     [Fact]

@@ -171,6 +171,48 @@ public class InterviewTests
     }
 
     [Fact]
+    public void Time_spent_is_recorded_per_problem_answered_or_not_and_the_largest_total_counts()
+    {
+        Finish(A, B, C);
+        var run = Start();
+        var (first, second) = (run.Problems[0].StepId, run.Problems[1].StepId);
+
+        Recorder.InterviewTimeSpent(run.Id, first, TimeSpan.FromMinutes(4));
+        Recorder.InterviewTimeSpent(run.Id, first, TimeSpan.FromMinutes(3));   // an older total, from another device
+        Recorder.InterviewTimeSpent(run.Id, second, TimeSpan.Zero);             // nothing to record
+        var read = InterviewRuns.Get(_log.ReadAll(), run.Id)!;
+
+        Assert.Equal((TimeSpan.FromMinutes(4), TimeSpan.Zero), (read.TimeOn(first), read.TimeOn(second)));
+        Assert.Equal(2, _log.Items.Count(e => e.Type == ProgressEventTypes.InterviewTimeSpent));
+    }
+
+    [Fact]
+    public void Time_on_a_problem_is_at_least_what_its_answers_say()
+    {
+        Finish(A, B, C);
+        var run = Start();
+        var problem = run.Problems[0];
+        Recorder.InterviewTimeSpent(run.Id, problem.StepId, TimeSpan.FromMinutes(1));
+        Recorder.PracticePicked(problem.LessonId, problem.StepId, null, false, TimeSpan.FromMinutes(2), PracticeMode.Interview, run.Id);
+
+        Assert.Equal(TimeSpan.FromMinutes(2), InterviewRuns.Get(_log.ReadAll(), run.Id)!.TimeOn(problem.StepId));
+    }
+
+    [Fact]
+    public void A_finished_run_records_no_more_time_and_malformed_time_is_ignored()
+    {
+        Finish(A, B, C);
+        var run = Start();
+        _log.Append(new ProgressEvent("bad", "device", T0, ProgressEventTypes.InterviewTimeSpent, "", "",
+            $$"""{"run":"{{run.Id}}","step":"{{run.Problems[0].StepId}}","spentMs":-5}"""));
+        Recorder.FinishInterview(run.Id, StepOf);
+        Recorder.InterviewTimeSpent(run.Id, run.Problems[0].StepId, TimeSpan.FromMinutes(4));
+
+        Assert.Equal(TimeSpan.Zero, InterviewRuns.Get(_log.ReadAll(), run.Id)!.TimeOn(run.Problems[0].StepId));
+        Assert.Single(_log.Items, e => e.Type == ProgressEventTypes.InterviewTimeSpent);
+    }
+
+    [Fact]
     public void Only_one_run_is_open_at_a_time()
     {
         Finish(A, B, C);

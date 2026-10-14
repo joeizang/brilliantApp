@@ -129,8 +129,9 @@ problems (no more than there are to draw from) and 10 to 90 minutes in steps of 
 **During the run.**
 - One countdown for the whole run, always visible, turning urgent in the last 5 minutes.
 - Beside it, the time on the problem on screen against a **soft per-problem budget** (#128): the limit shared evenly (15 minutes each
-  in a Phone screen). Going over shows "(over budget)" and nothing else happens; the run's clock is the only hard limit. The time is the
-  same per-problem time an answer records, so it survives switching problems and resumes from the log.
+  in a Phone screen). Going over shows "(over budget)" and nothing else happens; the run's clock is the only hard limit. The time counts
+  whether or not the problem is answered, and is kept in the log (`InterviewTimeSpent`, below), so it survives switching problems,
+  leaving, closing the app and finishing early. Time after the run's clock ran out doesn't count.
 - Each problem is the same pick-then-solve flow, but **no hints, no feedback, no "Check" results beyond the code runner's test output** (as in a real exercise, the learner can run their code against the visible tests). The pattern pick is locked on submit and its correctness is not shown until the end.
 - The learner can move between the run's problems freely and submit each when ready. *Finish early* ends the run.
 - Leaving the screen, switching apps or closing the app does **not** pause anything.
@@ -148,6 +149,9 @@ against the budget ("Time: 16m 00s of a 15m 00s budget (over)"). Then a one-line
   is `{ step, lesson, choices[] }`: the pattern choices are fixed at the start too, so a resumed run (on any device) offers the same
   options in the same order.
 - `InterviewFinished` `{ run }` — written when the run ends by any route.
+- `InterviewTimeSpent` `{ run, step, spentMs }` — a problem's total time on screen so far, answered or not (#128). Written when the
+  learner switches problems, answers, leaves or finishes, and every 30 seconds while the problem stays on screen; the largest total
+  counts, and a finished run takes no more. A problem's time is that total, or its answers' elapsed times if they say more.
 
 The time left is always `startedAt + limit − now`. If the app is reopened with time left, the run resumes; with none left, the summary is shown and any unanswered problems are recorded. A run is *open* until a `InterviewFinished` exists for it, and at most one run is open at a time. Because the clock is wall time, a device with a wrong clock would shorten or lengthen a run; that is accepted for a personal tool.
 
@@ -305,11 +309,11 @@ progress opens whatever Practice's state. In `CourseShell` the interview is a se
   the synced draft store), so switching problems, leaving or resuming on another device loses no work. A
   submit moves to the next unsubmitted problem; the last one ends the run.
 - *Time per problem* is counted while the problem is on screen: the pick's elapsed is the time up to locking it, the solve's the rest.
-  Resuming starts each problem from what its answers recorded.
+  Resuming starts each problem from its recorded time (`InterviewRun.TimeOn`), so time spent without answering is kept.
 - *The clock* is checked every second; at zero the run finishes and the summary shows. Opening the screen with an open run resumes it
   on its first unsubmitted problem, or, if its time is up, finishes it and shows the summary.
 - *Summary*: per problem, "It was Pattern X." with the pick ("You picked it.", "You picked Y.", "You gave no answer."), whether the
-  solution passed, and the time ("none" when nothing was answered). Then the weakest of the run's patterns (`PracticeText.Standing`)
+  solution passed, and the time ("none" when the problem was never on screen). Then the weakest of the run's patterns (`PracticeText.Standing`)
   and "Your answers are now in Review."
 
 ## Practice-only problems (#127)

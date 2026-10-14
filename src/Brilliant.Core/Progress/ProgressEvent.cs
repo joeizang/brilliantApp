@@ -44,6 +44,13 @@ public static class ProgressEventTypes
     /// </summary>
     public const string InterviewFinished = "InterviewFinished";
 
+    /// <summary>
+    /// Time spent on one problem of an open interview run, answered or not (#128): data holds the <c>run</c>, the <c>step</c> and
+    /// <c>spentMs</c>, the problem's total time on screen so far. Written as the learner switches problems, answers, leaves, finishes and
+    /// every so often while it is on screen; the largest total counts. Lesson-level, empty IDs.
+    /// </summary>
+    public const string InterviewTimeSpent = "InterviewTimeSpent";
+
     /// <summary>The learner chose their daily goal. Data holds <c>steps</c>; the latest setting wins. Lesson-level, empty IDs.</summary>
     public const string DailyGoalSet = "DailyGoalSet";
 

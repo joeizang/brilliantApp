@@ -175,6 +175,16 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
         Append(ProgressEventTypes.InterviewFinished, "", "", InterviewRuns.FinishedJson(run.Id));
     }
 
+    /// <summary>
+    /// Records <paramref name="spent"/> as the total time on a problem of an open interview run so far, answered or not. Nothing for a
+    /// finished run, or no time.
+    /// </summary>
+    public void InterviewTimeSpent(string runId, string stepId, TimeSpan spent)
+    {
+        if (spent <= TimeSpan.Zero || InterviewRuns.Get(log.ReadAll(), runId) is not { IsFinished: false }) return;
+        Append(ProgressEventTypes.InterviewTimeSpent, "", "", InterviewRuns.SpentJson(runId, stepId, spent));
+    }
+
     /// <summary>Records the daily goal in steps (kept within <see cref="TodayState.MinGoal"/>–<see cref="TodayState.MaxGoal"/>). Returns the goal as stored.</summary>
     public int SetDailyGoal(int steps)
     {
