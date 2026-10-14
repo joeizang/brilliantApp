@@ -365,10 +365,10 @@ public class InterviewViewTests : ShortcutContext
         Assert.Equal("Time: 1m 30s", results[0].QuerySelector(".result-time")!.TextContent.Trim());
 
         Assert.Contains($"It was Pattern {second}. You picked {wrong}.", results[1].QuerySelector(".result-pick")!.TextContent);
-        Assert.Contains("The solution didn't pass.", results[1].QuerySelector(".result-solve")!.TextContent);
+        Assert.Contains("You didn't submit a solution.", results[1].QuerySelector(".result-solve")!.TextContent);
 
         Assert.StartsWith($"Weakest pattern this run: Pattern {second}", cut.Find(".interview-weakest").TextContent.Trim());
-        Assert.Equal("Your answers are now in Review.", cut.Find(".interview-review").TextContent.Trim());
+        Assert.Equal("Your answers are now in Review. What you didn't answer doesn't count against you.", cut.Find(".interview-review").TextContent.Trim());
     }
 
     [Fact]
@@ -381,6 +381,8 @@ public class InterviewViewTests : ShortcutContext
 
         Assert.All(cut.FindAll(".result-pick"), p => Assert.Contains("You gave no answer.", p.TextContent));
         Assert.All(cut.FindAll(".result-time"), p => Assert.Equal("Time: none", p.TextContent.Trim()));
+        Assert.All(cut.FindAll(".result-solve"), p => Assert.Contains("You didn't submit a solution.", p.TextContent));
+        Assert.Equal("Nothing was answered, so Review is unchanged.", cut.Find(".interview-review").TextContent.Trim());
     }
 
     // --- The card on Tracks --------------------------------------------------------------------------------------------

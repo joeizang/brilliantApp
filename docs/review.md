@@ -62,6 +62,33 @@ Hints come from the [hint ladder](hints.md): each rung used before the first ans
 Review stores that count in `hintsUsed`.
 The rating is stored on the event so history replays identically if these thresholds are tuned later.
 
+### Practice and interview answers
+
+Issue [#129](https://github.com/joeizang/brilliantApp/issues/129). Practice answers (`PracticeAnswered`, see [practice-mode.md](practice-mode.md))
+schedule the same `pick.` and `resolve.` items as Review, with these rules:
+
+| Where | Part | Rating |
+|---|---|---|
+| Practice | pick | `InferPick`: wrong → Again, ≤ 15 s → Easy, ≥ 60 s → Hard, else Good |
+| Practice | solve | `Infer`, exactly as in Review (hints and the step type's thresholds) |
+| Interview | pick or solve | `InferInterview`: wrong → Again, at or under the part's *fast* time → Easy, else Good |
+| Interview | not answered when the run ended | recorded with `answered: false`; schedules nothing |
+
+- **Interview answers are never Hard for time.** They are blind (no verdict until the end), with no hints, against one clock that
+  already sets the pace (15 minutes a problem). A right answer under that pressure is at least as strong as an unhurried one, so only a
+  quick one is lifted to Easy and nothing is marked down for being slow. The *fast* time is the pick's 15 s or the step type's (table above).
+- **Unanswered is not wrong.** Running out of time, or never reaching a problem, says nothing about what the learner remembers. Rating it
+  Again would throw away the item's stability. The part is still recorded (`answered: false`), so the run is complete on every device and
+  the summary shows it, but the projector ignores it: it creates no `pick.`/`resolve.` item, moves none, and doesn't count as practised for
+  [pattern mastery](mastery.md). Older events have no `answered` field: a pick with no `picked` was unanswered, anything else was answered.
+- **Practice counts as fully as Review, once a day.** A right answer given before an item is due already grows it less, because FSRS's
+  gain depends on how far recall had decayed, and answers under a day apart only adjust short-term stability. So a practice pick is not
+  discounted. But a practice answer on the same local day as the item's previous answer (from Review or practice) is skipped by the
+  projector: working the same problem in several practice visits in one evening is one day's evidence, not five pushes outward. A Review
+  answer always counts, even after practice the same day, since Review is what the item's due date asks for.
+
+Tests: `tests/Brilliant.Core.Tests/PracticeRatingTests.cs` (each rule replayed through the projector).
+
 ## The `ReviewAnswered` event
 
 `StepId` is the question step; `Data` is `{ "item", "correct", "hintsUsed", "elapsedMs", "rating" }`. Events with

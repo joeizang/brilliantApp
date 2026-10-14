@@ -164,13 +164,14 @@ public static class LearnerStateProjector
 
     /// <summary>
     /// The practice and interview answers that count, oldest first (ties broken by event ID): within one run only the first answer to
-    /// each part of each problem, so a retry is practice and changes no schedule. Malformed events are ignored.
+    /// each part of each problem, so a retry is practice and changes no schedule. Parts an interview ended without
+    /// (<see cref="PracticeAnswer.Answered"/> false) and malformed events are ignored.
     /// </summary>
     private static IReadOnlyList<(ProgressEvent Event, PracticeAnswer Answer)> PracticeAnswers(IReadOnlyList<ProgressEvent> log)
     {
         var seen = new HashSet<(string, string, PracticePart)>();
         return log.Select(e => (Event: e, Answer: PracticeAnswer.From(e)))
-            .Where(x => x.Answer is not null)
+            .Where(x => x.Answer is { Answered: true })
             .OrderBy(x => x.Event.OccurredAt).ThenBy(x => x.Event.Id, StringComparer.Ordinal)
             .Where(x => x.Answer!.Run is not { } run || seen.Add((run, x.Answer.Step, x.Answer.Part)))
             .Select(x => (x.Event, x.Answer!))
@@ -181,7 +182,8 @@ public static class LearnerStateProjector
     /// Review items of the current content: the ones lessons declare, plus items derived from the log for problem steps (write-code,
     /// fill-blank, Parsons): a re-solve for each problem the learner answered incorrectly, needed a hint on or solved in practice, and a
     /// pattern pick for each tagged problem picked in practice. An item is unlocked once its lesson is completed; its schedule is every
-    /// recorded answer, from Review and from practice, folded through FSRS in time order (ties broken by event ID, so every device agrees).
+    /// recorded answer, from Review and from practice, folded through FSRS in time order (ties broken by event ID, so every device agrees),
+    /// except a practice answer on the same (local) day as the item's previous answer: an evening spent on one problem is one day's evidence.
     /// An item whose question step has been deleted (or, for a pick, untagged) is retired along with its history.
     /// Also returns how many reviews were answered on the same (local) day as <paramref name="now"/>; practice doesn't count toward it.
     /// </summary>
@@ -193,10 +195,11 @@ public static class LearnerStateProjector
             .Select(e => (Event: e, Answer: ParseReviewAnswer(e)))
             .Where(x => x.Answer is not null)
             .ToList();
-        var answers = parsed.Select(x => (x.Event, x.Answer!.Value.Item, x.Answer!.Value.Rating))
-            .Concat(practice.Select(x => (x.Event, Item: x.Answer.ItemId, x.Answer.Rating)))
+        var answers = parsed.Select(x => (x.Event, x.Answer!.Value.Item, x.Answer!.Value.Rating, Practice: false))
+            .Concat(practice.Select(x => (x.Event, Item: x.Answer.ItemId, x.Answer.Rating, Practice: true)))
             .OrderBy(x => x.Event.OccurredAt).ThenBy(x => x.Event.Id, StringComparer.Ordinal)
-            .ToLookup(x => x.Item, x => (x.Event.OccurredAt, x.Rating), StringComparer.Ordinal);
+            .ToLookup(x => x.Item, x => (x.Event.OccurredAt, x.Rating, x.Practice), StringComparer.Ordinal);
+        DateTime DayOf(DateTimeOffset at) => at.ToOffset(now.Offset).Date;
         var answeredToday = parsed.Count(x => x.Event.OccurredAt.ToOffset(now.Offset).Date == now.Date);
         var practised = practice.Select(x => (x.Event.LessonId, x.Answer.Step, x.Answer.Part)).ToHashSet();
 
@@ -229,8 +232,9 @@ public static class LearnerStateProjector
                 DateTimeOffset? lastAnswered = null;
                 Rating? lastRating = null;
                 var count = 0;
-                foreach (var (at, rating) in answers[item.Id])
+                foreach (var (at, rating, fromPractice) in answers[item.Id])
                 {
+                    if (fromPractice && lastAnswered is { } last && DayOf(last) == DayOf(at)) continue;
                     card = FsrsScheduler.Schedule(card, rating, at);
                     (lastAnswered, lastRating, count) = (at, rating, count + 1);
                 }
