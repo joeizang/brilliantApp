@@ -85,7 +85,7 @@ else
         learner.Track(c.Lesson.Lesson.TrackId)?.Track.Title ?? "Back";
 
     private static string StepTitle(Lesson lesson, string stepId) =>
-        lesson.Steps.FirstOrDefault(s => s.Id == stepId)?.Title ?? stepId;
+        lesson.AllSteps().FirstOrDefault(s => s.Id == stepId)?.Title ?? stepId;
 
     private static string RevisitText(LessonStatus s) => s switch
     {

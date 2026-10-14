@@ -215,7 +215,7 @@ public static class LearnerStateProjector
         foreach (var lesson in tracks.SelectMany(t => t.Lessons))
         {
             var id = lesson.Lesson.Id;
-            var problems = lesson.Lesson.Steps.Where(s => s is WriteCodeStep or FillBlankStep or ParsonsStep).ToList();
+            var problems = lesson.Lesson.AllSteps().Where(s => s is WriteCodeStep or FillBlankStep or ParsonsStep).ToList();
             var resolves = problems
                 .Where(s => troubled.Contains((id, s.Id)) || practised.Contains((id, s.Id, PracticePart.Solve)))
                 .Select(s => new ReviewItem(PracticeAnswer.ItemIdOf(s.Id, PracticePart.Solve), "", s.Id, ReviewKind.Resolve));
@@ -224,7 +224,7 @@ public static class LearnerStateProjector
                 .Select(s => new ReviewItem(PracticeAnswer.ItemIdOf(s.Id, PracticePart.Pick), "", s.Id, ReviewKind.Pattern));
             foreach (var item in lesson.Lesson.ReviewItems.Concat(resolves).Concat(picks))
             {
-                if (lesson.Lesson.Steps.FirstOrDefault(s => s.Id == item.StepId) is not { } question) continue;
+                if (lesson.Lesson.AllSteps().FirstOrDefault(s => s.Id == item.StepId) is not { } question) continue;
                 CardState? card = null;
                 DateTimeOffset? lastAnswered = null;
                 Rating? lastRating = null;
@@ -258,7 +258,7 @@ public static class LearnerStateProjector
             .ToDictionary(g => g.Key, g => g.Max(x => x.Event.OccurredAt));
 
         var tagged = lessons.Where(l => l.Status == LessonStatus.Completed)
-            .SelectMany(l => l.Lesson.Steps.Where(s => s.Pattern is not null && s is WriteCodeStep or FillBlankStep or ParsonsStep).Select(s =>
+            .SelectMany(l => l.Lesson.AllSteps().Where(s => s.Pattern is not null && s is WriteCodeStep or FillBlankStep or ParsonsStep).Select(s =>
             {
                 var pick = items.GetValueOrDefault((l.Lesson.Id, PracticeAnswer.ItemIdOf(s.Id, PracticePart.Pick)));
                 var resolve = items.GetValueOrDefault((l.Lesson.Id, PracticeAnswer.ItemIdOf(s.Id, PracticePart.Solve)));

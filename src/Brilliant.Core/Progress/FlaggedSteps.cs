@@ -33,7 +33,7 @@ public static class FlaggedSteps
             .Select(e =>
             {
                 content.TryGet<Lesson>(e.LessonId, out var lesson);
-                var step = lesson?.Steps.FirstOrDefault(s => s.Id == e.StepId);
+                var step = lesson?.AllSteps().FirstOrDefault(s => s.Id == e.StepId);
                 return new FlaggedStep(e.LessonId, e.StepId, lesson, step, NoteOf(e.Data), e.OccurredAt);
             })
             .OrderBy(f => f.Step is null ? int.MaxValue : lessonOrder.GetValueOrDefault(f.LessonId, int.MaxValue))
@@ -67,8 +67,13 @@ public static class FlaggedSteps
 
     private static int IndexOf(Lesson lesson, Step step)
     {
-        for (var i = 0; i < lesson.Steps.Count; i++)
-            if (lesson.Steps[i].Id == step.Id) return i;
+        // Practice-only problems sort after the lesson's own steps, in the order they are authored.
+        var i = 0;
+        foreach (var s in lesson.AllSteps())
+        {
+            if (s.Id == step.Id) return i;
+            i++;
+        }
         return int.MaxValue;
     }
 

@@ -1,0 +1,49 @@
+problems:
+  - id: step.deque.practice.window-min
+    type: write-code
+    title: Cheapest in every window
+    pattern: pattern.window-deque
+    patternCue: "\"The smallest in every window of k\": keep a deque of indexes whose values increase, dropping the ones that left the window from the front."
+    prompt: |
+      `prices` is a list of numbers and `k` is between `1` and `len(prices)`. Write `window_mins(prices, k)` that returns the
+      smallest price in each run of `k` neighbouring prices, left to right. Do it in one pass, without calling `min` on each
+      window.
+
+      For `[4, 2, 12, 3, 8, 1]` and `k = 3` it's `[2, 2, 3, 1]`.
+    language: python
+    entrypoint: window_mins
+    starter: |
+      from collections import deque
+
+      def window_mins(prices, k):
+          pass
+    solution: |
+      from collections import deque
+
+      def window_mins(prices, k):
+          window = deque()
+          result = []
+          for i, p in enumerate(prices):
+              while window and prices[window[-1]] >= p:
+                  window.pop()
+              window.append(i)
+              if window[0] <= i - k:
+                  window.popleft()
+              if i >= k - 1:
+                  result.append(prices[window[0]])
+          return result
+    tests:
+      - input: "[4, 2, 12, 3, 8, 1], 3"
+        expected: "[2, 2, 3, 1]"
+      - input: "[5], 1"
+        expected: "[5]"
+      - input: "[3, 1, 2], 1"
+        expected: "[3, 1, 2]"
+      - input: "[3, 1, 2], 3"
+        expected: "[1]"
+      - input: "[1, 2, 3, 4], 2"
+        expected: "[1, 2, 3]"
+    hints:
+      - "A price can never be a window's minimum once a cheaper price has arrived after it."
+      - "Keep indexes in a deque with increasing prices: before adding `i`, pop from the back every index whose price is at least `prices[i]`."
+      - "Drop the front index once it is `k` or more behind `i`; from `i = k - 1` on, the front is the window's minimum."

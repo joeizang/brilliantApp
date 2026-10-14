@@ -137,6 +137,7 @@ public static partial class ContentValidator
                     }
                 }
 
+            var practice = LoadPractice(root, lessonDir, trackDir, position, report, seenIds, patternTags);
             var concepts = LoadConcepts(lessonDto, lessonRel, report, seenIds);
             var reviewItems = LoadReviewItems(lessonDto, lessonRel, report, seenIds, concepts, steps);
             var patterns = LoadPatterns(lessonDto, lessonRel, report, seenIds);
@@ -151,12 +152,51 @@ public static partial class ContentValidator
                     Concepts = concepts,
                     ReviewItems = reviewItems,
                     Patterns = patterns,
+                    Practice = practice,
                 });
             }
         }
 
         if (lessonDirs.Count == 0) report.Add(trackRel, "a track needs at least one lesson folder.");
         if (dto.Id is not null) tracks.Add(new Track(dto.Id, dto.Title ?? "", lessonIds));
+    }
+
+    /// <summary>
+    /// A lesson's optional <c>practice.yaml</c>: problems that exist only for Practice and Interview. Each is a write-code, fill-blank or
+    /// parsons step with a <c>pattern</c> (and so a <c>patternCue</c>), checked like a lesson step: its ID is unique, its reference
+    /// solution passes its tests, and its pattern is taught by this lesson or an earlier one.
+    /// </summary>
+    private static List<Step> LoadPractice(string root, string lessonDir, string trackDir, int position, ValidationReport report,
+        Dictionary<string, string> seenIds, PatternTags patternTags)
+    {
+        var problems = new List<Step>();
+        var path = Path.Combine(lessonDir, "practice.yaml");
+        if (!File.Exists(path)) return problems;
+        var file = Rel(root, path);
+        var dto = Read<PracticeDto>(root, path, report);
+        if (dto is null) return problems;
+        if (dto.Problems is null or { Count: 0 })
+        {
+            report.Add(file, "'problems' is empty; add a problem or delete the file.");
+            return problems;
+        }
+
+        for (var i = 0; i < dto.Problems.Count; i++)
+        {
+            var where = $"problems[{i}]";
+            if (IsEmptyEntry(dto.Problems[i], where, file, report)) continue;
+            var problem = dto.Problems[i];
+            var label = problem.Id is null ? where : $"{where} ('{problem.Id}')";
+            if (problem.Type is not ("write-code" or "fill-blank" or "parsons"))
+                report.Add(file, $"{label}: a practice problem is one the learner solves: write-code, fill-blank or parsons (found '{problem.Type ?? "(missing)"}').");
+            else if (problem.Pattern is null)
+                report.Add(file, $"{label}: a practice problem needs a 'pattern' (and a 'patternCue'); Practice only draws problems by pattern.");
+            if (LoadStep(problem, where, file, report, seenIds) is not { } step) continue;
+            problems.Add(step);
+            if (step.Pattern is not null)
+                patternTags.Tag(new PatternTag(file, label, step, trackDir, position));
+        }
+        return problems;
     }
 
     private static List<Concept> LoadConcepts(LessonDto lesson, string file, ValidationReport report,
@@ -899,6 +939,7 @@ public static partial class ContentValidator
         public List<ReviewItemDto>? ReviewItems { get; set; }
         public List<PatternDto>? Patterns { get; set; }
     }
+    private sealed class PracticeDto { public List<StepDto>? Problems { get; set; } }
     private sealed class PatternDto { public string? Id { get; set; } public string? Title { get; set; } }
     private sealed class ConceptDto { public string? Id { get; set; } public string? Title { get; set; } }
     private sealed class ReviewItemDto { public string? Id { get; set; } public string? Concept { get; set; } public string? Step { get; set; } public string? Kind { get; set; } }

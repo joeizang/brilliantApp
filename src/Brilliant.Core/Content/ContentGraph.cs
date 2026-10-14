@@ -13,7 +13,7 @@ public sealed class ContentGraph
 
         foreach (var item in Tracks.Cast<ContentItem>()
                      .Concat(Lessons)
-                     .Concat(Lessons.SelectMany(l => l.Steps))
+                     .Concat(Lessons.SelectMany(l => l.AllSteps()))
                      .Concat(Lessons.SelectMany(l => l.Concepts))
                      .Concat(Lessons.SelectMany(l => l.ReviewItems))
                      .Concat(Lessons.SelectMany(l => l.Patterns)))
@@ -31,7 +31,7 @@ public sealed class ContentGraph
     public IReadOnlyList<Lesson> Lessons { get; }
 
     /// <summary>
-    /// What in the pack refers to something that isn't there: a track's lessons, a lesson's track, a review item's concept and step, a step's pattern.
+    /// What in the pack refers to something that isn't there: a track's lessons, a lesson's track, a review item's concept and step, a step's pattern, a practice problem without one.
     /// A pack with any of these loads as JSON but breaks the screens that follow the reference, so it must not be adopted.
     /// </summary>
     public IReadOnlyList<string> ReferenceProblems()
@@ -48,7 +48,9 @@ public sealed class ContentGraph
                 if (!lesson.Concepts.Any(c => c.Id == item.ConceptId)) problems.Add($"Review item '{item.Id}' is about concept '{item.ConceptId}', which lesson '{lesson.Id}' does not have.");
                 if (!lesson.Steps.Any(s => s.Id == item.StepId)) problems.Add($"Review item '{item.Id}' uses step '{item.StepId}', which lesson '{lesson.Id}' does not have.");
             }
-            foreach (var step in lesson.Steps)
+            foreach (var step in lesson.Practice)
+                if (step.Pattern is null) problems.Add($"Practice problem '{step.Id}' has no pattern, so Practice could never draw it.");
+            foreach (var step in lesson.AllSteps())
                 if (step.Pattern is { } pattern && !TryGet<Pattern>(pattern, out _))
                     problems.Add($"Step '{step.Id}' is solved by pattern '{pattern}', which is not in the pack.");
         }

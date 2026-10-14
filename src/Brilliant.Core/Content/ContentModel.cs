@@ -43,6 +43,15 @@ public sealed record Lesson(string Id, string Title, string TrackId, IReadOnlyLi
 
     /// <summary>The patterns this lesson teaches. Each pattern is declared by exactly one lesson.</summary>
     public IReadOnlyList<Pattern> Patterns { get; init; } = [];
+
+    /// <summary>
+    /// Practice-only problems: answerable, pattern-tagged steps that live outside the lesson. They never appear in the lesson view and don't
+    /// count toward completing it; Practice and Interview draw them once the lesson is completed, alongside the lesson's own tagged steps.
+    /// </summary>
+    public IReadOnlyList<Step> Practice { get; init; } = [];
+
+    /// <summary>The lesson's steps followed by its practice-only problems: everything progress can be recorded against. A method, not a property, so serialization and pack checks don't walk the steps twice.</summary>
+    public IEnumerable<Step> AllSteps() => Steps.Concat(Practice);
 }
 
 public sealed record CodeSnippet(string Language, string Code);

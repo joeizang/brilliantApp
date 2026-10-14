@@ -304,9 +304,57 @@ progress opens whatever Practice's state. In `CourseShell` the interview is a se
   solution passed, and the time ("none" when nothing was answered). Then the weakest of the run's patterns (`PracticeText.Standing`)
   and "Your answers are now in Review."
 
+## Practice-only problems (#127)
+
+Issue [#127](https://github.com/joeizang/brilliantApp/issues/127). Practice used to draw only from lesson steps, so a pattern had as
+many problems as its lessons happened to tag (four for eight of them). A lesson can now also own problems that exist only for Practice
+and Interview.
+
+**Authoring.** Put them in `practice.yaml` next to the lesson's `lesson.yaml`:
+
+```yaml
+problems:
+  - id: step.grid-dp.practice.min-path-sum   # a step ID like any other, unique in the pack
+    type: write-code                         # write-code, fill-blank or parsons
+    title: The cheapest path down
+    pattern: pattern.dp-grid                 # required
+    patternCue: "\"Moving only right or down\" to a corner: ..."
+    prompt: |
+      ...
+    entrypoint: cheapest
+    solution: |
+      ...
+    tests: [...]
+    hints: [...]
+```
+
+A problem is an ordinary step: the same fields, the same checks (the reference solution must pass its tests, hints at most four,
+an optional walkthrough). On top of a lesson step's rules, the validator requires a `pattern` (Practice only draws problems by
+pattern) and rejects any other step type; an empty `problems` list is an error, and the file is optional. The pattern rules are the
+ones above: it must be taught by this lesson or an earlier one in the track, or by another track, and a prompt naming its pattern
+is a warning. Practice doesn't use phone alternatives, so a practice problem doesn't need one.
+
+**In the model.** `Lesson.Practice` holds them, apart from `Lesson.Steps`: they never appear in the lesson, don't count toward
+completing it and don't change "new steps" or replay. `Lesson.AllSteps()` is the steps followed by the practice problems, and is what
+everything keyed by step ID looks in: the Content Graph's index (so IDs stay unique across both), the projector's `pick.`/`resolve.`
+items and pattern steps, flagged steps (a flagged practice problem sorts after its lesson's steps) and concept pages. The pack format
+stays at version 1: `practice` is optional, so an older pack loads with none, and an older app ignores them. A pack whose practice
+problem has no pattern is refused on load (`ContentGraph.ReferenceProblems`).
+
+**In Practice.** Once the owning lesson is completed, its practice problems join their patterns alongside the tagged lesson steps
+(`PatternMastery.Steps`, in content order, each lesson's practice problems after its steps), so the selector, interview sets, pattern mastery and Review treat them exactly
+like lesson problems. Answers are recorded against the owning lesson's ID, as for a tagged lesson step.
+
+**First batch.** One problem for each pattern that had only four: grid DP (cheapest path), string prefixes (ways to decode digits),
+k-way merge (k-th smallest across sorted lists), memoisation (stairs with 1, 2 or 3 steps), tabulation (tiling with two colours),
+two heaps (running lower middle), window deque (minimum of every window) and dummy head (drop every repeated value, Parsons).
+
+Tests: `tests/Brilliant.Cli.Tests/PracticeProblemValidatorTests.cs`, the "Practice-only problems" section of
+`tests/Brilliant.Core.Tests/PracticeTests.cs`, `FlaggedStepsTests` and `PracticeViewTests`.
+
 ## Not in this slice
 
-- Standalone problems authored for Practice (a `practice` content type with its own statement, tests and pattern tag). The tagging above is what that would build on; it can be a later issue.
+- Standalone problems authored for Practice: done in [#127](#practice-only-problems-127).
 - Per-problem timers, a custom time limit, difficulty levels, a practice streak or a Today suggestion.
 - Interview mode on a phone is supported, but code-heavy problems keep the existing "best on a larger screen" note ([responsive-layouts.md](responsive-layouts.md)).
 - Tuning FSRS for practice answers.
