@@ -30,7 +30,7 @@ else
     {
         <button class="@Styling.PracticeCard mt-4" @onclick="() => OnOpenPractice.InvokeAsync()">
             <span class="card-title text-[1.2rem] font-semibold tracking-[-.01em]">Practice</span>
-            <span class="card-meta text-[.9rem] text-fg-secondary">Name the pattern, then solve it.@if (PracticeText.Weakest(learner) is { } weakest){<br /><span class="practice-weakest">Weakest: @weakest</span>}</span>
+            <span class="card-meta text-[.9rem] text-fg-secondary">Name the pattern, then solve it.@if (PracticeText.Weakest(learner) is { } weakest){<br /><span class="practice-weakest">Weakest: @weakest</span>}@if (PracticeText.Streak(learner.Today) is { } streak){<br /><span class="practice-streak">@streak</span>}</span>
         </button>
     }
     else

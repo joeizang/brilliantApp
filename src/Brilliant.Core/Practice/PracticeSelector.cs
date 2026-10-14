@@ -115,6 +115,18 @@ public static class PracticeSelector
         return choices;
     }
 
+    /// <summary>How many patterns <see cref="Suggestion"/> names.</summary>
+    public const int SuggestionCount = 2;
+
+    /// <summary>
+    /// What Today suggests practising once the review queue is done (#128): the weakest learned patterns that have problems to offer,
+    /// lowest mastery first, at most <see cref="SuggestionCount"/>. Empty while reviews are due or Practice isn't available.
+    /// </summary>
+    public static IReadOnlyList<PatternMastery> Suggestion(LearnerState state) =>
+        state.Today.ReviewsDue > 0 || !Availability(state).IsAvailable
+            ? []
+            : state.Patterns.Where(p => p.IsLearned && p.Steps.Count > 0).OrderBy(p => p.Mastery).Take(SuggestionCount).ToList();
+
     /// <summary>Every problem Practice may offer, with its pattern: by pattern, then content order.</summary>
     private static List<(PatternStep Step, PatternMastery Pattern)> Eligible(LearnerState state) =>
         state.Patterns.Where(p => p.IsLearned).SelectMany(p => p.Steps.Select(s => (s, p))).ToList();

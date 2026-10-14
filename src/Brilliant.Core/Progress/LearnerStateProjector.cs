@@ -34,7 +34,7 @@ public static class LearnerStateProjector
         var practice = PracticeAnswers(log);
         var (reviews, answeredToday) = ProjectReviews(tracks, log, practice, now);
         var queue = ReviewQueueBuilder.Build(reviews, now, answeredToday, queueOptions, screen);
-        return new LearnerState(now, tracks, reviews, queue, ProjectConcepts(tracks, reviews, log, now), ProjectToday(tracks, queue, log, now),
+        return new LearnerState(now, tracks, reviews, queue, ProjectConcepts(tracks, reviews, log, now), ProjectToday(tracks, queue, log, practice, now),
             ProjectPatterns(tracks, reviews, practice, now));
     }
 
@@ -69,8 +69,8 @@ public static class LearnerStateProjector
     /// answered, on the learner's local day. A day counts toward the streak when it met the goal in force at its end, so changing
     /// the goal never rewrites history.
     /// </summary>
-    private static TodayState ProjectToday(
-        IReadOnlyList<TrackState> tracks, ReviewQueue queue, IReadOnlyList<ProgressEvent> log, DateTimeOffset now)
+    private static TodayState ProjectToday(IReadOnlyList<TrackState> tracks, ReviewQueue queue, IReadOnlyList<ProgressEvent> log,
+        IReadOnlyList<(ProgressEvent Event, PracticeAnswer Answer)> practice, DateTimeOffset now)
     {
         DateTime DayOf(ProgressEvent e) => e.OccurredAt.ToOffset(now.Offset).Date;
 
@@ -100,8 +100,20 @@ public static class LearnerStateProjector
             ? new SessionState(started.LessonId.Length == 0 ? null : started.LessonId, started.OccurredAt)
             : null;
 
+        // The practice streak (#128): days with an answer counted in practice or an interview, by the day each answer recorded. Like the
+        // goal streak, it holds through today until today is over. It is separate from the goal: practice is not a step toward it.
+        var practised = practice.Select(x => AnswerDay.Of(x.Event)).ToHashSet();
+        var localToday = DateOnly.FromDateTime(today);
+        var practiceStreak = 0;
+        for (var day = practised.Contains(localToday) ? localToday : localToday.AddDays(-1); practised.Contains(day); day = day.AddDays(-1))
+            practiceStreak++;
+
         return new TodayState(goals.Count == 0 ? TodayState.DefaultGoal : GoalOn(today), done.GetValueOrDefault(today), streak, next,
-            queue.Items.Count, session);
+            queue.Items.Count, session)
+        {
+            PracticeStreak = practiceStreak,
+            PractisedToday = practised.Contains(localToday),
+        };
     }
 
     private static int? ParseGoal(ProgressEvent e)
