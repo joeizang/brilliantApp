@@ -32,6 +32,15 @@ public static class RatingInference
         : Rating.Good;
 
     /// <summary>
+    /// Rates an answer given in a timed interview: the pick of a pattern or a submitted solution, made blind (no verdict until the end), with
+    /// no hints and against the run's clock. Wrong → Again; at or under <paramref name="fast"/> → Easy; otherwise Good. Slowness is never
+    /// Hard here: the clock already sets the pace, and a right answer under it is stronger evidence than the same answer at leisure.
+    /// <paramref name="fast"/> is the part's own threshold (<see cref="PickThresholds"/> or the step type's <see cref="Thresholds"/>).
+    /// </summary>
+    public static Rating InferInterview(bool correct, TimeSpan elapsed, TimeSpan fast) =>
+        !correct ? Rating.Again : elapsed <= fast ? Rating.Easy : Rating.Good;
+
+    /// <summary>
     /// A pattern pick takes reading an unlabelled problem first, so it is given longer than a plain choice question: under 15 seconds is
     /// Easy, a minute or more is Hard.
     /// </summary>

@@ -85,7 +85,10 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
     /// <summary>Records a review answer with an explicit rating.</summary>
     public void ReviewAnswered(string lessonId, ReviewItem item, bool correct, int hintsUsed, TimeSpan elapsed, Rating rating) =>
         Append(ProgressEventTypes.ReviewAnswered, lessonId, item.StepId,
-            JsonSerializer.Serialize(new { item = item.Id, correct, hintsUsed, elapsedMs = (int)elapsed.TotalMilliseconds, rating = (int)rating }));
+            JsonSerializer.Serialize(new { item = item.Id, correct, hintsUsed, elapsedMs = (int)elapsed.TotalMilliseconds, rating = (int)rating, day = Day() }));
+
+    // The learner's local date now, stored on answers so the same-day rule replays the same everywhere (AnswerDay).
+    private string Day() => AnswerDay.Today(_clock).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>
     /// Records a review answer, inferring the FSRS rating from correctness, hints and time. Returns the rating. A derived pattern pick
@@ -102,26 +105,36 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
 
     /// <summary>
     /// Records the pattern pick of a practice or interview problem: <paramref name="picked"/> is the pattern ID chosen, or null when the
-    /// learner never chose (an interview problem left unanswered, which counts as wrong). Returns the rating inferred from correctness and time.
+    /// learner never chose (an interview problem left unanswered: wrong, and not <see cref="PracticeAnswer.Answered"/>). Returns the rating
+    /// inferred from correctness and time, as a pick in practice and as an interview answer in a run.
     /// </summary>
     public Rating PracticePicked(string lessonId, string stepId, string? picked, bool correct, TimeSpan elapsed, PracticeMode mode, string run)
     {
         correct = correct && picked is not null;
-        var answer = new PracticeAnswer(stepId, PracticePart.Pick, correct, picked, 0, elapsed, RatingInference.InferPick(correct, elapsed), mode, run);
+        var rating = mode == PracticeMode.Interview
+            ? RatingInference.InferInterview(correct, elapsed, RatingInference.PickThresholds.Fast)
+            : RatingInference.InferPick(correct, elapsed);
+        var answer = new PracticeAnswer(stepId, PracticePart.Pick, correct, picked, 0, elapsed, rating, mode, run) { Answered = picked is not null, Day = AnswerDay.Today(_clock) };
         Append(ProgressEventTypes.PracticeAnswered, lessonId, stepId, answer.ToJson());
         return answer.Rating;
     }
 
     /// <summary>
-    /// Records the solution of a practice or interview problem, rated from correctness, hints and time as in Review.
-    /// <paramref name="presented"/> is the form that was solved (the step or its phone alternative), which sets the time thresholds.
-    /// Returns the rating.
+    /// Records the solution of a practice or interview problem, rated from correctness, hints and time as in Review in practice, and as
+    /// an interview answer in a run. <paramref name="presented"/> is the form that was solved (the step or its phone alternative), which
+    /// sets the time thresholds. Returns the rating.
     /// </summary>
     public Rating PracticeSolved(string lessonId, Step presented, string stepId, bool correct, int hintsUsed, TimeSpan elapsed, PracticeMode mode, string run)
     {
-        var answer = new PracticeAnswer(stepId, PracticePart.Solve, correct, null, hintsUsed, elapsed,
-            RatingInference.Infer(correct, hintsUsed, elapsed, presented), mode, run);
-        Append(ProgressEventTypes.PracticeAnswered, lessonId, stepId, answer.ToJson());
+        var rating = mode == PracticeMode.Interview
+            ? RatingInference.InferInterview(correct, elapsed, RatingInference.Thresholds(presented).Fast)
+            : RatingInference.Infer(correct, hintsUsed, elapsed, presented);
+        return AppendSolve(lessonId, new PracticeAnswer(stepId, PracticePart.Solve, correct, null, hintsUsed, elapsed, rating, mode, run));
+    }
+
+    private Rating AppendSolve(string lessonId, PracticeAnswer answer)
+    {
+        Append(ProgressEventTypes.PracticeAnswered, lessonId, answer.Step, (answer with { Day = AnswerDay.Today(_clock) }).ToJson());
         return answer.Rating;
     }
 
@@ -139,9 +152,10 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
     }
 
     /// <summary>
-    /// Ends an interview run: every part still unanswered is recorded as wrong (a pick of nothing, a failed solve, both rated Again, with
-    /// no time spent answering), then InterviewFinished. <paramref name="steps"/> finds each problem's step, which rates the solve. Does nothing for a run that is
-    /// unknown or already finished, so two devices ending the same run add nothing that counts twice.
+    /// Ends an interview run: every part still unanswered is recorded as wrong and not <see cref="PracticeAnswer.Answered"/> (a pick of
+    /// nothing, a failed solve, with no time spent), so the run is complete on every device but no review item moves, then InterviewFinished.
+    /// <paramref name="steps"/> finds each problem's step: a solve is recorded only for a step that still exists. Does nothing for a run
+    /// that is unknown or already finished, so two devices ending the same run add nothing that counts twice.
     /// </summary>
     public void FinishInterview(string runId, Func<string, Step?> steps)
     {
@@ -150,8 +164,9 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
         {
             if (run.Answer(problem.StepId, PracticePart.Pick) is null)
                 PracticePicked(problem.LessonId, problem.StepId, null, false, TimeSpan.Zero, PracticeMode.Interview, run.Id);
-            if (run.Answer(problem.StepId, PracticePart.Solve) is null && steps(problem.StepId) is { } step)
-                PracticeSolved(problem.LessonId, step, problem.StepId, false, 0, TimeSpan.Zero, PracticeMode.Interview, run.Id);
+            if (run.Answer(problem.StepId, PracticePart.Solve) is null && steps(problem.StepId) is not null)
+                AppendSolve(problem.LessonId, new PracticeAnswer(problem.StepId, PracticePart.Solve, false, null, 0, TimeSpan.Zero, Rating.Again,
+                    PracticeMode.Interview, run.Id) { Answered = false });
         }
         Append(ProgressEventTypes.InterviewFinished, "", "", InterviewRuns.FinishedJson(run.Id));
     }
