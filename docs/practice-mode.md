@@ -156,7 +156,7 @@ A practice answer is scheduled on a review item, scored by the same rating infer
 Both items are **derived**, never authored, like re-solves today. Differences from today's rules, which the implementation must change in `LearnerStateProjector`:
 
 1. A `resolve.<step>` item currently exists only if the lesson attempt failed or used a hint. It now **also exists once the step has been practised**, so a correct practice solve starts its own schedule. A `pick.<step>` item exists once the step has been practised.
-2. Practice and interview answers are written as a new event type, `PracticeAnswered` `{ step, part: "pick"|"solve", correct, picked?, hintsUsed, elapsedMs, rating, mode, run? }`, which the projector folds through FSRS like `ReviewAnswered` but which is ignored by lesson progress. (A separate event keeps the log honest about where an answer came from, and keeps today's `ReviewAnswered` meaning unchanged.)
+2. Practice and interview answers are written as a new event type, `PracticeAnswered` `{ step, part: "pick"|"solve", correct, picked?, hintsUsed, elapsedMs, rating, mode, run? }` (plus `answered` and `day` since #129), which the projector folds through FSRS like `ReviewAnswered` but which is ignored by lesson progress. (A separate event keeps the log honest about where an answer came from, and keeps today's `ReviewAnswered` meaning unchanged.)
 3. Only the **first** answer to a part in a given practice visit or interview run is scheduled; retrying is practice, as in Review.
 4. Interview unanswered problems are recorded for both parts when the run ends. (Originally rated `Again`; since #129 they are marked `answered: false` and schedule nothing. See [review.md](review.md#practice-and-interview-answers).)
 

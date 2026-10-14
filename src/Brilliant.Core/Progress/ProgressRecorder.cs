@@ -85,7 +85,10 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
     /// <summary>Records a review answer with an explicit rating.</summary>
     public void ReviewAnswered(string lessonId, ReviewItem item, bool correct, int hintsUsed, TimeSpan elapsed, Rating rating) =>
         Append(ProgressEventTypes.ReviewAnswered, lessonId, item.StepId,
-            JsonSerializer.Serialize(new { item = item.Id, correct, hintsUsed, elapsedMs = (int)elapsed.TotalMilliseconds, rating = (int)rating }));
+            JsonSerializer.Serialize(new { item = item.Id, correct, hintsUsed, elapsedMs = (int)elapsed.TotalMilliseconds, rating = (int)rating, day = Day() }));
+
+    // The learner's local date now, stored on answers so the same-day rule replays the same everywhere (AnswerDay).
+    private string Day() => AnswerDay.Today(_clock).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>
     /// Records a review answer, inferring the FSRS rating from correctness, hints and time. Returns the rating. A derived pattern pick
@@ -111,7 +114,7 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
         var rating = mode == PracticeMode.Interview
             ? RatingInference.InferInterview(correct, elapsed, RatingInference.PickThresholds.Fast)
             : RatingInference.InferPick(correct, elapsed);
-        var answer = new PracticeAnswer(stepId, PracticePart.Pick, correct, picked, 0, elapsed, rating, mode, run) { Answered = picked is not null };
+        var answer = new PracticeAnswer(stepId, PracticePart.Pick, correct, picked, 0, elapsed, rating, mode, run) { Answered = picked is not null, Day = AnswerDay.Today(_clock) };
         Append(ProgressEventTypes.PracticeAnswered, lessonId, stepId, answer.ToJson());
         return answer.Rating;
     }
@@ -131,7 +134,7 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
 
     private Rating AppendSolve(string lessonId, PracticeAnswer answer)
     {
-        Append(ProgressEventTypes.PracticeAnswered, lessonId, answer.Step, answer.ToJson());
+        Append(ProgressEventTypes.PracticeAnswered, lessonId, answer.Step, (answer with { Day = AnswerDay.Today(_clock) }).ToJson());
         return answer.Rating;
     }
 

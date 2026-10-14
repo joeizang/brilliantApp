@@ -165,15 +165,19 @@ public static class LearnerStateProjector
     /// <summary>
     /// The practice and interview answers that count, oldest first (ties broken by event ID): within one run only the first answer to
     /// each part of each problem, so a retry is practice and changes no schedule. Parts an interview ended without
-    /// (<see cref="PracticeAnswer.Answered"/> false) and malformed events are ignored.
+    /// (<see cref="PracticeAnswer.Answered"/> false) and malformed events are ignored; an unanswered part stays unanswered even if a later
+    /// answer to it arrives, since only the first counts.
     /// </summary>
     private static IReadOnlyList<(ProgressEvent Event, PracticeAnswer Answer)> PracticeAnswers(IReadOnlyList<ProgressEvent> log)
     {
+        // The first answer to a part in a run wins before unanswered ones are dropped, as InterviewRuns decides it: an unanswered
+        // placeholder that came first (one device finished the run, another then submitted) keeps the part unanswered everywhere.
         var seen = new HashSet<(string, string, PracticePart)>();
         return log.Select(e => (Event: e, Answer: PracticeAnswer.From(e)))
-            .Where(x => x.Answer is { Answered: true })
+            .Where(x => x.Answer is not null)
             .OrderBy(x => x.Event.OccurredAt).ThenBy(x => x.Event.Id, StringComparer.Ordinal)
             .Where(x => x.Answer!.Run is not { } run || seen.Add((run, x.Answer.Step, x.Answer.Part)))
+            .Where(x => x.Answer!.Answered)
             .Select(x => (x.Event, x.Answer!))
             .ToList();
     }
@@ -183,7 +187,8 @@ public static class LearnerStateProjector
     /// fill-blank, Parsons): a re-solve for each problem the learner answered incorrectly, needed a hint on or solved in practice, and a
     /// pattern pick for each tagged problem picked in practice. An item is unlocked once its lesson is completed; its schedule is every
     /// recorded answer, from Review and from practice, folded through FSRS in time order (ties broken by event ID, so every device agrees),
-    /// except a practice answer on the same (local) day as the item's previous answer: an evening spent on one problem is one day's evidence.
+    /// except a practice answer on the same local day as the item's previous answer, by the day each answer recorded (<see cref="AnswerDay"/>):
+    /// an evening spent on one problem is one day's evidence.
     /// An item whose question step has been deleted (or, for a pick, untagged) is retired along with its history.
     /// Also returns how many reviews were answered on the same (local) day as <paramref name="now"/>; practice doesn't count toward it.
     /// </summary>
@@ -198,8 +203,7 @@ public static class LearnerStateProjector
         var answers = parsed.Select(x => (x.Event, x.Answer!.Value.Item, x.Answer!.Value.Rating, Practice: false))
             .Concat(practice.Select(x => (x.Event, Item: x.Answer.ItemId, x.Answer.Rating, Practice: true)))
             .OrderBy(x => x.Event.OccurredAt).ThenBy(x => x.Event.Id, StringComparer.Ordinal)
-            .ToLookup(x => x.Item, x => (x.Event.OccurredAt, x.Rating, x.Practice), StringComparer.Ordinal);
-        DateTime DayOf(DateTimeOffset at) => at.ToOffset(now.Offset).Date;
+            .ToLookup(x => x.Item, x => (x.Event.OccurredAt, Day: AnswerDay.Of(x.Event), x.Rating, x.Practice), StringComparer.Ordinal);
         var answeredToday = parsed.Count(x => x.Event.OccurredAt.ToOffset(now.Offset).Date == now.Date);
         var practised = practice.Select(x => (x.Event.LessonId, x.Answer.Step, x.Answer.Part)).ToHashSet();
 
@@ -230,13 +234,14 @@ public static class LearnerStateProjector
                 if (lesson.Lesson.Steps.FirstOrDefault(s => s.Id == item.StepId) is not { } question) continue;
                 CardState? card = null;
                 DateTimeOffset? lastAnswered = null;
+                DateOnly? lastDay = null;
                 Rating? lastRating = null;
                 var count = 0;
-                foreach (var (at, rating, fromPractice) in answers[item.Id])
+                foreach (var (at, day, rating, fromPractice) in answers[item.Id])
                 {
-                    if (fromPractice && lastAnswered is { } last && DayOf(last) == DayOf(at)) continue;
+                    if (fromPractice && lastDay == day) continue;
                     card = FsrsScheduler.Schedule(card, rating, at);
-                    (lastAnswered, lastRating, count) = (at, rating, count + 1);
+                    (lastAnswered, lastDay, lastRating, count) = (at, day, rating, count + 1);
                 }
                 // Help asked for since the last answer belongs to the attempt in progress; earlier help was already judged.
                 var attemptHints = reviewHints[item.Id].Where(h => lastAnswered is null || h.OccurredAt > lastAnswered).Select(h => h.Level).DefaultIfEmpty(0).Max();

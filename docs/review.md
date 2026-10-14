@@ -86,12 +86,19 @@ schedule the same `pick.` and `resolve.` items as Review, with these rules:
   discounted. But a practice answer on the same local day as the item's previous answer (from Review or practice) is skipped by the
   projector: working the same problem in several practice visits in one evening is one day's evidence, not five pushes outward. A Review
   answer always counts, even after practice the same day, since Review is what the item's due date asks for.
+  The day is the one each answer recorded (`day`, below), not one recomputed at replay, so the same log schedules the same on every
+  device and in every time zone, and across a daylight-saving change.
+- **Only an interview's first answer to a part counts.** The projector takes the first answer to each (run, problem, part), as the run
+  summary does, before dropping unanswered ones. If one device ended a run with a part unanswered and another later synced an answer to
+  it, the part stays unanswered in both the summary and the schedule.
 
 Tests: `tests/Brilliant.Core.Tests/PracticeRatingTests.cs` (each rule replayed through the projector).
 
 ## The `ReviewAnswered` event
 
-`StepId` is the question step; `Data` is `{ "item", "correct", "hintsUsed", "elapsedMs", "rating" }`. Events with
+`StepId` is the question step; `Data` is `{ "item", "correct", "hintsUsed", "elapsedMs", "rating", "day" }`. `day` (`yyyy-MM-dd`, since #129) is the
+learner's local date when answering, in the device's time zone; `PracticeAnswered` carries the same field. An event without a valid
+`day` (written before it existed) counts on its UTC date. `day` is used only for the same-day practice rule. Events with
 missing or malformed data are ignored: not JSON, not an object, an `item` that isn't a string, or a `rating` that isn't a JSON number from 1 to 4.
 An unknown item is ignored too. One bad event can never stop the projector. Answers are ordered by `(OccurredAt, event ID)`, so identical
 timestamps from two devices resolve the same way everywhere.

@@ -35,6 +35,12 @@ public sealed record PracticeAnswer(string Step, PracticePart Part, bool Correct
     /// </summary>
     public bool Answered { get; init; } = true;
 
+    /// <summary>
+    /// The learner's local date when this was answered, fixed when it was recorded so the same log gives the same schedule on every
+    /// device and in every time zone. Null in older events; see <see cref="AnswerDay"/>.
+    /// </summary>
+    public DateOnly? Day { get; init; }
+
     public const string PickPrefix = "pick.";
     public const string ResolvePrefix = "resolve.";
 
@@ -56,6 +62,7 @@ public sealed record PracticeAnswer(string Step, PracticePart Part, bool Correct
         mode = Mode == PracticeMode.Interview ? "interview" : "practice",
         run = Run,
         answered = Answered,
+        day = Day?.ToString(AnswerDay.Format, System.Globalization.CultureInfo.InvariantCulture),
     });
 
     /// <summary>
@@ -82,7 +89,7 @@ public sealed record PracticeAnswer(string Step, PracticePart Part, bool Correct
             return new PracticeAnswer(step, part.Value, ok.GetBoolean(), picked,
                 Math.Max(0, Int(root, "hintsUsed") ?? 0), TimeSpan.FromMilliseconds(Math.Max(0, Int(root, "elapsedMs") ?? 0)), (Rating)grade,
                 String(root, "mode") == "interview" ? PracticeMode.Interview : PracticeMode.Practice, String(root, "run"))
-            { Answered = answered };
+            { Answered = answered, Day = AnswerDay.Parse(String(root, "day")) };
         }
         catch (JsonException) { return null; }
     }

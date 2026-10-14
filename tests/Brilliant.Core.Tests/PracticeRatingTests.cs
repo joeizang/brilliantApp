@@ -16,7 +16,9 @@ public class PracticeRatingTests
     private sealed class Clock : TimeProvider
     {
         public DateTimeOffset Now { get; set; } = T0;
+        public TimeZoneInfo Zone { get; set; } = TimeZoneInfo.Utc;
         public override DateTimeOffset GetUtcNow() => Now;
+        public override TimeZoneInfo LocalTimeZone => Zone;
     }
 
     private sealed class MemoryLog : IProgressEventLog
@@ -101,6 +103,21 @@ public class PracticeRatingTests
         Assert.Equal((before.Answers, before.Card, before.LastRating), (after.Answers, after.Card, after.LastRating));
     }
 
+    [Fact]
+    public void A_part_left_unanswered_first_stays_unanswered_when_another_device_answers_it_later()
+    {
+        var pattern = Project().Pattern("pattern.a")!;
+        var run = Recorder.StartInterview(InterviewPreset.PhoneScreen, [new PracticeProblem(pattern.Steps.Single(), pattern.Pattern, [pattern.Pattern])])!;
+        // One device ended the interview with the pick unanswered; another, offline, submitted it after (OccurredAt later).
+        Recorder.PracticePicked(A.Id, P1.Id, null, false, TimeSpan.Zero, PracticeMode.Interview, run.Id);
+        _clock.Now = T0.AddMinutes(5);
+        Recorder.PracticePicked(A.Id, P1.Id, "pattern.a", true, TimeSpan.FromSeconds(10), PracticeMode.Interview, run.Id);
+
+        // The summary keeps the first answer, so the scheduler must too: no pick evidence from this run.
+        Assert.False(InterviewRuns.Get(_log.ReadAll(), run.Id)!.Answer(P1.Id, PracticePart.Pick)!.Answered);
+        Assert.Null(Item("pick." + P1.Id));
+    }
+
     [Theory]
     [InlineData("""{"step":"step.a.p1","part":"pick","correct":false,"picked":null,"rating":1,"mode":"interview","run":"r"}""", false)]
     [InlineData("""{"step":"step.a.p1","part":"pick","correct":false,"picked":"pattern.b","rating":1,"mode":"interview","run":"r"}""", true)]
@@ -162,13 +179,58 @@ public class PracticeRatingTests
     [Fact]
     public void The_same_day_is_the_learners_local_day()
     {
-        var lagos = TimeSpan.FromHours(1);
-        _clock.Now = new DateTimeOffset(2026, 10, 10, 23, 30, 0, lagos);
+        _clock.Zone = TimeZoneInfo.CreateCustomTimeZone("Lagos", TimeSpan.FromHours(1), "Lagos", "Lagos");
+        _clock.Now = new DateTimeOffset(2026, 10, 10, 22, 30, 0, TimeSpan.Zero);   // 23:30 local
         Pick(true, 10, run: "run.1");
-        _clock.Now = new DateTimeOffset(2026, 10, 11, 0, 30, 0, lagos);   // the next local day, though under a day later
+        _clock.Now = new DateTimeOffset(2026, 10, 10, 23, 30, 0, TimeSpan.Zero);   // 00:30 local: the next local day, though the same UTC day
         Pick(true, 10, run: "run.2");
 
         Assert.Equal(2, Item("pick." + P1.Id)!.Answers);
+    }
+
+    [Fact]
+    public void The_day_is_fixed_when_answered_so_replaying_in_another_time_zone_changes_nothing()
+    {
+        _clock.Zone = TimeZoneInfo.CreateCustomTimeZone("Lagos", TimeSpan.FromHours(1), "Lagos", "Lagos");
+        _clock.Now = new DateTimeOffset(2026, 10, 10, 22, 30, 0, TimeSpan.Zero);
+        Pick(true, 10, run: "run.1");
+        _clock.Now = new DateTimeOffset(2026, 10, 10, 23, 30, 0, TimeSpan.Zero);
+        Pick(true, 10, run: "run.2");
+
+        // The same log replayed later, on devices at UTC-5, UTC and UTC+9: still two days' evidence.
+        foreach (var offset in new[] { -5, 0, 9 })
+        {
+            var now = new DateTimeOffset(2026, 10, 12, 12, 0, 0, TimeSpan.FromHours(offset));
+            var state = LearnerStateProjector.Project(_log.ReadAll(), Content, now);
+            Assert.Equal(2, state.Reviews.Single(r => r.Item.Id == "pick." + P1.Id).Answers);
+        }
+    }
+
+    [Fact]
+    public void The_local_day_follows_a_daylight_saving_change()
+    {
+        // London moves to BST at 01:00 UTC on 29 March 2026: 00:30 UTC is 00:30 on the 29th, 23:30 UTC is 00:30 on the 30th.
+        _clock.Zone = TimeZoneInfo.FindSystemTimeZoneById("Europe/London");
+        _clock.Now = new DateTimeOffset(2026, 3, 29, 0, 30, 0, TimeSpan.Zero);
+        Pick(true, 10, run: "run.1");
+        _clock.Now = new DateTimeOffset(2026, 3, 29, 23, 30, 0, TimeSpan.Zero);
+        Pick(true, 10, run: "run.2");
+
+        Assert.Equal(2, Item("pick." + P1.Id)!.Answers);
+        Assert.Equal(new DateOnly(2026, 3, 30), PracticeAnswer.From(_log.Items[^1])!.Day);
+    }
+
+    [Theory]
+    [InlineData("{\"day\":\"2026-10-11\"}", "2026-10-11")]
+    [InlineData("{}", "2026-10-10")]                    // older events: the UTC date
+    [InlineData("{\"day\":\"tomorrow\"}", "2026-10-10")]
+    [InlineData("not json", "2026-10-10")]
+    public void The_day_is_read_from_the_event_or_is_its_UTC_date(string data, string expected)
+    {
+        // 21:30 on the 9th at UTC-3 is 00:30 UTC on the 10th.
+        var e = new ProgressEvent("e", "device", new DateTimeOffset(2026, 10, 9, 21, 30, 0, TimeSpan.FromHours(-3)),
+            ProgressEventTypes.ReviewAnswered, "", "", data);
+        Assert.Equal(DateOnly.Parse(expected, System.Globalization.CultureInfo.InvariantCulture), AnswerDay.Of(e));
     }
 
     // --- Why practice counts as fully as Review ---------------------------------------------------------------------
