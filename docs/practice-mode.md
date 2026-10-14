@@ -119,7 +119,8 @@ The same problem is not offered twice in a row. This is a pure function (`Practi
 3. **Solve it.** The normal step UI (write-code with the Pyodide runner, fill-blank, Parsons). The **hint ladder is available only after the pick is locked**, because the pattern-hint rung would reveal the pick. Hints used lower the rating exactly as in Review ([review.md](review.md#rating-inference-ratinginferenceinfer)).
 4. **Result.** Two ticks or crosses (pattern, solution), the time taken, and when each will come back in Review. Then *Next problem* or *Finish*.
 
-A session has no fixed length; the learner stops when they like. The Practice card shows nothing about a streak: practice is not part of the daily goal in this slice.
+A session has no fixed length; the learner stops when they like. Practice is not part of the daily goal, but it has its own streak
+([below](#practice-streak-and-todays-suggestion-128)).
 
 ## Timed interview simulation
 
@@ -366,10 +367,32 @@ two heaps (running lower middle), window deque (minimum of every window) and dum
 Tests: `tests/Brilliant.Cli.Tests/PracticeProblemValidatorTests.cs`, the "Practice-only problems" section of
 `tests/Brilliant.Core.Tests/PracticeTests.cs`, `FlaggedStepsTests` and `PracticeViewTests`.
 
+## Practice streak and Today's suggestion (#128)
+
+Part of issue [#128](https://github.com/joeizang/brilliantApp/issues/128).
+
+**The streak.** `TodayState.PracticeStreak` is the number of consecutive days with at least one answered practice or interview part,
+counted back from today, or from yesterday while today has no answer yet (so a streak isn't lost before the day is over).
+`TodayState.PractisedToday` says whether today has one. Each answer's day is the local day it recorded (`AnswerDay.Of`, see
+[review.md](review.md#practice-and-interview-answers)); a part an interview ended without an answer doesn't count, and an interview
+answer counts like a practice one. It is separate from the daily-goal streak: practice still adds no steps toward the goal.
+
+**Where it shows.** The Practice card on Tracks adds "3-day practice streak", followed by " · practise today to keep it" until today
+has an answer; nothing shows without a streak.
+
+**Today's suggestion.** Once nothing is due in Review and Practice is open, Today shows a Practice card above Up next: "Reviews are
+done. Practise your weakest patterns: A and B." (`PracticeSelector.Suggestion`: the two learned patterns with problems, lowest
+mastery first), with the practice streak under it. It opens Practice, and leaving Practice (the bar's button or Back) returns to Today
+rather than Tracks. Today shows no card while reviews are due or before Practice unlocks.
+
+Tests: `tests/Brilliant.Core.Tests/PracticeStreakTests.cs` and the "streak and Today's suggestion" section of `PracticeViewTests`.
+
 ## Not in this slice
 
 - Standalone problems authored for Practice: done in [#127](#practice-only-problems-127).
-- Difficulty levels, a practice streak or a Today suggestion (#128, later slices). Per-problem times and a custom limit shipped in #128.
+- Difficulty levels (#128, a later slice).
+- Per-problem times and a custom time limit: shipped in #128 (see the timed interview above).
+- A practice streak and a Today suggestion: done in [#128](#practice-streak-and-todays-suggestion-128).
 - Interview mode on a phone is supported, but code-heavy problems keep the existing "best on a larger screen" note ([responsive-layouts.md](responsive-layouts.md)).
 - Tuning FSRS for practice answers. Done in [#129](https://github.com/joeizang/brilliantApp/issues/129): see [review.md](review.md#practice-and-interview-answers).
 

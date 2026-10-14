@@ -31,7 +31,7 @@
         }
         else if (_practising)
         {
-            <PracticeView Content="Content" OnExit="BackToTracks" OnProgress="() => StateHasChanged()" />
+            <PracticeView Content="Content" OnExit="ExitPractice" OnProgress="() => StateHasChanged()" />
         }
         else if (_reviewing)
         {
@@ -55,7 +55,7 @@
         }
         else
         {
-            <TodayView Content="Content" OnStart="StartSession" OnBrowse="BackToTracks" OnOpenReview="OpenReview" />
+            <TodayView Content="Content" OnStart="StartSession" OnBrowse="BackToTracks" OnOpenReview="OpenReview" OnOpenPractice="OpenPracticeFromToday" />
         }
     </main>
     @if (ShowPhoneNav)
@@ -152,7 +152,7 @@
     // Back is the shell's alone: one step up from wherever the learner is (lesson → track → tracks → Today).
     private Task OnShortcut(StepShortcut s) => s.Command != StepCommand.Back ? Task.CompletedTask : InvokeAsync(() =>
     {
-        if (_practising) BackToTracks();
+        if (_practising) ExitPractice();
         else if (_session || _reviewing || _flagged || _sync || _browsing) GoToToday();
         else if (_lesson is not null) ExitLesson();
         else if (_concept is not null) ExitConcept();
@@ -169,7 +169,22 @@
     private void OpenPractice()
     {
         (_lesson, _track, _concept, _reviewing, _session, _browsing, _flagged, _sync, _practising) = (null, null, null, false, false, false, false, false, true);
-        _interview = false;
+        (_interview, _practiceFromToday) = (false, false);
+    }
+
+    // Practice opened from Today's suggestion goes back to Today; from Tracks, to Tracks.
+    private bool _practiceFromToday;
+
+    private void OpenPracticeFromToday()
+    {
+        OpenPractice();
+        _practiceFromToday = true;
+    }
+
+    private void ExitPractice()
+    {
+        if (_practiceFromToday && !_interview) GoToToday();
+        else BackToTracks();
     }
 
     private void OpenInterview()
