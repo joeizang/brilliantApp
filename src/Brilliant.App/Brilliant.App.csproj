@@ -16,7 +16,15 @@
     <ApplicationVersion>1</ApplicationVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('maccatalyst'))">15.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('android'))">24.0</SupportedOSPlatformVersion>
-    
+  </PropertyGroup>
+
+  <!--
+    Mac Catalyst Release builds are AOT-only by default, and EF Core refuses to build its model at runtime there
+    ("Model building is not supported when publishing with NativeAOT"), so the app crashed at launch. The interpreter
+    turns dynamic code back on. A compiled EF model would let us drop this; Debug builds use the JIT and never hit it.
+  -->
+  <PropertyGroup Condition="$(TargetFramework.Contains('maccatalyst')) And '$(Configuration)' == 'Release'">
+    <UseInterpreter>true</UseInterpreter>
   </PropertyGroup>
 
   <ItemGroup>
