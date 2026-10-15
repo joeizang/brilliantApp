@@ -3,12 +3,12 @@
 Issue [#31](https://github.com/joeizang/brilliantApp/issues/31), PRD stories 66 and 68. New lessons reach the apps without a rebuild: you publish a Content Pack from your Mac to the household server, and each paired device downloads it over the home network and keeps it for offline use.
 
 ```
-content/ ──validate──▶ brilliant publish ──▶ server (Postgres) ──▶ app: list, download, cache ──▶ used at next start
+content/dsa/ ──validate──▶ brilliant publish ──▶ server (Postgres) ──▶ app: list, download, cache ──▶ used at next start
 ```
 
 ## Publish a pack
 
-One-time, from the Mac that has the `content/` folder: pair the command line with the server, exactly like a phone (the code comes from [server.md](server.md#pair-a-device)).
+One-time, from the Mac that has the `content/dsa/` folder: pair the command line with the server, exactly like a phone (the code comes from [server.md](server.md#pair-a-device)).
 
 ```bash
 docker compose exec -T server dotnet Brilliant.Server.dll pairing-code
@@ -17,16 +17,16 @@ dotnet run --project tools/Brilliant.Cli -- pair 192.168.1.20:8443 ABCD-2345 --n
 
 The CLI keeps its credentials in `~/.brilliant/cli-credentials.json` (mode 600; override the path with `BRILLIANT_CLI_CREDENTIALS`). It shows up in the server's device list like any device and is revoked the same way. **Any paired device may publish**; the household is the trust boundary, as it is for progress.
 
-Then, whenever the content changes and `version:` in `content/pack.yaml` has been raised:
+Then, whenever the content changes and `version:` in `content/dsa/pack.yaml` has been raised:
 
 ```bash
-dotnet run --project tools/Brilliant.Cli -- publish content
+dotnet run --project tools/Brilliant.Cli -- publish content/dsa
 ```
 
 - **The content is validated first**, with the same checks as `validate` (including reference solutions). If anything fails, the errors are printed, `nothing was published.` is said, and nothing is sent.
 - The server then checks the pack **again**, whoever sent it: the zip must load as a Content Pack of the format it understands **with every required field present and every reference resolving** (a track's lessons, a lesson's track, a review item's concept and step; the app applies the same check before it caches or starts a downloaded pack, so a broken update is refused and the previous content stays), the pack ID must be 1 to 100 letters, digits, `.`, `-` or `_` (not starting with a dot), the version must be three numbers (`1.2.3`), it may unpack to at most 100 MB, and the upload is at most 20 MB.
 - **Versions only go up** (compared as numbers, so `0.10.0` is newer than `0.9.0`):
-  - Publishing the same version with the **same bytes** again is fine and changes nothing (packs are byte-reproducible, so an unchanged `content/` gives the same bytes).
+  - Publishing the same version with the **same bytes** again is fine and changes nothing (packs are byte-reproducible, so an unchanged `content/dsa/` gives the same bytes).
   - The same version with **different contents** is refused (`409`): raise the version.
   - A version **lower than the newest** is refused (`409`). To go back, republish the older content under a higher version.
 - **Dropped IDs are listed.** If the previous version had step, lesson or track IDs that the new one lacks, `publish` prints them as a warning. The publish still succeeds: the learner's progress on those IDs is kept in their log, it just stops showing (see below).

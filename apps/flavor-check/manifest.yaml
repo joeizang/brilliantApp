@@ -1,4 +1,4 @@
-# Build fixture for verifying installation and state isolation. Uses the existing DSA pack until #142.
+# Build fixture for verifying installation and state isolation. Explicitly shares the DSA source pack; this is not a curriculum app.
 appId: com.joeizang.brilliantapp.flavorcheck
 displayName: Brilliant Flavor Check
 icon: apps/flavor-check/icon.svg
@@ -7,6 +7,7 @@ accent:
   light: '#6639ba'
   onDark: '#160a30'
   onLight: '#ffffff'
+contentRoot: content/dsa
 contentPack: track-1.pack.zip
 runtimes: [python]
 stepTypes: [explain, choice, predict-output, write-code, fill-blank, parsons, trace]

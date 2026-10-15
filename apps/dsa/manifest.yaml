@@ -7,6 +7,7 @@ accent:
   light: '#2456d6'
   onDark: '#08101f'
   onLight: '#ffffff'
+contentRoot: content/dsa
 contentPack: track-1.pack.zip
 runtimes: [python]
 stepTypes: [explain, choice, predict-output, write-code, fill-blank, parsons, trace]

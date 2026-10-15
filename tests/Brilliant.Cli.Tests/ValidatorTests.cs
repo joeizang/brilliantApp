@@ -916,8 +916,8 @@ public sealed class ValidatorTests : IDisposable
     private static string FindRepoContent()
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
-            if (File.Exists(Path.Combine(dir.FullName, "content", "pack.yaml")))
-                return Path.Combine(dir.FullName, "content");
+            if (File.Exists(Path.Combine(dir.FullName, "content", "dsa", "pack.yaml")))
+                return Path.Combine(dir.FullName, "content", "dsa");
         throw new DirectoryNotFoundException("Could not find the repo's content directory.");
     }
 }

@@ -28,6 +28,7 @@ public sealed partial class AppManifest
     public string? Icon { get; }
     public AppAccent Accent { get; }
     public string ContentPack { get; }
+    public string? ContentRoot { get; }
     public IReadOnlySet<string> Runtimes { get; }
     public IReadOnlySet<string> StepTypes { get; }
 
@@ -38,6 +39,7 @@ public sealed partial class AppManifest
         Icon = doc.Icon;
         Accent = new(doc.Accent!.Dark!, doc.Accent.Light!, doc.Accent.OnDark!, doc.Accent.OnLight!);
         ContentPack = doc.ContentPack!;
+        ContentRoot = doc.ContentRoot;
         Runtimes = doc.Runtimes!.ToFrozenSet(StringComparer.Ordinal);
         StepTypes = doc.StepTypes!.ToFrozenSet(StringComparer.Ordinal);
     }
@@ -58,6 +60,7 @@ public sealed partial class AppManifest
             Require(doc.AppId, "appId", AppIdPattern());
             if (string.IsNullOrWhiteSpace(doc.DisplayName)) throw new AppManifestException("App manifest requires 'displayName'.");
             RequirePath(doc.ContentPack, "contentPack");
+            if (doc.ContentRoot is not null) RequirePath(doc.ContentRoot, "contentRoot");
             if (doc.Icon is not null) RequirePath(doc.Icon, "icon");
             Require(doc.Accent?.Dark, "accent.dark", ColourPattern());
             Require(doc.Accent?.Light, "accent.light", ColourPattern());
@@ -108,6 +111,7 @@ public sealed partial class AppManifest
         public string? Icon { get; set; }
         public AccentDocument? Accent { get; set; }
         public string? ContentPack { get; set; }
+        public string? ContentRoot { get; set; }
         public string[]? Runtimes { get; set; }
         public string[]? StepTypes { get; set; }
     }

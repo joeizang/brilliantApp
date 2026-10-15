@@ -11,6 +11,7 @@
 | `displayName` | Native window and web document title. |
 | `icon` | Optional relative icon asset path; `null` preserves DSA's current platform-default icon. |
 | `accent` | Six-digit hex `dark`, `light`, `onDark` and `onLight` colors. The latter two are text drawn on the accent. |
+| `contentRoot` | Optional authoring folder relative to the repository, defaulting to `content/<app>/`. DSA explicitly selects `content/dsa/`. |
 | `contentPack` | Relative bundled pack asset name, currently `track-1.pack.zip`. |
 | `runtimes` | Explicit runtime capability keys, currently `[python]`. An empty list is allowed. |
 | `stepTypes` | Nonempty list of enabled step-type keys. |
@@ -51,6 +52,6 @@ dotnet build src/Brilliant.App -f net10.0-android
 ```
 
 Build-time selection, native identity and local storage isolation are described in
-[App flavors](app-flavors.md). Per-app content folders and validator enforcement
-follow in #142; runtime registration follows in #143. Grading-model configuration
+[App flavors](app-flavors.md). [Per-app content](app-content.md) describes source
+selection and validator enforcement; runtime registration follows in #143. Grading-model configuration
 will be added with the grading provider.
