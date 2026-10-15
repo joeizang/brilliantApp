@@ -10,6 +10,18 @@ public static class CliApp
     {
         switch (args)
         {
+            case ["prepare-app", var manifest, var template, var repository, var generated]:
+                try
+                {
+                    AppBuildInputs.Write(manifest, template, repository, generated);
+                    return 0;
+                }
+                catch (Exception ex) when (ex is Brilliant.Core.Apps.AppManifestException or IOException or UnauthorizedAccessException or System.Xml.XmlException)
+                {
+                    error.WriteLine($"error: {ex.Message}");
+                    return 1;
+                }
+
             case ["validate", var root]:
                 return Report(ContentValidator.Validate(root, runner), root, output, error, "valid");
 
@@ -55,6 +67,7 @@ public static class CliApp
     private static int Usage(TextWriter error)
     {
         error.WriteLine("usage: brilliant validate <contentRoot>");
+        error.WriteLine("       brilliant prepare-app <manifest.yaml> <index.html> <repositoryRoot> <outputDirectory>");
         error.WriteLine("       brilliant pack <contentRoot> -o <pack.zip>");
         error.WriteLine("       brilliant pair <server> <code> [--name <name>]    (once; the code comes from the server: docs/server.md)");
         error.WriteLine("       brilliant publish <contentRoot>                   validate, then upload the pack to the paired server");

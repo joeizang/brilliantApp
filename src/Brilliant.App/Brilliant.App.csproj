@@ -9,9 +9,10 @@
     <SingleProject>true</SingleProject>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <AppRepositoryRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..'))</AppRepositoryRoot>
+    <AppManifestPath>$(AppRepositoryRoot)apps/$(BrilliantApp)/manifest.yaml</AppManifestPath>
 
-    <ApplicationTitle>Brilliant</ApplicationTitle>
-    <ApplicationId>com.joeizang.brilliantapp</ApplicationId>
+    <!-- PrepareAppFlavor supplies native identity before the platform's packaging targets. -->
     <ApplicationDisplayVersion>0.1</ApplicationDisplayVersion>
     <ApplicationVersion>1</ApplicationVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('maccatalyst'))">15.0</SupportedOSPlatformVersion>
@@ -40,31 +41,54 @@
 
   <ItemGroup>
     <!-- Content Packs are bundled as raw assets. -->
-    <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
-    <MauiAsset Include="..\..\apps\dsa\manifest.yaml" LogicalName="app-manifest.yaml" />
+    <MauiAsset Include="Resources\Raw\**" Exclude="Resources\Raw\*.pack.zip" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+    <MauiAsset Include="$(AppManifestPath)" LogicalName="app-manifest.yaml" />
+    <Content Remove="wwwroot\index.html" />
   </ItemGroup>
 
   <!--
     The pack is rebuilt from ./content whenever a lesson file changes, so a build never ships stale lessons.
-    PackContentOuter runs once before a multi-target build fans out (so the two target frameworks don't race to write
-    the same file, and the asset glob above sees the file). PackContent covers `dotnet build -f <tfm>`, where there is no
-    outer build; after PackContentOuter it finds the pack up to date and skips.
-    scripts/pack-content.sh still works for running the pack by hand.
+    Each flavor/framework/RID has its own generated pack and input stamp, so multi-target builds do not race.
+    scripts/pack-content.sh still produces a standalone pack for inspecting or publishing by hand.
   -->
   <PropertyGroup>
     <ContentRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..', 'content'))</ContentRoot>
-    <ContentPackPath>$(MSBuildThisFileDirectory)Resources\Raw\track-1.pack.zip</ContentPackPath>
     <!-- Lists the input files, so deleting or renaming one changes an input and the pack is rebuilt (a deleted file is simply absent from @(ContentPackInput), which MSBuild alone can't see). -->
     <ContentManifestPath>$(BaseIntermediateOutputPath)content-pack.inputs.txt</ContentManifestPath>
     <ContentCliProject>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '..', '..', 'tools', 'Brilliant.Cli', 'Brilliant.Cli.csproj'))</ContentCliProject>
   </PropertyGroup>
 
-  <Target Name="PackContentOuter" BeforeTargets="DispatchToInnerBuilds" DependsOnTargets="PackContentCore" />
+  <Target Name="PrepareAppFlavor" BeforeTargets="PrepareForBuild;GetMauiItems;_GetAndroidPackageName;_GenerateBundleName;_CompileAppManifestInputs;ResolveStaticWebAssetsInputs"
+          Condition="'$(TargetFramework)' != '' And '$(DesignTimeBuild)' != 'true'">
+    <Error Condition="!$([System.Text.RegularExpressions.Regex]::IsMatch('$(BrilliantApp)', '\A[a-z][a-z0-9]*(-[a-z0-9]+)*\z'))" Text="Invalid BrilliantApp flavor name." />
+    <Error Condition="!Exists('$(AppManifestPath)')" Text="Unknown app flavor '$(BrilliantApp)': $(AppManifestPath) does not exist." />
+    <PropertyGroup>
+      <FlavorGeneratedDir>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'flavor'))</FlavorGeneratedDir>
+    </PropertyGroup>
+    <Exec Command="dotnet run --no-launch-profile --project &quot;$(ContentCliProject)&quot; -- prepare-app &quot;$(AppManifestPath)&quot; &quot;$(MSBuildProjectDirectory)/wwwroot/index.html&quot; &quot;$(AppRepositoryRoot)&quot; &quot;$(FlavorGeneratedDir)&quot;" />
+    <XmlPeek XmlInputPath="$(FlavorGeneratedDir)app.xml" Query="/App/ApplicationId/text()"><Output TaskParameter="Result" PropertyName="ApplicationId" /></XmlPeek>
+    <XmlPeek XmlInputPath="$(FlavorGeneratedDir)app.xml" Query="/App/ApplicationTitle/text()"><Output TaskParameter="Result" PropertyName="ApplicationTitle" /></XmlPeek>
+    <XmlPeek XmlInputPath="$(FlavorGeneratedDir)app.xml" Query="/App/ContentPack/text()"><Output TaskParameter="Result" PropertyName="AppContentPack" /></XmlPeek>
+    <XmlPeek XmlInputPath="$(FlavorGeneratedDir)app.xml" Query="/App/Icon/text()"><Output TaskParameter="Result" PropertyName="FlavorIconPath" /></XmlPeek>
+    <PropertyGroup>
+      <ContentPackPath>$(FlavorGeneratedDir)$(AppContentPack)</ContentPackPath>
+      <ContentManifestPath>$(FlavorGeneratedDir)content-pack.inputs.txt</ContentManifestPath>
+      <AndroidManifest Condition="'$(TargetPlatformIdentifier)' == 'android'">$([MSBuild]::MakeRelative('$(MSBuildProjectDirectory)', '$(FlavorGeneratedDir)AndroidManifest.xml'))</AndroidManifest>
+      <!-- Apple caches this from ApplicationTitle at evaluation; refresh it before _GenerateBundleName. -->
+      <_AppBundleName Condition="'$(TargetPlatformIdentifier)' == 'maccatalyst'">$(ApplicationTitle)</_AppBundleName>
+      <RunCommand Condition="'$(TargetPlatformIdentifier)' == 'maccatalyst'">$(TargetDir)$(ApplicationTitle).app/Contents/MacOS/$(AssemblyName)</RunCommand>
+      <RunArguments Condition="'$(TargetPlatformIdentifier)' == 'maccatalyst'"></RunArguments>
+    </PropertyGroup>
+    <ItemGroup>
+      <Content Include="$(FlavorGeneratedDir)index.html" Link="wwwroot/index.html" CopyToOutputDirectory="PreserveNewest" />
+      <MauiIcon Include="$(FlavorIconPath)" Condition="'$(FlavorIconPath)' != ''" />
+    </ItemGroup>
+  </Target>
 
-  <Target Name="PackContent" BeforeTargets="PrepareForBuild" Condition="'$(TargetFramework)' != ''" DependsOnTargets="PackContentCore">
+  <Target Name="PackContent" BeforeTargets="PrepareForBuild" Condition="'$(TargetFramework)' != ''" DependsOnTargets="PrepareAppFlavor;PackContentCore">
     <ItemGroup>
       <MauiAsset Remove="$(ContentPackPath)" />
-      <MauiAsset Include="$(ContentPackPath)" LogicalName="track-1.pack.zip" />
+      <MauiAsset Include="$(ContentPackPath)" LogicalName="$(AppContentPack)" />
     </ItemGroup>
   </Target>
 

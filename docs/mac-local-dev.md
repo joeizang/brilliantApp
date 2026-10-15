@@ -31,8 +31,8 @@ dotnet test tests/Brilliant.Core.Tests && dotnet test tests/Brilliant.Cli.Tests
 # validate content; prints readable errors (file + message) and exits 1 on bad content
 dotnet run --project tools/Brilliant.Cli -- validate content
 
-# build the versioned Content Pack into the app's bundled assets by hand
-# (building src/Brilliant.App does this automatically whenever a file under content/ is newer than the pack)
+# build a standalone versioned Content Pack for inspection
+# (native builds generate their own pack under obj/<app>/<configuration>/<framework>/.../flavor/)
 scripts/pack-content.sh
 
 # send a new version to the household server (pair the CLI once; see docs/content-distribution.md)
@@ -49,7 +49,7 @@ real progress, run the debug build with `BRILLIANT_DEV_START_AT` set to the less
 
 ```bash
 BRILLIANT_DEV_START_AT=lesson.pattern-hash-map-lookup \
-  src/Brilliant.App/bin/Debug/net10.0-maccatalyst/maccatalyst-arm64/Brilliant.app/Contents/MacOS/Brilliant.App
+  src/Brilliant.App/bin/dsa/Debug/net10.0-maccatalyst/maccatalyst-arm64/Brilliant.app/Contents/MacOS/Brilliant.App
 ```
 
 Progress then lives in memory only (`brilliant.db` is neither read nor written), and every lesson before the named one counts as completed.
