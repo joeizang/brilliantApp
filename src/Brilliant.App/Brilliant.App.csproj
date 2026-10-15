@@ -41,6 +41,7 @@
   <ItemGroup>
     <!-- Content Packs are bundled as raw assets. -->
     <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+    <MauiAsset Include="..\..\apps\dsa\manifest.yaml" LogicalName="app-manifest.yaml" />
   </ItemGroup>
 
   <!--
