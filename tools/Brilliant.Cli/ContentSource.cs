@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Brilliant.Core.Apps;
 using Brilliant.Core.Content;
 using YamlDotNet.Core;
 using YamlDotNet.Serialization;
@@ -24,6 +25,7 @@ public sealed class ValidationReport
     internal void Warn(string file, string message) => _warnings.Add(new ValidationError(file, message));
     internal List<ReferenceCheck> ReferenceChecks { get; } = [];
     internal List<TraceCheck> TraceChecks { get; } = [];
+    internal AppManifest? App { get; set; }
 }
 
 public sealed record LoadedContent(PackManifest Manifest, IReadOnlyList<Track> Tracks, IReadOnlyList<Lesson> Lessons);
@@ -49,10 +51,11 @@ public static partial class ContentValidator
     [GeneratedRegex(@"^\d+\.\d+\.\d+$")]
     private static partial Regex VersionPattern();
 
-    public static ValidationReport Validate(string contentRoot, IReferenceSolutionRunner? runner = null) => Load(contentRoot, out _, runner);
+    public static ValidationReport Validate(string contentRoot, IReferenceSolutionRunner? runner = null, string? appManifestPath = null) =>
+        Load(contentRoot, out _, runner, appManifestPath);
 
     /// <param name="runner">Runs write-code reference solutions; defaults to the machine's CPython.</param>
-    public static ValidationReport Load(string contentRoot, out LoadedContent? content, IReferenceSolutionRunner? runner = null)
+    public static ValidationReport Load(string contentRoot, out LoadedContent? content, IReferenceSolutionRunner? runner = null, string? appManifestPath = null)
     {
         var report = new ValidationReport();
         content = null;
@@ -60,6 +63,26 @@ public static partial class ContentValidator
         if (!Directory.Exists(contentRoot))
         {
             report.Add(contentRoot, "content directory does not exist.");
+            return report;
+        }
+
+        try
+        {
+            if (appManifestPath is null) report.App = AppContentSource.Infer(contentRoot);
+            else
+            {
+                var source = AppContentSource.FromManifest(appManifestPath);
+                if (!Path.GetFullPath(contentRoot).TrimEnd(Path.DirectorySeparatorChar).Equals(source.Root.TrimEnd(Path.DirectorySeparatorChar), StringComparison.Ordinal))
+                {
+                    report.Add(contentRoot, $"app manifest '{appManifestPath}' selects content directory '{source.Root}', not this directory.");
+                    return report;
+                }
+                report.App = source.App;
+            }
+        }
+        catch (Exception ex) when (ex is AppManifestException or IOException or UnauthorizedAccessException)
+        {
+            report.Add(contentRoot, $"cannot load app manifest: {ex.Message}");
             return report;
         }
 
@@ -295,6 +318,8 @@ public static partial class ContentValidator
         Dictionary<string, string> seenIds, bool isAlternative = false)
     {
         var label = dto.Id is null ? where : $"{where} ('{dto.Id}')";
+        if (dto.Type is { } type && StepTypes.All.Contains(type) && report.App is { } app && !app.SupportsStepType(type))
+            report.Add(file, $"{label}: step type '{type}' is not enabled by app '{app.AppId}' (stepTypes in its manifest).");
         var step = LoadStepBody(dto, label, file, report, seenIds);
 
         var preferred = dto.LargeScreenPreferred ?? false;

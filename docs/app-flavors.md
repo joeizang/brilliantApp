@@ -33,7 +33,7 @@ individually. Install both APKs with `adb install -r <apk>`; never uninstall DSA
 part of an upgrade because uninstalling removes progress. The two app IDs install
 side by side. DSA retains `com.joeizang.brilliantapp` and its default icon. The
 `flavor-check` build fixture has a purple F icon and a separate ID; it intentionally
-uses the DSA pack until per-app content arrives in #142. It is not the C# app (#148).
+explicitly shares `content/dsa/` through its manifest. It is not the C# app (#148).
 
 ## Build inputs
 
@@ -57,8 +57,16 @@ flags. On Mac, `AppIcon` selects the generated asset-set name for Apple's
 `actool`; generating a `MauiIcon` alone does not select an app icon. With no icon
 selected, DSA retains its existing platform default.
 
-Content is still sourced from `content/`. #142 moves it per app; #143 makes runtime
-references conditional. Both flavors in this issue enable Python.
+Content defaults to `content/<app>/`, with an optional repository-relative
+`contentRoot` in the manifest. DSA selects `content/dsa/`; the build fixture selects
+the same folder explicitly. The selected root is projected into the build metadata
+and its YAML/Markdown files form the pack's incremental inputs. The app manifest
+is also an input, so changing `stepTypes` reruns validation before bundling.
+The pack command receives the selected app manifest explicitly, including when
+flavors share sources. #143 makes runtime references conditional. Both flavors
+currently enable Python.
+
+See [Per-app content](app-content.md) for validation, packing and publishing.
 
 ## State compatibility and isolation
 

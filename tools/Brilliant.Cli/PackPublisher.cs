@@ -9,9 +9,9 @@ namespace Brilliant.Cli;
 /// </summary>
 public sealed class PackPublisher(PackClient client, IDeviceCredentialStore credentials, IReferenceSolutionRunner? runner = null)
 {
-    public async Task<int> PublishAsync(string contentRoot, TextWriter output, TextWriter error, CancellationToken ct = default)
+    public async Task<int> PublishAsync(string contentRoot, TextWriter output, TextWriter error, CancellationToken ct = default, string? appManifestPath = null)
     {
-        var bytes = ContentPacker.PackToBytes(contentRoot, out var report, runner);
+        var bytes = ContentPacker.PackToBytes(contentRoot, out var report, runner, appManifestPath);
         CliApp.WriteWarnings(report, error);
         if (bytes is null)
         {

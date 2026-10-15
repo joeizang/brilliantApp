@@ -8,6 +8,29 @@ public static class CliApp
     public static async Task<int> RunAsync(string[] args, TextWriter output, TextWriter error, HttpClient http, IDeviceCredentialStore credentials,
         IReferenceSolutionRunner? runner = null, CancellationToken ct = default)
     {
+        string? appManifestPath = null;
+        if (args is ["validate" or "pack" or "publish", "--app", var appManifest, .. var options])
+        {
+            try
+            {
+                var source = AppContentSource.FromManifest(appManifest);
+                var operation = args[0];
+                appManifestPath = appManifest;
+                args = operation == "pack" && options.Length == 0
+                    ? [operation, source.Root, "-o", Path.Combine("dist", new FileInfo(appManifest).Directory!.Name, source.App.ContentPack)]
+                    : [operation, source.Root, .. options];
+            }
+            catch (Exception ex) when (ex is Brilliant.Core.Apps.AppManifestException or IOException or UnauthorizedAccessException)
+            {
+                error.WriteLine($"error: cannot load app manifest: {ex.Message}");
+                return 1;
+            }
+        }
+        if (args is ["validate" or "pack" or "publish", ..] && args is [.. var command, "--manifest", var selectedManifest])
+        {
+            appManifestPath = selectedManifest;
+            args = command;
+        }
         switch (args)
         {
             case ["prepare-app", var manifest, var template, var repository, var generated]:
@@ -23,13 +46,13 @@ public static class CliApp
                 }
 
             case ["validate", var root]:
-                return Report(ContentValidator.Validate(root, runner), root, output, error, "valid");
+                return Report(ContentValidator.Validate(root, runner, appManifestPath), root, output, error, "valid");
 
             case ["pack", var root, "-o" or "--output", var outPath]:
-                return Report(ContentPacker.Pack(root, outPath, runner), root, output, error, $"packed to {outPath}");
+                return Report(ContentPacker.Pack(root, outPath, runner, appManifestPath), root, output, error, $"packed to {outPath}");
 
             case ["publish", var root]:
-                return await new PackPublisher(new PackClient(http), credentials, runner).PublishAsync(root, output, error, ct);
+                return await new PackPublisher(new PackClient(http), credentials, runner).PublishAsync(root, output, error, ct, appManifestPath);
 
             case ["pair", var server, var code]:
                 return await Pair(server, code, Environment.MachineName, http, credentials, output, error, ct);
@@ -66,11 +89,12 @@ public static class CliApp
 
     private static int Usage(TextWriter error)
     {
-        error.WriteLine("usage: brilliant validate <contentRoot>");
+        error.WriteLine("usage: brilliant validate <contentRoot> [--manifest <apps/app/manifest.yaml>]");
+        error.WriteLine("       brilliant <validate|pack|publish> --app <apps/app/manifest.yaml> [pack: -o <pack.zip>]");
         error.WriteLine("       brilliant prepare-app <manifest.yaml> <index.html> <repositoryRoot> <outputDirectory>");
-        error.WriteLine("       brilliant pack <contentRoot> -o <pack.zip>");
+        error.WriteLine("       brilliant pack <contentRoot> -o <pack.zip> [--manifest <manifest.yaml>]");
         error.WriteLine("       brilliant pair <server> <code> [--name <name>]    (once; the code comes from the server: docs/server.md)");
-        error.WriteLine("       brilliant publish <contentRoot>                   validate, then upload the pack to the paired server");
+        error.WriteLine("       brilliant publish <contentRoot> [--manifest <manifest.yaml>]  validate, then upload to the paired server");
         return 2;
     }
 }

@@ -19,7 +19,7 @@
 | `src/Brilliant.Lessons.UI` | Razor Class Library: step renderers (`ExplainStepView`, `LessonViewer`) |
 | `src/Brilliant.App` | Thin MAUI Blazor Hybrid host (Mac Catalyst) |
 | `tools/Brilliant.Cli` | Validator & packer CLI |
-| `content/` | Lesson source (YAML) — `pack.yaml`, `tracks/<track>/track.yaml`, `tracks/<track>/<lesson>/lesson.yaml` |
+| `content/dsa/` | Lesson source (YAML) — `pack.yaml`, `tracks/<track>/track.yaml`, `tracks/<track>/<lesson>/lesson.yaml` |
 | `tests/` | xUnit tests for Core and the CLI |
 
 ## Workflow
@@ -29,14 +29,14 @@
 dotnet test tests/Brilliant.Core.Tests && dotnet test tests/Brilliant.Cli.Tests
 
 # validate content; prints readable errors (file + message) and exits 1 on bad content
-dotnet run --project tools/Brilliant.Cli -- validate content
+dotnet run --project tools/Brilliant.Cli -- validate content/dsa
 
 # build a standalone versioned Content Pack for inspection
 # (native builds generate their own pack under obj/<app>/<configuration>/<framework>/.../flavor/)
 scripts/pack-content.sh
 
 # send a new version to the household server (pair the CLI once; see docs/content-distribution.md)
-dotnet run --project tools/Brilliant.Cli -- publish content
+dotnet run --project tools/Brilliant.Cli -- publish content/dsa
 
 # run the app
 dotnet build src/Brilliant.App -t:Run -f net10.0-maccatalyst
@@ -134,7 +134,7 @@ See [styling.md](styling.md).
 
 ## Reference solutions (issue #11)
 
-Every `write-code` step in `content/` needs a `solution:` (authoring-only, never packed). `validate` and `pack` run each solution
+Every `write-code` step in `content/dsa/` needs a `solution:` (authoring-only, never packed). `validate` and `pack` run each solution
 against the step's tests with the same `harness.py` under CPython (`python3`, or the interpreter in `BRILLIANT_PYTHON`) and refuse to
 produce a pack if any fails, reporting lesson file, step, test, expected and actual.
 

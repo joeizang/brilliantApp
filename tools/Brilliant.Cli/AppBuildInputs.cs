@@ -31,9 +31,12 @@ public static class AppBuildInputs
             """;
         var html = template.Replace("{{APP_TITLE}}", WebUtility.HtmlEncode(app.DisplayName), StringComparison.Ordinal)
             .Replace("{{APP_STYLE}}", css, StringComparison.Ordinal);
+        var appName = new FileInfo(manifestPath).Directory!.Name;
+        var contentRoot = AppContentSource.ResolveRoot(app, repositoryRoot, appName);
         var xml = new XDocument(new XElement("App",
             new XElement("ApplicationId", app.AppId), new XElement("ApplicationTitle", app.DisplayName),
-            new XElement("Icon", icon), new XElement("ContentPack", app.ContentPack)));
+            new XElement("Icon", icon), new XElement("ContentPack", app.ContentPack),
+            new XElement("ContentRoot", contentRoot)));
         var android = XDocument.Load(Path.Combine(repositoryRoot, "src", "Brilliant.App", "Platforms", "Android", "AndroidManifest.xml"));
         if (icon.Length > 0)
         {

@@ -17,6 +17,7 @@ public class AppManifestTests
         Assert.Null(app.Icon);
         Assert.Equal(new AppAccent("#78a8ff", "#2456d6", "#08101f", "#ffffff"), app.Accent);
         Assert.Equal("track-1.pack.zip", app.ContentPack);
+        Assert.Equal("content/dsa", app.ContentRoot);
         Assert.Equal(["python"], app.Runtimes);
         var knownSteps = typeof(Step).GetCustomAttributes<JsonDerivedTypeAttribute>()
             .Select(type => Assert.IsType<string>(type.TypeDiscriminator));
@@ -37,6 +38,25 @@ public class AppManifestTests
         runtimes: [python]
         stepTypes: [explain, choice, predict-output, write-code, fill-blank, parsons, trace]
         """;
+
+    [Theory]
+    [InlineData("content/dsa")]
+    [InlineData("content/example")]
+    public void Content_source_is_an_optional_repository_relative_path(string root)
+    {
+        Assert.Null(AppManifest.Parse(Dsa).ContentRoot);
+        Assert.Equal(root, AppManifest.Parse(Dsa + $"\ncontentRoot: {root}\n").ContentRoot);
+    }
+
+    [Theory]
+    [InlineData("../other")]
+    [InlineData("/absolute")]
+    [InlineData("content/../other")]
+    [InlineData("content//other")]
+    public void Content_sources_cannot_escape_the_repository(string root)
+    {
+        Assert.Contains("contentRoot", Assert.Throws<AppManifestException>(() => AppManifest.Parse(Dsa + $"\ncontentRoot: {root}\n")).Message);
+    }
 
     [Fact]
     public void Parses_identity_and_answers_capability_questions()

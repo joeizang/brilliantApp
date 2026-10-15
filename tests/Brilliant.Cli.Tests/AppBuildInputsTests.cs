@@ -27,6 +27,7 @@ public sealed class AppBuildInputsTests : IDisposable
               onDark: '#000000'
               onLight: '#ffffff'
             contentPack: example.pack.zip
+            contentRoot: content/another-source
             runtimes: [python]
             stepTypes: [explain]
             """);
@@ -39,6 +40,7 @@ public sealed class AppBuildInputsTests : IDisposable
         Assert.Equal("example.flavor", properties.Root!.Element("ApplicationId")!.Value);
         Assert.Equal("Learn & Test", properties.Root.Element("ApplicationTitle")!.Value);
         Assert.Equal("example.pack.zip", properties.Root.Element("ContentPack")!.Value);
+        Assert.Equal(Path.Combine(_root, "content", "another-source"), properties.Root.Element("ContentRoot")!.Value);
         Assert.Equal(Path.Combine(_root, "icon.svg"), properties.Root.Element("Icon")!.Value);
         var html = File.ReadAllText(Path.Combine(_root, "generated", "index.html"));
         Assert.Contains("<title>Learn &amp; Test</title>", html);

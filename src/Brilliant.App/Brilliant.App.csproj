@@ -52,7 +52,6 @@
     scripts/pack-content.sh still produces a standalone pack for inspecting or publishing by hand.
   -->
   <PropertyGroup>
-    <ContentRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..', 'content'))</ContentRoot>
     <!-- Lists the input files, so deleting or renaming one changes an input and the pack is rebuilt (a deleted file is simply absent from @(ContentPackInput), which MSBuild alone can't see). -->
     <ContentManifestPath>$(BaseIntermediateOutputPath)content-pack.inputs.txt</ContentManifestPath>
     <ContentCliProject>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '..', '..', 'tools', 'Brilliant.Cli', 'Brilliant.Cli.csproj'))</ContentCliProject>
@@ -69,6 +68,7 @@
     <XmlPeek XmlInputPath="$(FlavorGeneratedDir)app.xml" Query="/App/ApplicationId/text()"><Output TaskParameter="Result" PropertyName="ApplicationId" /></XmlPeek>
     <XmlPeek XmlInputPath="$(FlavorGeneratedDir)app.xml" Query="/App/ApplicationTitle/text()"><Output TaskParameter="Result" PropertyName="ApplicationTitle" /></XmlPeek>
     <XmlPeek XmlInputPath="$(FlavorGeneratedDir)app.xml" Query="/App/ContentPack/text()"><Output TaskParameter="Result" PropertyName="AppContentPack" /></XmlPeek>
+    <XmlPeek XmlInputPath="$(FlavorGeneratedDir)app.xml" Query="/App/ContentRoot/text()"><Output TaskParameter="Result" PropertyName="ContentRoot" /></XmlPeek>
     <XmlPeek XmlInputPath="$(FlavorGeneratedDir)app.xml" Query="/App/Icon/text()"><Output TaskParameter="Result" PropertyName="FlavorIconPath" /></XmlPeek>
     <PropertyGroup>
       <ContentPackPath>$(FlavorGeneratedDir)$(AppContentPack)</ContentPackPath>
@@ -82,6 +82,7 @@
       <RunArguments Condition="'$(TargetPlatformIdentifier)' == 'maccatalyst'"></RunArguments>
     </PropertyGroup>
     <ItemGroup>
+      <ContentPackInput Include="$(ContentRoot)/**/*.yaml;$(ContentRoot)/**/*.md" />
       <Content Include="$(FlavorGeneratedDir)index.html" Link="wwwroot/index.html" CopyToOutputDirectory="PreserveNewest" />
       <MauiIcon Include="$(FlavorIconPath)" Condition="'$(FlavorIconPath)' != ''" />
     </ItemGroup>
@@ -98,12 +99,8 @@
     <WriteLinesToFile File="$(ContentManifestPath)" Lines="@(ContentPackInput)" Overwrite="true" WriteOnlyWhenDifferent="true" />
   </Target>
 
-  <Target Name="PackContentCore" DependsOnTargets="PackContentManifest" Inputs="@(ContentPackInput);$(ContentManifestPath)" Outputs="$(ContentPackPath)">
-    <Exec Command="dotnet run --no-launch-profile --project &quot;$(ContentCliProject)&quot; -- pack &quot;$(ContentRoot)&quot; -o &quot;$(ContentPackPath)&quot;" />
+  <Target Name="PackContentCore" DependsOnTargets="PackContentManifest" Inputs="@(ContentPackInput);$(ContentManifestPath);$(AppManifestPath)" Outputs="$(ContentPackPath)">
+    <Exec Command="dotnet run --no-launch-profile --project &quot;$(ContentCliProject)&quot; -- pack &quot;$(ContentRoot)&quot; -o &quot;$(ContentPackPath)&quot; --manifest &quot;$(AppManifestPath)&quot;" />
   </Target>
-
-  <ItemGroup>
-    <ContentPackInput Include="$(ContentRoot)**\*.yaml;$(ContentRoot)**\*.md" />
-  </ItemGroup>
 
 </Project>
