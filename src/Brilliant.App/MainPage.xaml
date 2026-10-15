@@ -8,8 +8,9 @@
              BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#16171D, Default=#16171D}">
     <BlazorWebView HostPage="wwwroot/index.html">
         <BlazorWebView.RootComponents>
-            <RootComponent Selector="head::after" ComponentType="{x:Type web:HeadOutlet}" />
+            <!-- Bootstrap the app before HeadOutlet: putting the head root first leaves Release builds on Loading. -->
             <RootComponent Selector="#app" ComponentType="{x:Type local:Components.Routes}" />
+            <RootComponent Selector="head::after" ComponentType="{x:Type web:HeadOutlet}" />
         </BlazorWebView.RootComponents>
     </BlazorWebView>
 </ContentPage>

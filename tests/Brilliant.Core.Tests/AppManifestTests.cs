@@ -1,4 +1,8 @@
+using System.Reflection;
+using System.Text.Json.Serialization;
+using System.Xml.Linq;
 using Brilliant.Core.Apps;
+using Brilliant.Core.Content;
 
 namespace Brilliant.Core.Tests;
 
@@ -15,7 +19,10 @@ public class AppManifestTests
         Assert.Equal(new AppAccent("#78a8ff", "#2456d6", "#08101f", "#ffffff"), app.Accent);
         Assert.Equal("track-1.pack.zip", app.ContentPack);
         Assert.Equal(["python"], app.Runtimes);
-        Assert.True(app.StepTypes.SetEquals(["explain", "choice", "predict-output", "write-code", "fill-blank", "parsons", "trace"]));
+        var knownSteps = typeof(Step).GetCustomAttributes<JsonDerivedTypeAttribute>()
+            .Select(type => Assert.IsType<string>(type.TypeDiscriminator));
+        Assert.True(app.StepTypes.SetEquals(knownSteps));
+        Assert.True(app.StepTypes.SetEquals(StepTypes.All));
     }
 
     private const string Dsa = """
@@ -105,5 +112,44 @@ public class AppManifestTests
         Assert.Empty(app.Runtimes);
         Assert.False(app.SupportsRuntime("python"));
         Assert.Equal("apps/example/icon.svg", app.Icon);
+    }
+
+    [Theory]
+    [InlineData("trace", "traces", "stepTypes")]
+    [InlineData("predict-output", "predict-outputs", "stepTypes")]
+    [InlineData("python", "pyhton", "runtimes")]
+    public void Unknown_capabilities_list_the_valid_keys(string valid, string typo, string field)
+    {
+        var ex = Assert.Throws<AppManifestException>(() => AppManifest.Parse(Dsa.Replace(valid, typo)));
+
+        Assert.Contains(field, ex.Message);
+        Assert.Contains(typo, ex.Message);
+        Assert.Contains(valid, ex.Message);
+    }
+
+    [Theory]
+    [InlineData("brilliant")]
+    [InlineData("com.my-app")]
+    [InlineData("com.123app")]
+    [InlineData("com.my_app")]
+    [InlineData("com..app")]
+    [InlineData("com.app.")]
+    public void App_ids_must_work_on_both_Android_and_Apple(string id)
+    {
+        var ex = Assert.Throws<AppManifestException>(() => AppManifest.Parse(Dsa.Replace("com.joeizang.brilliantapp", id)));
+
+        Assert.Contains("appId", ex.Message);
+    }
+
+    [Fact]
+    public void Shipped_pack_name_matches_the_build_output_and_bundled_asset()
+    {
+        var app = AppManifest.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "dsa-manifest.yaml")));
+        var project = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "host.csproj"));
+        var packPath = project.Descendants("ContentPackPath").Single().Value.Replace('\\', '/');
+        Assert.Equal(app.ContentPack, packPath.Split('/').Last());
+        var bundledPack = project.Descendants("Target").Single(t => (string?)t.Attribute("Name") == "PackContent")
+            .Descendants("MauiAsset").Single(a => (string?)a.Attribute("Include") == "$(ContentPackPath)");
+        Assert.Equal(app.ContentPack, (string?)bundledPack.Attribute("LogicalName"));
     }
 }
