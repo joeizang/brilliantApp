@@ -74,6 +74,8 @@
       <ContentPackPath>$(FlavorGeneratedDir)$(AppContentPack)</ContentPackPath>
       <ContentManifestPath>$(FlavorGeneratedDir)content-pack.inputs.txt</ContentManifestPath>
       <AndroidManifest Condition="'$(TargetPlatformIdentifier)' == 'android'">$([MSBuild]::MakeRelative('$(MSBuildProjectDirectory)', '$(FlavorGeneratedDir)AndroidManifest.xml'))</AndroidManifest>
+      <!-- ACTool requires the asset-set name to select the generated Apple app icon. -->
+      <AppIcon Condition="'$(TargetPlatformIdentifier)' == 'maccatalyst' And '$(FlavorIconPath)' != ''">$([System.IO.Path]::GetFileNameWithoutExtension('$(FlavorIconPath)'))</AppIcon>
       <!-- Apple caches this from ApplicationTitle at evaluation; refresh it before _GenerateBundleName. -->
       <_AppBundleName Condition="'$(TargetPlatformIdentifier)' == 'maccatalyst'">$(ApplicationTitle)</_AppBundleName>
       <RunCommand Condition="'$(TargetPlatformIdentifier)' == 'maccatalyst'">$(TargetDir)$(ApplicationTitle).app/Contents/MacOS/$(AssemblyName)</RunCommand>
