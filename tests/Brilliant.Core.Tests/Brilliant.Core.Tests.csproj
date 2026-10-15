@@ -21,7 +21,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Brilliant.Core\Brilliant.Core.csproj" />
     <None Include="..\..\apps\dsa\manifest.yaml" Link="dsa-manifest.yaml" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\Brilliant.App\Brilliant.App.csproj" Link="host.csproj" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

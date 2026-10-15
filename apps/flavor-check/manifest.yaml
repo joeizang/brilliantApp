@@ -1,0 +1,12 @@
+# Build fixture for verifying installation and state isolation. Uses the existing DSA pack until #142.
+appId: com.joeizang.brilliantapp.flavorcheck
+displayName: Brilliant Flavor Check
+icon: apps/flavor-check/icon.svg
+accent:
+  dark: '#b8a4ff'
+  light: '#6639ba'
+  onDark: '#160a30'
+  onLight: '#ffffff'
+contentPack: track-1.pack.zip
+runtimes: [python]
+stepTypes: [explain, choice, predict-output, write-code, fill-blank, parsons, trace]

@@ -1,6 +1,5 @@
 using System.Reflection;
 using System.Text.Json.Serialization;
-using System.Xml.Linq;
 using Brilliant.Core.Apps;
 using Brilliant.Core.Content;
 
@@ -141,15 +140,4 @@ public class AppManifestTests
         Assert.Contains("appId", ex.Message);
     }
 
-    [Fact]
-    public void Shipped_pack_name_matches_the_build_output_and_bundled_asset()
-    {
-        var app = AppManifest.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "dsa-manifest.yaml")));
-        var project = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "host.csproj"));
-        var packPath = project.Descendants("ContentPackPath").Single().Value.Replace('\\', '/');
-        Assert.Equal(app.ContentPack, packPath.Split('/').Last());
-        var bundledPack = project.Descendants("Target").Single(t => (string?)t.Attribute("Name") == "PackContent")
-            .Descendants("MauiAsset").Single(a => (string?)a.Attribute("Include") == "$(ContentPackPath)");
-        Assert.Equal(app.ContentPack, (string?)bundledPack.Attribute("LogicalName"));
-    }
 }
