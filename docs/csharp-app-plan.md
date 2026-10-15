@@ -34,7 +34,7 @@ Principal-level C# is mostly about four things, not syntax:
 | 10 | **Traces, lowered views and benchmarks are recorded when the pack is built**, by the CLI on the Mac, so every device replays them. Live runtime tracing ("trace my own code") is a later feature. |
 | 11 | **Pinned to .NET 10 / C# 14** in `content/csharp/pack.yaml` (`targetFramework`, `langVersion`). Upgrades go from LTS to LTS (next: .NET 12), each as one deliberate PR in which the validator re-records everything and shows the diff. Benchmarks are recorded on Apple Silicon (ARM64) and lessons say so. |
 | 12 | **Free-text grading: rubric self-assessment always, with local-LLM feedback on top.** Your self-assessment sets the review rating, so it is deterministic and works offline. Feedback is advisory and comes from **Ollama on the Mac** (candidates: Gemma 26B, Qwen 27B, Gemma 12B). Claude is used only when you tap an explicit "Ask Claude" button, never as an automatic fallback. |
-| 13 | **How devices reach Ollama:** the Mac app calls `localhost:11434` directly, which works anywhere, including offline. The phone goes through the Brilliant server to the Mac's Ollama. This is an opt-in setting and needs `OLLAMA_HOST=0.0.0.0` plus a firewall allowance on the Mac. When the Mac can't be reached, the phone says "feedback unavailable right now", and you can ask for feedback later from the Mac. |
+| 13 | **How devices reach Ollama:** the Mac app calls `localhost:11434` directly, which works anywhere, including offline. The phone goes through the Brilliant server to the Mac's Ollama. This is an opt-in setting and needs `OLLAMA_HOST=0.0.0.0` plus a firewall rule allowing port 11434 only from the Brilliant server's IP address on the Mac. When the Mac can't be reached, the phone says "feedback unavailable right now", and you can ask for feedback later from the Mac. |
 | 14 | **Model choice by evals, not guesswork:** each rubric carries graded sample answers (strong, partial, wrong-but-confident). The CLI runs them against each candidate model, and the app manifest names the winner. |
 | 15 | **Start now.** The DSA app is caught up (M5 and #127–#129 merged), so Phase 1 runs straight through. |
 
@@ -91,13 +91,17 @@ scripts/build-app.sh <app> <platform>
 
 ### 4.4 C# on the device (write-code)
 
-On the Mac: Roslyn compiles in memory, the assembly loads into a collectible `AssemblyLoadContext`, and the rewriter's `Tick()` probe enforces a step and time budget (an in-process thread can't be killed). `GC.GetAllocatedBytesForCurrentThread()` measures allocations for "zero-allocation" tests.
-Mac Catalyst Release now runs with `UseInterpreter=true` (PR #130), so dynamic assemblies should load. **The spike measures compile and run latency under the interpreter.**
+On the Mac: Roslyn compiles in memory and attempts to load the assembly into a collectible `AssemblyLoadContext`; Phase 0 must establish that unloading works before repeated runs are enabled. MAUI Mac Catalyst and Android use **Mono**, with SGen GC, rather than the CLI's CoreCLR. Mac Catalyst Release runs with `UseInterpreter=true` (PR #130), so the spike measures compile/run latency under the Mono interpreter and memory over approximately 100 compile/run/unload cycles.
+
+The rewriter's `Tick()` probe enforces step and time budgets (an in-process thread cannot be killed). Method-entry probes also enforce a fixed call-depth limit, incrementing on entry and decrementing in `finally`. Learner code runs on a dedicated thread with an explicit stack size; the spike must verify the depth limit fits that stack. Catch clauses exclude `BudgetExceededException`, including rewritten bare catches, and `finally` blocks are probed so learner exception handling cannot simply swallow a budget failure.
+
+The curriculum's allocation budgets and recorded GC/JIT examples describe **CoreCLR**, measured at pack time by the pinned .NET CLI. Phase 0 compares `GC.GetAllocatedBytesForCurrentThread()` for known zero-allocation, boxing, array and closure snippets between CoreCLR and the Release Mac app. Device measurements must identify Mono/interpreter explicitly. If results disagree, CoreCLR remains the authoritative budget gate; the device result is advisory or the budget test runs only in the CLI. No device measurement is presented as a CoreCLR measurement.
+
 Android: phone alternatives (decision 9). On-device Roslyn is only turned on if the spike shows it's cheap.
 
 ### 4.5 Free-text grading
 
-There is one `IAnswerGrader` with these providers, tried in order: **local Ollama (Mac)** → **server proxy to the Mac's Ollama (phone, opt-in)** → **none (self-assess only)**. **Claude** runs only on the explicit button.
+There is one `IAnswerGrader`, with providers selected per device: **Mac: local Ollama → none (self-assess only)**; **phone: server proxy to the Mac's Ollama (opt-in) → none**. The Mac does not fall through to its own server proxy, and the phone has no local Ollama provider. **Claude** runs only on the explicit button.
 Each rubric in the pack holds the points, a model answer, **red flags** (common wrong-but-plausible claims, such as "`volatile` makes `count++` atomic") and eval samples.
 Ollama is called with a JSON-schema `format`, so it returns `{ point, hit, note }` per rubric point plus any red flags it found.
 
@@ -140,7 +144,7 @@ The existing step types (explain, choice, predict-output, fill-blank, Parsons, t
 
 | Phase | Outcome |
 |---|---|
-| **0. Spike** (throwaway branch) | Roslyn compile + run + `Tick()` timeout in the Mac Catalyst Release app (interpreter), with latency numbers; the same on a release Android APK, with app-size delta; CLI proof of concept for one recorded trace, one lowered view and one benchmark |
+| **0. Spike** (throwaway branch) | Roslyn compile + run + `Tick()` timeout in the Mac Catalyst Release app (interpreter), with latency numbers; compare known-snippet allocation measurements against CLI CoreCLR, verify collectible-ALC unloading and memory over ~100 compile/run cycles, and validate the call-depth limit on an explicitly sized thread stack; the same on a release Android APK, with app-size delta; CLI proof of concept for one recorded trace, one lowered view and one benchmark |
 | **1. Engine extraction** | `ICodeRuntime` + `Brilliant.Runtime.Python`; generalised `Comparison`/`CodeTest`/`Visual`; flavors + app manifests + `scripts/build-app.sh`; `content/` → `content/dsa/`; server `appId`; per-manifest step-type allow-list; per-lesson test-out. The DSA app must behave exactly as before. |
 | **2. C# app skeleton** | `apps/csharp` flavor on the Mac, then Android; `content/csharp` pack pinned to .NET 10 / C# 14; pairing with `appId` |
 | **3. C# pack-time tooling + Mac runtime** | CLI: reference solutions, trace recorder, lowering, benchmarks. App: Roslyn write-code on the Mac |

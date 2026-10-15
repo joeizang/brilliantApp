@@ -88,7 +88,7 @@ From my perspective, the C# app:
 36. As a learner on my Mac, I want to write C# in the code editor and run it against hidden tests, so that I practise for real.
 37. As a learner, I want the same feedback I get in the DSA app (passed count, first failing test, expected vs actual, printed output, compile errors with line numbers), so that the experience is familiar.
 38. As a learner, I want compile errors shown as errors in my code, not as failed tests, so that I can tell syntax problems from logic problems.
-39. As a learner, I want an infinite loop or runaway recursion stopped after a time and step budget with a clear message, so that the app never hangs.
+39. As a learner, I want infinite loops stopped by time/step budgets and runaway recursion stopped by a call-depth limit with a clear message, so that the app remains responsive without exhausting its stack.
 40. As a learner, I want test results compared structurally (arrays, lists, records, tuples by value), so that a correct answer isn't marked wrong for reference inequality.
 41. As a learner, I want allocation-budget tests ("this method must allocate zero bytes"), so that performance exercises are graded objectively.
 42. As a learner, I want multi-file C# exercises where they help, so that design exercises can have more than one type.
@@ -154,16 +154,15 @@ All four produce the same answer outcome type the existing evaluators use, so Re
 
 **Test-out (engine).** Selects 3–4 questions from the lesson's review items, evaluates them, and emits a `LessonTestedOut` progress event. The Review projector seeds a tested-out lesson's items with a high initial stability (already known). Mastery treats them as learned. A failed attempt emits nothing that affects scheduling.
 
-**Answer grader (engine).** `IAnswerGrader` takes a rubric (points, model answer, red flags) and an answer, and returns per-point `{ point, hit, note }` plus the red flags it found. Providers, in order:
-1. local Ollama, called directly from the Mac app;
-2. the server's grading proxy (phone, opt-in);
-3. none.
+**Answer grader (engine).** `IAnswerGrader` takes a rubric (points, model answer, red flags) and an answer, and returns per-point `{ point, hit, note }` plus the red flags it found. Providers are selected per device:
+1. Mac: local Ollama, called directly, then none (self-assess only). The Mac does not fall through to the server proxy.
+2. Phone: the server's grading proxy (opt-in), then none. The phone has no local Ollama provider.
 
 Claude is a separate provider that runs only on an explicit request. Ollama is called with a JSON-schema `format` for structured output. Feedback is advisory; the learner's own self-assessment sets the review rating.
 
-**Probe rewriter (C# runtime).** A pure Roslyn syntax rewriter that inserts a budget probe (loop back-edges, method entry) and optionally line-plus-locals probes. The budget probe's exception can't be swallowed by learner `catch` blocks. The Mac runtime and the CLI trace recorder both use it.
+**Probe rewriter (C# runtime).** A pure Roslyn syntax rewriter that inserts budget probes at loop back-edges and method entry, plus optional line-plus-locals probes. Method-entry instrumentation increments a call-depth counter, checks a fixed maximum and decrements in `finally`. The runner uses a dedicated thread with an explicit stack size, and Phase 0 validates that the maximum fits that stack, stopping deep recursion before an uncatchable `StackOverflowException` terminates the app. The rewriter excludes `BudgetExceededException` from every learner catch clause using an exception filter (preserving existing filters); bare catches are rewritten to typed, filtered catches. Probes also run inside `finally` blocks. Tests must exercise these escape paths, rather than assuming an exception cannot be caught. The Mac runtime and CLI trace recorder both use this rewriter.
 
-**C# runner (C# runtime).** Compiles against the pinned reference assemblies, loads the result into a collectible load context, runs the entrypoint per test under the probe budget, compares results structurally, measures allocated bytes per call where a test sets a budget, and unloads. It returns the existing test run result shape, with compile errors reported as `Error` with line numbers. It is shipped only in flavors that enable `csharp`, and on Mac only unless the spike justifies Android.
+**C# runner (C# runtime).** Compiles against the pinned reference assemblies, loads the result into a collectible load context, runs the entrypoint per test under the probe budget, compares results structurally, measures allocated bytes per call where a test sets a budget, and unloads only where Phase 0 verifies runtime support. The CLI uses CoreCLR; the MAUI app uses Mono with SGen GC and, on Mac Release, the interpreter. CoreCLR pack-time measurements are authoritative for curriculum allocation budgets. Device measurements name their runtime explicitly; if the spike finds disagreement, device budget feedback is advisory or those tests run only in the CLI. It returns the existing test run result shape, with compile errors reported as `Error` with line numbers. It is shipped only in flavors that enable `csharp`, and on Mac only unless the spike justifies Android.
 
 **CLI recorders.**
 - C# reference-solution runner (the publishing gate).
@@ -192,6 +191,9 @@ All recorded artefacts are written into the pack at pack time.
 ### Phase 0 spike (before building the runtime)
 
 - Measure Roslyn compile + run + budget-probe timeout inside the Release Mac Catalyst app, which runs with the interpreter enabled.
+- Compare `GC.GetAllocatedBytesForCurrentThread()` on known zero-allocation, boxing, array and closure snippets between the pinned CLI (CoreCLR) and Release Mac app (Mono interpreter). Record warm-up, measurement boundaries, runtime and measured bytes. If results differ, keep CoreCLR pack-time budgets authoritative and make device checks advisory or CLI-only.
+- Verify collectible `AssemblyLoadContext` unloading and memory over approximately 100 compile/run/unload cycles, including weak-reference collection checks and retained-memory growth. Do not assume Mono unloads assemblies as CoreCLR does; record a safe lifetime/restart recommendation if it cannot.
+- Validate the method-entry call-depth limit on the dedicated thread's explicit stack size; deep recursion must stop with a budget result without terminating the app.
 - Measure the same in a release Android APK, plus the app-size difference.
 - A CLI proof of concept: one recorded trace, one lowered view, one benchmark.
 
@@ -205,7 +207,7 @@ The results decide whether the Mac runtime runs in-process as designed, and whet
   - test-out (question selection, the event, the projector seeding stability, mastery);
   - the new step evaluators (review-code partial credit, ranking, interleave invariants, allocation budgets);
   - the answer grader (prompt built from the rubric, structured-response parsing, malformed or partial responses, provider-chain fallthrough, Claude never called implicitly), against a fake HTTP backend;
-  - the probe rewriter (budget stops infinite loops and recursion, can't be swallowed by `catch`, line probes report the right lines and locals);
+  - the probe rewriter (budget stops infinite loops; deep recursion stops cleanly at the call-depth limit on the explicitly sized thread; depth resets after exceptions; typed, bare and already-filtered catches cannot swallow budget failures; finally-block loops are bounded; line probes report the right lines and locals);
   - the C# runner (pass/fail/compile error/timeout, structural equality, allocation budgets, unloading).
 - **Integration tests** for server app-ID scoping (two apps' packs, events and pairings stay apart; existing data migrates to the DSA app) and the grading proxy (forwards to Ollama, fails fast when unreachable).
 - **Golden-file tests** for the CLI recorders: recorded traces and lowered output for fixed snippets, compared with checked-in expected files. Benchmarks are exempt; they're only checked for shape.
@@ -242,4 +244,4 @@ The results decide whether the Mac runtime runs in-process as designed, and whet
 
   Tracks 5–7 and 9 follow as content.
 - Mac Catalyst Release now runs with the interpreter enabled (it was turned on to fix an EF Core crash at launch). That makes in-process Roslyn plausible on the Mac, but performance is unmeasured.
-- Phone access to Ollama requires a one-time change on the Mac (listen on all interfaces, plus a firewall allowance), which exposes an unauthenticated Ollama to the home LAN. That's acceptable on a trusted home network, and it's off until I opt in.
+- Phone access to Ollama requires an opt-in change on the Mac (`OLLAMA_HOST=0.0.0.0` plus a firewall rule allowing port 11434 only from the Brilliant server's IP address). Ollama is unauthenticated, so other LAN clients must remain blocked. This is off until I opt in.
