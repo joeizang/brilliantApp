@@ -1,4 +1,5 @@
 using Brilliant.Core.Content;
+using Brilliant.Core.Apps;
 using Brilliant.Core.Drafts;
 using Brilliant.Core.Progress;
 using Brilliant.Core.Python;
@@ -10,13 +11,16 @@ namespace Brilliant.App;
 
 public static class MauiProgram
 {
-    public const string BundledPackName = "track-1.pack.zip";
-
     public static MauiApp CreateMauiApp()
     {
+        using var manifestStream = FileSystem.OpenAppPackageFileAsync("app-manifest.yaml").GetAwaiter().GetResult();
+        using var manifestReader = new StreamReader(manifestStream);
+        var manifest = AppManifest.Parse(manifestReader.ReadToEnd());
+
         var builder = MauiApp.CreateBuilder();
         builder.UseMauiApp<App>();
         builder.Services.AddMauiBlazorWebView();
+        builder.Services.AddSingleton(manifest);
 
         var dataDir = FileSystem.AppDataDirectory;
 
@@ -26,7 +30,7 @@ public static class MauiProgram
         builder.Services.AddSingleton(packCache);
         builder.Services.AddSingleton<ContentGraph>(_ => PackStartup.Choose(() =>
         {
-            using var stream = FileSystem.OpenAppPackageFileAsync(BundledPackName).GetAwaiter().GetResult();
+            using var stream = FileSystem.OpenAppPackageFileAsync(manifest.ContentPack).GetAwaiter().GetResult();
             var buffer = new MemoryStream();
             stream.CopyTo(buffer);
             buffer.Position = 0;

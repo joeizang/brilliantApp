@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Brilliant.Core\Brilliant.Core.csproj" />
+    <None Include="..\..\apps\dsa\manifest.yaml" Link="dsa-manifest.yaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

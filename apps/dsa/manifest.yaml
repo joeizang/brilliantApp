@@ -1,0 +1,12 @@
+# Keep the installed DSA app's identity and appearance. No custom launcher icon exists yet.
+appId: com.joeizang.brilliantapp
+displayName: Brilliant
+icon: null
+accent:
+  dark: '#78a8ff'
+  light: '#2456d6'
+  onDark: '#08101f'
+  onLight: '#ffffff'
+contentPack: track-1.pack.zip
+runtimes: [python]
+stepTypes: [explain, choice, predict-output, write-code, fill-blank, parsons, trace]
