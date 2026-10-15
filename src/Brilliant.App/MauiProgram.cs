@@ -1,3 +1,4 @@
+using Brilliant.Core.Apps;
 using Brilliant.Core.Content;
 using Brilliant.Core.Drafts;
 using Brilliant.Core.Progress;
@@ -10,15 +11,20 @@ namespace Brilliant.App;
 
 public static class MauiProgram
 {
-    public const string BundledPackName = "track-1.pack.zip";
-
     public static MauiApp CreateMauiApp()
     {
+        using var manifestStream = FileSystem.OpenAppPackageFileAsync("app-manifest.yaml").GetAwaiter().GetResult();
+        using var manifestReader = new StreamReader(manifestStream);
+        var manifest = AppManifest.Parse(manifestReader.ReadToEnd());
+
         var builder = MauiApp.CreateBuilder();
         builder.UseMauiApp<App>();
         builder.Services.AddMauiBlazorWebView();
+        builder.Services.AddSingleton(manifest);
 
-        var dataDir = FileSystem.AppDataDirectory;
+        var storage = new AppStoragePaths(manifest, FileSystem.AppDataDirectory);
+        var dataDir = storage.DataDirectory;
+        Directory.CreateDirectory(dataDir);
 
         // Content Packs: the bundled one, or a newer version of it that the app downloaded from the household server (docs/content-distribution.md).
         // The choice is made once, at start, and shared as an immutable graph; a download is used at the next start, never swapped under the learner.
@@ -26,7 +32,7 @@ public static class MauiProgram
         builder.Services.AddSingleton(packCache);
         builder.Services.AddSingleton<ContentGraph>(_ => PackStartup.Choose(() =>
         {
-            using var stream = FileSystem.OpenAppPackageFileAsync(BundledPackName).GetAwaiter().GetResult();
+            using var stream = FileSystem.OpenAppPackageFileAsync(manifest.ContentPack).GetAwaiter().GetResult();
             var buffer = new MemoryStream();
             stream.CopyTo(buffer);
             buffer.Position = 0;
@@ -59,7 +65,7 @@ public static class MauiProgram
         // Pairing with the household server over plain HTTP on the LAN; the token it returns goes in the platform's secure storage.
         // An unsigned Mac build has no keychain entitlement (MissingEntitlement), so the token falls back to a private file in the app's sandbox.
         builder.Services.AddSingleton<IDeviceCredentialStore>(_ => new FallbackDeviceCredentialStore(
-            new SecureDeviceCredentialStore(), new FileDeviceCredentialStore(Path.Combine(dataDir, "device-credentials.json"))));
+            new SecureDeviceCredentialStore(storage.CredentialsKey), new FileDeviceCredentialStore(Path.Combine(dataDir, "device-credentials.json"))));
         builder.Services.AddSingleton(_ => new PairingClient(new HttpClient { Timeout = TimeSpan.FromSeconds(10) }));
         builder.Services.AddSingleton<PairingService>();
         builder.Services.AddSingleton(new DeviceLabel(Microsoft.Maui.Devices.DeviceInfo.Current.Name));   // "Pixel 9 Pro XL", not the "localhost" Android reports as its machine name

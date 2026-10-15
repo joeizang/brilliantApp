@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Brilliant.App'">
+    <BrilliantApp Condition="'$(BrilliantApp)' == ''">dsa</BrilliantApp>
+    <!-- Set these before SDK imports, so NuGet and native intermediates cannot leak between flavors. -->
+    <BaseIntermediateOutputPath>obj/$(BrilliantApp)/</BaseIntermediateOutputPath>
+    <BaseOutputPath>bin/$(BrilliantApp)/</BaseOutputPath>
+    <DefaultItemExcludes>$(DefaultItemExcludes);obj/**;bin/**</DefaultItemExcludes>
+  </PropertyGroup>
+</Project>

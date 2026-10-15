@@ -4,6 +4,10 @@ Issue [#33](https://github.com/joeizang/brilliantApp/issues/33), PRD stories 50 
 
 The app is not on any store. You build a **signed APK** on your Mac and sideload it.
 
+For separate installed apps, see [App flavors](app-flavors.md). `scripts/build-app.sh
+<app> android Release` builds the selected flavor; the original commands below
+continue to select DSA by default and keep its signing key and application ID.
+
 ## Build and sign
 
 Prerequisites: the .NET 10 SDK with the `maui-android` workload, a JDK (for `keytool`), and the Android SDK (default `~/Library/Android/sdk`; set `ANDROID_HOME` otherwise). `apksigner` comes from the SDK's build-tools. The Pyodide files must be present under `src/Brilliant.App/wwwroot/pyodide/` (see [the spike](spikes/pyodide-blazorwebview.md); they are gitignored).

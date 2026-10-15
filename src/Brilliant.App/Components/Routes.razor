@@ -1,4 +1,6 @@
 @using Brilliant.Lessons.UI
 @inject ContentGraph Content
+@inject Brilliant.Core.Apps.AppManifest Manifest
 
+<AppAppearance Manifest="Manifest" />
 <CourseShell Content="Content" />

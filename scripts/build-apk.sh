@@ -15,7 +15,19 @@ DIR="${BRILLIANT_SIGNING_DIR:-$HOME/.brilliant/android}"
 STORE="$DIR/brilliant.keystore"
 PASSFILE="$DIR/store-password"
 ALIAS="brilliant"
-APPID="com.joeizang.brilliantapp"
+APP="dsa"
+INSTALL=false
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --app) [[ $# -ge 2 ]] || { echo "--app requires a flavor" >&2; exit 2; }; APP="$2"; shift 2 ;;
+    --install) INSTALL=true; shift ;;
+    *) echo "usage: $0 [--app <flavor>] [--install]" >&2; exit 2 ;;
+  esac
+done
+if [[ ! "$APP" =~ ^[a-z][a-z0-9]*(-[a-z0-9]+)*$ ]] || [[ ! -f "apps/$APP/manifest.yaml" ]]; then
+  echo "Unknown app flavor: $APP" >&2
+  exit 2
+fi
 
 if [[ ! -f "$STORE" ]]; then
   echo "No signing key yet: creating one in $DIR"
@@ -28,9 +40,10 @@ if [[ ! -f "$STORE" ]]; then
 fi
 export BRILLIANT_KEY_PASS="$(cat "$PASSFILE")"
 
-OUT="bin/apk"
+OUT="bin/apk/$APP"
 rm -rf "$OUT"
 dotnet publish src/Brilliant.App -f net10.0-android -c Release -o "$OUT" \
+  -p:BrilliantApp="$APP" \
   -p:AndroidPackageFormat=apk \
   -p:AndroidKeyStore=true \
   -p:AndroidSigningKeyStore="$STORE" \
@@ -42,12 +55,14 @@ dotnet publish src/Brilliant.App -f net10.0-android -c Release -o "$OUT" \
 APK="$(ls "$OUT"/*-Signed.apk 2>/dev/null | head -n1 || true)"
 [[ -n "$APK" ]] || { echo "No signed APK was produced in $OUT" >&2; exit 1; }
 mkdir -p dist
-cp "$APK" dist/brilliant.apk
+DESTINATION="dist/brilliant-$APP.apk"
+[[ "$APP" != dsa ]] || DESTINATION="dist/brilliant.apk"
+cp "$APK" "$DESTINATION"
 
 APKSIGNER="$(ls "$SDK"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -n1)"
-"$APKSIGNER" verify --print-certs dist/brilliant.apk | head -n 3
-echo "Built dist/brilliant.apk ($(du -h dist/brilliant.apk | cut -f1))"
+"$APKSIGNER" verify --print-certs "$DESTINATION" | head -n 3
+echo "Built $DESTINATION ($(du -h "$DESTINATION" | cut -f1))"
 
-if [[ "${1:-}" == "--install" ]]; then
-  "$SDK/platform-tools/adb" install -r dist/brilliant.apk
+if [[ "$INSTALL" == true ]]; then
+  "$SDK/platform-tools/adb" install -r "$DESTINATION"
 fi

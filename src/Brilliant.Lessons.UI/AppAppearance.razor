@@ -1,0 +1,17 @@
+@using Brilliant.Core.Apps
+@using Microsoft.AspNetCore.Components.Web
+
+<PageTitle>@Manifest.DisplayName</PageTitle>
+<style>@ThemeCss</style>
+
+@code {
+    [Parameter, EditorRequired] public AppManifest Manifest { get; set; } = default!;
+
+    // All four values are validated hex colours. The media query follows OS appearance changes live.
+    private string ThemeCss => $$"""
+        :root { --accent: {{Manifest.Accent.Dark}}; --on-accent: {{Manifest.Accent.OnDark}}; }
+        @media (prefers-color-scheme: light) {
+            :root { --accent: {{Manifest.Accent.Light}}; --on-accent: {{Manifest.Accent.OnLight}}; }
+        }
+        """;
+}
