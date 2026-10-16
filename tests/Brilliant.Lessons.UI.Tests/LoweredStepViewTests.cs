@@ -45,6 +45,25 @@ public class LoweredStepViewTests : ShortcutContext
     }
 
     [Fact]
+    public void The_next_question_opens_on_the_lowered_csharp_even_if_the_last_was_left_on_il()
+    {
+        var cut = Render<LoweredStepView>(p => p.Add(c => c.Step, Choice));
+        cut.Find("button.lowered-show-il").Click();
+
+        cut.Render(p => p.Add(c => c.Step, Choice with { Id = "step.next" }));
+
+        Assert.Equal(Made.CSharp, cut.Find("pre.lowered-code code").TextContent);
+    }
+
+    [Fact]
+    public void A_long_lowered_listing_scrolls_inside_its_own_box()
+    {
+        var cut = Render<LoweredStepView>(p => p.Add(c => c.Step, Choice));
+
+        Assert.Contains("max-h-[60vh]", cut.Find("pre.lowered-code").ClassName);
+    }
+
+    [Fact]
     public void A_pack_without_the_compiler_output_says_so_instead_of_showing_nothing()
     {
         var cut = Render<LoweredStepView>(p => p.Add(c => c.Step, Choice with { Lowered = null }));

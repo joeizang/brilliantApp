@@ -9,7 +9,7 @@
                     <button type="button" class="@ToggleClass(!_il) lowered-show-csharp" aria-pressed="@(!_il ? "true" : "false")" @onclick="() => _il = false">Lowered C#</button>
                     <button type="button" class="@ToggleClass(_il) lowered-show-il" aria-pressed="@(_il ? "true" : "false")" @onclick="() => _il = true">IL</button>
                 </div>
-                <pre class="code-block lowered-code" data-language="@(_il ? "il" : "csharp")"><code>@(_il ? lowered.Il : lowered.CSharp)</code></pre>
+                <pre class="code-block lowered-code max-h-[60vh] overflow-y-auto" data-language="@(_il ? "il" : "csharp")"><code>@(_il ? lowered.Il : lowered.CSharp)</code></pre>
             }
             else
             {
@@ -37,6 +37,7 @@
     {
         if (ReferenceEquals(_source, Step)) return;
         _source = Step;
+        _il = false;   // each question opens on the lowered C#, whatever the last one was left on
         _asked = new PredictOutputStep(Step.Id, Step.Title, Step.Prompt, new CodeSnippet("csharp", Step.Code), Step.Accepted, Step.Mistakes, Step.Options);
     }
 
