@@ -1,0 +1,258 @@
+id: lesson.csharp.in-ref-and-out
+title: in, ref and out
+concepts:
+  - id: concept.csharp.ref-parameter
+    title: ref makes the parameter an alias of the caller's variable
+  - id: concept.csharp.out-parameter
+    title: out must be assigned before the method returns
+  - id: concept.csharp.ref-local
+    title: A ref local aliases a variable, field or array element
+  - id: concept.csharp.in-defensive-copy
+    title: in avoids a copy, unless the struct is not readonly
+reviewItems:
+  - id: review.csharp.ref-parameter
+    concept: concept.csharp.ref-parameter
+    step: step.csharp.refs.predict-replace
+  - id: review.csharp.out-parameter
+    concept: concept.csharp.out-parameter
+    step: step.csharp.refs.check-out
+  - id: review.csharp.ref-local
+    concept: concept.csharp.ref-local
+    step: step.csharp.refs.predict-ref-local
+  - id: review.csharp.in-defensive-copy
+    concept: concept.csharp.in-defensive-copy
+    step: step.csharp.refs.lowered-in
+steps:
+  - id: step.csharp.refs.intro
+    type: explain
+    title: Passing the variable, not its contents
+    body: |
+      The previous lesson ended on a rule: an argument is a *copy* of the variable's contents. `ref`, `out` and `in` change what is passed.
+      The parameter becomes an **alias**: another name for the caller's own variable, so there is no copy and no new slot.
+
+      The three differ in who may write and who must have written:
+
+      - `ref`: the caller must have assigned the variable; the method may read and write it.
+      - `out`: the caller need not have assigned it; the method **must** assign it before returning, and may not read it first.
+      - `in`: the method may only read it. The caller may pass a variable or a value, because the compiler will make a temporary if needed.
+
+      `ref` also works for locals and return values, so a method can hand back an alias to an array element or a field.
+  - id: step.csharp.refs.predict-ref
+    type: predict-output
+    title: Copy, then alias
+    prompt: |
+      What does this program print?
+    language: csharp
+    code: |
+      var n = 1;
+      Bump(n);
+      BumpRef(ref n);
+      Console.WriteLine(n);
+
+      static void Bump(int x) => x += 10;
+      static void BumpRef(ref int x) => x += 1;
+    accepted:
+      - '2'
+    mistakes:
+      - answers:
+          - '1'
+        feedback: '`BumpRef(ref n)` makes `x` another name for `n`, so its `+= 1` changes the caller''s variable.'
+      - answers:
+          - '12'
+        feedback: '`Bump(n)` adds to a copy of `n`. Only the `ref` call changes the caller''s variable.'
+    hints:
+      - Which of the two calls gives the method the caller's own variable?
+  - id: step.csharp.refs.predict-replace
+    type: predict-output
+    title: Replacing a reference through ref
+    prompt: |
+      The previous lesson showed that assigning a new object to a reference parameter does not reach the caller. What changes when the parameter is `ref`?
+    language: csharp
+    code: |
+      var box = new Box { Value = 1 };
+      ReplaceCopy(box);
+      Console.WriteLine(box.Value);
+      ReplaceRef(ref box);
+      Console.WriteLine(box.Value);
+
+      static void ReplaceCopy(Box b) { b = new Box { Value = 2 }; }
+      static void ReplaceRef(ref Box b) { b = new Box { Value = 3 }; }
+
+      class Box { public int Value; }
+    accepted:
+      - '1 3'
+      - |-
+        1
+        3
+    mistakes:
+      - answers:
+          - '2 3'
+          - '2 2'
+        feedback: '`ReplaceCopy` gets a copy of the arrow, so pointing it at a new `Box` moves only its own arrow. The caller''s `box` still points at the first object.'
+      - answers:
+          - '1 1'
+        feedback: 'With `ref`, `b` is the caller''s variable `box` itself, so assigning to `b` makes `box` point at the new object.'
+    hints:
+      - With `ref`, is `b` a copy of the arrow or the caller's own variable?
+  - id: step.csharp.refs.check-out
+    type: choice
+    title: What out demands
+    prompt: |
+      Which statement about an `out` parameter is true?
+    options:
+      - text: The method must assign it on every path that returns normally, and may not read it before it does
+        correct: true
+        feedback: Right. The compiler checks definite assignment at each `return`. The caller may pass a variable that has no value yet, which is what makes `int.TryParse(s, out var n)` possible.
+      - text: The caller must give it a value first, as with `ref`
+        correct: false
+        feedback: That is `ref`. An `out` argument may be unassigned (`out var n` declares it on the spot).
+      - text: The method may leave it alone, and it keeps the caller's value
+        correct: false
+        feedback: The compiler rejects a path that returns without assigning an `out` parameter (CS0177). The method must set it, even to `default`.
+    hints:
+      - Think about `int.TryParse`. What must it do on the failure path as well as the success path?
+  - id: step.csharp.refs.predict-ref-local
+    type: predict-output
+    title: A local that is an alias
+    prompt: |
+      `ref int slot = ref a[1];` declares a local that is another name for the array element, not a copy of it. What does this print?
+    language: csharp
+    code: |
+      int[] a = [1, 2, 3];
+      ref int slot = ref a[1];
+      slot = 20;
+      a[1]++;
+      Console.WriteLine($"{slot} {a[1]}");
+    accepted:
+      - '21 21'
+    mistakes:
+      - answers:
+          - '20 21'
+        feedback: '`slot` is not a copy. It is the element itself, so it sees the `a[1]++` as well.'
+      - answers:
+          - '20 20'
+          - '2 21'
+        feedback: 'Both names refer to the same slot of the array. Writing through either shows up in the other.'
+    hints:
+      - 'How many places hold the value here: one, or two?'
+  - id: step.csharp.refs.explain-in
+    type: explain
+    title: in is for large structs, with a catch
+    body: |
+      Passing a large struct by value copies all of it. `in` passes an alias instead, read-only, so there is no copy.
+
+      The catch: if the struct is **not** `readonly`, one of its methods might change it. The compiler cannot prove that `v.Sum()` leaves `v` alone,
+      and an `in` parameter must never change, so it first copies the struct to a hidden local and calls the method on the copy. You paid for the copy
+      you wanted to avoid. Marking the struct `readonly` (or just the members you call) tells the compiler they cannot change it, and the copy goes away. Auto-property getters are already implicitly `readonly`, and reading a field never copies.
+  - id: step.csharp.refs.lowered-in
+    type: lowered
+    title: The copy behind in
+    prompt: |
+      `Vec` is not a `readonly` struct. In the lowered `Length`, what happens before `Sum` is called?
+    code: |
+      static class Demo
+      {
+          public static int Length(in Vec v) => v.Sum();
+      }
+
+      struct Vec
+      {
+          public int X, Y;
+          public int Sum() => X + Y;
+      }
+    options:
+      - text: '`v` is copied into a local, and `Sum` is called on the copy'
+        correct: true
+        feedback: Right. This is a defensive copy. `readonly struct Vec` (or `readonly int Sum()`) removes it, because the compiler then knows `Sum` cannot change `v`.
+      - text: '`v` is boxed, so that `Sum` can be called on the object'
+        correct: false
+        feedback: Nothing is boxed. Boxing needs a conversion to `object` or an interface.
+      - text: Nothing. `Sum` is called directly on the caller's variable
+        correct: false
+        feedback: That is what a `readonly` struct allows. For a mutable struct the compiler is not allowed to take the risk.
+    hints:
+      - Look for a local variable that `Length` declares and assigns from its parameter.
+  - id: step.csharp.refs.dot
+    type: write-code
+    title: Dot product with in
+    prompt: |
+      Finish `Dot` so it returns `a.X * b.X + a.Y * b.Y`, and make `Vec` a `readonly` struct. Both parameters are `in`, so they are passed without a copy. Here the auto-property getters already avoid a defensive copy, so `readonly` states and enforces the intent: no member of `Vec` can ever change it, which keeps `in` copy-free if a method is added later.
+    language: csharp
+    largeScreenPreferred: true
+    entrypoint: Dot
+    starter: |
+      static int Dot(in Vec a, in Vec b)
+      {
+          return 0;
+      }
+
+      struct Vec
+      {
+          public int X { get; init; }
+          public int Y { get; init; }
+      }
+    solution: |
+      static int Dot(in Vec a, in Vec b)
+      {
+          return a.X * b.X + a.Y * b.Y;
+      }
+
+      readonly struct Vec
+      {
+          public int X { get; init; }
+          public int Y { get; init; }
+      }
+    tests:
+      - input: 'new Vec { X = 1, Y = 2 }, new Vec { X = 3, Y = 4 }'
+        expected: '11'
+      - input: 'new Vec { X = 0, Y = 0 }, new Vec { X = 5, Y = 5 }'
+        expected: '0'
+      - input: 'new Vec { X = -2, Y = 3 }, new Vec { X = 4, Y = 1 }'
+        expected: '-5'
+    phoneAlternative:
+      id: step.csharp.refs.dot.fill
+      type: fill-blank
+      title: Complete the dot product
+      prompt: |
+        `Vec` is a `readonly` struct, and `Dot` takes both vectors with `in`.
+      language: csharp
+      template: |
+        static int Dot(in Vec a, in Vec b)
+        {
+            return a.X * b.X + {{second}};
+        }
+
+        {{modifier}} struct Vec
+        {
+            public int X { get; init; }
+            public int Y { get; init; }
+        }
+      blanks:
+        - id: second
+          accepted:
+            - 'a.Y * b.Y'
+          mistakes:
+            - answers:
+                - 'a.Y + b.Y'
+              feedback: 'A dot product multiplies each pair of components and adds the products.'
+        - id: modifier
+          accepted:
+            - readonly
+          mistakes:
+            - answers:
+                - static
+              feedback: 'A struct cannot be `static`. `readonly` is the modifier that promises no member changes it.'
+    hints:
+      - Multiply the X components, multiply the Y components, and add the two products.
+      - Putting `readonly` before `struct` is the only change `Vec` needs.
+  - id: step.csharp.refs.recap
+    type: explain
+    title: Aliases, and what each promises
+    body: |
+      - `ref`: an alias; both sides read and write. A `ref` reference parameter replaces the caller's *arrow*, not just the object.
+      - `out`: an alias the method must assign; the caller need not have.
+      - `in`: a read-only alias. It avoids a copy only if the compiler can prove the struct is not changed, which means a `readonly struct`, or `readonly` on the members you call.
+      - `ref` locals and returns alias a variable, field or array element, so a write through the alias is a write to the original.
+
+      An alias is cheaper than a copy and also riskier: two names for one variable means a change through one is seen through the other. That is the same
+      trade the heap's references make, now on the stack.
