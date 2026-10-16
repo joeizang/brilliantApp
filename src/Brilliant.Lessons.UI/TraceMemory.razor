@@ -78,14 +78,14 @@
 
     [Parameter, EditorRequired] public int Step { get; set; }
 
-    private const int StackX = 4, StackW = 150, HeapW = 150, Gap = 56, HeaderH = 30, RowH = 24, Pad = 8, Top = 28, HeadingY = 14, BoxGap = 14, ArrowRoom = 28, Indent = 12;
-    private const double LabelText = 13.6, SmallText = 12, MonoW = .6;
+    private const int StackX = 4, StackW = 150, HeapW = 150, Gap = 44, HeaderH = 30, RowH = 24, Pad = 8, Top = 28, HeadingY = 14, BoxGap = 14, ArrowRoom = 24, Indent = 12;
+    private const double LabelText = 14, SmallText = 13, MonoW = .6;
 
     private int HeapX => StackX + StackW + Gap;
     private int Width => HeapX + HeapW + ArrowRoom;
 
     /// <summary>A line of a box: a slot, or one field of a struct that sits inside a slot (<see cref="Depth"/> 1).</summary>
-    private sealed record Row(SlotView Slot, int Depth, bool Inline, int Index);
+    private sealed record Row(SlotView Slot, int Depth, bool Inline, int Index, string Path);
 
     private sealed record FrameBox(MemoryFrameView Frame, int Y, int Height, IReadOnlyList<Row> Rows);
     private sealed record ObjectBox(MemoryObjectView Object, int Y, int Height, IReadOnlyList<Row> Rows);
@@ -126,12 +126,13 @@
     private static List<Row> Flatten(IReadOnlyList<SlotView> slots)
     {
         var rows = new List<Row>();
-        foreach (var slot in slots)
+        void Add(SlotView slot, int depth, string path)
         {
-            rows.Add(new Row(slot, 0, false, rows.Count));
-            // A struct is written out inside the slot that holds it: its own fields, copied with it.
-            foreach (var field in slot.Fields) rows.Add(new Row(field, 1, true, rows.Count));
+            rows.Add(new Row(slot, depth, depth > 0, rows.Count, path));
+            // A struct is written out inside the slot that holds it, and a struct inside it in turn: its own fields, copied with it.
+            foreach (var field in slot.Fields) Add(field, depth + 1, $"{path}.{field.Name}");
         }
+        foreach (var slot in slots) Add(slot, 0, slot.Name);
         return rows;
     }
 
@@ -144,8 +145,8 @@
         var y = RowY(row);
         var x = Pad + row.Depth * Indent;
         var isStruct = slot.IsStruct;
-        var valueW = isStruct ? Math.Min(slot.Type.Length, 14) * 7.3 : slot.Ref is not null ? 18 : Math.Min((slot.Value ?? "").Length, 8) * 8.2;
-        var maxName = Math.Max(3, (int)((boxW - 2 * Pad - row.Depth * Indent - valueW) / 8.2));
+        var valueW = isStruct ? Math.Min(slot.Type.Length, 14) * 7.8 : slot.Ref is not null ? 18 : Math.Min((slot.Value ?? "").Length, 8) * 8.4;
+        var maxName = Math.Max(3, (int)((boxW - 2 * Pad - row.Depth * Indent - valueW) / 8.4));
         <g class="@SlotClass(slot, row)" data-name="@slot.Name" transform="translate(0 @y)" @key="@($"slot-{boxY}-{row.Index}")">
             <title>@SlotTitle(slot)</title>
             @if (slot.Changed)
@@ -182,8 +183,8 @@
                     var x2 = HeapX - 1;
                     var y2 = to.Y + HeaderH / 2;
                     var reach = (x2 - x1) / 2;
-                    arrows.Add(new Arrow($"{box.Frame.Function}.{row.Slot.Name}", $"#{target}",
-                        $"M{x1} {y1} C{x1 + reach} {y1}, {x2 - reach} {y2}, {x2} {y2}", row.Slot.Changed, $"{box.Frame.Id}-{row.Slot.Name}"));
+                    arrows.Add(new Arrow($"{box.Frame.Function}.{row.Path}", $"#{target}",
+                        $"M{x1} {y1} C{x1 + reach} {y1}, {x2 - reach} {y2}, {x2} {y2}", row.Slot.Changed, $"{box.Frame.Id}-{row.Index}"));
                 }
         foreach (var box in _objects)
             foreach (var row in box.Rows)
@@ -195,8 +196,8 @@
                     var x2 = HeapX + HeapW + 1;
                     var y2 = to.Y + HeaderH / 2;
                     var out2 = ArrowRoom - 4;
-                    arrows.Add(new Arrow($"#{box.Object.Id}.{row.Slot.Name}", $"#{target}",
-                        $"M{x1} {y1} C{x1 + out2} {y1 - 4}, {x2 + out2} {y2 + 4}, {x2} {y2}", row.Slot.Changed, $"{box.Object.Id}-{row.Slot.Name}"));
+                    arrows.Add(new Arrow($"#{box.Object.Id}.{row.Path}", $"#{target}",
+                        $"M{x1} {y1} C{x1 + out2} {y1 - 4}, {x2 + out2} {y2 + 4}, {x2} {y2}", row.Slot.Changed, $"{box.Object.Id}-{row.Index}"));
                 }
         return arrows;
     }

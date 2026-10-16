@@ -2165,4 +2165,47 @@ public class TracePlayerTests : ShortcutContext
         Assert.Equal([("Main.head", "#1"), ("#1.next", "#2")],
             cut.FindAll("figure.memory path.arrow").Select(a => (a.GetAttribute("data-from")!, a.GetAttribute("data-to")!)));
     }
+
+    [Fact]
+    public void Copying_a_struct_that_holds_a_reference_draws_two_arrows_with_their_own_keys()
+    {
+        MemorySlot Pair(string name) => Struct(name, "Pair", RefTo("A", "Counter", 1));
+        var cut = Start(RunOf(
+            MemoryFrame(1, Mem([Pair("p")], Counter(1, "0"))),
+            MemoryFrame(2, Mem([Pair("p"), Pair("q")], Counter(1, "0"))),
+            MemoryFrame(3, Mem([Pair("p"), Pair("q")], Counter(1, "1")))), MemoryVisual, out _);
+
+        cut.Find("button.next").Click();   // the diff that used to throw on two equal keys
+        cut.Find("button.next").Click();
+
+        var arrows = cut.FindAll("figure.memory path.arrow");
+        Assert.Equal(["Main.p.A", "Main.q.A"], arrows.Select(a => a.GetAttribute("data-from")));
+        Assert.Equal(["#1", "#1"], arrows.Select(a => a.GetAttribute("data-to")));
+    }
+
+    [Fact]
+    public void An_object_with_two_struct_fields_that_hold_references_has_an_arrow_for_each()
+    {
+        MemorySlot Pair(string name) => Struct(name, "Pair", RefTo("A", "Counter", 2));
+        var holder = new MemoryObject(1, "Holder", MemoryKinds.Class, [Pair("left"), Pair("right")]);
+        var cut = Start(RunOf(
+            MemoryFrame(1, Mem([RefTo("h", "Holder", 1)], holder, Counter(2, "0"))),
+            MemoryFrame(2, Mem([RefTo("h", "Holder", 1)], holder, Counter(2, "1")))), MemoryVisual, out _);
+
+        cut.Find("button.next").Click();
+
+        Assert.Equal(["Main.h", "#1.left.A", "#1.right.A"], cut.FindAll("figure.memory path.arrow").Select(a => a.GetAttribute("data-from")));
+    }
+
+    [Fact]
+    public void A_struct_inside_a_struct_is_written_out_level_by_level()
+    {
+        var line = Struct("line", "Line", Struct("A", "Point", Val("X", "int", "1"), Val("Y", "int", "2")), Struct("B", "Point", Val("X", "int", "3"), Val("Y", "int", "4")));
+        var cut = Start(RunOf(MemoryFrame(1, Mem([line]))), MemoryVisual, out _);
+
+        var rows = cut.FindAll("figure.memory g.frame g.slot");
+        Assert.Equal(["line", "A", "X", "Y", "B", "X", "Y"], rows.Select(r => r.GetAttribute("data-name")));
+        Assert.Equal(["1", "2", "3", "4"], cut.FindAll("figure.memory g.slot.field .slot-value").Select(v => v.TextContent));
+        Assert.Contains("line is a Line with A is a Point with X = 1, Y = 2, B is a Point with X = 3, Y = 4", cut.Find("figure.memory svg").GetAttribute("aria-label"));
+    }
 }

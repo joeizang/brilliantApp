@@ -356,7 +356,7 @@ Issue [#157](https://github.com/joeizang/brilliantApp/issues/157). A C# trace st
   where there is no such distinction to draw). It sits above the other visuals and works beside them.
 - `validate`/`pack` refuse a memory view over code that never has a local or an object to show.
 
-On a phone the drawing is 388 units wide and scales down to the column rather than scrolling, which keeps its text at about 12px on a 375px
+On a phone the drawing is 372 units wide and scales down to the column rather than scrolling, which keeps its text at about 12px (labels) and 11px (types, ids) on a 375px
 screen. Long names and values are clipped with `…` and carry the full text in a tooltip, and the SVG's label reads every frame and object aloud.
 
 ### The call stack
@@ -585,8 +585,8 @@ being "new" isn't a change the learner caused.
   and returned value, scrolling sideways (and up and down, at most 30rem) on a phone. Each frame is a `<g>` keyed by its id and placed with
   a CSS transform; a new call grows in (`animate-cell-in`), a gone one rises away (`animate-cell-out`), the *running* marker slides to the
   new top, and a value handed back is keyed by step, so it pops (`animate-pop`) every time.
-- The stack and heap (`TraceMemory.razor`) is one SVG in two columns, `viewBox` 388 wide, scaled to the width there is (`w-full h-auto`, capped at its own
-  size). A struct's fields are rows inside the frame; a reference is a dot with a cubic arrow (a `<path>` with an arrowhead marker) to the
+- The stack and heap (`TraceMemory.razor`) is one SVG in two columns, `viewBox` 372 wide, scaled to the width there is (`w-full h-auto`, capped at its own
+  size). A struct's fields (and those of a struct inside it, indented a level each) are rows inside the frame; a reference is a dot with a cubic arrow (a `<path>` with an arrowhead marker) to the
   object's header, drawn last so it crosses the boxes under it; an arrow between two objects loops round the heap's right edge. A new frame or
   object grows in (`animate-cell-in`), a changed slot or arrow flashes (`animate-cell-flash`), and a box is dashed on a tinted fill.
 - A trace step is finished with *Continue* (or Return), like an explanation: it records `StepCompleted`, nothing else.
