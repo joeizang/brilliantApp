@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Brilliant.Core.Content;
 using Brilliant.Core.Drafts;
-using Brilliant.Core.Python;
+using Brilliant.Core.Code;
 using Brilliant.Core.Progress;
 using Brilliant.Core.Review;
 using Bunit;
@@ -38,8 +38,9 @@ public class ReviewQueueViewTests : ShortcutContext
         public void Reset(string stepId) => Saved.Remove(stepId);
     }
 
-    private sealed class FakeRuntime : IPythonRuntime
+    private sealed class FakeRuntime : ICodeRuntime
     {
+        public string Language { get; init; } = "python";
         public Task<TestRunResult> RunTestsAsync(string code, string entrypoint, IReadOnlyList<CodeTest> tests, CancellationToken ct = default) =>
             Task.FromResult(new TestRunResult(TestRunStatus.Passed, "", null, null, null, []));
         public Task<TraceResult> TraceAsync(string code, IReadOnlyList<Visual> visuals, CancellationToken ct = default) =>
@@ -196,7 +197,7 @@ public class ReviewQueueViewTests : ShortcutContext
         module.Setup<int>("create", _ => true).SetResult(1);
         module.Setup<string>("getCode", _ => true).SetResult("def f(x):\n    return x + 1\n");
         Services.AddSingleton<ICodeDraftStore>(drafts);
-        Services.AddSingleton<IPythonRuntime>(new FakeRuntime());
+        Services.AddSingleton<ICodeRuntime>(new FakeRuntime());
 
         var cut = Open(lesson);
         cut.WaitForAssertion(() => Assert.Single(module.Invocations["create"]));

@@ -19,8 +19,7 @@
 Capability keys use lowercase words separated by hyphens and are compared exactly.
 Unknown keys are rejected with a list of valid keys. Step keys come from
 `Brilliant.Core.Content.StepTypes.All` (tested against the model's JSON
-discriminators); the only runtime currently supported is `python`. #143 will
-connect runtime capabilities to the runtime registry as new runtimes are added.
+discriminators); the only runtime currently supported is `python`. The [runtime registry](code-runtimes.md) makes only the selected runtimes available.
 Duplicate keys/capabilities, unknown YAML fields, missing required fields, invalid
 colors and absolute/traversing asset paths are rejected. `icon` may be omitted.
 The manifest can declare capabilities; this parser does not install runtimes or
@@ -53,5 +52,5 @@ dotnet build src/Brilliant.App -f net10.0-android
 
 Build-time selection, native identity and local storage isolation are described in
 [App flavors](app-flavors.md). [Per-app content](app-content.md) describes source
-selection and validator enforcement; runtime registration follows in #143. Grading-model configuration
+selection and validator enforcement; runtime selection is described in [Code runtimes](code-runtimes.md). Grading-model configuration
 will be added with the grading provider.

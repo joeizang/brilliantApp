@@ -18,7 +18,7 @@ class FakeWorker {
     }
 }
 globalThis.Worker = FakeWorker;
-const { runTests, trace } = await import('../../src/Brilliant.App/wwwroot/python-runtime.js');
+const { runTests, trace } = await import('../../src/Brilliant.Runtime.Python/wwwroot/python-runtime.js');
 
 test('a run that never finishes comes back as timedOut and its worker is terminated', async () => {
     FakeWorker.next = 'hang';

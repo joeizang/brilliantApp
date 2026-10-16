@@ -3,7 +3,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Brilliant.Core.Content;
 
-namespace Brilliant.Core.Python;
+namespace Brilliant.Core.Code;
 
 /// <summary>
 /// How a trace ended. <see cref="Error"/>: the code never compiled or raised (the frames up to that point are kept).
@@ -156,7 +156,7 @@ public static class TraceResultJson
 
     public static TraceResult Parse(string json) =>
         JsonSerializer.Deserialize<TraceResult>(json, Options)
-        ?? throw new InvalidOperationException("The Python runtime returned an empty trace.");
+        ?? throw new InvalidOperationException("The code runtime returned an empty trace.");
 
     /// <summary>
     /// The variables the tracer should record: a sequence, dict or set by its name, a linked list as an object that also says how to

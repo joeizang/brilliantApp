@@ -8,7 +8,7 @@ plays by itself at 0.5×, 1× or 2×.
 
 ```
 lesson.yaml  type: trace            ──►  TraceStep { Code, Visuals }
-TraceStepView                       ──►  IPythonRuntime.TraceAsync(code, visuals)
+TraceStepView                       ──►  CodeRuntimeRegistry.Resolve(language).TraceAsync(code, visuals)
   Pyodide worker  tracer.py (sys.settrace)  ──►  JSON  TraceResult { Status, Frames[], Stdout, … }
 TraceModel.Build(result, visuals)   ──►  TraceState[]   (one per frame, with Changed / Moved / RowChange flags)
 TracePlayer                         ──►  read-only CodeMirror + SVG cells/pointers + TraceTable(s) + locals + Previous / Play / Next
@@ -441,7 +441,7 @@ dict or set (the rest are counted as *+N more*; sets over 500 members are shown 
 locals. An exception ends the trace with `status: "error"`, keeping the frames recorded so far and the traceback, so the learner still sees
 how far it got. The JS bridge (`python-runtime.js`) applies the same run timeout as tests: a hang terminates and recreates the worker. Only the request that timed out gets its own kind of timeout result; any other request pending on the same worker is rejected ("Python was restarted because another run took too long") rather than handed a result of the wrong shape.
 
-## The Trace Model (`Brilliant.Core/Python/Trace.cs`)
+## The Trace Model (`Brilliant.Core/Code/Trace.cs`)
 
 `TraceModel.Build` turns frames into `TraceState`s and is pure, so it is where the unit tests are. It compares each frame **only with the
 one before it, and only when both ran in the same function**; entering or leaving a call marks nothing, because a different frame's locals
@@ -588,7 +588,7 @@ There are no Mac menu bar items for the arrows (the system already uses them for
 
 ## Reused by the full-solution walkthrough
 
-`TraceRun` (code + visuals → runs `IPythonRuntime.TraceAsync`, builds the states, shows the player or the failure) is shared by the trace step and
+`TraceRun` (code + visuals → runs `CodeRuntimeRegistry.Resolve(language).TraceAsync`, builds the states, shows the player or the failure) is shared by the trace step and
 by the last rung of the hint ladder, see [hints.md](hints.md).
 
 ## Not in this slice

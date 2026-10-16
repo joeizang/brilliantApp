@@ -127,7 +127,7 @@ See [styling.md](styling.md).
 - **Editor:** CodeMirror 6, bundled into `src/Brilliant.Lessons.UI/wwwroot/code-editor.js` (committed). Sources are in
   `src/Brilliant.Lessons.UI/editor/`; after changing them run `scripts/build-editor.sh` (needs Node) and commit the bundle.
 - **Python:** the bundled Pyodide runs in a Web Worker (`wwwroot/python-worker.js`, bridged by `python-runtime.js`, exposed to the UI as
-  `IPythonRuntime`). The test harness is `wwwroot/python/harness.py`; check it under CPython with
+  `CodeRuntimeRegistry` / `ICodeRuntime`). The test harness is `src/Brilliant.Runtime.Python/wwwroot/python/harness.py`; check it under CPython with
   `python3 -I -m unittest discover -s tests/python`.
 - Runs are limited to 5 seconds (`PyodideRuntime.RunTimeout`). A run that exceeds it is stopped by terminating the worker; the next run starts a fresh one.
   JS bridge logic is tested with `node --test tests/js/python-runtime.test.mjs`.

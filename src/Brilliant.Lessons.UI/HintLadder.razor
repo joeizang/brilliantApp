@@ -13,7 +13,7 @@
                         <li class="hint-rung walkthrough rounded-md border border-hairline bg-surface px-4 py-2">
                             <span class="hint-label mb-[.15rem] block text-[.8rem] font-semibold text-fg-secondary">@Label(i)</span>
                             <div class="walkthrough-explanation mb-2 [&_p]:m-0 [&_p+p]:mt-2">@((MarkupString)MarkdownHtml.ToHtml(Walkthrough!.Explanation))</div>
-                            <TraceRun Code="@Walkthrough.Code" Visuals="Walkthrough.Visuals" />
+                            <TraceRun Language="@(Walkthrough.Language ?? "python")" Code="@Walkthrough.Code" Visuals="Walkthrough.Visuals" />
                         </li>
                     }
                     else

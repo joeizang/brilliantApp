@@ -1,6 +1,6 @@
 using Brilliant.Core.Content;
 
-namespace Brilliant.Core.Python;
+namespace Brilliant.Core.Code;
 
 /// <summary>
 /// Whether the tests could run at all. <see cref="Error"/> means the learner's code never got as far as the
@@ -56,9 +56,11 @@ public sealed record TestRunResult(
     }
 }
 
-/// <summary>Runs learner Python. Implemented over Pyodide in a Web Worker by the app host (works offline).</summary>
-public interface IPythonRuntime
+/// <summary>Runs learner code in one language, keeping execution and trace outcomes common across runtimes.</summary>
+public interface ICodeRuntime
 {
+    string Language { get; }
+
     /// <summary>
     /// Loads <paramref name="code"/> and calls <paramref name="entrypoint"/> once per test, capturing stdout and tracebacks.
     /// Never throws for problems in the learner's code; those come back in the result.
@@ -82,7 +84,7 @@ public static class TestRunResultJson
 
     public static TestRunResult Parse(string json) =>
         System.Text.Json.JsonSerializer.Deserialize<TestRunResult>(json, Options)
-        ?? throw new InvalidOperationException("The Python runtime returned an empty result.");
+        ?? throw new InvalidOperationException("The code runtime returned an empty result.");
 
     /// <summary>The tests as the harness expects them: <c>[{"input": ..., "expected": ..., "compare": null | "linked_list"}]</c>.</summary>
     public static string SerializeTests(IEnumerable<CodeTest> tests) =>

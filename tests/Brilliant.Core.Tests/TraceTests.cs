@@ -1,5 +1,5 @@
 using Brilliant.Core.Content;
-using Brilliant.Core.Python;
+using Brilliant.Core.Code;
 
 namespace Brilliant.Core.Tests;
 

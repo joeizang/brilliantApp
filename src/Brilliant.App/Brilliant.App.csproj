@@ -9,6 +9,8 @@
     <SingleProject>true</SingleProject>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- Native WebViews use the original assets; precompressed copies only inflate the bundle. -->
+    <CompressionEnabled>false</CompressionEnabled>
     <AppRepositoryRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..'))</AppRepositoryRoot>
     <AppManifestPath>$(AppRepositoryRoot)apps/$(BrilliantApp)/manifest.yaml</AppManifestPath>
 
@@ -56,6 +58,24 @@
     <ContentManifestPath>$(BaseIntermediateOutputPath)content-pack.inputs.txt</ContentManifestPath>
     <ContentCliProject>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '..', '..', 'tools', 'Brilliant.Cli', 'Brilliant.Cli.csproj'))</ContentCliProject>
   </PropertyGroup>
+
+  <!-- NuGet's graph walk and compile both need the same manifest-selected references.
+       Parse with Core via the CLI, before either collects ProjectReference items. -->
+  <Target Name="SelectAppRuntimes"
+          BeforeTargets="_GenerateRestoreProjectPathItemsPerFramework;_GenerateProjectRestoreGraphPerFramework;AssignProjectConfiguration;CoreCompile"
+          Condition="'$(TargetFramework)' != '' And '$(DesignTimeBuild)' != 'true'">
+    <PropertyGroup>
+      <RuntimeSelectionPath>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(BaseIntermediateOutputPath)', 'runtime', '$(TargetFramework)', '$(Configuration)', '$(RuntimeIdentifier)', 'selection.xml'))</RuntimeSelectionPath>
+    </PropertyGroup>
+    <Exec Command="dotnet run --no-launch-profile --project &quot;$(ContentCliProject)&quot; -- app-runtimes &quot;$(AppManifestPath)&quot; &quot;$(RuntimeSelectionPath)&quot;" />
+    <XmlPeek XmlInputPath="$(RuntimeSelectionPath)" Query="/Runtimes/PythonEnabled/text()"><Output TaskParameter="Result" PropertyName="AppPythonEnabled" /></XmlPeek>
+    <PropertyGroup Condition="'$(AppPythonEnabled)' == 'true'">
+      <DefineConstants>$(DefineConstants);BRILLIANT_PYTHON</DefineConstants>
+    </PropertyGroup>
+    <ItemGroup Condition="'$(AppPythonEnabled)' == 'true'">
+      <ProjectReference Include="../Brilliant.Runtime.Python/Brilliant.Runtime.Python.csproj" />
+    </ItemGroup>
+  </Target>
 
   <Target Name="PrepareAppFlavor" BeforeTargets="PrepareForBuild;GetMauiItems;_GetAndroidPackageName;_GenerateBundleName;_CompileAppManifestInputs;ResolveStaticWebAssetsInputs"
           Condition="'$(TargetFramework)' != '' And '$(DesignTimeBuild)' != 'true'">

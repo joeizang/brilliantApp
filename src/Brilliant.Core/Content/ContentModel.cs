@@ -129,7 +129,12 @@ public abstract record Step(string Id, string Title) : ContentItem(Id)
 /// the <see cref="Visuals"/> to draw while it runs (may be none: the variables table still shows), and the markdown
 /// <see cref="Explanation"/> of why it works, shown beside the player.
 /// </summary>
-public sealed record Walkthrough(string Code, IReadOnlyList<Visual> Visuals, string Explanation);
+public sealed record Walkthrough(string Code, IReadOnlyList<Visual> Visuals, string Explanation)
+{
+    // Missing on existing Python packs; omitted when writing them to preserve their bytes.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Language { get; init; }
+}
 
 /// <summary>Text (markdown), optional code snippets and an optional side-by-side C#↔Python comparison.</summary>
 public sealed record ExplainStep(
@@ -338,4 +343,9 @@ public sealed record TraceStep(
     string Title,
     string Body,
     string Code,
-    IReadOnlyList<Visual> Visuals) : Step(Id, Title);
+    IReadOnlyList<Visual> Visuals) : Step(Id, Title)
+{
+    // Older packs contain Python traces without a language field.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Language { get; init; }
+}

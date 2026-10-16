@@ -1,0 +1,7 @@
+id: lesson.runtime-check
+title: Runtime-free fixture
+steps:
+  - id: step.runtime-check
+    type: explain
+    title: No code runtime
+    body: This installation fixture renders lessons without a code runtime.

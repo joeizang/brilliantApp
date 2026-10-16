@@ -1,7 +1,7 @@
 @* A stack or queue in the Trace Player. A stack stands bottom to top with a "top" marker; a queue runs left to right with "front"
    and "back" markers. A cell keeps its place in the drawing for as long as it stays in, so when one leaves from the front the rest
    slide up; one pushed or enqueued grows in at its end, and one popped or dequeued rises away from the end it left (for one step). *@
-@using Brilliant.Core.Python
+@using Brilliant.Core.Code
 
 <figure class="sequence @View.Kind mx-0 my-4 rounded-md border border-hairline bg-surface-raised px-4 pt-2 pb-4" data-variable="@View.Variable" data-kind="@View.Kind">
     <figcaption class="sequence-name mb-1 text-[.9rem] text-fg-secondary [overflow-wrap:anywhere]"><code>@View.Variable</code> <span class="sequence-kind ml-[.4rem] text-[.8rem]">@View.Kind</span></figcaption>

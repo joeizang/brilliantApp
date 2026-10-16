@@ -51,6 +51,13 @@ public static class AppBuildInputs
         WriteIfChanged(Path.Combine(outputDirectory, "AndroidManifest.xml"), android.ToString());
     }
 
+    public static void WriteRuntimeSelection(string manifestPath, string outputPath)
+    {
+        var app = AppManifest.Parse(File.ReadAllText(manifestPath));
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outputPath))!);
+        WriteIfChanged(outputPath, new XElement("Runtimes", new XElement("PythonEnabled", app.SupportsRuntime("python"))).ToString());
+    }
+
     private static string Dot(string hex, string alpha)
     {
         int Channel(int at) => int.Parse(hex.AsSpan(at, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);

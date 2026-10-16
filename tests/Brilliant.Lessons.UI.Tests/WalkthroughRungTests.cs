@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Brilliant.Core.Content;
 using Brilliant.Core.Progress;
-using Brilliant.Core.Python;
+using Brilliant.Core.Code;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
@@ -30,8 +30,9 @@ public class WalkthroughRungTests : ShortcutContext
         public EventPage ReadSince(long cursor) => new(Items.Skip((int)cursor).ToList(), Items.Count);
     }
 
-    private sealed class FakeRuntime : IPythonRuntime
+    private sealed class FakeRuntime : ICodeRuntime
     {
+        public string Language { get; init; } = "python";
         public List<(string Code, IReadOnlyList<Visual> Visuals)> Traced { get; } = [];
 
         public Task<TestRunResult> RunTestsAsync(string code, string entrypoint, IReadOnlyList<CodeTest> tests, CancellationToken ct = default) =>
@@ -55,7 +56,7 @@ public class WalkthroughRungTests : ShortcutContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         JSInterop.SetupModule("./_content/Brilliant.Lessons.UI/code-editor.js").Setup<int>("create", _ => true).SetResult(1);
-        Services.AddSingleton<IPythonRuntime>(_runtime);
+        Services.AddSingleton<ICodeRuntime>(_runtime);
         _recorder = new ProgressRecorder(_log, "device", _clock);
         Services.AddSingleton(_recorder);
     }

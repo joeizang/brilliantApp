@@ -7,7 +7,7 @@ import json
 import pathlib
 import unittest
 
-_path = pathlib.Path(__file__).resolve().parents[2] / "src/Brilliant.App/wwwroot/python/harness.py"
+_path = pathlib.Path(__file__).resolve().parents[2] / "src/Brilliant.Runtime.Python/wwwroot/python/harness.py"
 _spec = importlib.util.spec_from_file_location("harness", _path)
 harness = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(harness)
