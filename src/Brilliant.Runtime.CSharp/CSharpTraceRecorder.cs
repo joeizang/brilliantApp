@@ -119,6 +119,7 @@ public static class CSharpTraceRecorder
     private static IReadOnlyList<TraceFrame> Frames(IReadOnlyList<ProbeSnapshot> snapshots, bool completed, IReadOnlyList<Visual> visuals)
     {
         var watched = visuals.Where(v => v.As is Visual.Array or Visual.Stack or Visual.Queue).Select(v => v.Variable).ToHashSet(StringComparer.Ordinal);
+        var views = new CSharpTraceViews(visuals);
         var frames = new List<TraceFrame>(snapshots.Count);
         foreach (var snapshot in snapshots)
         {
@@ -126,11 +127,13 @@ public static class CSharpTraceRecorder
             // Only the end of the top-level code is a "return" with no line; it is only reached when the code ran through.
             if (closing && !completed) continue;
             var ordered = snapshot.Locals.OrderBy(pair => pair.Key, StringComparer.Ordinal).ToArray();
-            var locals = ordered.Take(MaxLocals).Select(pair => Local(pair.Key, pair.Value)).ToArray();
+            var shown = ordered.Take(MaxLocals).ToArray();
+            var locals = shown.Select(pair => Local(pair.Key, pair.Value)).ToArray();
             var tracked = ordered.Where(pair => watched.Contains(pair.Key) && pair.Value is CapturedSequence)
                 .ToDictionary(pair => pair.Key, pair => Tracked((CapturedSequence)pair.Value!), StringComparer.Ordinal);
             var function = snapshot.Function is null or Wrapper ? Module : snapshot.Function;
-            frames.Add(new(closing ? "return" : "line", closing ? null : snapshot.Line, function, locals, tracked));
+            frames.Add(new(closing ? "return" : "line", closing ? null : snapshot.Line, function, locals, tracked,
+                Tables: views.Tables(snapshot.Locals, shown), Grids: views.Grids(snapshot.Locals), Heaps: views.Heaps(snapshot.Locals)));
         }
         return frames;
     }
@@ -140,11 +143,12 @@ public static class CSharpTraceRecorder
         null => new(name, "null", "null"),
         CapturedSequence sequence => new(name, sequence.Display, Clip(Repr(sequence), MaxRepr)),
         CapturedObject captured => new(name, captured.Display, Clip(Repr(captured), MaxRepr)),
+        CapturedTable table => new(name, table.Display, Clip(Repr(table), MaxRepr)),
         UnavailableCapture unavailable => new(name, "object", $"<{unavailable.Reason}>"),
         _ => new(name, TypeNames.Of(value.GetType()), Clip(Repr(value), MaxRepr), Integer(value)),
     };
 
-    private static int? Integer(object value) => value switch
+    internal static int? Integer(object value) => value switch
     {
         int i => i,
         short or sbyte or byte or ushort => Convert.ToInt32(value, CultureInfo.InvariantCulture),
@@ -169,7 +173,7 @@ public static class CSharpTraceRecorder
     }
 
     /// <summary>A value as C# writes it: a string and a char quoted, a bool and a float as literals, a collection in brackets.</summary>
-    private static string Repr(object? value) => value switch
+    internal static string Repr(object? value) => value switch
     {
         null => "null",
         string text => SymbolDisplay.FormatLiteral(text, quote: true),
@@ -181,13 +185,24 @@ public static class CSharpTraceRecorder
         CapturedSequence sequence => "[" + string.Join(", ", sequence.Values.Take(MaxCells).Select(Repr))
             + ((sequence.Total >= 0 ? sequence.Total : sequence.Values.Count) > MaxCells ? ", …" : "") + "]",
         CapturedObject captured => Repr(captured),
+        CapturedTable table => Repr(table),
         IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
         _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? "null",
     };
 
+    // A dictionary as {"a": 1, "b": 2}, a set as {1, 2, 3}; what doesn't fit is cut off with an ellipsis.
+    private static string Repr(CapturedTable table)
+    {
+        var shown = table.Rows.Take(MaxCells).Select(row => table.IsSet ? Repr(row.Key) : Repr(row.Key) + ": " + Repr(row.Value));
+        return "{" + string.Join(", ", shown) + (table.Total > MaxCells ? ", …" : "") + "}";
+    }
+
     // A user type shows its fields (backing fields by their property's name); a framework type shows only its name, not its internals.
     private static string Repr(CapturedObject captured)
     {
+        // A tuple as C# writes it: (1, "a").
+        if (captured.Type.StartsWith("System.ValueTuple`", StringComparison.Ordinal) && captured.Fields.All(pair => pair.Key.Contains(".Item", StringComparison.Ordinal)))
+            return "(" + string.Join(", ", captured.Fields.Select(pair => Repr(pair.Value))) + ")";
         if (captured.Type.StartsWith("System.", StringComparison.Ordinal)) return captured.Display;
         var fields = captured.Fields.Where(pair => pair.Key != "…")
             .Select(pair => (Name: FieldName(pair.Key), pair.Value));
@@ -200,7 +215,7 @@ public static class CSharpTraceRecorder
         return name.StartsWith('<') && name.IndexOf('>') is var end and > 0 ? name[1..end] : name;
     }
 
-    private static string Clip(string text, int limit, bool ellipsis = true) =>
+    internal static string Clip(string text, int limit, bool ellipsis = true) =>
         text.Length <= limit ? text : text[..(ellipsis ? limit - 1 : limit)] + (ellipsis ? "…" : "");
 
     private static void AppendSource(StringBuilder text, MemberDeclarationSyntax member)

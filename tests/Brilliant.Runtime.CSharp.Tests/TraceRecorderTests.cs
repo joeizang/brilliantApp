@@ -14,6 +14,9 @@ public sealed class TraceRecorderTests
         ["array-scan"] = [new("nums", Visual.Array, ["i"])],
         ["stack-and-queue"] = [new("stack", Visual.Stack, []), new("queue", Visual.Queue, [])],
         ["list-of-doubles"] = [new("values", Visual.Array, [])],
+        ["dict-and-set"] = [new("counts", Visual.Dict, ["key"]), new("seen", Visual.Set, [])],
+        ["heap"] = [new("heap", Visual.Heap, ["i"])],
+        ["grid"] = [new("grid", Visual.Grid, []) { Cells = [new("row", "col")], RowLabels = "names", Highlight = "path" }, new("square", Visual.Grid, []), new("rows", Visual.Grid, [])],
     };
 
     public static TheoryData<string> Fixtures() =>
@@ -213,5 +216,60 @@ public sealed class TraceRecorderTests
         var result = CSharpTraceRecorder.Record("async System.Threading.Tasks.Task F() { await System.Threading.Tasks.Task.Yield(); }", []);
         Assert.Equal(TraceStatus.Error, result.Status);
         Assert.Contains("async", result.Message);
+    }
+
+    [Fact]
+    public void A_dictionary_key_keeps_its_id_through_the_run_and_a_variable_holding_it_is_a_hit()
+    {
+        var frames = Record("dict-and-set").Frames;
+        var withB = frames.Select(f => f.Tables?.GetValueOrDefault("counts")).OfType<TrackedTable>()
+            .Select(t => t.Rows.FirstOrDefault(r => r.Key == "\"b\"")).Where(r => r is not null).Select(r => r!.Id).Distinct().ToArray();
+        Assert.Equal([0], withB);
+        Assert.Equal(0, frames[^1].Tables!["counts"].Hits!["key"]);
+    }
+
+    [Fact]
+    public void A_set_is_listed_in_sorted_order_and_a_dictionary_in_its_own()
+    {
+        var result = CSharpTraceRecorder.Record("var set = new HashSet<int> { 30, 4, 12 };\nvar map = new Dictionary<int, string> { [9] = \"x\", [2] = \"y\" };\nvar done = 1;",
+            [new("set", Visual.Set, []), new("map", Visual.Dict, [])]);
+        var last = result.Frames[^1].Tables!;
+        Assert.Equal(["4", "12", "30"], last["set"].Rows.Select(r => r.Key));
+        Assert.Equal(["9", "2"], last["map"].Rows.Select(r => r.Key));
+        Assert.All(last["set"].Rows, row => Assert.Null(row.Value));
+    }
+
+    [Fact]
+    public void A_big_dictionary_records_twenty_rows_and_counts_the_rest()
+    {
+        var result = CSharpTraceRecorder.Record("var map = new Dictionary<int, int>();\nfor (var i = 0; i < 50; i++) map[i] = i * i;\nvar done = 1;", [new("map", Visual.Dict, [])]);
+        var table = result.Frames[^1].Tables!["map"];
+        Assert.Equal(20, table.Rows.Count);
+        Assert.Equal(30, table.More);
+    }
+
+    [Fact]
+    public void A_heap_over_thirty_one_cells_and_a_grid_over_fifteen_rows_are_cut_off()
+    {
+        var result = CSharpTraceRecorder.Record("var heap = Enumerable.Range(0, 40).ToList();\nvar grid = new int[20][];\nfor (var r = 0; r < 20; r++) grid[r] = new int[18];\nvar done = 1;",
+            [new("heap", Visual.Heap, []), new("grid", Visual.Grid, [])]);
+        var last = result.Frames[^1];
+        Assert.Equal(31, last.Heaps!["heap"].Cells.Count);
+        Assert.Equal(9, last.Heaps["heap"].More);
+        var grid = last.Grids!["grid"];
+        Assert.Equal(15, grid.Rows.Count);
+        Assert.Equal(5, grid.More);
+        Assert.Equal(15, grid.Rows[0].Count);
+        Assert.Equal(18, grid.Lengths[0]);
+    }
+
+    [Fact]
+    public void A_visual_survives_the_json_the_cli_sends_the_worker()
+    {
+        var visual = new Visual("grid", Visual.Grid, ["p"]) { Cells = [new("r", "c")], RowLabels = "names", Highlight = "path" };
+        var back = System.Text.Json.JsonSerializer.Deserialize<Visual>(System.Text.Json.JsonSerializer.Serialize(visual, ContentPackFormat.JsonOptions), ContentPackFormat.JsonOptions)!;
+        Assert.Equal("path", back.Highlight);
+        Assert.Equal("names", back.RowLabels);
+        Assert.Equal("r,c", back.Cells.Single().Name);
     }
 }

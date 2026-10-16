@@ -1,0 +1,11 @@
+var counts = new Dictionary<string, int>();
+var seen = new HashSet<int>();
+var key = "b";
+foreach (var word in new[] { "b", "a", "b", "c" })
+{
+    counts[word] = counts.GetValueOrDefault(word) + 1;
+    seen.Add(word.Length * 3 - 3);
+}
+seen.Add(7);
+seen.Remove(0);
+var found = counts[key];

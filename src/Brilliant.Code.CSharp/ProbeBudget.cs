@@ -15,6 +15,13 @@ public enum CapturedShape { Array, List, Stack, Queue }
 /// <see cref="Total"/> is how many the collection held (-1: all of them). <see cref="Display"/> is its C# name, e.g. <c>List&lt;int&gt;</c>.
 /// </summary>
 public sealed record CapturedSequence(string Type, IReadOnlyList<object?> Values, string Display = "", CapturedShape Shape = CapturedShape.Array, int Total = -1);
+
+/// <summary>
+/// A dictionary or set frozen at a probe. <see cref="Rows"/> holds at most 128 entries (a set's value is null) in the collection's own
+/// order; <see cref="Ordered"/> is true when that order is the collection's by design (sorted types), false when it merely happens
+/// (hashed types). <see cref="Total"/> is how many entries the collection held.
+/// </summary>
+public sealed record CapturedTable(string Type, string Display, bool IsSet, bool Ordered, IReadOnlyList<KeyValuePair<object?, object?>> Rows, int Total);
 public sealed record CapturedObject(string Type, IReadOnlyDictionary<string, object?> Fields, string Display = "");
 public sealed record UnavailableCapture(string Reason);
 
@@ -103,6 +110,20 @@ public sealed class ProbeBudget(int maxSteps = 100_000, TimeSpan? timeout = null
         if (!path.Add(value)) return new UnavailableCapture("cycle");
         try
         {
+            if (value is Array { Rank: 2 } grid)
+            {
+                // A rectangular array is a grid of rows, so it draws like a list of lists.
+                var rowType = TypeNames.Of(type.GetElementType()!) + "[]";
+                var rows = new object?[Math.Min(grid.GetLength(0), 128)];
+                for (var r = 0; r < rows.Length; r++)
+                {
+                    var cells = new object?[Math.Min(grid.GetLength(1), 128)];
+                    for (var c = 0; c < cells.Length; c++)
+                        cells[c] = Freeze(grid.GetValue(r + grid.GetLowerBound(0), c + grid.GetLowerBound(1)), path, depth + 2, limit);
+                    rows[r] = new CapturedSequence(rowType, cells, rowType, CapturedShape.Array, grid.GetLength(1));
+                }
+                return new CapturedSequence(type.FullName ?? type.Name, rows, TypeNames.Of(type), CapturedShape.Array, grid.GetLength(0));
+            }
             if (value is Array array)
                 return new CapturedSequence(type.FullName ?? type.Name,
                     array.Cast<object?>().Take(128).Select(item => Freeze(item, path, depth + 1, limit)).ToArray(),
@@ -125,6 +146,23 @@ public sealed class ProbeBudget(int maxSteps = 100_000, TimeSpan? timeout = null
                 return new CapturedSequence(type.FullName ?? type.Name,
                     ((IEnumerable)value).Cast<object?>().Take(128).Select(item => Freeze(item, path, depth + 1, limit)).ToArray(),
                     TypeNames.Of(type), CapturedShape.Queue, Count(value));
+            if (type.IsGenericType && type.GetGenericTypeDefinition() is var definition)
+            {
+                if (definition == typeof(Dictionary<,>) || definition == typeof(SortedDictionary<,>) || definition == typeof(SortedList<,>))
+                {
+                    var rows = new List<KeyValuePair<object?, object?>>();
+                    foreach (DictionaryEntry entry in (IDictionary)value)
+                    {
+                        if (rows.Count == 128) break;
+                        rows.Add(new(Freeze(entry.Key, path, depth + 1, limit), Freeze(entry.Value, path, depth + 1, limit)));
+                    }
+                    return new CapturedTable(type.FullName ?? type.Name, TypeNames.Of(type), IsSet: false, Ordered: definition != typeof(Dictionary<,>), rows, Count(value));
+                }
+                if (definition == typeof(HashSet<>) || definition == typeof(SortedSet<>))
+                    return new CapturedTable(type.FullName ?? type.Name, TypeNames.Of(type), IsSet: true, Ordered: definition == typeof(SortedSet<>),
+                        ((IEnumerable)value).Cast<object?>().Take(128).Select(item => new KeyValuePair<object?, object?>(Freeze(item, path, depth + 1, limit), null)).ToArray(),
+                        Count(value));
+            }
             var fields = new Dictionary<string, object?>(StringComparer.Ordinal);
             for (var current = type; current is not null; current = current.BaseType)
                 foreach (var field in current.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly).Take(128))
