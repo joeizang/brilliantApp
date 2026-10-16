@@ -160,9 +160,9 @@ public static class CSharpTraceRecorder
     private static TrackedCalls Calls(ProbeSnapshot snapshot, ReturnedValue? handedBack, Visual visual)
     {
         var stack = (snapshot.Calls ?? []).Where(call => visual.Functions.Count == 0 || visual.Functions.Contains(call.Function)).ToArray();
-        var recorded = stack.Select((call, place) => new RecordedCall(call.Id, call.Function,
+        var recorded = stack.Select(call => new RecordedCall(call.Id, call.Function,
                 call.Args.Select(arg => new CallArg(arg.Key, Clip(Repr(arg.Value), MaxCellRepr))).ToArray(),
-                place == stack.Length - 1 && snapshot.Return is { } returning ? returning.Void ? "void" : Clip(Repr(returning.Value), MaxCellRepr) : null))
+                snapshot.Return is { } returning && returning.CallId == call.Id ? returning.Void ? "void" : Clip(Repr(returning.Value), MaxCellRepr) : null))
             .ToArray();
         return new(recorded[Math.Max(0, recorded.Length - MaxCalls)..], Math.Max(0, recorded.Length - MaxCalls), handedBack);
     }

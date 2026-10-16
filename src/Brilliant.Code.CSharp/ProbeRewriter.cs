@@ -76,14 +76,21 @@ public static class ProbeRewriter
                     IParameterSymbol parameter => Capturable(parameter.Type),
                     _ => false,
                 }).GroupBy(symbol => symbol.Name).Select(group => group.First()).ToArray();
+            // The memory view lists a frame as the code declares it; the symbols are looked up innermost scope first.
+            if (markValues) symbols = [.. symbols.OrderBy(symbol => symbol.Locations.FirstOrDefault()?.SourceSpan.Start ?? 0)];
             return Arguments(statement.GetLocation().GetMappedLineSpan().StartLinePosition.Line + 1, FunctionName(statement), symbols);
         }
 
         private static ITypeSymbol? TypeOf(ISymbol symbol) => symbol switch { ILocalSymbol local => local.Type, IParameterSymbol parameter => parameter.Type, _ => null };
 
         // A variable's value as a probe takes it: marked when it is a value held in the variable itself.
-        private string Value(ISymbol symbol) => markValues && TypeOf(symbol)?.IsValueType == true
-            ? $"new global::Brilliant.Code.CSharp.InlineValue(@{symbol.Name})" : "@" + symbol.Name;
+        // A type parameter is a value or a reference only once the method is called, so the probe decides at run time.
+        private string Value(ISymbol symbol) => !markValues ? "@" + symbol.Name : TypeOf(symbol) switch
+        {
+            { IsValueType: true } => $"new global::Brilliant.Code.CSharp.InlineValue(@{symbol.Name})",
+            ITypeParameterSymbol { HasReferenceTypeConstraint: false } => $"global::Brilliant.Code.CSharp.InlineValue.Mark(@{symbol.Name})",
+            _ => "@" + symbol.Name,
+        };
 
         private string Arguments(int line, string? functionName, IEnumerable<ISymbol> symbols)
         {

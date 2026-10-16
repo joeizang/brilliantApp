@@ -213,11 +213,6 @@
             "function": "Main",
             "slots": [
               {
-                "name": "a",
-                "type": "Counter",
-                "ref": 1
-              },
-              {
                 "name": "p",
                 "type": "Point",
                 "fields": [
@@ -248,6 +243,11 @@
                     "value": "2"
                   }
                 ]
+              },
+              {
+                "name": "a",
+                "type": "Counter",
+                "ref": 1
               }
             ]
           }
@@ -304,16 +304,6 @@
             "function": "Main",
             "slots": [
               {
-                "name": "a",
-                "type": "Counter",
-                "ref": 1
-              },
-              {
-                "name": "b",
-                "type": "Counter",
-                "ref": 1
-              },
-              {
                 "name": "p",
                 "type": "Point",
                 "fields": [
@@ -344,6 +334,16 @@
                     "value": "2"
                   }
                 ]
+              },
+              {
+                "name": "a",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "b",
+                "type": "Counter",
+                "ref": 1
               }
             ]
           }
@@ -400,16 +400,6 @@
             "function": "Main",
             "slots": [
               {
-                "name": "a",
-                "type": "Counter",
-                "ref": 1
-              },
-              {
-                "name": "b",
-                "type": "Counter",
-                "ref": 1
-              },
-              {
                 "name": "p",
                 "type": "Point",
                 "fields": [
@@ -440,6 +430,16 @@
                     "value": "2"
                   }
                 ]
+              },
+              {
+                "name": "a",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "b",
+                "type": "Counter",
+                "ref": 1
               }
             ]
           }
@@ -502,21 +502,6 @@
             "function": "Main",
             "slots": [
               {
-                "name": "a",
-                "type": "Counter",
-                "ref": 1
-              },
-              {
-                "name": "b",
-                "type": "Counter",
-                "ref": 1
-              },
-              {
-                "name": "boxed",
-                "type": "int",
-                "ref": 2
-              },
-              {
                 "name": "p",
                 "type": "Point",
                 "fields": [
@@ -547,6 +532,21 @@
                     "value": "2"
                   }
                 ]
+              },
+              {
+                "name": "a",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "b",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "boxed",
+                "type": "int",
+                "ref": 2
               }
             ]
           }
@@ -606,21 +606,6 @@
             "function": "Main",
             "slots": [
               {
-                "name": "a",
-                "type": "Counter",
-                "ref": 1
-              },
-              {
-                "name": "b",
-                "type": "Counter",
-                "ref": 1
-              },
-              {
-                "name": "boxed",
-                "type": "int",
-                "ref": 2
-              },
-              {
                 "name": "p",
                 "type": "Point",
                 "fields": [
@@ -651,6 +636,21 @@
                     "value": "2"
                   }
                 ]
+              },
+              {
+                "name": "a",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "b",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "boxed",
+                "type": "int",
+                "ref": 2
               }
             ]
           },
@@ -737,21 +737,6 @@
             "function": "Main",
             "slots": [
               {
-                "name": "a",
-                "type": "Counter",
-                "ref": 1
-              },
-              {
-                "name": "b",
-                "type": "Counter",
-                "ref": 1
-              },
-              {
-                "name": "boxed",
-                "type": "int",
-                "ref": 2
-              },
-              {
                 "name": "p",
                 "type": "Point",
                 "fields": [
@@ -782,6 +767,21 @@
                     "value": "2"
                   }
                 ]
+              },
+              {
+                "name": "a",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "b",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "boxed",
+                "type": "int",
+                "ref": 2
               }
             ]
           },
@@ -868,21 +868,6 @@
             "function": "Main",
             "slots": [
               {
-                "name": "a",
-                "type": "Counter",
-                "ref": 1
-              },
-              {
-                "name": "b",
-                "type": "Counter",
-                "ref": 1
-              },
-              {
-                "name": "boxed",
-                "type": "int",
-                "ref": 2
-              },
-              {
                 "name": "p",
                 "type": "Point",
                 "fields": [
@@ -913,6 +898,21 @@
                     "value": "2"
                   }
                 ]
+              },
+              {
+                "name": "a",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "b",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "boxed",
+                "type": "int",
+                "ref": 2
               }
             ]
           },
@@ -1015,21 +1015,6 @@
             "function": "Main",
             "slots": [
               {
-                "name": "a",
-                "type": "Counter",
-                "ref": 1
-              },
-              {
-                "name": "b",
-                "type": "Counter",
-                "ref": 1
-              },
-              {
-                "name": "boxed",
-                "type": "int",
-                "ref": 2
-              },
-              {
                 "name": "p",
                 "type": "Point",
                 "fields": [
@@ -1060,6 +1045,21 @@
                     "value": "2"
                   }
                 ]
+              },
+              {
+                "name": "a",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "b",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "boxed",
+                "type": "int",
+                "ref": 2
               }
             ]
           }
@@ -1140,26 +1140,6 @@
             "function": "Main",
             "slots": [
               {
-                "name": "a",
-                "type": "Counter",
-                "ref": 1
-              },
-              {
-                "name": "b",
-                "type": "Counter",
-                "ref": 1
-              },
-              {
-                "name": "boxed",
-                "type": "int",
-                "ref": 2
-              },
-              {
-                "name": "numbers",
-                "type": "int[]",
-                "ref": 3
-              },
-              {
                 "name": "p",
                 "type": "Point",
                 "fields": [
@@ -1190,6 +1170,26 @@
                     "value": "2"
                   }
                 ]
+              },
+              {
+                "name": "a",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "b",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "boxed",
+                "type": "int",
+                "ref": 2
+              },
+              {
+                "name": "numbers",
+                "type": "int[]",
+                "ref": 3
               }
             ]
           }
@@ -1292,26 +1292,6 @@
             "function": "Main",
             "slots": [
               {
-                "name": "a",
-                "type": "Counter",
-                "ref": 1
-              },
-              {
-                "name": "b",
-                "type": "Counter",
-                "ref": 1
-              },
-              {
-                "name": "boxed",
-                "type": "int",
-                "ref": 2
-              },
-              {
-                "name": "numbers",
-                "type": "int[]",
-                "ref": 3
-              },
-              {
                 "name": "p",
                 "type": "Point",
                 "fields": [
@@ -1342,6 +1322,26 @@
                     "value": "2"
                   }
                 ]
+              },
+              {
+                "name": "a",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "b",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "boxed",
+                "type": "int",
+                "ref": 2
+              },
+              {
+                "name": "numbers",
+                "type": "int[]",
+                "ref": 3
               }
             ]
           }

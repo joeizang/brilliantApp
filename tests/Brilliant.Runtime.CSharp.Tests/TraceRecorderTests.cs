@@ -508,4 +508,45 @@ public sealed class TraceRecorderTests
         var result = Record("memory");
         Assert.Equal(TraceResultJson.Serialize(result), TraceResultJson.Serialize(TraceResultJson.Parse(TraceResultJson.Serialize(result))));
     }
+
+    [Fact]
+    public void A_frame_lists_its_locals_in_the_order_the_code_declares_them()
+    {
+        var main = MemoryAt("memory", 9).Frames.Single();
+        Assert.Equal(["p", "q", "a", "b", "boxed"], main.Slots.Select(s => s.Name));
+    }
+
+    [Fact]
+    public void A_generic_methods_value_locals_are_inline_and_make_no_boxes()
+    {
+        var code = "var biggest = Max(3, 4);\n\nT Max<T>(T a, T b) where T : IComparable<T>\n{\n    var best = a;\n    if (b.CompareTo(best) > 0) best = b;\n    return best;\n}";
+        var result = CSharpTraceRecorder.Record(code, [new("", Visual.Memory, [])]);
+        Assert.Equal(TraceStatus.Ok, result.Status);
+        Assert.All(result.Frames, f => Assert.DoesNotContain(f.Memory!.Objects, o => o.Kind == MemoryKinds.Box));
+        var inside = result.Frames.Last(f => f.Memory!.Frames.Count == 2).Memory!.Frames[1];
+        Assert.Equal(["a", "b", "best"], inside.Slots.Select(s => s.Name));
+        Assert.All(inside.Slots, s => Assert.Null(s.Ref));
+        Assert.Equal("int", inside.Slots[0].Type);
+    }
+
+    [Fact]
+    public void A_generic_methods_reference_locals_stay_references()
+    {
+        var code = "var s = First(new[] { \"x\", \"y\" });\n\nT First<T>(T[] items)\n{\n    var head = items[0];\n    return head;\n}";
+        var result = CSharpTraceRecorder.Record(code, [new("", Visual.Memory, [])]);
+        var inside = result.Frames.Last(f => f.Memory!.Frames.Count == 2).Memory!;
+        Assert.NotNull(inside.Frames[1].Slots.Single(s => s.Name == "items").Ref);
+        Assert.Equal("\"x\"", inside.Frames[1].Slots.Single(s => s.Name == "head").Value);
+    }
+
+    [Fact]
+    public void A_memory_view_beside_a_filtered_call_stack_labels_a_return_with_its_own_calls_value()
+    {
+        var code = "var t = Twice(5);\n\nint Twice(int n)\n{\n    var d = Add(n, n);\n    return d * 2;\n}\n\nint Add(int a, int b) => a + b + 100;";
+        var result = CSharpTraceRecorder.Record(code, [new("", Visual.Memory, []), new("", Visual.CallStack, []) { Functions = ["Twice"] }]);
+        Assert.Equal(TraceStatus.Ok, result.Status);
+        var returns = result.Frames.Where(f => f.Calls is not null).SelectMany(f => f.Calls!.Frames).Where(c => c.Returning is not null).ToArray();
+        Assert.All(returns, c => Assert.Equal("Twice", c.Function));
+        Assert.Equal(["220"], returns.Select(c => c.Returning).Distinct());
+    }
 }

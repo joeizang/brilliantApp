@@ -10,6 +10,9 @@ namespace Brilliant.Code.CSharp;
 public sealed class InlineValue(object? value)
 {
     public object? Value { get; } = value;
+
+    /// <summary>A variable whose static type is a type parameter: it holds a value, not a reference to a box, exactly when the <typeparamref name="T"/> it is called with is a value type.</summary>
+    public static object? Mark<T>(T value) => typeof(T).IsValueType ? new InlineValue(value) : value;
 }
 
 /// <summary>
@@ -77,7 +80,7 @@ internal sealed class MemoryCapturer(string? mainFunction)
         foreach (var frame in _main is null ? _stack : _stack.Prepend(_main))
         {
             var slots = new List<CapturedSlot>();
-            foreach (var index in Enumerable.Range(0, Math.Min(frame.Names.Length, frame.Values.Length)).OrderBy(i => frame.Names[i], StringComparer.Ordinal).Take(MaxLocals))
+            foreach (var index in Enumerable.Range(0, Math.Min(frame.Names.Length, frame.Values.Length)).Take(MaxLocals))
             {
                 var raw = frame.Values[index];
                 slots.Add(raw is InlineValue inline ? Describe(frame.Names[index], inline.Value, true, null, 0, context) : Describe(frame.Names[index], raw, false, null, 0, context));
