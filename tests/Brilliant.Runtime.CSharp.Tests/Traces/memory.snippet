@@ -1,0 +1,27 @@
+var p = new Point(1, 2);
+var q = p;
+q.X = 9;
+var a = new Counter();
+var b = a;
+b.Count = 5;
+object boxed = 42;
+Bump(a, p);
+var numbers = new[] { 1, 2, 3 };
+Console.WriteLine(a.Count + (int)boxed + numbers.Length);
+
+void Bump(Counter counter, Point point)
+{
+    counter.Count++;
+    point.X = 100;
+}
+
+struct Point(int x, int y)
+{
+    public int X = x;
+    public int Y = y;
+}
+
+class Counter
+{
+    public int Count;
+}

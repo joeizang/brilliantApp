@@ -148,6 +148,36 @@ A `memory` visual (no variable) is for the recorded C# trace's stack-and-heap vi
 off in `More`) and `MoreFrames`. A `MemorySlot` is a name and a type with one of: a `Value` (a primitive, string or enum), a `Ref` (the id of
 an object, never an address) or `Fields` (a struct, written out so a copy is a second set of values).
 
-The model and the player are in place and `validate` understands the visual (C# only, one per step, no variable or pointers); the recorder
-that fills `Memory` follows in the next change, so until it lands a `memory` visual is reported as having nothing to draw.
+### How it is recorded
+
+With a `memory` visual in the step, the recorder turns on three things that other recordings never see (they stay byte-identical, and
+their golden files did not change):
+
+- **Every method and local function is a tracked call**, as with `call_stack` (an `Enter`/`ExitCall` pair and a probe at each return). A
+  `memory` view therefore adds the return steps a `call_stack` does. A `call_stack` visual next to it still lists only its own `functions`.
+- **Value-typed locals and parameters are marked** (`ProbeRewriter` `markValues`: the probe takes `new InlineValue(x)`). A local reaches a probe
+  boxed, so without the mark a `Point` held in a variable and a `Point` boxed into an `object` look the same. The static type decides:
+  a value-typed variable, field or array element holds its value inline; the same value in a reference-typed place (`object o = 5`) is a box
+  on the heap. A struct copy is therefore a second set of `Fields`, and a box is a new object with its own id. A variable whose type is a type
+  parameter (`T best`) is decided at run time (`InlineValue.Mark<T>`): inline when the method is called with a value type, a reference otherwise.
+- **A frame lists its locals in the order the code declares them** (parameters first), which the rewriter sorts for the memory view only.
+- **`ProbeBudget` follows the stack** (`MemoryCapturer`): each tracked call keeps the locals its last probe saw, so a caller waiting on a
+  call still shows what it held when it called. The code outside any method is the frame `Main` (id -1). The heap is read at the probe, so it is
+  always current.
+
+What is drawn, and where it stops:
+
+- Strings, primitives, enums, `decimal`, dates and `Guid` are inline values (a string is not drawn as a heap object). A user struct, a tuple or a
+  `KeyValuePair` is inline `Fields`, nested up to four levels.
+- Class instances show their fields (a property's backing field by the property's name); arrays and `List<T>`, `Stack<T>`, `Queue<T>`,
+  `HashSet<T>` and `SortedSet<T>` are `array` objects with `[0]`, `[1]`… slots. Other framework objects (a `Dictionary`, a `StringBuilder`) are shown by
+  their type name with no slots. A multi-dimensional array shows only its length in `More`.
+- A local that holds `null` shows the type `object` (the probe knows the value, not the declared type); the type is only drawn for structs, so this
+  shows only in the accessible label.
+- Limits: 12 frames (the innermost; `MoreFrames` counts the rest), 24 locals per frame, 24 objects and 16 slots per object per step (`More` counts the
+  rest; a reference past the object limit reads `<limit>`). An object only a cut-off frame reached is dropped.
+- Object ids are numbered in the order objects are first seen in the run (never from an address) and offset by one, so an object keeps its id at
+  every step. A constructor, lambda or accessor is not a frame of its own: while one runs, the stack shows the frames as they were.
+
+A memory view over code with no local and no object still fails `validate` with "nothing to draw".
 

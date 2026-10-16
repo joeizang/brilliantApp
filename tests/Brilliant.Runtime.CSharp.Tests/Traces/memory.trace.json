@@ -1,0 +1,1405 @@
+{
+  "status": "ok",
+  "frames": [
+    {
+      "event": "line",
+      "line": 1,
+      "function": "Main",
+      "locals": [],
+      "tracked": {},
+      "memory": {
+        "frames": [
+          {
+            "id": -1,
+            "function": "Main",
+            "slots": []
+          }
+        ],
+        "objects": [],
+        "moreFrames": 0
+      }
+    },
+    {
+      "event": "line",
+      "line": 2,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "p",
+          "type": "Point",
+          "repr": "Point { X = 1, Y = 2 }"
+        }
+      ],
+      "tracked": {},
+      "memory": {
+        "frames": [
+          {
+            "id": -1,
+            "function": "Main",
+            "slots": [
+              {
+                "name": "p",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "1"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "objects": [],
+        "moreFrames": 0
+      }
+    },
+    {
+      "event": "line",
+      "line": 3,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "p",
+          "type": "Point",
+          "repr": "Point { X = 1, Y = 2 }"
+        },
+        {
+          "name": "q",
+          "type": "Point",
+          "repr": "Point { X = 1, Y = 2 }"
+        }
+      ],
+      "tracked": {},
+      "memory": {
+        "frames": [
+          {
+            "id": -1,
+            "function": "Main",
+            "slots": [
+              {
+                "name": "p",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "1"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              },
+              {
+                "name": "q",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "1"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "objects": [],
+        "moreFrames": 0
+      }
+    },
+    {
+      "event": "line",
+      "line": 4,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "p",
+          "type": "Point",
+          "repr": "Point { X = 1, Y = 2 }"
+        },
+        {
+          "name": "q",
+          "type": "Point",
+          "repr": "Point { X = 9, Y = 2 }"
+        }
+      ],
+      "tracked": {},
+      "memory": {
+        "frames": [
+          {
+            "id": -1,
+            "function": "Main",
+            "slots": [
+              {
+                "name": "p",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "1"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              },
+              {
+                "name": "q",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "9"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "objects": [],
+        "moreFrames": 0
+      }
+    },
+    {
+      "event": "line",
+      "line": 5,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "a",
+          "type": "Counter",
+          "repr": "Counter { Count = 0 }"
+        },
+        {
+          "name": "p",
+          "type": "Point",
+          "repr": "Point { X = 1, Y = 2 }"
+        },
+        {
+          "name": "q",
+          "type": "Point",
+          "repr": "Point { X = 9, Y = 2 }"
+        }
+      ],
+      "tracked": {},
+      "memory": {
+        "frames": [
+          {
+            "id": -1,
+            "function": "Main",
+            "slots": [
+              {
+                "name": "p",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "1"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              },
+              {
+                "name": "q",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "9"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              },
+              {
+                "name": "a",
+                "type": "Counter",
+                "ref": 1
+              }
+            ]
+          }
+        ],
+        "objects": [
+          {
+            "id": 1,
+            "type": "Counter",
+            "kind": "class",
+            "slots": [
+              {
+                "name": "Count",
+                "type": "int",
+                "value": "0"
+              }
+            ],
+            "more": 0
+          }
+        ],
+        "moreFrames": 0
+      }
+    },
+    {
+      "event": "line",
+      "line": 6,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "a",
+          "type": "Counter",
+          "repr": "Counter { Count = 0 }"
+        },
+        {
+          "name": "b",
+          "type": "Counter",
+          "repr": "Counter { Count = 0 }"
+        },
+        {
+          "name": "p",
+          "type": "Point",
+          "repr": "Point { X = 1, Y = 2 }"
+        },
+        {
+          "name": "q",
+          "type": "Point",
+          "repr": "Point { X = 9, Y = 2 }"
+        }
+      ],
+      "tracked": {},
+      "memory": {
+        "frames": [
+          {
+            "id": -1,
+            "function": "Main",
+            "slots": [
+              {
+                "name": "p",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "1"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              },
+              {
+                "name": "q",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "9"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              },
+              {
+                "name": "a",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "b",
+                "type": "Counter",
+                "ref": 1
+              }
+            ]
+          }
+        ],
+        "objects": [
+          {
+            "id": 1,
+            "type": "Counter",
+            "kind": "class",
+            "slots": [
+              {
+                "name": "Count",
+                "type": "int",
+                "value": "0"
+              }
+            ],
+            "more": 0
+          }
+        ],
+        "moreFrames": 0
+      }
+    },
+    {
+      "event": "line",
+      "line": 7,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "a",
+          "type": "Counter",
+          "repr": "Counter { Count = 5 }"
+        },
+        {
+          "name": "b",
+          "type": "Counter",
+          "repr": "Counter { Count = 5 }"
+        },
+        {
+          "name": "p",
+          "type": "Point",
+          "repr": "Point { X = 1, Y = 2 }"
+        },
+        {
+          "name": "q",
+          "type": "Point",
+          "repr": "Point { X = 9, Y = 2 }"
+        }
+      ],
+      "tracked": {},
+      "memory": {
+        "frames": [
+          {
+            "id": -1,
+            "function": "Main",
+            "slots": [
+              {
+                "name": "p",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "1"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              },
+              {
+                "name": "q",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "9"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              },
+              {
+                "name": "a",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "b",
+                "type": "Counter",
+                "ref": 1
+              }
+            ]
+          }
+        ],
+        "objects": [
+          {
+            "id": 1,
+            "type": "Counter",
+            "kind": "class",
+            "slots": [
+              {
+                "name": "Count",
+                "type": "int",
+                "value": "5"
+              }
+            ],
+            "more": 0
+          }
+        ],
+        "moreFrames": 0
+      }
+    },
+    {
+      "event": "line",
+      "line": 8,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "a",
+          "type": "Counter",
+          "repr": "Counter { Count = 5 }"
+        },
+        {
+          "name": "b",
+          "type": "Counter",
+          "repr": "Counter { Count = 5 }"
+        },
+        {
+          "name": "boxed",
+          "type": "int",
+          "repr": "42",
+          "index": 42
+        },
+        {
+          "name": "p",
+          "type": "Point",
+          "repr": "Point { X = 1, Y = 2 }"
+        },
+        {
+          "name": "q",
+          "type": "Point",
+          "repr": "Point { X = 9, Y = 2 }"
+        }
+      ],
+      "tracked": {},
+      "memory": {
+        "frames": [
+          {
+            "id": -1,
+            "function": "Main",
+            "slots": [
+              {
+                "name": "p",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "1"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              },
+              {
+                "name": "q",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "9"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              },
+              {
+                "name": "a",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "b",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "boxed",
+                "type": "int",
+                "ref": 2
+              }
+            ]
+          }
+        ],
+        "objects": [
+          {
+            "id": 1,
+            "type": "Counter",
+            "kind": "class",
+            "slots": [
+              {
+                "name": "Count",
+                "type": "int",
+                "value": "5"
+              }
+            ],
+            "more": 0
+          },
+          {
+            "id": 2,
+            "type": "int",
+            "kind": "box",
+            "slots": [
+              {
+                "name": "value",
+                "type": "int",
+                "value": "42"
+              }
+            ],
+            "more": 0
+          }
+        ],
+        "moreFrames": 0
+      }
+    },
+    {
+      "event": "line",
+      "line": 14,
+      "function": "Bump",
+      "locals": [
+        {
+          "name": "counter",
+          "type": "Counter",
+          "repr": "Counter { Count = 5 }"
+        },
+        {
+          "name": "point",
+          "type": "Point",
+          "repr": "Point { X = 1, Y = 2 }"
+        }
+      ],
+      "tracked": {},
+      "memory": {
+        "frames": [
+          {
+            "id": -1,
+            "function": "Main",
+            "slots": [
+              {
+                "name": "p",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "1"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              },
+              {
+                "name": "q",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "9"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              },
+              {
+                "name": "a",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "b",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "boxed",
+                "type": "int",
+                "ref": 2
+              }
+            ]
+          },
+          {
+            "id": 0,
+            "function": "Bump",
+            "slots": [
+              {
+                "name": "counter",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "point",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "1"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "objects": [
+          {
+            "id": 1,
+            "type": "Counter",
+            "kind": "class",
+            "slots": [
+              {
+                "name": "Count",
+                "type": "int",
+                "value": "5"
+              }
+            ],
+            "more": 0
+          },
+          {
+            "id": 2,
+            "type": "int",
+            "kind": "box",
+            "slots": [
+              {
+                "name": "value",
+                "type": "int",
+                "value": "42"
+              }
+            ],
+            "more": 0
+          }
+        ],
+        "moreFrames": 0
+      }
+    },
+    {
+      "event": "line",
+      "line": 15,
+      "function": "Bump",
+      "locals": [
+        {
+          "name": "counter",
+          "type": "Counter",
+          "repr": "Counter { Count = 6 }"
+        },
+        {
+          "name": "point",
+          "type": "Point",
+          "repr": "Point { X = 1, Y = 2 }"
+        }
+      ],
+      "tracked": {},
+      "memory": {
+        "frames": [
+          {
+            "id": -1,
+            "function": "Main",
+            "slots": [
+              {
+                "name": "p",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "1"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              },
+              {
+                "name": "q",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "9"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              },
+              {
+                "name": "a",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "b",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "boxed",
+                "type": "int",
+                "ref": 2
+              }
+            ]
+          },
+          {
+            "id": 0,
+            "function": "Bump",
+            "slots": [
+              {
+                "name": "counter",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "point",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "1"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "objects": [
+          {
+            "id": 1,
+            "type": "Counter",
+            "kind": "class",
+            "slots": [
+              {
+                "name": "Count",
+                "type": "int",
+                "value": "6"
+              }
+            ],
+            "more": 0
+          },
+          {
+            "id": 2,
+            "type": "int",
+            "kind": "box",
+            "slots": [
+              {
+                "name": "value",
+                "type": "int",
+                "value": "42"
+              }
+            ],
+            "more": 0
+          }
+        ],
+        "moreFrames": 0
+      }
+    },
+    {
+      "event": "return",
+      "line": 16,
+      "function": "Bump",
+      "locals": [
+        {
+          "name": "counter",
+          "type": "Counter",
+          "repr": "Counter { Count = 6 }"
+        },
+        {
+          "name": "point",
+          "type": "Point",
+          "repr": "Point { X = 100, Y = 2 }"
+        }
+      ],
+      "tracked": {},
+      "memory": {
+        "frames": [
+          {
+            "id": -1,
+            "function": "Main",
+            "slots": [
+              {
+                "name": "p",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "1"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              },
+              {
+                "name": "q",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "9"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              },
+              {
+                "name": "a",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "b",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "boxed",
+                "type": "int",
+                "ref": 2
+              }
+            ]
+          },
+          {
+            "id": 0,
+            "function": "Bump",
+            "slots": [
+              {
+                "name": "counter",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "point",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "100"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "objects": [
+          {
+            "id": 1,
+            "type": "Counter",
+            "kind": "class",
+            "slots": [
+              {
+                "name": "Count",
+                "type": "int",
+                "value": "6"
+              }
+            ],
+            "more": 0
+          },
+          {
+            "id": 2,
+            "type": "int",
+            "kind": "box",
+            "slots": [
+              {
+                "name": "value",
+                "type": "int",
+                "value": "42"
+              }
+            ],
+            "more": 0
+          }
+        ],
+        "moreFrames": 0
+      }
+    },
+    {
+      "event": "line",
+      "line": 9,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "a",
+          "type": "Counter",
+          "repr": "Counter { Count = 6 }"
+        },
+        {
+          "name": "b",
+          "type": "Counter",
+          "repr": "Counter { Count = 6 }"
+        },
+        {
+          "name": "boxed",
+          "type": "int",
+          "repr": "42",
+          "index": 42
+        },
+        {
+          "name": "p",
+          "type": "Point",
+          "repr": "Point { X = 1, Y = 2 }"
+        },
+        {
+          "name": "q",
+          "type": "Point",
+          "repr": "Point { X = 9, Y = 2 }"
+        }
+      ],
+      "tracked": {},
+      "memory": {
+        "frames": [
+          {
+            "id": -1,
+            "function": "Main",
+            "slots": [
+              {
+                "name": "p",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "1"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              },
+              {
+                "name": "q",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "9"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              },
+              {
+                "name": "a",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "b",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "boxed",
+                "type": "int",
+                "ref": 2
+              }
+            ]
+          }
+        ],
+        "objects": [
+          {
+            "id": 1,
+            "type": "Counter",
+            "kind": "class",
+            "slots": [
+              {
+                "name": "Count",
+                "type": "int",
+                "value": "6"
+              }
+            ],
+            "more": 0
+          },
+          {
+            "id": 2,
+            "type": "int",
+            "kind": "box",
+            "slots": [
+              {
+                "name": "value",
+                "type": "int",
+                "value": "42"
+              }
+            ],
+            "more": 0
+          }
+        ],
+        "moreFrames": 0
+      }
+    },
+    {
+      "event": "line",
+      "line": 10,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "a",
+          "type": "Counter",
+          "repr": "Counter { Count = 6 }"
+        },
+        {
+          "name": "b",
+          "type": "Counter",
+          "repr": "Counter { Count = 6 }"
+        },
+        {
+          "name": "boxed",
+          "type": "int",
+          "repr": "42",
+          "index": 42
+        },
+        {
+          "name": "numbers",
+          "type": "int[]",
+          "repr": "[1, 2, 3]"
+        },
+        {
+          "name": "p",
+          "type": "Point",
+          "repr": "Point { X = 1, Y = 2 }"
+        },
+        {
+          "name": "q",
+          "type": "Point",
+          "repr": "Point { X = 9, Y = 2 }"
+        }
+      ],
+      "tracked": {},
+      "memory": {
+        "frames": [
+          {
+            "id": -1,
+            "function": "Main",
+            "slots": [
+              {
+                "name": "p",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "1"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              },
+              {
+                "name": "q",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "9"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              },
+              {
+                "name": "a",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "b",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "boxed",
+                "type": "int",
+                "ref": 2
+              },
+              {
+                "name": "numbers",
+                "type": "int[]",
+                "ref": 3
+              }
+            ]
+          }
+        ],
+        "objects": [
+          {
+            "id": 1,
+            "type": "Counter",
+            "kind": "class",
+            "slots": [
+              {
+                "name": "Count",
+                "type": "int",
+                "value": "6"
+              }
+            ],
+            "more": 0
+          },
+          {
+            "id": 2,
+            "type": "int",
+            "kind": "box",
+            "slots": [
+              {
+                "name": "value",
+                "type": "int",
+                "value": "42"
+              }
+            ],
+            "more": 0
+          },
+          {
+            "id": 3,
+            "type": "int[]",
+            "kind": "array",
+            "slots": [
+              {
+                "name": "[0]",
+                "type": "int",
+                "value": "1"
+              },
+              {
+                "name": "[1]",
+                "type": "int",
+                "value": "2"
+              },
+              {
+                "name": "[2]",
+                "type": "int",
+                "value": "3"
+              }
+            ],
+            "more": 0
+          }
+        ],
+        "moreFrames": 0
+      }
+    },
+    {
+      "event": "return",
+      "function": "Main",
+      "locals": [
+        {
+          "name": "a",
+          "type": "Counter",
+          "repr": "Counter { Count = 6 }"
+        },
+        {
+          "name": "b",
+          "type": "Counter",
+          "repr": "Counter { Count = 6 }"
+        },
+        {
+          "name": "boxed",
+          "type": "int",
+          "repr": "42",
+          "index": 42
+        },
+        {
+          "name": "numbers",
+          "type": "int[]",
+          "repr": "[1, 2, 3]"
+        },
+        {
+          "name": "p",
+          "type": "Point",
+          "repr": "Point { X = 1, Y = 2 }"
+        },
+        {
+          "name": "q",
+          "type": "Point",
+          "repr": "Point { X = 9, Y = 2 }"
+        }
+      ],
+      "tracked": {},
+      "memory": {
+        "frames": [
+          {
+            "id": -1,
+            "function": "Main",
+            "slots": [
+              {
+                "name": "p",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "1"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              },
+              {
+                "name": "q",
+                "type": "Point",
+                "fields": [
+                  {
+                    "name": "X",
+                    "type": "int",
+                    "value": "9"
+                  },
+                  {
+                    "name": "Y",
+                    "type": "int",
+                    "value": "2"
+                  }
+                ]
+              },
+              {
+                "name": "a",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "b",
+                "type": "Counter",
+                "ref": 1
+              },
+              {
+                "name": "boxed",
+                "type": "int",
+                "ref": 2
+              },
+              {
+                "name": "numbers",
+                "type": "int[]",
+                "ref": 3
+              }
+            ]
+          }
+        ],
+        "objects": [
+          {
+            "id": 1,
+            "type": "Counter",
+            "kind": "class",
+            "slots": [
+              {
+                "name": "Count",
+                "type": "int",
+                "value": "6"
+              }
+            ],
+            "more": 0
+          },
+          {
+            "id": 2,
+            "type": "int",
+            "kind": "box",
+            "slots": [
+              {
+                "name": "value",
+                "type": "int",
+                "value": "42"
+              }
+            ],
+            "more": 0
+          },
+          {
+            "id": 3,
+            "type": "int[]",
+            "kind": "array",
+            "slots": [
+              {
+                "name": "[0]",
+                "type": "int",
+                "value": "1"
+              },
+              {
+                "name": "[1]",
+                "type": "int",
+                "value": "2"
+              },
+              {
+                "name": "[2]",
+                "type": "int",
+                "value": "3"
+              }
+            ],
+            "more": 0
+          }
+        ],
+        "moreFrames": 0
+      }
+    }
+  ],
+  "stdout": "51\n"
+}

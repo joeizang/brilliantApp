@@ -21,6 +21,7 @@ public sealed class TraceRecorderTests
         ["graph-bfs"] = [new("graph", Visual.Graph, ["node"], Visited: "seen") { Frontier = "queue" }],
         ["graph-weighted"] = [new("roads", Visual.Graph, ["here"]), new("tuples", Visual.Graph, []) { Weights = true }],
         ["call-stack-recursion"] = [new("", Visual.CallStack, [])],
+        ["memory"] = [new("", Visual.Memory, [])],
         ["heap"] = [new("heap", Visual.Heap, ["i"])],
         ["grid"] = [new("grid", Visual.Grid, []) { Cells = [new("row", "col")], RowLabels = "names", Highlight = "path" }, new("square", Visual.Grid, []), new("rows", Visual.Grid, [])],
     };
@@ -430,5 +431,122 @@ public sealed class TraceRecorderTests
         var result = CSharpTraceRecorder.Record("var x = F(2);\nint F(int n) { return n + 1; }", []);
         Assert.All(result.Frames, frame => Assert.Null(frame.Calls));
         Assert.DoesNotContain(result.Frames, f => f.Event == "return" && f.Line is not null);
+    }
+
+    private static TrackedMemory MemoryAt(string name, int line) => Record(name).Frames.First(f => f.Line == line).Memory!;
+
+    [Fact]
+    public void Copying_a_struct_gives_two_values_and_copying_a_reference_gives_one_object()
+    {
+        var copied = MemoryAt("memory", 4);
+        var main = copied.Frames.Single();
+        Assert.Equal("Main", main.Function);
+        var p = main.Slots.Single(s => s.Name == "p");
+        var q = main.Slots.Single(s => s.Name == "q");
+        Assert.Equal(["X", "Y"], p.Fields!.Select(f => f.Name));
+        Assert.Equal("1", p.Fields![0].Value);
+        Assert.Equal("9", q.Fields![0].Value);
+        Assert.Empty(copied.Objects);
+
+        var shared = MemoryAt("memory", 7);
+        var main2 = shared.Frames.Single();
+        var a = main2.Slots.Single(s => s.Name == "a");
+        Assert.Equal(a.Ref, main2.Slots.Single(s => s.Name == "b").Ref);
+        var counter = Assert.Single(shared.Objects);
+        Assert.Equal(MemoryKinds.Class, counter.Kind);
+        Assert.Equal("Counter", counter.Type);
+        Assert.Equal("5", counter.Slots.Single().Value);
+    }
+
+    [Fact]
+    public void Boxing_a_value_puts_a_new_object_on_the_heap_and_a_struct_local_does_not()
+    {
+        var before = MemoryAt("memory", 7);
+        var after = MemoryAt("memory", 8);
+        Assert.DoesNotContain(before.Objects, o => o.Kind == MemoryKinds.Box);
+        var box = Assert.Single(after.Objects, o => o.Kind == MemoryKinds.Box);
+        Assert.Equal("int", box.Type);
+        Assert.Equal("42", box.Slots.Single().Value);
+        Assert.Equal(box.Id, after.Frames.Single().Slots.Single(s => s.Name == "boxed").Ref);
+        Assert.Null(after.Frames.Single().Slots.Single(s => s.Name == "p").Ref);
+    }
+
+    [Fact]
+    public void A_call_adds_a_frame_with_its_parameters_and_the_caller_keeps_its_locals()
+    {
+        var inside = MemoryAt("memory", 14);
+        Assert.Equal(["Main", "Bump"], inside.Frames.Select(f => f.Function));
+        var bump = inside.Frames[1];
+        Assert.Equal(["counter", "point"], bump.Slots.Select(s => s.Name));
+        Assert.Equal(inside.Frames[0].Slots.Single(s => s.Name == "a").Ref, bump.Slots[0].Ref);
+        Assert.NotNull(bump.Slots[1].Fields);
+        Assert.Contains(inside.Frames[0].Slots, s => s.Name == "boxed");
+    }
+
+    [Fact]
+    public void An_array_is_a_heap_object_with_its_elements()
+    {
+        var last = Record("memory").Frames[^1].Memory!;
+        var array = Assert.Single(last.Objects, o => o.Kind == MemoryKinds.Array);
+        Assert.Equal("int[]", array.Type);
+        Assert.Equal(["[0]", "[1]", "[2]"], array.Slots.Select(s => s.Name));
+        Assert.Equal(["1", "2", "3"], array.Slots.Select(s => s.Value));
+    }
+
+    [Fact]
+    public void Recording_without_a_memory_view_carries_no_memory_and_the_same_frames()
+    {
+        var code = File.ReadAllText(Path.Combine(TracesDirectory(), "memory.snippet"));
+        var plain = CSharpTraceRecorder.Record(code, []);
+        Assert.All(plain.Frames, f => Assert.Null(f.Memory));
+        Assert.All(plain.Frames, f => Assert.Null(f.Calls));
+    }
+
+    [Fact]
+    public void A_recording_with_a_memory_view_survives_the_json_a_pack_stores()
+    {
+        var result = Record("memory");
+        Assert.Equal(TraceResultJson.Serialize(result), TraceResultJson.Serialize(TraceResultJson.Parse(TraceResultJson.Serialize(result))));
+    }
+
+    [Fact]
+    public void A_frame_lists_its_locals_in_the_order_the_code_declares_them()
+    {
+        var main = MemoryAt("memory", 9).Frames.Single();
+        Assert.Equal(["p", "q", "a", "b", "boxed"], main.Slots.Select(s => s.Name));
+    }
+
+    [Fact]
+    public void A_generic_methods_value_locals_are_inline_and_make_no_boxes()
+    {
+        var code = "var biggest = Max(3, 4);\n\nT Max<T>(T a, T b) where T : IComparable<T>\n{\n    var best = a;\n    if (b.CompareTo(best) > 0) best = b;\n    return best;\n}";
+        var result = CSharpTraceRecorder.Record(code, [new("", Visual.Memory, [])]);
+        Assert.Equal(TraceStatus.Ok, result.Status);
+        Assert.All(result.Frames, f => Assert.DoesNotContain(f.Memory!.Objects, o => o.Kind == MemoryKinds.Box));
+        var inside = result.Frames.Last(f => f.Memory!.Frames.Count == 2).Memory!.Frames[1];
+        Assert.Equal(["a", "b", "best"], inside.Slots.Select(s => s.Name));
+        Assert.All(inside.Slots, s => Assert.Null(s.Ref));
+        Assert.Equal("int", inside.Slots[0].Type);
+    }
+
+    [Fact]
+    public void A_generic_methods_reference_locals_stay_references()
+    {
+        var code = "var s = First(new[] { \"x\", \"y\" });\n\nT First<T>(T[] items)\n{\n    var head = items[0];\n    return head;\n}";
+        var result = CSharpTraceRecorder.Record(code, [new("", Visual.Memory, [])]);
+        var inside = result.Frames.Last(f => f.Memory!.Frames.Count == 2).Memory!;
+        Assert.NotNull(inside.Frames[1].Slots.Single(s => s.Name == "items").Ref);
+        Assert.Equal("\"x\"", inside.Frames[1].Slots.Single(s => s.Name == "head").Value);
+    }
+
+    [Fact]
+    public void A_memory_view_beside_a_filtered_call_stack_labels_a_return_with_its_own_calls_value()
+    {
+        var code = "var t = Twice(5);\n\nint Twice(int n)\n{\n    var d = Add(n, n);\n    return d * 2;\n}\n\nint Add(int a, int b) => a + b + 100;";
+        var result = CSharpTraceRecorder.Record(code, [new("", Visual.Memory, []), new("", Visual.CallStack, []) { Functions = ["Twice"] }]);
+        Assert.Equal(TraceStatus.Ok, result.Status);
+        var returns = result.Frames.Where(f => f.Calls is not null).SelectMany(f => f.Calls!.Frames).Where(c => c.Returning is not null).ToArray();
+        Assert.All(returns, c => Assert.Equal("Twice", c.Function));
+        Assert.Equal(["220"], returns.Select(c => c.Returning).Distinct());
     }
 }
