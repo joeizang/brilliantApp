@@ -37,6 +37,10 @@ public sealed class ValidationReport
     /// <summary>C# <c>benchmark-predict</c> steps waiting to be measured, and what BenchmarkDotNet recorded for each, by step id. The pack carries these.</summary>
     internal List<BenchmarkCheck> BenchmarkChecks { get; } = [];
     internal Dictionary<string, BenchmarkRecording> Benchmarks { get; } = [];
+
+    /// <summary><c>allocations</c> predict steps waiting to be measured, and the answer options (right one marked) the measurement settled, by step id.</summary>
+    internal List<AllocationCheck> AllocationChecks { get; } = [];
+    internal Dictionary<string, IReadOnlyList<ChoiceOption>> AllocationOptions { get; } = [];
     internal AppManifest? App { get; set; }
 }
 
@@ -120,7 +124,7 @@ public static partial class ContentValidator
                 LoadTrack(contentRoot, trackDir, report, seenIds, tracks, lessons, patterns);
         patterns.Check(report);
 
-        if ((report.ReferenceChecks.Any(c => c.Language == "csharp") || report.LoweringChecks.Count > 0 || report.BenchmarkChecks.Count > 0) &&
+        if ((report.ReferenceChecks.Any(c => c.Language == "csharp") || report.LoweringChecks.Count > 0 || report.BenchmarkChecks.Count > 0 || report.AllocationChecks.Count > 0) &&
             (manifest?.TargetFramework != CSharpPins.TargetFramework || manifest.LangVersion != CSharpPins.LanguageVersion))
             report.Add("pack.yaml", $"C# reference solutions, benchmark steps and lowered steps require targetFramework: {CSharpPins.TargetFramework} and langVersion: {CSharpPins.LanguageVersion}.");
 
@@ -148,23 +152,25 @@ public static partial class ContentValidator
             }
 
         // Only once the content is structurally sound: prove every exercise's reference solution passes its own tests.
-        if (report.IsValid && (report.ReferenceChecks.Count > 0 || report.TraceChecks.Count > 0))
+        if (report.IsValid && (report.ReferenceChecks.Count > 0 || report.TraceChecks.Count > 0 || report.AllocationChecks.Count > 0))
             ReferenceSolutionChecker.CheckAll(report, runner);
 
         if (report.IsValid && manifest is not null)
-            content = new LoadedContent(manifest, tracks, report.Recordings.Count == 0 && report.Lowerings.Count == 0 && report.Benchmarks.Count == 0
-                ? lessons : lessons.Select(l => WithRecordings(l, report.Recordings, report.Lowerings, report.Benchmarks)).ToList());
+            content = new LoadedContent(manifest, tracks, report.Recordings.Count == 0 && report.Lowerings.Count == 0 && report.Benchmarks.Count == 0 && report.AllocationOptions.Count == 0
+                ? lessons : lessons.Select(l => WithRecordings(l, report.Recordings, report.Lowerings, report.Benchmarks, report.AllocationOptions)).ToList());
         return report;
     }
 
     /// <summary>The lesson with each recorded example attached to the step (or walkthrough) it was run for.</summary>
     private static Lesson WithRecordings(Lesson lesson, IReadOnlyDictionary<(string StepId, bool IsWalkthrough), TraceResult> recordings,
-        IReadOnlyDictionary<string, LoweredCode> lowerings, IReadOnlyDictionary<string, BenchmarkRecording> benchmarks)
+        IReadOnlyDictionary<string, LoweredCode> lowerings, IReadOnlyDictionary<string, BenchmarkRecording> benchmarks,
+        IReadOnlyDictionary<string, IReadOnlyList<ChoiceOption>> allocations)
     {
         Step Attach(Step step)
         {
             if (step is LoweredStep lowered && lowerings.TryGetValue(step.Id, out var made)) step = lowered with { Lowered = made };
             if (step is BenchmarkPredictStep benchmark && benchmarks.TryGetValue(step.Id, out var measured)) step = benchmark with { Recorded = measured };
+            if (step is PredictOutputStep predicted && allocations.TryGetValue(step.Id, out var answers)) step = predicted with { Options = answers };
             if (step is TraceStep trace && recordings.TryGetValue((step.Id, false), out var recorded)) step = trace with { Recorded = recorded };
             if (step.Walkthrough is { } walkthrough && recordings.TryGetValue((step.Id, true), out var walked))
                 step = step with { Walkthrough = walkthrough with { Recorded = walked } };
@@ -381,8 +387,8 @@ public static partial class ContentValidator
     {
         var hints = dto.Hints ?? [];
         if (hints.Count == 0) return [];
-        if (dto.Type is not ("choice" or "predict-output" or "lowered" or "benchmark-predict" or "write-code" or "fill-blank" or "parsons"))
-            report.Add(file, $"{label}: 'hints' only apply to questions (choice, predict-output, lowered, benchmark-predict, write-code, fill-blank or parsons).");
+        if (dto.Type is not ("choice" or "predict-output" or "lowered" or "benchmark-predict" or "allocations" or "write-code" or "fill-blank" or "parsons"))
+            report.Add(file, $"{label}: 'hints' only apply to questions (choice, predict-output, lowered, benchmark-predict, allocations, write-code, fill-blank or parsons).");
         var max = dto.Walkthrough is null ? MaxHints : MaxHints - 1;
         if (hints.Count > max)
             report.Add(file, dto.Walkthrough is null
@@ -395,7 +401,7 @@ public static partial class ContentValidator
 
     private const int MaxHints = 4;
 
-    private static readonly string[] QuestionTypes = ["choice", "predict-output", "lowered", "benchmark-predict", "write-code", "fill-blank", "parsons"];
+    private static readonly string[] QuestionTypes = ["choice", "predict-output", "lowered", "benchmark-predict", "allocations", "write-code", "fill-blank", "parsons"];
 
     private static Step? LoadStep(StepDto dto, string where, string file, ValidationReport report,
         Dictionary<string, string> seenIds, bool isAlternative = false)
@@ -403,15 +409,19 @@ public static partial class ContentValidator
         var label = dto.Id is null ? where : $"{where} ('{dto.Id}')";
         if (dto.Type is { } type && StepTypes.All.Contains(type) && report.App is { } app && !app.SupportsStepType(type))
             report.Add(file, $"{label}: step type '{type}' is not enabled by app '{app.AppId}' (stepTypes in its manifest).");
+        var authoredType = dto.Type;
+        if (authoredType == "allocations" && dto.Variant == AllocationsRewrite) PrepareAllocationsRewrite(dto, label, file, report);
         var step = LoadStepBody(dto, label, file, report, seenIds);
 
         var preferred = dto.LargeScreenPreferred ?? false;
         if (preferred && !QuestionTypes.Contains(dto.Type))
-            report.Add(file, $"{label}: 'largeScreenPreferred' only applies to questions (choice, predict-output, lowered, benchmark-predict, write-code, fill-blank or parsons).");
+            report.Add(file, $"{label}: 'largeScreenPreferred' only applies to questions (choice, predict-output, lowered, benchmark-predict, allocations, write-code, fill-blank or parsons).");
         if (dto.Compare is not null && dto.Type != "write-code")
             report.Add(file, $"{label}: 'compare' only applies to write-code steps.");
         if (dto.Files is not null && dto.Type != "write-code")
             report.Add(file, $"{label}: 'files' only applies to write-code steps.");
+        if (authoredType != "allocations" && (dto.Variant is not null || dto.Input is not null))
+            report.Add(file, $"{label}: 'variant' and 'input' only apply to allocations steps.");
         if (dto.Type != "benchmark-predict" && (dto.Measure is not null || dto.Setup is not null || dto.Candidates is not null))
             report.Add(file, $"{label}: 'measure', 'setup' and 'candidates' only apply to benchmark-predict steps.");
         if (isAlternative && preferred)
@@ -520,6 +530,7 @@ public static partial class ContentValidator
         if (dto.Type == "predict-output") return WithHints(WithWalkthrough(LoadPredictOutput(dto, label, file, report, before), dto, label, file, report), hints);
         if (dto.Type == "lowered") return WithHints(RejectWalkthrough(dto, label, file, report, LoadLowered(dto, label, file, report, before)), hints);
         if (dto.Type == "benchmark-predict") return WithHints(RejectWalkthrough(dto, label, file, report, LoadBenchmarkPredict(dto, label, file, report, before)), hints);
+        if (dto.Type == "allocations") return WithHints(RejectWalkthrough(dto, label, file, report, LoadAllocationsPredict(dto, label, file, report, before)), hints);
         if (dto.Type == "write-code") return WithHints(WithWalkthrough(LoadWriteCode(dto, label, file, report, before), dto, label, file, report), hints);
         if (dto.Type == "fill-blank") return WithHints(WithWalkthrough(LoadFillBlank(dto, label, file, report, before), dto, label, file, report), hints);
         if (dto.Type == "parsons") return WithHints(WithWalkthrough(LoadParsons(dto, label, file, report, before), dto, label, file, report), hints);
@@ -527,7 +538,7 @@ public static partial class ContentValidator
 
         if (dto.Type != "explain")
         {
-            report.Add(file, $"{label}: unsupported step type '{dto.Type ?? "(missing)"}' (supported: explain, choice, predict-output, lowered, benchmark-predict, write-code, fill-blank, parsons, trace).");
+            report.Add(file, $"{label}: unsupported step type '{dto.Type ?? "(missing)"}' (supported: explain, choice, predict-output, lowered, benchmark-predict, allocations, write-code, fill-blank, parsons, trace).");
             return null;
         }
 
@@ -719,6 +730,73 @@ public static partial class ContentValidator
         report.BenchmarkChecks.Add(new BenchmarkCheck(file, label, measure, setup, candidates, dto.Id!));
         return new BenchmarkPredictStep(dto.Id!, dto.Title!, dto.Prompt!, measure, setup, candidates);
     }
+
+    private const string AllocationsPredict = "predict";
+    private const string AllocationsRewrite = "rewrite";
+
+    /// <summary>
+    /// An <c>allocations</c> step with <c>variant: rewrite</c> is a C# write-code exercise graded by an allocation budget (#151), so it is loaded
+    /// as one: the budget is what the learner is asked to meet, so at least one test must declare it. It follows every write-code rule,
+    /// including the phone alternative a C# exercise needs (Android can't run C#).
+    /// </summary>
+    private static void PrepareAllocationsRewrite(StepDto dto, string label, string file, ValidationReport report)
+    {
+        if (dto.Language is not null and not "csharp")
+            report.Add(file, $"{label}: an allocations step measures C# allocations; 'language' must be csharp (or left out).");
+        else dto.Language = "csharp";
+        if (!(dto.Tests?.Any(t => t?.MaxAllocatedBytes is not null) ?? false))
+            report.Add(file, $"{label}: a rewrite is graded by its allocation budget; give at least one test a 'maxAllocatedBytes' (0 for code that allocates nothing).");
+        dto.Type = "write-code";
+    }
+
+    /// <summary>
+    /// An <c>allocations</c> step with <c>variant: predict</c>: "how much does one call allocate?", answered by picking a byte count. The
+    /// snippet is the code shown; <c>entrypoint</c> and <c>input</c> say which call is counted. The right option is never authored: the
+    /// pack build calls the snippet and marks the option that names what the C# runtime counted, so the answer cannot drift from the code.
+    /// Nothing runs on the learner's device, so the step needs no phone alternative.
+    /// </summary>
+    private static Step? LoadAllocationsPredict(StepDto dto, string label, string file, ValidationReport report, int errorsBefore)
+    {
+        if (dto.Variant is not AllocationsPredict)
+            report.Add(file, dto.Variant is null
+                ? $"{label}: an allocations step needs a 'variant': {AllocationsPredict} (pick how much a snippet allocates) or {AllocationsRewrite} (rewrite it to allocate less)."
+                : $"{label}: 'variant' must be {AllocationsPredict} or {AllocationsRewrite} (found '{dto.Variant}').");
+        Require(dto.Prompt, "prompt", file, report, label);
+        Require(dto.Code, "code", file, report, label);
+        Require(dto.Entrypoint, "entrypoint", file, report, label);
+        if (dto.Language is not null and not "csharp")
+            report.Add(file, $"{label}: an allocations step measures C# allocations; 'language' must be csharp (or left out).");
+        if (!string.IsNullOrWhiteSpace(dto.Entrypoint) && !EntrypointIdentifier.IsMatch(dto.Entrypoint))
+            report.Add(file, $"{label}: entrypoint '{dto.Entrypoint}' is not a valid function name (use letters, digits and underscores; start with a letter or underscore).");
+        if (dto.Accepted is { Count: > 0 } || dto.Mistakes is { Count: > 0 } || dto.Tests is { Count: > 0 } || dto.Starter is not null || dto.Solution is not null || dto.Files is not null)
+            report.Add(file, $"{label}: a predict allocations step is answered by picking a byte count; remove 'accepted', 'mistakes', 'tests', 'starter', 'solution' and 'files' (those belong to variant: {AllocationsRewrite}).");
+
+        var options = new List<AllocationOption>();
+        var seen = new HashSet<long>();
+        for (var i = 0; i < (dto.Options?.Count ?? 0); i++)
+        {
+            var o = dto.Options![i];
+            if (IsEmptyEntry(o, $"{label}: options[{i}]", file, report)) continue;
+            if (o.Text is not null || o.Correct is not null)
+                report.Add(file, $"{label}: options[{i}] gives a byte count only ('bytes', and optionally 'feedback'); the right option is the one the measurement matches.");
+            if (o.Bytes is not { } bytes) report.Add(file, $"{label}: options[{i}] needs 'bytes': the whole number of bytes it claims one call allocates.");
+            else if (bytes is < 0 or > ReferenceSolutionChecker.MaxPredictedBytes)
+                report.Add(file, $"{label}: options[{i}] 'bytes' must be between 0 and {ReferenceSolutionChecker.MaxPredictedBytes:N0}.");
+            else if (!seen.Add(bytes)) report.Add(file, $"{label}: options[{i}] repeats {ReferenceSolutionChecker.Bytes(bytes)}; each option needs its own byte count.");
+            else options.Add(new AllocationOption(bytes, string.IsNullOrWhiteSpace(o.Feedback) ? null : o.Feedback));
+        }
+        if ((dto.Options?.Count ?? 0) is < 2 or > MaxAllocationOptions)
+            report.Add(file, $"{label}: an allocations step needs 2 to {MaxAllocationOptions} options (found {dto.Options?.Count ?? 0}).");
+
+        if (report.Errors.Count != errorsBefore) return null;
+        var input = dto.Input ?? "";
+        report.AllocationChecks.Add(new AllocationCheck(file, label, dto.Id!, dto.Code!, dto.Entrypoint!, input, options));
+        // The right option is marked once the snippet has been measured (see ValidationReport.AllocationOptions).
+        var pending = options.Select(o => new ChoiceOption(ReferenceSolutionChecker.Bytes(o.Bytes), false, o.Feedback)).ToList();
+        return new PredictOutputStep(dto.Id!, dto.Title!, $"{dto.Prompt}\n\nMeasured call: {dto.Entrypoint}({input})", new CodeSnippet("csharp", dto.Code!), [], [], pending);
+    }
+
+    private const int MaxAllocationOptions = 6;
 
     /// <summary>The answer side shared by predict-output and lowered steps: typed 'accepted' answers with 'mistakes', or multiple-choice 'options'.</summary>
     private static (List<ChoiceOption> Options, List<string> Accepted, List<MistakePattern> Mistakes) LoadPrediction(
@@ -1276,6 +1354,8 @@ public static partial class ContentValidator
         public string? PatternCue { get; set; }
         public string? Difficulty { get; set; }
         public string? Measure { get; set; }
+        public string? Variant { get; set; }
+        public string? Input { get; set; }
         public string? Setup { get; set; }
         public List<CandidateDto>? Candidates { get; set; }
     }
@@ -1307,5 +1387,5 @@ public static partial class ContentValidator
     private sealed class BlankDto { public string? Id { get; set; } public List<string>? Accepted { get; set; } public List<MistakeDto>? Mistakes { get; set; } }
     private sealed class TestDto { public string? Input { get; set; } public string? Expected { get; set; } public int? MaxAllocatedBytes { get; set; } }
     private sealed class MistakeDto { public List<string>? Answers { get; set; } public string? Regex { get; set; } public string? Feedback { get; set; } }
-    private sealed class OptionDto { public string? Text { get; set; } public bool? Correct { get; set; } public string? Feedback { get; set; } }
+    private sealed class OptionDto { public string? Text { get; set; } public bool? Correct { get; set; } public string? Feedback { get; set; } public int? Bytes { get; set; } }
 }

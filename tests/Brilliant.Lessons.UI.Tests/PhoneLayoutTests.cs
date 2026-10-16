@@ -95,6 +95,28 @@ public class PhoneLayoutTests : ShortcutContext
         Assert.DoesNotContain(_log.Items, item => item.StepId == alternative.Id);
     }
 
+    // An allocations predict step (#156) is a byte-count choice: nothing is compiled on the device, so it needs no alternative anywhere.
+    [Theory]
+    [InlineData(ScreenClass.Phone, false)]
+    [InlineData(ScreenClass.Desktop, true)]
+    public void An_allocations_prediction_is_answered_by_choosing_a_byte_count_on_android_and_on_the_mac(ScreenClass size, bool csharpAvailable)
+    {
+        var screen = new ScreenInfo(csharpWriteCodeAvailable: csharpAvailable);
+        screen.Set(size);
+        Services.AddSingleton(screen);
+        var step = new PredictOutputStep("step.alloc", "Boxing", "How much does this allocate?", new CodeSnippet("csharp", "static int Boxed(int n) { object o = n; return (int)o; }"),
+            [], [], [new ChoiceOption("0 bytes", false, "Not quite."), new ChoiceOption("24 bytes", true, "Measured: 24 bytes.")]);
+        var cut = OpenLesson(new Lesson("lesson.alloc", "Allocations", "track.t", [step]));
+
+        Assert.Same(step, screen.Present(step));
+        Assert.Equal(2, cut.FindAll("ul.options input").Count);
+        cut.FindAll("ul.options input")[1].Change(true);
+        cut.Find("button.primary").Click();
+
+        Assert.Contains("Correct", cut.Find(".verdict").TextContent);
+        Assert.Equal(step.Id, Assert.Single(Of(ProgressEventTypes.StepAnswered)).StepId);
+    }
+
     [Fact]
     public void Csharp_platform_policy_keeps_python_and_mac_presentation_unchanged()
     {

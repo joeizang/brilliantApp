@@ -20,6 +20,12 @@ internal sealed record LoweringCheck(string File, string Label, string Code, str
 /// <summary>A benchmark-predict step's candidates, waiting to be compiled and (in a pack build) measured.</summary>
 internal sealed record BenchmarkCheck(string File, string Label, string Measure, string? Setup, IReadOnlyList<BenchmarkCandidate> Candidates, string StepId);
 
+/// <summary>An <c>allocations</c> predict step's snippet, waiting to be measured so the option that names its allocation can be marked right (#156).</summary>
+internal sealed record AllocationCheck(string File, string Label, string StepId, string Code, string Entrypoint, string Input, IReadOnlyList<AllocationOption> Options);
+
+/// <summary>One answer the learner may pick: a byte count and, optionally, what to say when it is picked.</summary>
+internal sealed record AllocationOption(long Bytes, string? Feedback);
+
 /// <summary>Runs source in one language against an exercise's tests. Production adapters use CPython or the C# compiler gate; tests may substitute a fake.</summary>
 public interface IReferenceSolutionRunner
 {
@@ -172,11 +178,67 @@ internal static class ReferenceSolutionChecker
             if (!defaults.TryGetValue(language, out var selected)) defaults[language] = selected = DefaultRunner(language);
             return selected;
         }
-        if (Check(report.ReferenceChecks, Select, report)) CheckTraces(report.TraceChecks, Select, report);
+        if (Check(report.ReferenceChecks, Select, report) && CheckTraces(report.TraceChecks, Select, report))
+            CheckAllocations(report.AllocationChecks, Select, report);
+    }
+
+    /// <summary>The largest allocation a predict snippet may have; it is the budget the probe run is given, so a bigger one fails as over budget.</summary>
+    internal const int MaxPredictedBytes = 1_000_000;
+
+    /// <summary>
+    /// Calls every <c>allocations</c> predict snippet's entrypoint under a budget it cannot meet by accident and reads the bytes the C# runtime
+    /// counted for one call (CoreCLR in the worker, so the same number a budgeted exercise is enforced against). The option that names that
+    /// number is the right answer; no option naming it is an error, because the step would have none.
+    /// </summary>
+    private static void CheckAllocations(IReadOnlyList<AllocationCheck> checks, Func<string, IReferenceSolutionRunner> select, ValidationReport report)
+    {
+        foreach (var check in checks)
+        {
+            var runner = select("csharp");
+            if (!CheckLanguage("csharp", runner, check.File, check.Label, report)) continue;
+            // The expected value is the same call, so the probe passes whatever the snippet returns, and fails if it is not repeatable.
+            var call = $"{check.Entrypoint}({check.Input})";
+            TestRunResult result;
+            try { result = runner.Run(check.Code, check.Entrypoint, [new CodeTest(check.Input, call, null, MaxPredictedBytes)]); }
+            catch (ReferenceRunnerUnavailableException ex)
+            {
+                report.Add(check.File, $"{check.Label}: {ex.Message}");
+                return;
+            }
+
+            var problem = Describe(result, 1);
+            if (problem is not null)
+            {
+                report.Add(check.File, $"{check.Label}: the snippet could not be measured. {problem}");
+                continue;
+            }
+            if (result.Tests.FirstOrDefault()?.Allocation is not { Bytes: { } bytes, Enforced: true } measured)
+            {
+                report.Add(check.File, $"{check.Label}: the snippet's allocation could not be measured on CoreCLR.");
+                continue;
+            }
+            if (check.Options.All(o => o.Bytes != bytes))
+            {
+                report.Add(check.File, $"{check.Label}: one call of {call} allocates {bytes:N0} bytes ({measured.Runtime}), but no option says so (options: {string.Join(", ", check.Options.Select(o => o.Bytes.ToString("N0")))}).");
+                continue;
+            }
+            report.AllocationOptions[check.StepId] = check.Options.Select(o => AnswerOption(o, bytes, measured.Runtime)).ToList();
+        }
+    }
+
+    /// <summary>"1 byte", "24 bytes": the way an option and a measurement are worded to the learner.</summary>
+    internal static string Bytes(long bytes) => bytes == 1 ? "1 byte" : $"{bytes.ToString("N0", System.Globalization.CultureInfo.InvariantCulture)} bytes";
+
+    private static ChoiceOption AnswerOption(AllocationOption option, long measured, string runtime)
+    {
+        if (option.Bytes != measured)
+            return new ChoiceOption(Bytes(option.Bytes), false, option.Feedback ?? $"Not quite: one call allocates {Bytes(measured)}, not {Bytes(option.Bytes)}.");
+        var note = $"Measured: one call allocates {Bytes(measured)} on .NET ({runtime}). The Mac app's interpreter can count a few bytes differently; this lesson goes by {runtime}.";
+        return new ChoiceOption(Bytes(option.Bytes), true, string.IsNullOrWhiteSpace(option.Feedback) ? note : option.Feedback + " " + note);
     }
 
     /// <summary>Runs every trace step's code once and checks it ran to the end and drew everything the lesson declares.</summary>
-    private static void CheckTraces(IReadOnlyList<TraceCheck> checks, Func<string, IReferenceSolutionRunner> select, ValidationReport report)
+    private static bool CheckTraces(IReadOnlyList<TraceCheck> checks, Func<string, IReferenceSolutionRunner> select, ValidationReport report)
     {
         foreach (var check in checks)
         {
@@ -187,7 +249,7 @@ internal static class ReferenceSolutionChecker
             catch (ReferenceRunnerUnavailableException ex)
             {
                 report.Add(check.File, $"{check.Label}: {ex.Message}");
-                return;
+                return false;
             }
 
             var problems = DescribeTrace(result, check.Visuals, check.Language).ToList();
@@ -197,6 +259,7 @@ internal static class ReferenceSolutionChecker
             if (problems.Count == 0 && check.Language == "csharp" && check.StepId.Length > 0)
                 report.Recordings[(check.StepId, check.IsWalkthrough)] = result;
         }
+        return true;
     }
 
     private static IEnumerable<string> DescribeTrace(TraceResult result, IReadOnlyList<Visual> visuals, string language = "python")
