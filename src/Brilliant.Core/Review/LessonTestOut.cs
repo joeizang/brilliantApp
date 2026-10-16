@@ -46,6 +46,7 @@ public static class LessonTestOut
         FillBlankStep => 3,
         PredictOutputStep => 2,
         LoweredStep => 2,
+        BenchmarkPredictStep => 2,
         ChoiceStep => 1,
         _ => 0,
     };

@@ -7,6 +7,6 @@ public static class StepTypes
 {
     public static IReadOnlySet<string> All { get; } = new[]
     {
-        "explain", "choice", "predict-output", "write-code", "fill-blank", "parsons", "trace", "lowered",
+        "explain", "choice", "predict-output", "write-code", "fill-blank", "parsons", "trace", "lowered", "benchmark-predict",
     }.ToFrozenSet(StringComparer.Ordinal);
 }

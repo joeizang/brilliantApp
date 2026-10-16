@@ -33,6 +33,10 @@ public sealed class ValidationReport
     /// <summary>C# <c>lowered</c> steps waiting to be compiled, and what the compiler made of each, by step id. The pack carries these.</summary>
     internal List<LoweringCheck> LoweringChecks { get; } = [];
     internal Dictionary<string, LoweredCode> Lowerings { get; } = [];
+
+    /// <summary>C# <c>benchmark-predict</c> steps waiting to be measured, and what BenchmarkDotNet recorded for each, by step id. The pack carries these.</summary>
+    internal List<BenchmarkCheck> BenchmarkChecks { get; } = [];
+    internal Dictionary<string, BenchmarkRecording> Benchmarks { get; } = [];
     internal AppManifest? App { get; set; }
 }
 
@@ -56,14 +60,22 @@ public static partial class ContentValidator
     [GeneratedRegex(@"^(track|lesson|step|concept|review|pattern)\.[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)*$")]
     private static partial Regex IdPattern();
 
+    [GeneratedRegex(@"^[a-z0-9]+(-[a-z0-9]+)*$")]
+    private static partial Regex CandidateIdPattern();
+
     [GeneratedRegex(@"^\d+\.\d+\.\d+$")]
     private static partial Regex VersionPattern();
 
     public static ValidationReport Validate(string contentRoot, IReferenceSolutionRunner? runner = null, string? appManifestPath = null) =>
-        Load(contentRoot, out _, runner, appManifestPath);
+        Load(contentRoot, out _, runner, appManifestPath, recordBenchmarks: false);
 
     /// <param name="runner">Runs write-code reference solutions; defaults to the machine's CPython.</param>
-    public static ValidationReport Load(string contentRoot, out LoadedContent? content, IReferenceSolutionRunner? runner = null, string? appManifestPath = null)
+    /// <param name="recordBenchmarks">
+    /// Runs each <c>benchmark-predict</c> step's BenchmarkDotNet comparison and keeps the numbers. Measuring takes seconds per step and the
+    /// numbers differ on every run, so a pack build does it and a validation only checks that the candidates compile.
+    /// </param>
+    public static ValidationReport Load(string contentRoot, out LoadedContent? content, IReferenceSolutionRunner? runner = null, string? appManifestPath = null,
+        bool recordBenchmarks = true)
     {
         var report = new ValidationReport();
         content = null;
@@ -108,9 +120,9 @@ public static partial class ContentValidator
                 LoadTrack(contentRoot, trackDir, report, seenIds, tracks, lessons, patterns);
         patterns.Check(report);
 
-        if ((report.ReferenceChecks.Any(c => c.Language == "csharp") || report.LoweringChecks.Count > 0) &&
+        if ((report.ReferenceChecks.Any(c => c.Language == "csharp") || report.LoweringChecks.Count > 0 || report.BenchmarkChecks.Count > 0) &&
             (manifest?.TargetFramework != CSharpPins.TargetFramework || manifest.LangVersion != CSharpPins.LanguageVersion))
-            report.Add("pack.yaml", $"C# reference solutions and lowered steps require targetFramework: {CSharpPins.TargetFramework} and langVersion: {CSharpPins.LanguageVersion}.");
+            report.Add("pack.yaml", $"C# reference solutions, benchmark steps and lowered steps require targetFramework: {CSharpPins.TargetFramework} and langVersion: {CSharpPins.LanguageVersion}.");
 
         // Only once the content is structurally sound: compile each lowered step's snippet and keep what the compiler made of it.
         if (report.IsValid)
@@ -121,23 +133,38 @@ public static partial class ContentValidator
                 else report.Lowerings[check.StepId] = lowered;
             }
 
+        // Only once the content is structurally sound: compile each benchmark step's candidates, and when building a pack, measure them.
+        if (report.IsValid)
+            foreach (var check in report.BenchmarkChecks)
+            {
+                var problem = CSharpBenchmark.Check(check.Setup, check.Candidates);
+                if (problem is null && recordBenchmarks)
+                {
+                    var (recording, error) = CSharpBenchmark.Record(check.Measure, check.Setup, check.Candidates);
+                    if (recording is not null) report.Benchmarks[check.StepId] = recording;
+                    problem = error;
+                }
+                if (problem is not null) report.Add(check.File, $"{check.Label}: {problem}");
+            }
+
         // Only once the content is structurally sound: prove every exercise's reference solution passes its own tests.
         if (report.IsValid && (report.ReferenceChecks.Count > 0 || report.TraceChecks.Count > 0))
             ReferenceSolutionChecker.CheckAll(report, runner);
 
         if (report.IsValid && manifest is not null)
-            content = new LoadedContent(manifest, tracks, report.Recordings.Count == 0 && report.Lowerings.Count == 0
-                ? lessons : lessons.Select(l => WithRecordings(l, report.Recordings, report.Lowerings)).ToList());
+            content = new LoadedContent(manifest, tracks, report.Recordings.Count == 0 && report.Lowerings.Count == 0 && report.Benchmarks.Count == 0
+                ? lessons : lessons.Select(l => WithRecordings(l, report.Recordings, report.Lowerings, report.Benchmarks)).ToList());
         return report;
     }
 
     /// <summary>The lesson with each recorded example attached to the step (or walkthrough) it was run for.</summary>
     private static Lesson WithRecordings(Lesson lesson, IReadOnlyDictionary<(string StepId, bool IsWalkthrough), TraceResult> recordings,
-        IReadOnlyDictionary<string, LoweredCode> lowerings)
+        IReadOnlyDictionary<string, LoweredCode> lowerings, IReadOnlyDictionary<string, BenchmarkRecording> benchmarks)
     {
         Step Attach(Step step)
         {
             if (step is LoweredStep lowered && lowerings.TryGetValue(step.Id, out var made)) step = lowered with { Lowered = made };
+            if (step is BenchmarkPredictStep benchmark && benchmarks.TryGetValue(step.Id, out var measured)) step = benchmark with { Recorded = measured };
             if (step is TraceStep trace && recordings.TryGetValue((step.Id, false), out var recorded)) step = trace with { Recorded = recorded };
             if (step.Walkthrough is { } walkthrough && recordings.TryGetValue((step.Id, true), out var walked))
                 step = step with { Walkthrough = walkthrough with { Recorded = walked } };
@@ -335,7 +362,7 @@ public static partial class ContentValidator
                 if (step is null)
                     report.Add(file, $"{label}: step '{r.Step}' is not a valid step of this lesson.");
                 else if (step is ExplainStep or TraceStep)
-                    report.Add(file, $"{label}: step '{r.Step}' is an {(step is TraceStep ? "trace" : "explain")} step; a review item needs a question (choice, predict-output or lowered).");
+                    report.Add(file, $"{label}: step '{r.Step}' is an {(step is TraceStep ? "trace" : "explain")} step; a review item needs a question (choice, predict-output, lowered or benchmark-predict).");
             }
             if (r.Id is not null && r.Concept is not null && r.Step is not null)
                 items.Add(new ReviewItem(r.Id, r.Concept, r.Step, kind));
@@ -354,8 +381,8 @@ public static partial class ContentValidator
     {
         var hints = dto.Hints ?? [];
         if (hints.Count == 0) return [];
-        if (dto.Type is not ("choice" or "predict-output" or "lowered" or "write-code" or "fill-blank" or "parsons"))
-            report.Add(file, $"{label}: 'hints' only apply to questions (choice, predict-output, lowered, write-code, fill-blank or parsons).");
+        if (dto.Type is not ("choice" or "predict-output" or "lowered" or "benchmark-predict" or "write-code" or "fill-blank" or "parsons"))
+            report.Add(file, $"{label}: 'hints' only apply to questions (choice, predict-output, lowered, benchmark-predict, write-code, fill-blank or parsons).");
         var max = dto.Walkthrough is null ? MaxHints : MaxHints - 1;
         if (hints.Count > max)
             report.Add(file, dto.Walkthrough is null
@@ -368,7 +395,7 @@ public static partial class ContentValidator
 
     private const int MaxHints = 4;
 
-    private static readonly string[] QuestionTypes = ["choice", "predict-output", "lowered", "write-code", "fill-blank", "parsons"];
+    private static readonly string[] QuestionTypes = ["choice", "predict-output", "lowered", "benchmark-predict", "write-code", "fill-blank", "parsons"];
 
     private static Step? LoadStep(StepDto dto, string where, string file, ValidationReport report,
         Dictionary<string, string> seenIds, bool isAlternative = false)
@@ -380,7 +407,7 @@ public static partial class ContentValidator
 
         var preferred = dto.LargeScreenPreferred ?? false;
         if (preferred && !QuestionTypes.Contains(dto.Type))
-            report.Add(file, $"{label}: 'largeScreenPreferred' only applies to questions (choice, predict-output, lowered, write-code, fill-blank or parsons).");
+            report.Add(file, $"{label}: 'largeScreenPreferred' only applies to questions (choice, predict-output, lowered, benchmark-predict, write-code, fill-blank or parsons).");
         if (dto.Compare is not null && dto.Type != "write-code")
             report.Add(file, $"{label}: 'compare' only applies to write-code steps.");
         if (dto.Files is not null && dto.Type != "write-code")
@@ -490,6 +517,7 @@ public static partial class ContentValidator
         if (dto.Type == "choice") return WithHints(RejectWalkthrough(dto, label, file, report, LoadChoice(dto, label, file, report, before)), hints);
         if (dto.Type == "predict-output") return WithHints(WithWalkthrough(LoadPredictOutput(dto, label, file, report, before), dto, label, file, report), hints);
         if (dto.Type == "lowered") return WithHints(RejectWalkthrough(dto, label, file, report, LoadLowered(dto, label, file, report, before)), hints);
+        if (dto.Type == "benchmark-predict") return WithHints(RejectWalkthrough(dto, label, file, report, LoadBenchmarkPredict(dto, label, file, report, before)), hints);
         if (dto.Type == "write-code") return WithHints(WithWalkthrough(LoadWriteCode(dto, label, file, report, before), dto, label, file, report), hints);
         if (dto.Type == "fill-blank") return WithHints(WithWalkthrough(LoadFillBlank(dto, label, file, report, before), dto, label, file, report), hints);
         if (dto.Type == "parsons") return WithHints(WithWalkthrough(LoadParsons(dto, label, file, report, before), dto, label, file, report), hints);
@@ -497,7 +525,7 @@ public static partial class ContentValidator
 
         if (dto.Type != "explain")
         {
-            report.Add(file, $"{label}: unsupported step type '{dto.Type ?? "(missing)"}' (supported: explain, choice, predict-output, lowered, write-code, fill-blank, parsons, trace).");
+            report.Add(file, $"{label}: unsupported step type '{dto.Type ?? "(missing)"}' (supported: explain, choice, predict-output, lowered, benchmark-predict, write-code, fill-blank, parsons, trace).");
             return null;
         }
 
@@ -649,6 +677,45 @@ public static partial class ContentValidator
         if (report.Errors.Count != errorsBefore) return null;
         report.LoweringChecks.Add(new LoweringCheck(file, label, dto.Code!, dto.Id!));
         return new LoweredStep(dto.Id!, dto.Title!, dto.Prompt!, dto.Code!, accepted, mistakes, options);
+    }
+
+    /// <summary>
+    /// A <c>benchmark-predict</c> step: the learner ranks implementations, then sees how BenchmarkDotNet measured them. The right order is
+    /// never authored; the pack build runs the candidates and the learner is graded on what they showed.
+    /// </summary>
+    private static Step? LoadBenchmarkPredict(StepDto dto, string label, string file, ValidationReport report, int errorsBefore)
+    {
+        Require(dto.Prompt, "prompt", file, report, label);
+        if (dto.Language is not null and not "csharp")
+            report.Add(file, $"{label}: a benchmark step measures C# with BenchmarkDotNet; 'language' must be csharp (or left out).");
+        if (dto.Accepted is { Count: > 0 } || dto.Options is { Count: > 0 } || dto.Mistakes is { Count: > 0 })
+            report.Add(file, $"{label}: a benchmark step is answered by ranking its candidates; remove 'accepted', 'options' and 'mistakes' (the right order is what the benchmark records).");
+
+        var measure = dto.Measure ?? BenchmarkPredictStep.Time;
+        if (measure is not (BenchmarkPredictStep.Time or BenchmarkPredictStep.Allocations))
+            report.Add(file, $"{label}: 'measure' must be time or allocations (found '{measure}').");
+
+        var candidates = new List<BenchmarkCandidate>();
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        for (var i = 0; i < (dto.Candidates?.Count ?? 0); i++)
+        {
+            var c = dto.Candidates![i];
+            if (IsEmptyEntry(c, $"{label}: candidates[{i}]", file, report)) continue;
+            if (string.IsNullOrWhiteSpace(c.Id) || !CandidateIdPattern().IsMatch(c.Id))
+                report.Add(file, $"{label}: candidates[{i}] needs an 'id' of lowercase letters, digits and hyphens (found '{c.Id}').");
+            else if (!ids.Add(c.Id))
+                report.Add(file, $"{label}: candidates[{i}] repeats the id '{c.Id}'.");
+            if (string.IsNullOrWhiteSpace(c.Label)) report.Add(file, $"{label}: candidates[{i}] needs a 'label' (what the learner sees).");
+            if (string.IsNullOrWhiteSpace(c.Code)) report.Add(file, $"{label}: candidates[{i}] needs 'code': a method body that returns an int.");
+            candidates.Add(new BenchmarkCandidate(c.Id ?? "", c.Label ?? "", c.Code ?? ""));
+        }
+        if (candidates.Count < 2 || candidates.Count > CSharpBenchmark.MaxCandidates)
+            report.Add(file, $"{label}: a benchmark step needs 2 to {CSharpBenchmark.MaxCandidates} candidates (found {candidates.Count}).");
+
+        if (report.Errors.Count != errorsBefore) return null;
+        var setup = string.IsNullOrWhiteSpace(dto.Setup) ? null : dto.Setup;
+        report.BenchmarkChecks.Add(new BenchmarkCheck(file, label, measure, setup, candidates, dto.Id!));
+        return new BenchmarkPredictStep(dto.Id!, dto.Title!, dto.Prompt!, measure, setup, candidates);
     }
 
     /// <summary>The answer side shared by predict-output and lowered steps: typed 'accepted' answers with 'mistakes', or multiple-choice 'options'.</summary>
@@ -1206,7 +1273,11 @@ public static partial class ContentValidator
         public string? Pattern { get; set; }
         public string? PatternCue { get; set; }
         public string? Difficulty { get; set; }
+        public string? Measure { get; set; }
+        public string? Setup { get; set; }
+        public List<CandidateDto>? Candidates { get; set; }
     }
+    private sealed class CandidateDto { public string? Id { get; set; } public string? Label { get; set; } public string? Code { get; set; } }
     private sealed class FileDto { public string? Name { get; set; } public string? Starter { get; set; } public string? Solution { get; set; } }
     private sealed class WalkthroughDto { public string? Language { get; set; } public string? Call { get; set; } public List<VisualDto>? Visualise { get; set; } public string? Explanation { get; set; } }
     private sealed class VisualDto

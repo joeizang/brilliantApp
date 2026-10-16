@@ -62,6 +62,27 @@ public static class AnswerEvaluator
     }
 
     /// <summary>
+    /// Benchmark ranking: <paramref name="ranking"/> is candidate ids, best first. Right when it is a permutation of the candidates and each
+    /// place holds a candidate with the same recorded value as the recorded order puts there, so candidates that tied (equal bytes) may swap.
+    /// </summary>
+    public static AnswerResult Evaluate(BenchmarkPredictStep step, IReadOnlyList<string> ranking)
+    {
+        if (step.Recorded is null) throw new InvalidOperationException($"Step '{step.Id}' has no recorded benchmark; build the pack first.");
+        var expected = step.RankedRows();
+        var byId = expected.ToDictionary(r => r.CandidateId, StringComparer.Ordinal);
+
+        var places = 0;
+        for (var i = 0; i < expected.Count && i < ranking.Count; i++)
+            if (byId.TryGetValue(ranking[i], out var given) && step.KeyOf(given) == step.KeyOf(expected[i])) places++;
+
+        var complete = ranking.Count == expected.Count && ranking.Distinct(StringComparer.Ordinal).Count() == expected.Count
+            && ranking.All(byId.ContainsKey);
+        return complete && places == expected.Count
+            ? new AnswerResult(true, null)
+            : new AnswerResult(false, $"{places} of {expected.Count} in the right place.");
+    }
+
+    /// <summary>
     /// Fill-in-the-blank: each blank is judged on its own, like a typed prediction. A blank missing from
     /// <paramref name="responses"/> counts as left empty, so it is wrong.
     /// </summary>

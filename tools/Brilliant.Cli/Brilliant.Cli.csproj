@@ -11,6 +11,8 @@
     <PackageReference Include="YamlDotNet" Version="18.1.0" />
     <!-- Pack-time only: reads the compiler's output back as lowered C# and IL. Never referenced by the app. -->
     <PackageReference Include="ICSharpCode.Decompiler" Version="11.1.0.9782" />
+    <!-- Pack-time only: measures benchmark-predict candidates (#155). Never referenced by the app. -->
+    <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
   </ItemGroup>
 
   <ItemGroup>

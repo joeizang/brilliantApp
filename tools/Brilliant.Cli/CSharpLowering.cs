@@ -59,7 +59,7 @@ internal static class CSharpLowering
         }
 
         image.Position = 0;
-        using var file = new PEFile("Lowered" + (program ? ".exe" : ".dll"), image, PEStreamOptions.PrefetchEntireImage);
+        using var file = new ICSharpCode.Decompiler.Metadata.PEFile("Lowered" + (program ? ".exe" : ".dll"), image, PEStreamOptions.PrefetchEntireImage);
         var types = file.Metadata.GetTopLevelTypeDefinitions().Where(t => IsAuthored(file.Metadata, t)).ToList();
         if (types.Count == 0) return (null, "the code declares nothing the compiler lowers (no type, method or top-level statement).");
 

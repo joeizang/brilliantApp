@@ -72,6 +72,7 @@ public sealed record LabelledSnippet(string Label, string Language, string Code)
 [JsonDerivedType(typeof(ParsonsStep), "parsons")]
 [JsonDerivedType(typeof(TraceStep), "trace")]
 [JsonDerivedType(typeof(LoweredStep), "lowered")]
+[JsonDerivedType(typeof(BenchmarkPredictStep), "benchmark-predict")]
 public abstract record Step(string Id, string Title) : ContentItem(Id)
 {
     /// <summary>
@@ -407,4 +408,44 @@ public sealed record LoweredStep(
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public LoweredCode? Lowered { get; init; }
+}
+
+/// <summary>One implementation in a benchmark comparison. <see cref="Code"/> is a method body that returns an <c>int</c>, so nothing is boxed while it is measured.</summary>
+public sealed record BenchmarkCandidate(string Id, string Label, string Code);
+
+/// <summary>What BenchmarkDotNet measured for one candidate: mean time per call, its standard deviation, and bytes allocated per call.</summary>
+public sealed record BenchmarkRow(string CandidateId, double MeanNs, double StdDevNs, long AllocatedBytes);
+
+/// <summary>
+/// A benchmark run when the pack was built. <see cref="Machine"/> and <see cref="Runtime"/> say where the numbers came from (the lessons
+/// are recorded on Apple Silicon); the numbers are one run's measurements, so lessons make claims about order and ratio, not exact figures.
+/// </summary>
+public sealed record BenchmarkRecording(IReadOnlyList<BenchmarkRow> Rows, string Machine, string Runtime, string Job);
+
+/// <summary>
+/// "Which is faster?" The learner ranks <see cref="Candidates"/> (fastest first, or fewest allocations first, per <see cref="Measure"/>),
+/// then sees the measured numbers with the machine they were recorded on. Graded against <see cref="Recorded"/>, so the answer is
+/// whatever the benchmark showed. C# only: BenchmarkDotNet is a .NET tool.
+/// </summary>
+public sealed record BenchmarkPredictStep(
+    string Id,
+    string Title,
+    string Prompt,
+    string Measure,
+    string? Setup,
+    IReadOnlyList<BenchmarkCandidate> Candidates) : Step(Id, Title)
+{
+    public const string Time = "time";
+    public const string Allocations = "allocations";
+
+    /// <summary>The measurements taken when the pack was built. Never authored; null in a pack source that hasn't been built yet.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BenchmarkRecording? Recorded { get; init; }
+
+    /// <summary>The measured value ranking uses: nanoseconds, or bytes. Equal values are a tie.</summary>
+    public double KeyOf(BenchmarkRow row) => Measure == Allocations ? row.AllocatedBytes : row.MeanNs;
+
+    /// <summary>The recorded rows, best first (fastest, or fewest bytes). Empty when nothing is recorded.</summary>
+    public IReadOnlyList<BenchmarkRow> RankedRows() =>
+        Recorded is null ? [] : Recorded.Rows.OrderBy(KeyOf).ToList();
 }
