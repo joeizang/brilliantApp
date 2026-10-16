@@ -17,6 +17,9 @@ internal sealed record TraceCheck(string File, string Label, string Code, IReadO
 /// <summary>A <c>lowered</c> step's snippet, waiting to be compiled so the pack can carry what the compiler made of it.</summary>
 internal sealed record LoweringCheck(string File, string Label, string Code, string StepId);
 
+/// <summary>A benchmark-predict step's candidates, waiting to be compiled and (in a pack build) measured.</summary>
+internal sealed record BenchmarkCheck(string File, string Label, string Measure, string? Setup, IReadOnlyList<BenchmarkCandidate> Candidates, string StepId);
+
 /// <summary>Runs source in one language against an exercise's tests. Production adapters use CPython or the C# compiler gate; tests may substitute a fake.</summary>
 public interface IReferenceSolutionRunner
 {
