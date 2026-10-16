@@ -183,6 +183,71 @@ public sealed class CSharpPublishingTests : IDisposable
         Assert.False(File.Exists(output));
     }
 
+    /// <summary>Adds the budget to the first (or, for the Python step, the last) test whose expected value is 8.</summary>
+    private void DeclareBudget(string budget, bool last = false)
+    {
+        var file = Path.Combine(Root, LessonFile);
+        var lines = File.ReadAllLines(file).ToList();
+        var at = last ? lines.FindLastIndex(l => l.Trim() == "expected: '8'") : lines.FindIndex(l => l.Trim() == "expected: '8'");
+        lines.Insert(at + 1, new string(' ', lines[at].Length - lines[at].TrimStart().Length) + "maxAllocatedBytes: " + budget);
+        File.WriteAllLines(file, lines);
+    }
+
+    [Fact]
+    public void A_zero_allocation_reference_passes_its_budget_and_the_budget_is_packed_with_the_test()
+    {
+        WritePack();
+        DeclareBudget("0");
+        var output = Path.Combine(_repository, "budget.zip");
+
+        var report = ContentPacker.Pack(Root, output);
+
+        Assert.True(report.IsValid, string.Join('\n', report.Errors));
+        var step = Assert.IsType<WriteCodeStep>(Assert.Single(ContentPackFormat.Load(output).Lessons[0].Steps));
+        Assert.Equal([0, (int?)null], step.Tests.Select(t => t.MaxAllocatedBytes));
+    }
+
+    [Fact]
+    public void A_reference_that_allocates_over_its_budget_blocks_packing_and_shows_the_measured_bytes()
+    {
+        WritePack("static int Double(int n) { var scratch = new int[16]; scratch[0] = n * 2; return scratch[0]; }");
+        DeclareBudget("0");
+        var output = Path.Combine(_repository, "allocating.zip");
+
+        var report = ContentPacker.Pack(Root, output);
+
+        Assert.False(report.IsValid);
+        Assert.False(File.Exists(output));
+        var error = Assert.Single(report.Errors);
+        Assert.Contains("step.csharp.double", error.Message);
+        Assert.Contains("test 1: Double(4)", error.Message);
+        Assert.Matches(@"allocated [1-9][\d,]* bytes per call; the budget is 0 \(CoreCLR\)", error.Message);
+    }
+
+    [Theory]
+    [InlineData("-1")]
+    [InlineData("1000001")]
+    public void An_allocation_budget_outside_zero_to_a_million_bytes_is_rejected(string budget)
+    {
+        WritePack();
+        DeclareBudget(budget);
+
+        var report = ContentValidator.Load(Root, out _);
+
+        Assert.Contains(report.Errors, e => e.Message.Contains("maxAllocatedBytes") && e.Message.Contains("between 0 and 1,000,000"));
+    }
+
+    [Fact]
+    public void A_python_test_cannot_declare_an_allocation_budget()
+    {
+        WritePack(includePython: true);
+        DeclareBudget("0", last: true);
+
+        var report = ContentValidator.Load(Root, out _);
+
+        Assert.Contains(report.Errors, e => e.Message.Contains("step.python.double") && e.Message.Contains("maxAllocatedBytes"));
+    }
+
     private sealed class PythonOnlyRunner : IReferenceSolutionRunner
     {
         public string Language => "python";

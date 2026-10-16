@@ -112,6 +112,50 @@ public class WriteCodeStepViewTests : ShortcutContext
     }
 
     [Fact]
+    public void A_test_that_allocates_over_its_budget_shows_the_budget_and_the_measured_bytes()
+    {
+        var cut = Run(new TestRunResult(TestRunStatus.Failed, "", null, null, null,
+            [new TestOutcome("Sum(4)", "4", "4", false, "", null, null, new AllocationReport(88, 0, "CoreCLR", true))]));
+
+        var failure = cut.Find(".failure").TextContent;
+        Assert.Contains("Allocation budget", failure);
+        Assert.Contains("at most 0 bytes per call", failure);
+        Assert.Contains("88 bytes per call (CoreCLR)", failure);
+        Assert.DoesNotContain("Your code returned", failure);
+    }
+
+    [Fact]
+    public void A_device_measurement_over_the_budget_is_advice_on_a_passing_run()
+    {
+        var cut = Run(new TestRunResult(TestRunStatus.Passed, "", null, null, null,
+            [new TestOutcome("Sum(4)", "4", "4", true, "", null, null, new AllocationReport(96, 88, "Mono interpreter", false))]));
+
+        Assert.Contains("All 1 tests passed", cut.Find(".verdict").TextContent);
+        var advice = cut.Find(".allocation-advice").TextContent;
+        Assert.Contains("96 bytes", advice);
+        Assert.Contains("Mono interpreter", advice);
+        Assert.Contains("doesn't fail the test", advice);
+    }
+
+    [Fact]
+    public void A_budget_that_could_not_be_checked_says_so()
+    {
+        var cut = Run(new TestRunResult(TestRunStatus.Passed, "", null, null, null,
+            [new TestOutcome("Sum(4)", "4", "4", true, "", null, null, new AllocationReport(null, 0, "CoreCLR", true))]));
+
+        Assert.Contains("Allocation not checked", cut.Find(".allocation-advice").TextContent);
+    }
+
+    [Fact]
+    public void A_measurement_within_the_budget_shows_no_advice()
+    {
+        var cut = Run(new TestRunResult(TestRunStatus.Passed, "", null, null, null,
+            [new TestOutcome("Sum(4)", "4", "4", true, "", null, null, new AllocationReport(0, 0, "Mono interpreter", false))]));
+
+        Assert.Empty(cut.FindAll(".allocation-advice"));
+    }
+
+    [Fact]
     public void A_timed_out_run_explains_it_was_stopped_and_offers_no_continue()
     {
         var cut = Run(new TestRunResult(TestRunStatus.TimedOut, "", "Your code ran for more than 5 seconds, so it was stopped.", null, null, []));

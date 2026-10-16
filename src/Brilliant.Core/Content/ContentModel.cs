@@ -184,13 +184,16 @@ public sealed record PredictOutputStep(
 /// result must equal the expression <see cref="Expected"/>. Both are source text in the owning exercise's language, compared using that runtime's equality (structural for C# arrays, records and tuples). Python examples: <c>[3, 1, 2], 2</c> and <c>(1, 3)</c>.
 /// <see cref="Compare"/> is null to compare the result itself, or <see cref="CompareLinkedList"/> when the function returns the head of
 /// a linked list: the harness then follows <c>.next</c> from it, collects each node's <c>.val</c> into a list, and compares that list
-/// (<c>None</c> is the empty list).
+/// (<c>None</c> is the empty list). <see cref="MaxAllocatedBytes"/> (C# only) is the most heap memory one call may allocate; null means the
+/// test does not check allocations.
 /// </summary>
 public sealed record CodeTest(
     string Input,
     string Expected,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    string? Compare = null)
+    string? Compare = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    int? MaxAllocatedBytes = null)
 {
     public const string CompareLinkedList = "linked_list";
 }

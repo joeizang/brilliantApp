@@ -950,6 +950,7 @@ public static partial class ContentValidator
             report.Add(file, $"{label}: runtime '{language}' is not enabled by app '{app.AppId}'.");
     }
 
+    private const int MaxAllocationBudget = 1_000_000;
     private static readonly Regex EntrypointIdentifier = new("^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.Compiled);
 
     private static Step? LoadWriteCode(StepDto dto, string label, string file, ValidationReport report, int errorsBefore)
@@ -979,7 +980,14 @@ public static partial class ContentValidator
                 // 'input' may be empty (a function with no arguments); 'expected' never is.
                 if (t.Input is null) report.Add(file, $"{label}: tests[{i}] needs 'input' (the call's arguments as source in the exercise language; \"\" for none).");
                 if (string.IsNullOrWhiteSpace(t.Expected)) report.Add(file, $"{label}: tests[{i}] needs 'expected' (an expression in the exercise language).");
-                tests.Add(new CodeTest(t.Input ?? "", t.Expected ?? "", compare));
+                if (t.MaxAllocatedBytes is { } bytes)
+                {
+                    if (dto.Language != "csharp")
+                        report.Add(file, $"{label}: tests[{i}] 'maxAllocatedBytes' is measured by the C# runtime; {dto.Language ?? "this"} exercises can't declare an allocation budget.");
+                    else if (bytes is < 0 or > MaxAllocationBudget)
+                        report.Add(file, $"{label}: tests[{i}] 'maxAllocatedBytes' must be between 0 and {MaxAllocationBudget:N0} (bytes allocated by one call).");
+                }
+                tests.Add(new CodeTest(t.Input ?? "", t.Expected ?? "", compare, t.MaxAllocatedBytes));
             }
 
         if (report.Errors.Count != errorsBefore) return null;
@@ -1110,7 +1118,7 @@ public static partial class ContentValidator
         public bool? Max { get; set; }
     }
     private sealed class BlankDto { public string? Id { get; set; } public List<string>? Accepted { get; set; } public List<MistakeDto>? Mistakes { get; set; } }
-    private sealed class TestDto { public string? Input { get; set; } public string? Expected { get; set; } }
+    private sealed class TestDto { public string? Input { get; set; } public string? Expected { get; set; } public int? MaxAllocatedBytes { get; set; } }
     private sealed class MistakeDto { public List<string>? Answers { get; set; } public string? Regex { get; set; } public string? Feedback { get; set; } }
     private sealed class OptionDto { public string? Text { get; set; } public bool? Correct { get; set; } public string? Feedback { get; set; } }
 }

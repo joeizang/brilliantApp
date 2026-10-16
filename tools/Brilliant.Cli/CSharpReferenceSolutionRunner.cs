@@ -67,6 +67,8 @@ public sealed class CSharpReferenceSolutionRunner(TimeSpan? timeout = null) : IR
         return 0;
     }
 
+    private static readonly TimeSpan MeasureLimit = TimeSpan.FromSeconds(5);
+
     private sealed record Request(string Code, string Entrypoint, IReadOnlyList<CodeTest> Tests);
 
     private static TestRunResult CompileAndRun(Request request)
@@ -79,7 +81,7 @@ public sealed class CSharpReferenceSolutionRunner(TimeSpan? timeout = null) : IR
         try
         {
             var assembly = context.LoadFromStream(pe);
-            var method = assembly.GetType("__BrilliantReference")!.GetMethod("Run")!;
+            var method = assembly.GetType("__BrilliantReference")!.GetMethod("Run")!.CreateDelegate<Func<int, int, object?[]>>();
             var outcomes = new List<TestOutcome>();
             for (var i = 0; i < request.Tests.Count; i++)
             {
@@ -88,6 +90,8 @@ public sealed class CSharpReferenceSolutionRunner(TimeSpan? timeout = null) : IR
                 Exception? failure = null;
                 string? actual = null;
                 string? expected = null;
+                AllocationReport? allocation = null;
+                string? measureFailure = null;
                 var passed = false;
                 using var printed = new StringWriter();
                 var previous = Console.Out;
@@ -98,11 +102,24 @@ public sealed class CSharpReferenceSolutionRunner(TimeSpan? timeout = null) : IR
                     ProbeBudget.Current = budget;
                     try
                     {
-                        pair = (object?[])method.Invoke(null, [index])!;
+                        var started = Stopwatch.GetTimestamp();
+                        pair = method(index, 0);
+                        var firstCall = Stopwatch.GetElapsedTime(started);
                         budget.Tick();
                         passed = CSharpValues.Equal(pair[0], pair[1]);
                         actual = CSharpValues.Format(pair[0]);
                         expected = CSharpValues.Format(pair[1]);
+                        if (passed && request.Tests[index].MaxAllocatedBytes is { } allowed)
+                        {
+                            // Printing while measuring is discarded; the checked run above already captured the output.
+                            Console.SetOut(TextWriter.Null);
+                            if (AllocationMeter.Measure(method, index, budget, firstCall, MeasureLimit) is { } bytes)
+                            {
+                                allocation = new(bytes, allowed, AllocationMeter.RuntimeName, Enforced: AllocationMeter.IsAuthoritative);
+                                passed = !(allocation.Enforced && allocation.Exceeded);
+                            }
+                            else measureFailure = $"The allocation of {request.Entrypoint}({request.Tests[index].Input}) couldn't be measured within {MeasureLimit.TotalSeconds:0.##} seconds; it is too slow to repeat.";
+                        }
                     }
                     catch (Exception ex) { failure = Unwrap(ex); passed = false; }
                     finally { ProbeBudget.Current = null; }
@@ -112,10 +129,11 @@ public sealed class CSharpReferenceSolutionRunner(TimeSpan? timeout = null) : IR
                 try { thread.Start(); thread.Join(); }
                 finally { Console.SetOut(previous); Console.SetError(previousError); }
                 if (failure is BudgetExceededException) return Error(failure.Message, TestRunStatus.TimedOut);
+                if (measureFailure is not null) return Error(measureFailure);
                 var test = request.Tests[i];
                 outcomes.Add(new TestOutcome($"{request.Entrypoint}({test.Input})", expected ?? test.Expected,
                     actual, passed,
-                    printed.ToString(), failure?.ToString(), null));
+                    printed.ToString(), failure?.ToString(), null, allocation));
             }
             return new TestRunResult(outcomes.All(t => t.Passed) ? TestRunStatus.Passed : TestRunStatus.Failed, "", null, null, null, outcomes);
         }

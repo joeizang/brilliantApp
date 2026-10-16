@@ -40,6 +40,9 @@ and output, preserve compile error source lines, and identify lesson, step, test
 expected and actual values. A compile failure, budget failure or worker failure blocks
 packing and publishing.
 
+A test can also declare `maxAllocatedBytes`; the gate measures the reference solution on CoreCLR and fails when a call allocates more.
+See [csharp-write-code.md](csharp-write-code.md#allocation-budgets-151).
+
 The reusable `Brilliant.Code.CSharp` library contains a Roslyn syntax rewriter and
 thread-local budget. Method, local function, constructor, accessor, operator and
 lambda bodies enter a call-depth budget and release it in `finally`. Loop bodies tick

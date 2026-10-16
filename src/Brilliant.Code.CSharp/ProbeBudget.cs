@@ -33,6 +33,14 @@ public sealed class ProbeBudget(int maxSteps = 100_000, TimeSpan? timeout = null
     /// <summary>Request cooperative stopping from a watchdog; the next probe throws.</summary>
     public void Cancel() => Interlocked.CompareExchange(ref _exhausted, "The code exceeded its time budget.", null);
 
+    /// <summary>Start the next call of a repeated measurement with fresh step, depth and time counts. Does not allocate.</summary>
+    public void ResetCounts()
+    {
+        Steps = 0;
+        Depth = 0;
+        _started = null;
+    }
+
     public void Tick()
     {
         _started ??= Stopwatch.GetTimestamp();
