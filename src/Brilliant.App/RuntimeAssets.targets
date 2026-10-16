@@ -1,0 +1,15 @@
+<Project>
+  <Target Name="ValidateLegacyRuntimeAssets" BeforeTargets="SelectAppRuntimes;PrepareAppFlavor">
+    <ItemGroup>
+      <LegacyPyodideAsset Include="$(AppRepositoryRoot)src/Brilliant.App/wwwroot/pyodide/**/*" Exclude="$(AppRepositoryRoot)src/Brilliant.App/wwwroot/pyodide/.gitkeep" />
+    </ItemGroup>
+    <Error Condition="'@(LegacyPyodideAsset)' != ''" Text="Legacy Pyodide files remain in src/Brilliant.App/wwwroot/pyodide/. Move these to src/Brilliant.Runtime.Python/wwwroot/pyodide/ before building any flavor." />
+  </Target>
+
+  <Target Name="ValidateRequiredPythonAssets" AfterTargets="SelectAppRuntimes">
+    <ItemGroup Condition="'$(AppPythonEnabled)' == 'true'">
+      <RequiredPyodideAsset Include="$(AppRepositoryRoot)src/Brilliant.Runtime.Python/wwwroot/pyodide/pyodide.mjs;$(AppRepositoryRoot)src/Brilliant.Runtime.Python/wwwroot/pyodide/pyodide.asm.mjs;$(AppRepositoryRoot)src/Brilliant.Runtime.Python/wwwroot/pyodide/pyodide.asm.wasm;$(AppRepositoryRoot)src/Brilliant.Runtime.Python/wwwroot/pyodide/python_stdlib.zip;$(AppRepositoryRoot)src/Brilliant.Runtime.Python/wwwroot/pyodide/pyodide-lock.json" />
+    </ItemGroup>
+    <Error Condition="'$(AppPythonEnabled)' == 'true' And !Exists('%(RequiredPyodideAsset.Identity)')" Text="Missing Python runtime asset: %(RequiredPyodideAsset.Identity). Move the five downloaded Pyodide files from src/Brilliant.App/wwwroot/pyodide/ to src/Brilliant.Runtime.Python/wwwroot/pyodide/, or follow docs/code-runtimes.md to set up Python." />
+  </Target>
+</Project>

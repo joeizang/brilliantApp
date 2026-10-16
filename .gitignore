@@ -6,6 +6,8 @@ obj/
 src/Brilliant.App/Resources/Raw/*.pack.zip
 
 # Pyodide spike assets (downloaded, see docs/spikes)
+# Keep old checkouts safe until their downloaded assets have been moved.
+src/Brilliant.App/wwwroot/pyodide/
 src/Brilliant.Runtime.Python/wwwroot/pyodide/*
 !src/Brilliant.Runtime.Python/wwwroot/pyodide/.gitkeep
 

@@ -46,6 +46,7 @@
     <MauiAsset Include="Resources\Raw\**" Exclude="Resources\Raw\*.pack.zip" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
     <MauiAsset Include="$(AppManifestPath)" LogicalName="app-manifest.yaml" />
     <Content Remove="wwwroot\index.html" />
+    <Content Remove="wwwroot/pyodide/**" />
   </ItemGroup>
 
   <!--
@@ -123,4 +124,5 @@
     <Exec Command="dotnet run --no-launch-profile --project &quot;$(ContentCliProject)&quot; -- pack &quot;$(ContentRoot)&quot; -o &quot;$(ContentPackPath)&quot; --manifest &quot;$(AppManifestPath)&quot;" />
   </Target>
 
+  <Import Project="RuntimeAssets.targets" />
 </Project>

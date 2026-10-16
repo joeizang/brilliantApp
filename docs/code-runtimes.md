@@ -48,7 +48,13 @@ For Python builds, place the five pinned Pyodide 314.0.7 assets (`pyodide.mjs`,
 `pyodide.asm.mjs`, `pyodide.asm.wasm`, `python_stdlib.zip`, `pyodide-lock.json`)
 under `src/Brilliant.Runtime.Python/wwwroot/pyodide/`. They remain gitignored;
 the original setup is recorded in [the spike](spikes/pyodide-blazorwebview.md).
-They are unnecessary for a runtime-free build.
+Existing checkouts must move those five downloaded files from
+`src/Brilliant.App/wwwroot/pyodide/` into the new library folder before building.
+The old folder stays ignored to prevent accidental commits, but every flavor's
+build rejects files left there (apart from `.gitkeep`) so legacy assets cannot
+leak into runtime-free packages. Python builds also check all five required files
+in the library folder and fail early with setup advice if any are missing.
+These files are unnecessary for a runtime-free build.
 
 Verification must include launching packaged Release apps: run DSA write-code
 against hidden tests and open a trace/walkthrough, checking that the module worker
@@ -56,3 +62,8 @@ loads its bundled assets at the library URL. Confirm existing progress survives.
 Launch `runtime-check` too, and inspect both native bundles for the absence of
 Python assets/assembly. Unit tests alone do not exercise native WebView startup
 or module-worker asset resolution.
+
+Build-guard regression tests run without native workloads or downloaded assets:
+`python3 -B -m unittest discover -s tests/build`. They exercise the real MSBuild
+guards against temporary app layouts, including each missing file, legacy
+downloads, a legacy placeholder and a runtime-free build selection.
