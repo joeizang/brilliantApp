@@ -1,3 +1,4 @@
+using Brilliant.Core.Apps;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -13,15 +14,17 @@ public sealed class PackRejectedException(HttpStatusCode status, string message)
 }
 
 /// <summary>Talks to the server's <c>/packs</c> endpoints. The <see cref="HttpClient"/> is injected so tests can answer for the server.</summary>
-public sealed class PackClient(HttpClient http)
+public sealed class PackClient(HttpClient http, string appId = AppStoragePaths.DsaAppId)
 {
+    public string AppId => appId;
+
     public async Task<IReadOnlyList<PackInfo>> ListAsync(DeviceCredentials credentials, CancellationToken ct = default)
     {
         using var request = Authorised(HttpMethod.Get, new Uri(credentials.Server, "packs"), credentials);
         var list = await SendAsync(request, async response =>
             await response.Content.ReadFromJsonAsync<PackListResponse>(ct) ?? throw new SyncException(SyncFailure.ServerError, "The server's answer was empty."), ct);
         // A 200 can still carry nonsense ({"packs":null}, null entries): that is the server misbehaving, not something to blow up on later.
-        if (list.Packs is null || list.Packs.Any(p => p is null || p.PackId is null || p.Version is null || p.Sha256 is null))
+        if (list.Packs is null || list.Packs.Any(p => p is null || p.PackId is null || p.Version is null || p.Sha256 is null || p.AppId != appId))
             throw new SyncException(SyncFailure.ServerError, "The server's list of packs was malformed.");
         return list.Packs;
     }
@@ -29,6 +32,7 @@ public sealed class PackClient(HttpClient http)
     /// <summary>The pack's bytes, checked against <see cref="PackInfo.Sha256"/> and <see cref="PackInfo.Size"/>.</summary>
     public async Task<byte[]> DownloadAsync(DeviceCredentials credentials, PackInfo pack, CancellationToken ct = default)
     {
+        if (pack.AppId != appId) throw new SyncException(SyncFailure.ServerError, "The server listed a pack for a different app.");
         // The pack's ID comes from the server; it must not be able to steer the request anywhere but /packs.
         if (!Content.PackIds.IsValid(pack.PackId) || !Content.PackVersion.TryParse(pack.Version, out var version))
             throw new SyncException(SyncFailure.ServerError, "The server listed a pack with an unusable ID or version.");
@@ -51,7 +55,10 @@ public sealed class PackClient(HttpClient http)
             if (response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Conflict or HttpStatusCode.RequestEntityTooLarge)
                 throw new PackRejectedException(response.StatusCode, await ReasonAsync(response, ct));
             if (!response.IsSuccessStatusCode) throw new SyncException(SyncFailure.ServerError, $"The server answered {(int)response.StatusCode}.");
-            return await response.Content.ReadFromJsonAsync<PublishPackResponse>(ct) ?? throw new SyncException(SyncFailure.ServerError, "The server's answer was empty.");
+            var published = await response.Content.ReadFromJsonAsync<PublishPackResponse>(ct) ?? throw new SyncException(SyncFailure.ServerError, "The server's answer was empty.");
+            if (published.Pack is null || published.Pack.AppId != appId)
+                throw new SyncException(SyncFailure.ServerError, "The server published a pack for a different app.");
+            return published;
         }, ct, passRefusals: true);
     }
 
@@ -66,9 +73,11 @@ public sealed class PackClient(HttpClient http)
         return $"The server refused the pack ({(int)response.StatusCode}).";
     }
 
-    private static HttpRequestMessage Authorised(HttpMethod method, Uri uri, DeviceCredentials credentials)
+    private HttpRequestMessage Authorised(HttpMethod method, Uri uri, DeviceCredentials credentials)
     {
+        AppSync.RequireCredentials(credentials, appId);
         var request = new HttpRequestMessage(method, uri);
+        request.Headers.Add(AppSync.AppIdHeader, appId);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credentials.Token);
         return request;
     }

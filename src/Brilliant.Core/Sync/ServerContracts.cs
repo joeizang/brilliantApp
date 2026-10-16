@@ -1,18 +1,19 @@
 using Brilliant.Core.Progress;
+using Brilliant.Core.Apps;
 
 namespace Brilliant.Core.Sync;
 
 // The JSON bodies shared by the server and the apps, so both sides compile against one definition.
 
 /// <summary>Exchanges a one-time pairing code for a device token.</summary>
-public sealed record PairRequest(string Code, string DeviceName);
+public sealed record PairRequest(string Code, string DeviceName, string AppId = AppStoragePaths.DsaAppId);
 
 /// <summary>The token is shown once, here, and never again: the server keeps only a hash of it.</summary>
-public sealed record PairResponse(string DeviceId, string Token);
+public sealed record PairResponse(string DeviceId, string Token, string AppId = AppStoragePaths.DsaAppId);
 
 public sealed record PairingCodeResponse(string Code, DateTimeOffset ExpiresAt);
 
-public sealed record DeviceInfo(string Id, string Name, DateTimeOffset PairedAt, DateTimeOffset? LastSeenAt, bool Revoked);
+public sealed record DeviceInfo(string Id, string Name, DateTimeOffset PairedAt, DateTimeOffset? LastSeenAt, bool Revoked, string AppId = AppStoragePaths.DsaAppId);
 
 /// <summary>Events the device wants the server to keep. Safe to send again: the server ignores IDs it already has.</summary>
 public sealed record PushEventsRequest(IReadOnlyList<ProgressEvent> Events);
@@ -42,7 +43,7 @@ public sealed record PushDraftsResponse(int Accepted, int Ignored, IReadOnlyList
 public sealed record PullDraftsResponse(IReadOnlyList<Drafts.CodeDraft> Drafts, long Cursor, bool HasMore);
 
 /// <summary>One published Content Pack. <paramref name="Sha256"/> (lower-case hex) lets a device check what it downloaded.</summary>
-public sealed record PackInfo(string PackId, string Version, int FormatVersion, string Sha256, long Size, DateTimeOffset PublishedAt);
+public sealed record PackInfo(string PackId, string Version, int FormatVersion, string Sha256, long Size, DateTimeOffset PublishedAt, string AppId = AppStoragePaths.DsaAppId);
 
 /// <summary>The newest published version of each pack.</summary>
 public sealed record PackListResponse(IReadOnlyList<PackInfo> Packs);

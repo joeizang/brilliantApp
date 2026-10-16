@@ -29,11 +29,39 @@ curl --cacert tls/brilliant-ca.crt https://<server-address>:8443/health
 
 The server applies its database migrations on every start.
 
+For app scoping (#145), the additive migration assigns every existing device,
+pairing code, event, draft and pack to the DSA ID `com.joeizang.brilliantapp`.
+Tokens, progress, draft code, pack bytes and sync cursor values are retained.
+Back up before upgrading as usual. Downgrading this migration is refused while
+any non-DSA rows exist, so app identities cannot silently be removed.
+
+## App identity
+
+The published server contains `apps/*/manifest.yaml` and loads app IDs through the
+shared `AppManifest` parser. Unknown IDs are refused. New app manifests are picked
+up by rebuilding/publishing the server; `Apps:Directory` (environment variable
+`Apps__Directory`) can point at a directory of manifests instead. Duplicate IDs,
+invalid manifests or an empty catalog fail startup.
+
+Each app pairs separately, even on the same physical device. Pairing requests
+include `appId`, and authenticated requests carry `X-Brilliant-App-Id` alongside
+the bearer token. Authentication checks that header against the app saved on the
+device record; endpoints use that authenticated identity for every read/write.
+A missing header or missing pairing `appId` means DSA for existing installations.
+A token for another app, an unknown ID or a missing header on a non-DSA token gets
+`401`; an unknown pairing app gets `400` without consuming its code.
+
+All device lists/revocations, codes, packs, event streams and draft updates are
+confined to that app. The same event ID, step ID or pack ID/version can exist in
+two apps independently. Sequence numbers stay global and monotonic; filtered
+per-app pulls can have gaps, and cursors remain safe.
+
+
 ## Pair a device
 
 A pairing code is 8 characters (shown as `XXXX-XXXX`), works once, and expires after 15 minutes.
 
-**First device.** When the server starts with no paired devices it logs a code:
+**First DSA device.** When DSA is configured and has no paired devices, startup logs a DSA code. Other apps get their first code from the server command below:
 
 ```bash
 docker compose logs server | grep "Pairing code"
@@ -43,9 +71,12 @@ docker compose logs server | grep "Pairing code"
 
 ```bash
 docker compose exec server dotnet Brilliant.Server.dll pairing-code
+
+# A separate app's first device (use its manifest appId, not its folder name):
+docker compose exec server dotnet Brilliant.Server.dll pairing-code --app com.joeizang.brilliantapp.runtimecheck
 ```
 
-**From an already paired device**, `POST /pairing-codes` with its token returns a new code.
+**From an already paired device**, `POST /pairing-codes` with its token and app header returns a new code for the same app only.
 
 Then, in the app: **Sync** in the sidebar, enter the server's address (for example `192.168.1.20:8443`; a bare host gets `https://` and port 8443; the device must trust the household CA first, see [https.md](https.md)), the code, and a name for the device, and press **Pair**. A wrong, used or expired code is refused, and after 10 wrong tries a minute from one address the server answers `429` until the minute is up.
 
@@ -55,7 +86,7 @@ On narrow windows and phones, where the sidebar is hidden, Sync is reached from 
 
 ## Manage devices
 
-All of these need a device token (`Authorization: Bearer <token>`):
+All of these need a device token (`Authorization: Bearer <token>`). For non-DSA apps also add `-H "X-Brilliant-App-Id: <appId>"` to every request:
 
 ```bash
 # list devices (id, name, when paired, last seen, revoked)
@@ -72,9 +103,9 @@ A revoked device gets `401` on everything except `/health` and `/pair`. Revoking
 | Method and path | Auth | What |
 |---|---|---|
 | `GET /health` | none | `200 {"status":"ok"}`, or `503` if Postgres is down |
-| `POST /pair` | code | `{code, deviceName}` → `{deviceId, token}`; `401` bad/used/expired code, `400` bad request, `429` too many tries |
+| `POST /pair` | code | `{code, deviceName, appId}` → `{deviceId, token, appId}` (missing appId defaults to DSA); `401` bad/used/expired code, `400` bad request, `429` too many tries |
 | `POST /pairing-codes` | device | `{code, expiresAt}` for a new one-time code |
-| `GET /devices` | device | the household's devices |
+| `GET /devices` | device | the app's devices |
 | `DELETE /devices/{id}` | device | revoke; `204` (also if already revoked), `404` if unknown |
 | `POST /events` | device | `{events:[…]}` (at most 500) → `{accepted, duplicates, rejected:[{id, reason}]}`. Idempotent by event ID. Judged event by event: valid ones are stored and an invalid one is named in `rejected` (the response is still `200`), so one bad event never blocks the rest. Only a malformed batch (no list, a null entry, over 500 events) is a `400` that stores nothing |
 | `POST /drafts` | device | `{drafts:[{stepId, code, updatedAt}]}` (at most 200) → `{accepted, ignored, rejected:[{id, reason}]}`. A draft replaces the server's copy only if it is newer (a tie goes to the larger code; `code: null` is a reset and is kept). Over-limit drafts are named in `rejected`; only a malformed batch is a `400` |

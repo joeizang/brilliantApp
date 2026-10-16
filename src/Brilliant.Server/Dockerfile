@@ -6,6 +6,7 @@ COPY src/Brilliant.Server/Brilliant.Server.csproj src/Brilliant.Server/
 RUN dotnet restore src/Brilliant.Server/Brilliant.Server.csproj
 COPY src/Brilliant.Core src/Brilliant.Core
 COPY src/Brilliant.Server src/Brilliant.Server
+COPY apps apps
 RUN dotnet publish src/Brilliant.Server/Brilliant.Server.csproj -c Release --no-restore -o /app
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime

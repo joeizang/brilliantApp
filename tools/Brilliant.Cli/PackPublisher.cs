@@ -27,6 +27,13 @@ public sealed class PackPublisher(PackClient client, IDeviceCredentialStore cred
             return 1;
         }
 
+        var selectedAppId = CliApp.SelectedAppId(contentRoot, appManifestPath);
+        if (paired.AppId != selectedAppId || client.AppId != selectedAppId)
+        {
+            error.WriteLine($"error: credentials and publishing client must belong to app '{selectedAppId}'. Pair this app with --app <manifest.yaml>.");
+            return 1;
+        }
+
         try
         {
             var result = await client.PublishAsync(paired, bytes, ct);

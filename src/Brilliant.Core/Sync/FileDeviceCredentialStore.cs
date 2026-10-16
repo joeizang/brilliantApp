@@ -1,3 +1,4 @@
+using Brilliant.Core.Apps;
 using System.Text.Json;
 
 namespace Brilliant.Core.Sync;
@@ -19,7 +20,7 @@ public abstract record FileState
 /// </summary>
 public sealed class FileDeviceCredentialStore(string path) : IDeviceCredentialStore
 {
-    private sealed record Stored(string? Server, string? DeviceId, string? Token, bool Forgotten = false);
+    private sealed record Stored(string? Server, string? DeviceId, string? Token, bool Forgotten = false, string AppId = AppStoragePaths.DsaAppId);
 
     public async Task<FileState> ReadAsync(CancellationToken ct = default)
     {
@@ -30,7 +31,7 @@ public sealed class FileDeviceCredentialStore(string path) : IDeviceCredentialSt
             if (stored is null) return new FileState.Empty();
             if (stored.Forgotten) return new FileState.Forgotten();
             return stored is { Server: { } server, DeviceId: { } id, Token: { } token } && Uri.TryCreate(server, UriKind.Absolute, out var uri)
-                ? new FileState.Held(new DeviceCredentials(uri, id, token))
+                ? new FileState.Held(new DeviceCredentials(uri, id, token, stored.AppId))
                 : new FileState.Empty();
         }
         catch (JsonException) { return new FileState.Empty(); }
@@ -39,7 +40,7 @@ public sealed class FileDeviceCredentialStore(string path) : IDeviceCredentialSt
     public async Task<DeviceCredentials?> LoadAsync(CancellationToken ct = default) => (await ReadAsync(ct)) is FileState.Held held ? held.Credentials : null;
 
     public Task SaveAsync(DeviceCredentials credentials, CancellationToken ct = default) =>
-        WriteAsync(new Stored(credentials.Server.ToString(), credentials.DeviceId, credentials.Token), ct);
+        WriteAsync(new Stored(credentials.Server.ToString(), credentials.DeviceId, credentials.Token, AppId: credentials.AppId), ct);
 
     /// <summary>Records that there is deliberately no pairing, whatever the secure store may still hold.</summary>
     public Task MarkForgottenAsync(CancellationToken ct = default) => WriteAsync(new Stored(null, null, null, Forgotten: true), ct);

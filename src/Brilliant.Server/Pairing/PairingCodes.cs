@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Brilliant.Core.Apps;
 using Brilliant.Server.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,19 +14,22 @@ public sealed class PairingOptions
 }
 
 /// <summary>Mints and redeems one-time pairing codes. A code is eight characters from an alphabet without look-alikes, shown as XXXX-XXXX.</summary>
-public sealed class PairingCodes(ServerDb db, TimeProvider clock, Microsoft.Extensions.Options.IOptions<PairingOptions> options)
+public sealed class PairingCodes(ServerDb db, TimeProvider clock, Microsoft.Extensions.Options.IOptions<PairingOptions> options, ServerApps apps)
 {
     private const string Alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
-    public async Task<(string Code, DateTimeOffset ExpiresAt)> MintAsync(CancellationToken ct = default)
+    public Task<(string Code, DateTimeOffset ExpiresAt)> MintAsync(CancellationToken ct = default) => MintAsync(AppStoragePaths.DsaAppId, ct);
+
+    public async Task<(string Code, DateTimeOffset ExpiresAt)> MintAsync(string appId, CancellationToken ct = default)
     {
+        if (!apps.Contains(appId)) throw new AppManifestException($"Unknown server app ID '{appId}'.");
         var raw = string.Create(8, 0, (span, _) =>
         {
             for (var i = 0; i < span.Length; i++) span[i] = Alphabet[RandomNumberGenerator.GetInt32(Alphabet.Length)];
         });
         var now = clock.GetUtcNow();
         var expires = now.AddMinutes(options.Value.CodeLifetimeMinutes);
-        db.PairingCodes.Add(new PairingCode { Hash = DeviceTokens.Hash(raw), CreatedAt = now, ExpiresAt = expires });
+        db.PairingCodes.Add(new PairingCode { AppId = appId, Hash = DeviceTokens.Hash(raw), CreatedAt = now, ExpiresAt = expires });
         await db.SaveChangesAsync(ct);
         return ($"{raw[..4]}-{raw[4..]}", expires);
     }
@@ -34,21 +38,26 @@ public sealed class PairingCodes(ServerDb db, TimeProvider clock, Microsoft.Exte
     /// Spends the code if it exists, hasn't expired and hasn't been used. The spend is one conditional UPDATE, so two devices
     /// racing with the same code can't both win.
     /// </summary>
-    public async Task<bool> TryRedeemAsync(string code, CancellationToken ct = default)
+    public Task<bool> TryRedeemAsync(string code, CancellationToken ct = default) => TryRedeemAsync(code, AppStoragePaths.DsaAppId, ct);
+
+    public async Task<bool> TryRedeemAsync(string code, string appId, CancellationToken ct = default)
     {
+        if (!apps.Contains(appId)) return false;
         var hash = DeviceTokens.Hash(Normalise(code));
         var now = clock.GetUtcNow();
         var spent = await db.PairingCodes
-            .Where(c => c.Hash == hash && c.UsedAt == null && c.ExpiresAt > now)
+            .Where(c => c.AppId == appId && c.Hash == hash && c.UsedAt == null && c.ExpiresAt > now)
             .ExecuteUpdateAsync(s => s.SetProperty(c => c.UsedAt, now), ct);
         return spent == 1;
     }
 
     /// <summary>Spent and expired codes carry no value; drop the ones that are a day past their use.</summary>
-    public Task PruneAsync(CancellationToken ct = default)
+    public Task PruneAsync(CancellationToken ct = default) => PruneAsync(AppStoragePaths.DsaAppId, ct);
+
+    public Task PruneAsync(string appId, CancellationToken ct = default)
     {
         var cutoff = clock.GetUtcNow().AddDays(-1);
-        return db.PairingCodes.Where(c => c.ExpiresAt < cutoff).ExecuteDeleteAsync(ct);
+        return db.PairingCodes.Where(c => c.AppId == appId && c.ExpiresAt < cutoff).ExecuteDeleteAsync(ct);
     }
 
     private static string Normalise(string code) => new(code.Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());

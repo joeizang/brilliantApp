@@ -39,6 +39,7 @@ public static class Endpoints
 
     private static async Task<IResult> PushEvents(PushEventsRequest request, ClaimsPrincipal user, ServerDb db, TimeProvider clock, CancellationToken ct)
     {
+        var appId = user.AppId();
         var events = request.Events;
         if (events is null || events.Count > EventLimits.MaxBatch || events.Any(e => e is null))
             return Results.BadRequest(new { error = $"Send between 0 and {EventLimits.MaxBatch} events at a time." });
@@ -61,14 +62,14 @@ public static class Endpoints
         await db.Database.ExecuteSqlRawAsync($"SELECT pg_advisory_xact_lock({PushLock})", ct);
 
         var ids = valid.Select(e => e.Id).Distinct().ToList();
-        var known = (await db.Events.AsNoTracking().Where(e => ids.Contains(e.Id)).Select(e => e.Id).ToListAsync(ct)).ToHashSet();
+        var known = (await db.Events.AsNoTracking().Where(e => e.AppId == appId && ids.Contains(e.Id)).Select(e => e.Id).ToListAsync(ct)).ToHashSet();
         var accepted = 0;
         foreach (var e in valid)
         {
             if (!known.Add(e.Id)) continue;
             db.Events.Add(new EventRecord
             {
-                Id = e.Id, DeviceId = e.DeviceId, OccurredAtTicks = e.OccurredAt.UtcTicks, Type = e.Type,
+                AppId = appId, Id = e.Id, DeviceId = e.DeviceId, OccurredAtTicks = e.OccurredAt.UtcTicks, Type = e.Type,
                 LessonId = e.LessonId ?? "", StepId = e.StepId ?? "", Data = e.Data, PushedBy = pushedBy, ReceivedAt = now,
             });
             accepted++;
@@ -83,6 +84,7 @@ public static class Endpoints
 
     private static async Task<IResult> PushDrafts(PushDraftsRequest request, ClaimsPrincipal user, ServerDb db, TimeProvider clock, CancellationToken ct)
     {
+        var appId = user.AppId();
         var drafts = request.Drafts;
         if (drafts is null || drafts.Count > DraftLimits.MaxBatch || drafts.Any(d => d is null))
             return Results.BadRequest(new { error = $"Send between 0 and {DraftLimits.MaxBatch} drafts at a time." });
@@ -104,7 +106,9 @@ public static class Endpoints
         await db.Database.ExecuteSqlRawAsync($"SELECT pg_advisory_xact_lock({DraftLock})", ct);
 
         var ids = valid.Keys.ToList();
-        var held = await db.Drafts.Where(r => ids.Contains(r.StepId)).ToDictionaryAsync(r => r.StepId, ct);
+        var held = await db.Drafts.Where(r => r.AppId == appId && ids.Contains(r.StepId)).ToDictionaryAsync(r => r.StepId, ct);
+        // Sequence numbers remain global, preserving existing cursors and the unique Seq index.
+        // Reads and replacements above/below are scoped; the shared lock makes all assignments visible in order.
         var seq = await db.Drafts.AnyAsync(ct) ? await db.Drafts.MaxAsync(r => r.Seq, ct) : 0;
         var accepted = 0;
         foreach (var d in valid.Values)
@@ -112,7 +116,7 @@ public static class Endpoints
             held.TryGetValue(d.StepId, out var row);
             var current = row is null ? null : new CodeDraft(row.StepId, row.Code, new DateTimeOffset(row.UpdatedAtTicks, TimeSpan.Zero));
             if (!d.Supersedes(current)) continue;
-            if (row is null) db.Drafts.Add(row = new DraftRecord { StepId = d.StepId });
+            if (row is null) db.Drafts.Add(row = new DraftRecord { AppId = appId, StepId = d.StepId });
             (row.Seq, row.Code, row.UpdatedAtTicks, row.PushedBy, row.ReceivedAt) = (++seq, d.Code, d.UpdatedAt.UtcTicks, pushedBy, now);
             accepted++;
         }
@@ -121,13 +125,14 @@ public static class Endpoints
         return Results.Ok(new PushDraftsResponse(accepted, valid.Count - accepted, rejected));
     }
 
-    private static async Task<IResult> PullDrafts(long? after, int? limit, ServerDb db, CancellationToken ct)
+    private static async Task<IResult> PullDrafts(long? after, int? limit, ClaimsPrincipal user, ServerDb db, CancellationToken ct)
     {
+        var appId = user.AppId();
         var cursor = after ?? 0;
         if (cursor < 0) return Results.BadRequest(new { error = "after must not be negative." });
         var take = Math.Clamp(limit ?? DraftLimits.MaxPullPage, 1, DraftLimits.MaxPullPage);
 
-        var rows = await db.Drafts.AsNoTracking().Where(r => r.Seq > cursor).OrderBy(r => r.Seq).Take(take + 1).ToListAsync(ct);
+        var rows = await db.Drafts.AsNoTracking().Where(r => r.AppId == appId && r.Seq > cursor).OrderBy(r => r.Seq).Take(take + 1).ToListAsync(ct);
         var hasMore = rows.Count > take;
         if (hasMore) rows.RemoveAt(rows.Count - 1);
 
@@ -135,13 +140,14 @@ public static class Endpoints
         return Results.Ok(new PullDraftsResponse(drafts, rows.Count == 0 ? cursor : rows[^1].Seq, hasMore));
     }
 
-    private static async Task<IResult> PullEvents(long? after, int? limit, ServerDb db, CancellationToken ct)
+    private static async Task<IResult> PullEvents(long? after, int? limit, ClaimsPrincipal user, ServerDb db, CancellationToken ct)
     {
+        var appId = user.AppId();
         var cursor = after ?? 0;
         if (cursor < 0) return Results.BadRequest(new { error = "after must not be negative." });
         var take = Math.Clamp(limit ?? EventLimits.MaxBatch, 1, EventLimits.MaxPullPage);
 
-        var rows = await db.Events.AsNoTracking().Where(e => e.Seq > cursor).OrderBy(e => e.Seq).Take(take + 1).ToListAsync(ct);
+        var rows = await db.Events.AsNoTracking().Where(e => e.AppId == appId && e.Seq > cursor).OrderBy(e => e.Seq).Take(take + 1).ToListAsync(ct);
         var hasMore = rows.Count > take;
         if (hasMore) rows.RemoveAt(rows.Count - 1);
 
@@ -149,42 +155,48 @@ public static class Endpoints
         return Results.Ok(new PullEventsResponse(events, rows.Count == 0 ? cursor : rows[^1].Seq, hasMore));
     }
 
-    private static async Task<IResult> Pair(PairRequest request, PairingCodes codes, ServerDb db, TimeProvider clock, CancellationToken ct)
+    private static async Task<IResult> Pair(PairRequest request, HttpRequest http, ServerApps apps, PairingCodes codes, ServerDb db, TimeProvider clock, CancellationToken ct)
     {
+        if (!apps.Contains(request.AppId)) return Results.BadRequest(new { error = "Unknown app ID. Choose an app configured on this server." });
+        var appHeaders = http.Headers[AppSync.AppIdHeader];
+        if (appHeaders.Count > 0 && (appHeaders.Count != 1 || appHeaders.ToString() != request.AppId))
+            return Results.BadRequest(new { error = "The request header and pairing app ID must match." });
         var name = request.DeviceName?.Trim();
         if (string.IsNullOrEmpty(request.Code) || string.IsNullOrEmpty(name) || name.Length > 100)
             return Results.BadRequest(new { error = "A pairing code and a device name (up to 100 characters) are required." });
 
-        if (!await codes.TryRedeemAsync(request.Code, ct))
+        if (!await codes.TryRedeemAsync(request.Code, request.AppId, ct))
             return Results.Json(new { error = "That pairing code is not valid. It may have expired or already been used." }, statusCode: StatusCodes.Status401Unauthorized);
 
         var token = DeviceTokens.Generate();
-        var device = new Device { Id = Guid.NewGuid(), Name = name, TokenHash = DeviceTokens.Hash(token), PairedAt = clock.GetUtcNow() };
+        var device = new Device { AppId = request.AppId, Id = Guid.NewGuid(), Name = name, TokenHash = DeviceTokens.Hash(token), PairedAt = clock.GetUtcNow() };
         db.Devices.Add(device);
         await db.SaveChangesAsync(ct);
-        return Results.Ok(new PairResponse(device.Id.ToString(), token));
+        return Results.Ok(new PairResponse(device.Id.ToString(), token, device.AppId));
     }
 
-    private static async Task<IResult> MintPairingCode(PairingCodes codes, CancellationToken ct)
+    private static async Task<IResult> MintPairingCode(ClaimsPrincipal user, PairingCodes codes, CancellationToken ct)
     {
-        await codes.PruneAsync(ct);
-        var (code, expires) = await codes.MintAsync(ct);
+        await codes.PruneAsync(user.AppId(), ct);
+        var (code, expires) = await codes.MintAsync(user.AppId(), ct);
         return Results.Ok(new PairingCodeResponse(code, expires));
     }
 
-    private static async Task<IResult> ListDevices(ServerDb db, CancellationToken ct)
+    private static async Task<IResult> ListDevices(ClaimsPrincipal user, ServerDb db, CancellationToken ct)
     {
-        var devices = await db.Devices.AsNoTracking().OrderBy(d => d.PairedAt).ToListAsync(ct);
-        return Results.Ok(devices.Select(d => new DeviceInfo(d.Id.ToString(), d.Name, d.PairedAt, d.LastSeenAt, d.RevokedAt is not null)));
+        var appId = user.AppId();
+        var devices = await db.Devices.AsNoTracking().Where(d => d.AppId == appId).OrderBy(d => d.PairedAt).ToListAsync(ct);
+        return Results.Ok(devices.Select(d => new DeviceInfo(d.Id.ToString(), d.Name, d.PairedAt, d.LastSeenAt, d.RevokedAt is not null, d.AppId)));
     }
 
-    private static async Task<IResult> RevokeDevice(Guid id, ServerDb db, TimeProvider clock, CancellationToken ct)
+    private static async Task<IResult> RevokeDevice(Guid id, ClaimsPrincipal user, ServerDb db, TimeProvider clock, CancellationToken ct)
     {
+        var appId = user.AppId();
         var now = clock.GetUtcNow();
-        var changed = await db.Devices.Where(d => d.Id == id && d.RevokedAt == null).ExecuteUpdateAsync(s => s.SetProperty(d => d.RevokedAt, now), ct);
+        var changed = await db.Devices.Where(d => d.AppId == appId && d.Id == id && d.RevokedAt == null).ExecuteUpdateAsync(s => s.SetProperty(d => d.RevokedAt, now), ct);
         if (changed == 1) return Results.NoContent();
 
         // Revoking twice is fine; revoking something that was never paired is not.
-        return await db.Devices.AnyAsync(d => d.Id == id, ct) ? Results.NoContent() : Results.NotFound();
+        return await db.Devices.AnyAsync(d => d.AppId == appId && d.Id == id, ct) ? Results.NoContent() : Results.NotFound();
     }
 }

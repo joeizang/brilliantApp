@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include="../../apps/**/manifest.yaml" Link="apps/%(RecursiveDir)manifest.yaml" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Brilliant.Core\Brilliant.Core.csproj" />
   </ItemGroup>
 

@@ -69,19 +69,19 @@ public static class MauiProgram
         // An unsigned Mac build has no keychain entitlement (MissingEntitlement), so the token falls back to a private file in the app's sandbox.
         builder.Services.AddSingleton<IDeviceCredentialStore>(_ => new FallbackDeviceCredentialStore(
             new SecureDeviceCredentialStore(storage.CredentialsKey), new FileDeviceCredentialStore(Path.Combine(dataDir, "device-credentials.json"))));
-        builder.Services.AddSingleton(_ => new PairingClient(new HttpClient { Timeout = TimeSpan.FromSeconds(10) }));
+        builder.Services.AddSingleton(_ => new PairingClient(new HttpClient { Timeout = TimeSpan.FromSeconds(10) }, manifest.AppId));
         builder.Services.AddSingleton<PairingService>();
         builder.Services.AddSingleton(new DeviceLabel(Microsoft.Maui.Devices.DeviceInfo.Current.Name));   // "Pixel 9 Pro XL", not the "localhost" Android reports as its machine name
 
         // Sync keeps the event log in step with the server: at start, every couple of minutes, and on demand from the Sync screen.
         // The server being away never matters to the learner; the app runs from its local log.
-        builder.Services.AddSingleton(_ => new SyncClient(new HttpClient { Timeout = TimeSpan.FromSeconds(15) }));
+        builder.Services.AddSingleton(_ => new SyncClient(new HttpClient { Timeout = TimeSpan.FromSeconds(15) }, manifest.AppId));
         builder.Services.AddSingleton<ISyncStateStore>(_ => new FileSyncStateStore(Path.Combine(dataDir, "sync-state.json")));
         builder.Services.AddSingleton(sp => new SyncService(
             sp.GetRequiredService<IProgressEventLog>(), DeviceId.GetOrCreate(dataDir),
             sp.GetRequiredService<IDeviceCredentialStore>(), sp.GetRequiredService<SyncClient>(), sp.GetRequiredService<ISyncStateStore>(),
             drafts: sp.GetRequiredService<IDraftSyncSource>()));
-        builder.Services.AddSingleton(_ => new PackClient(new HttpClient { Timeout = TimeSpan.FromSeconds(60) }));
+        builder.Services.AddSingleton(_ => new PackClient(new HttpClient { Timeout = TimeSpan.FromSeconds(60) }, manifest.AppId));
         builder.Services.AddSingleton(sp => new ContentUpdateService(
             sp.GetRequiredService<ContentGraph>(), sp.GetRequiredService<PackCache>(), sp.GetRequiredService<PackClient>(), sp.GetRequiredService<IDeviceCredentialStore>()));
         builder.Services.AddSingleton(sp =>

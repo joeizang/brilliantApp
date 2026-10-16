@@ -1,3 +1,4 @@
+using Brilliant.Core.Apps;
 using Brilliant.Core.Sync;
 
 namespace Brilliant.Cli;
@@ -30,6 +31,22 @@ public static class CliApp
         {
             appManifestPath = selectedManifest;
             args = command;
+        }
+        var appId = AppStoragePaths.DsaAppId;
+        try
+        {
+            if (args is ["pair", ..] && args is [.. var pairingArgs, "--app", var pairingManifest])
+            {
+                appId = AppContentSource.FromManifest(pairingManifest).App.AppId;
+                args = pairingArgs;
+            }
+            else if (args is ["publish", var publishRoot])
+                appId = SelectedAppId(publishRoot, appManifestPath);
+        }
+        catch (Exception ex) when (ex is AppManifestException or IOException or UnauthorizedAccessException)
+        {
+            error.WriteLine($"error: cannot select app: {ex.Message}");
+            return 1;
         }
         switch (args)
         {
@@ -64,21 +81,37 @@ public static class CliApp
                 return Report(ContentPacker.Pack(root, outPath, runner, appManifestPath), root, output, error, $"packed to {outPath}");
 
             case ["publish", var root]:
-                return await new PackPublisher(new PackClient(http), credentials, runner).PublishAsync(root, output, error, ct, appManifestPath);
+                return await new PackPublisher(new PackClient(http, appId), credentials, runner).PublishAsync(root, output, error, ct, appManifestPath);
 
             case ["pair", var server, var code]:
-                return await Pair(server, code, Environment.MachineName, http, credentials, output, error, ct);
+                return await Pair(server, code, Environment.MachineName, http, credentials, output, error, ct, appId);
 
             case ["pair", var server, var code, "--name", var name]:
-                return await Pair(server, code, name, http, credentials, output, error, ct);
+                return await Pair(server, code, name, http, credentials, output, error, ct, appId);
 
             default:
                 return Usage(error);
         }
     }
 
-    private static Task<int> Pair(string server, string code, string name, HttpClient http, IDeviceCredentialStore credentials, TextWriter output, TextWriter error, CancellationToken ct) =>
-        new CliPairing(new PairingService(new PairingClient(http), credentials)).PairAsync(server, code, name, output, error, ct);
+    private static Task<int> Pair(string server, string code, string name, HttpClient http, IDeviceCredentialStore credentials, TextWriter output, TextWriter error, CancellationToken ct, string appId) =>
+        new CliPairing(new PairingService(new PairingClient(http, appId), credentials)).PairAsync(server, code, name, output, error, ct);
+
+    internal static string SelectedAppId(string contentRoot, string? manifestPath) =>
+        (manifestPath is null ? AppContentSource.Infer(contentRoot) : AppContentSource.FromManifest(manifestPath).App)?.AppId
+            ?? AppStoragePaths.DsaAppId;
+
+    /// <summary>Retains the existing DSA credentials file; other app identities receive their own sibling directory.</summary>
+    public static string CredentialPath(string[] args, string legacyPath)
+    {
+        string? manifest = null;
+        for (var i = 0; i < args.Length - 1; i++)
+            if (args[i] is "--app" or "--manifest") manifest = args[i + 1];
+        var appId = manifest is not null ? AppContentSource.FromManifest(manifest).App.AppId
+            : args is ["publish", var root, ..] ? SelectedAppId(root, null) : AppStoragePaths.DsaAppId;
+        return appId == AppStoragePaths.DsaAppId ? legacyPath
+            : Path.Combine(Path.GetDirectoryName(Path.GetFullPath(legacyPath))!, "apps", appId, Path.GetFileName(legacyPath));
+    }
 
     private static int Report(ValidationReport report, string root, TextWriter output, TextWriter error, string success)
     {
@@ -105,7 +138,7 @@ public static class CliApp
         error.WriteLine("       brilliant <validate|pack|publish> --app <apps/app/manifest.yaml> [pack: -o <pack.zip>]");
         error.WriteLine("       brilliant prepare-app <manifest.yaml> <index.html> <repositoryRoot> <outputDirectory>");
         error.WriteLine("       brilliant pack <contentRoot> -o <pack.zip> [--manifest <manifest.yaml>]");
-        error.WriteLine("       brilliant pair <server> <code> [--name <name>]    (once; the code comes from the server: docs/server.md)");
+        error.WriteLine("       brilliant pair <server> <code> [--name <name>] [--app <manifest.yaml>]    (once; the code comes from the server: docs/server.md)");
         error.WriteLine("       brilliant publish <contentRoot> [--manifest <manifest.yaml>]  validate, then upload to the paired server");
         return 2;
     }
