@@ -111,12 +111,30 @@ public sealed class BenchmarkRecorderTests
     [Fact]
     public void A_time_ranking_whose_neighbours_cannot_be_told_apart_is_refused()
     {
-        const string Sum = "var total = 0;\nfor (var i = 0; i < data.Length; i++) total += data[i];\nreturn total;";
-        BenchmarkCandidate[] twins = [new("one", "First", Sum), new("two", "Second", Sum)];
+        // Measured twins land anywhere (the JIT may fold them to nothing), so the rule is checked on fixed rows.
+        BenchmarkRow[] rows = [new("loop", 1_000, 10, 0), new("linq", 1_100, 10, 0)];
 
-        var (_, error) = CSharpBenchmark.Record(BenchmarkPredictStep.Time, Setup, twins, Quick);
+        var error = CSharpBenchmark.TooCloseToCall(BenchmarkPredictStep.Time, Candidates, rows);
 
         Assert.Contains("too close to call", error);
+        Assert.Null(CSharpBenchmark.TooCloseToCall(BenchmarkPredictStep.Time, Candidates, [new("loop", 1_000, 10, 0), new("linq", 1_300, 10, 0)]));
+    }
+
+    [Fact]
+    public void An_allocation_ranking_where_every_candidate_allocates_the_same_is_refused()
+    {
+        BenchmarkRow[] rows = [new("loop", 900, 10, 24), new("span", 2_400, 30, 24)];
+
+        var error = CSharpBenchmark.TooCloseToCall(BenchmarkPredictStep.Allocations, Candidates, rows);
+
+        Assert.Contains("every candidate allocates the same (24 B)", error);
+    }
+
+    [Fact]
+    public void An_allocation_ranking_with_a_difference_or_a_time_ranking_is_not_refused_for_equal_bytes()
+    {
+        Assert.Null(CSharpBenchmark.TooCloseToCall(BenchmarkPredictStep.Allocations, Candidates, [new("loop", 900, 10, 0), new("linq", 2_400, 30, 24)]));
+        Assert.Null(CSharpBenchmark.TooCloseToCall(BenchmarkPredictStep.Time, Candidates, [new("loop", 900, 10, 24), new("linq", 2_400, 30, 24)]));
     }
 
     [Fact]

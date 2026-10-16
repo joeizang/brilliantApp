@@ -9,6 +9,7 @@
     @if (Step.Recorded is null)
     {
         <p class="benchmark-missing text-fg-secondary">The benchmark results aren't in this pack. Rebuild the pack to record them.</p>
+        <button class="primary btn-primary" @onclick="() => OnContinue.InvokeAsync()">Continue</button>
     }
     else
     {

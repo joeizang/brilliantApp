@@ -112,8 +112,11 @@ internal static partial class CSharpBenchmark
         name.StartsWith("Candidate", StringComparison.Ordinal) && int.TryParse(name.AsSpan("Candidate".Length), out var i) ? i : null;
 
     /// <summary>For a time ranking, the pair of neighbours whose means are within <see cref="MinimumTimeRatio"/> of each other, as an error message.</summary>
-    private static string? TooCloseToCall(string measure, IReadOnlyList<BenchmarkCandidate> candidates, IReadOnlyList<BenchmarkRow> rows)
+    internal static string? TooCloseToCall(string measure, IReadOnlyList<BenchmarkCandidate> candidates, IReadOnlyList<BenchmarkRow> rows)
     {
+        if (measure == BenchmarkPredictStep.Allocations && rows.Select(r => r.AllocatedBytes).Distinct().Count() == 1)
+            return $"every candidate allocates the same ({rows[0].AllocatedBytes:N0} B), so every order is right and there is nothing to rank. " +
+                   "Change a candidate so they differ, or rank by time.";
         if (measure != BenchmarkPredictStep.Time) return null;
         if (rows.FirstOrDefault(r => r.MeanNs < MinimumMeanNs) is { } trivial)
             return $"'{candidates.First(c => c.Id == trivial.CandidateId).Label}' is too fast to time ({trivial.MeanNs:N2} ns per call; the minimum is {MinimumMeanNs:N0} ns). " +

@@ -148,7 +148,10 @@ public class BenchmarkPredictStepViewTests : ShortcutContext
         var cut = Render<BenchmarkPredictStepView>(p => p.Add(c => c.Step, Time with { Recorded = null }));
 
         Assert.Contains("aren't in this pack", cut.Find(".benchmark-missing").TextContent);
-        Assert.Empty(cut.FindAll("button.primary"));
+        var continued = false;
+        cut.Render(p => p.Add(c => c.OnContinue, () => continued = true));
+        cut.Find("button.primary").Click();   // a hand-built pack must not dead-end the session
+        Assert.True(continued);
     }
 
     [Fact]
