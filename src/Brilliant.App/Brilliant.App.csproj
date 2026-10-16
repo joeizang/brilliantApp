@@ -49,7 +49,7 @@
   </ItemGroup>
 
   <!--
-    The pack is rebuilt from ./content whenever a lesson file changes, so a build never ships stale lessons.
+    The pack is rebuilt from the selected app's contentRoot when its source or app manifest changes.
     Each flavor/framework/RID has its own generated pack and input stamp, so multi-target builds do not race.
     scripts/pack-content.sh still produces a standalone pack for inspecting or publishing by hand.
   -->
