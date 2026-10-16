@@ -18,15 +18,15 @@
             <section class="async-lane rounded-lg border border-hairline bg-surface-raised p-3" aria-label="Thread @thread">
                 <h3 class="async-lane-title mb-3">@thread</h3>
                 <ol class="async-events">
-                    @foreach (var item in Step.Events.Where(e => e.Thread == thread).OrderBy(e => e.Sequence))
+                    @foreach (var item in Step.Events.Where(e => ThreadName(e.Thread) == thread).OrderBy(e => e.Sequence))
                     {
                         <li class="async-event rounded-md border border-hairline bg-surface p-3">
-                            <span class="async-event-order" aria-label="Event @item.Sequence">@item.Sequence</span>
+                            <span class="async-event-order"><span class="sr-only">Event </span>@item.Sequence</span>
                             <span class="async-event-kind">@KindLabel(item.Kind)</span>
                             <p class="mb-0 mt-1">@item.Label</p>
                             @if (!string.IsNullOrWhiteSpace(item.Operation)) { <p class="async-event-meta mb-0 mt-2">Operation: <code>@item.Operation</code></p> }
                             @if (!string.IsNullOrWhiteSpace(item.State)) { <p class="async-event-meta mb-0 mt-1">State machine: <code>@item.State</code></p> }
-                            @if (!string.IsNullOrWhiteSpace(item.ContinuationThread)) { <p class="async-event-meta mb-0 mt-1">Continuation resumes on <strong>@item.ContinuationThread</strong></p> }
+                            @if (!string.IsNullOrWhiteSpace(item.ContinuationThread)) { <p class="async-event-meta mb-0 mt-1">Continuation resumes on <strong>@ThreadName(item.ContinuationThread)</strong></p> }
                         </li>
                     }
                 </ol>
@@ -39,9 +39,9 @@
         <ol class="mt-3">
             @foreach (var item in Step.Events.OrderBy(e => e.Sequence))
             {
-                <li><strong>@item.Sequence · @KindLabel(item.Kind)</strong> on @item.Thread: @item.Label
+                <li><strong>@item.Sequence · @KindLabel(item.Kind)</strong> on @ThreadName(item.Thread): @item.Label
                     @if (!string.IsNullOrWhiteSpace(item.State)) { <span> (state machine: @item.State)</span> }
-                    @if (!string.IsNullOrWhiteSpace(item.ContinuationThread)) { <span> → continuation on @item.ContinuationThread</span> }
+                    @if (!string.IsNullOrWhiteSpace(item.ContinuationThread)) { <span> → continuation on @ThreadName(item.ContinuationThread)</span> }
                 </li>
             }
         </ol>
@@ -52,11 +52,13 @@
     [Parameter, EditorRequired] public AsyncTimelineStep Step { get; set; } = default!;
 
     private IReadOnlyList<string> Threads => Step.Events
-        .SelectMany(e => string.IsNullOrWhiteSpace(e.ContinuationThread) ? [e.Thread] : new[] { e.Thread, e.ContinuationThread! })
+        .SelectMany(e => string.IsNullOrWhiteSpace(e.ContinuationThread) ? [ThreadName(e.Thread)] : new[] { ThreadName(e.Thread), ThreadName(e.ContinuationThread!) })
         .Distinct(StringComparer.Ordinal)
         .ToList();
 
     private AsyncTimelineDeadlock? Deadlock => AsyncTimelineAnalysis.FindSyncOverAsyncDeadlock(Step);
+
+    private static string ThreadName(string thread) => thread.Trim();
 
     private static string KindLabel(AsyncTimelineEventKind kind) => kind switch
     {

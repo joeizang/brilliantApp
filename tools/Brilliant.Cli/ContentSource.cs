@@ -367,8 +367,16 @@ public static partial class ContentValidator
                 var step = steps.FirstOrDefault(s => s.Id == r.Step);
                 if (step is null)
                     report.Add(file, $"{label}: step '{r.Step}' is not a valid step of this lesson.");
-                else if (step is ExplainStep or TraceStep)
-                    report.Add(file, $"{label}: step '{r.Step}' is an {(step is TraceStep ? "trace" : "explain")} step; a review item needs a question (choice, predict-output, lowered or benchmark-predict).");
+                else if (step is ExplainStep or TraceStep or AsyncTimelineStep)
+                {
+                    var type = step switch
+                    {
+                        TraceStep => "trace",
+                        AsyncTimelineStep => "async-timeline",
+                        _ => "explain",
+                    };
+                    report.Add(file, $"{label}: step '{r.Step}' is an {type} step; a review item needs a question (choice, predict-output, lowered or benchmark-predict).");
+                }
             }
             if (r.Id is not null && r.Concept is not null && r.Step is not null)
                 items.Add(new ReviewItem(r.Id, r.Concept, r.Step, kind));
@@ -987,7 +995,7 @@ public static partial class ContentValidator
                 if (string.IsNullOrWhiteSpace(item.Operation)) report.Add(file, $"{where}: '{item.Kind}' needs an 'operation'.");
             if (kind == AsyncTimelineEventKind.ContinuationQueued && string.IsNullOrWhiteSpace(item.ContinuationThread))
                 report.Add(file, $"{where}: continuation-queued needs a 'continuationThread'.");
-            events.Add(new AsyncTimelineEvent(item.Sequence ?? 0, item.Thread ?? "", kind, item.Label ?? "", item.Operation, item.ContinuationThread, item.State));
+            events.Add(new AsyncTimelineEvent(item.Sequence ?? 0, item.Thread?.Trim() ?? "", kind, item.Label ?? "", item.Operation, item.ContinuationThread?.Trim(), item.State));
         }
         if (events.Count == 0) report.Add(file, $"{label}: an async-timeline step needs at least one recorded event.");
         else if (events.All(e => string.IsNullOrWhiteSpace(e.State))) report.Add(file, $"{label}: an async-timeline needs at least one recorded state-machine 'state'.");

@@ -26,7 +26,8 @@ public sealed class AsyncTimelineStepViewTests : BunitContext
         Assert.Contains("Continuation resumes on", cut.Find(".async-lane[aria-label='Thread Worker']").TextContent);
         Assert.Contains("Sync-over-async deadlock", cut.Markup);
         Assert.Contains("cannot finish until the blocked thread runs it", cut.Markup);
-        Assert.Equal("1", cut.FindAll(".async-event-order")[0].TextContent);
+        Assert.Equal("Event 1", cut.FindAll(".async-event-order")[0].TextContent);
+        Assert.DoesNotContain("aria-label", cut.Find(".async-event-order").OuterHtml);
     }
 
     [Fact]
@@ -41,5 +42,23 @@ public sealed class AsyncTimelineStepViewTests : BunitContext
 
         Assert.Empty(cut.FindAll(".async-deadlock"));
         Assert.Contains("Worker", cut.Find(".async-lane[aria-label='Thread Worker']").TextContent);
+    }
+
+    [Fact]
+    public void Timeline_normalizes_thread_names_before_building_lanes()
+    {
+        var step = DeadlockingStep with
+        {
+            Events = DeadlockingStep.Events.Select(e => e with
+            {
+                Thread = e.Thread == "UI" ? " UI " : e.Thread,
+                ContinuationThread = e.ContinuationThread == "UI" ? " UI " : e.ContinuationThread,
+            }).ToArray(),
+        };
+
+        var cut = Render<AsyncTimelineStepView>(p => p.Add(c => c.Step, step));
+
+        Assert.Equal(2, cut.FindAll(".async-lane").Count);
+        Assert.NotEmpty(cut.FindAll(".async-lane[aria-label='Thread UI']"));
     }
 }

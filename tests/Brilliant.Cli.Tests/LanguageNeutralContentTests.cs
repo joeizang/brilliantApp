@@ -8,7 +8,7 @@ public sealed class LanguageNeutralContentTests : IDisposable
     private readonly string _repository = Path.Combine(Path.GetTempPath(), "brilliant-languages-" + Guid.NewGuid());
     private string Root => Path.Combine(_repository, "content", "sample");
 
-    private void WriteLesson(string steps, string runtimes = "python, csharp", string stepTypes = "explain, write-code, trace, predict-output, fill-blank, parsons")
+    private void WriteLesson(string steps, string runtimes = "python, csharp", string stepTypes = "explain, write-code, trace, predict-output, fill-blank, parsons", string? reviewItems = null)
     {
         var manifest = Path.Combine(_repository, "apps", "sample", "manifest.yaml");
         Directory.CreateDirectory(Path.GetDirectoryName(manifest)!);
@@ -27,8 +27,9 @@ public sealed class LanguageNeutralContentTests : IDisposable
         Directory.CreateDirectory(Path.Combine(Root, "tracks", "t", "l"));
         File.WriteAllText(Path.Combine(Root, "pack.yaml"), "id: pack.sample\nversion: 1.0.0\ntargetFramework: net10.0\nlangVersion: 14\n");
         File.WriteAllText(Path.Combine(Root, "tracks", "t", "track.yaml"), "id: track.sample\ntitle: Sample\n");
+        var review = reviewItems is null ? "" : "\nconcepts:\n  - id: concept.sample\n    title: Sample concept\nreviewItems:\n" + reviewItems;
         File.WriteAllText(Path.Combine(Root, "tracks", "t", "l", "lesson.yaml"),
-            "id: lesson.sample\ntitle: Sample\nsteps:\n" + steps + "\n");
+            "id: lesson.sample\ntitle: Sample\nsteps:\n" + steps + review + "\n");
     }
 
     private const string WriteCode = """
@@ -186,6 +187,20 @@ public sealed class LanguageNeutralContentTests : IDisposable
 
         Assert.Contains(report.Errors, e => e.Message.Contains("repeats sequence 3"));
         Assert.Contains(report.Errors, e => e.Message.Contains("needs a 'continuationThread'"));
+    }
+
+    [Fact]
+    public void Async_timeline_cannot_be_a_review_question()
+    {
+        WriteLesson(AsyncTimeline, stepTypes: "explain, async-timeline", reviewItems: """
+              - id: review.sample.async
+                concept: concept.sample
+                step: step.sample.async
+            """);
+
+        var report = ContentValidator.Validate(Root);
+
+        Assert.Contains(report.Errors, e => e.Message.Contains("is an async-timeline step; a review item needs a question"));
     }
 
     [Fact]
