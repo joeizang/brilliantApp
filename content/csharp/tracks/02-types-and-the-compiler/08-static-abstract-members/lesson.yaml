@@ -1,0 +1,214 @@
+id: lesson.csharp.static-abstract-members
+title: Static abstract members and generic math
+concepts:
+  - id: concept.csharp.static-abstract-call
+    title: A static abstract member is called through a type parameter
+  - id: concept.csharp.static-abstract-modes
+    title: Generic math lets the caller pick the conversion policy
+  - id: concept.csharp.static-abstract-il
+    title: A static abstract call is a constrained call, with no object
+  - id: concept.csharp.static-abstract-cost
+    title: Generic math over a struct allocates nothing
+reviewItems:
+  - id: review.csharp.static-abstract-call
+    concept: concept.csharp.static-abstract-call
+    step: step.csharp.generic-math.check-call
+  - id: review.csharp.static-abstract-modes
+    concept: concept.csharp.static-abstract-modes
+    step: step.csharp.generic-math.predict-modes
+  - id: review.csharp.static-abstract-il
+    concept: concept.csharp.static-abstract-il
+    step: step.csharp.generic-math.lowered-zero
+  - id: review.csharp.static-abstract-cost
+    concept: concept.csharp.static-abstract-cost
+    step: step.csharp.generic-math.alloc-twice
+steps:
+  - id: step.csharp.generic-math.intro
+    type: explain
+    title: Constraints on the type, not the instance
+    body: |
+      A normal interface member belongs to an object: you need a value before you can call it. But `Zero`, `One`, `Parse` and `+` belong to the *type*:
+      `int` has a zero, and there is no object to ask. C# 11 lets an interface declare **`static abstract`** members that each implementing type provides.
+
+      The .NET libraries use it for **generic math**: `INumber<T>` combines `IAdditionOperators<T,T,T>`, `IMultiplyOperators<T,T,T>`, `INumberBase<T>.Zero` and
+      the rest. So one `Sum<T>` works for `int`, `double`, `decimal` and your own numeric type, each with its own operators, resolved when the method is compiled for `T`.
+  - id: step.csharp.generic-math.check-call
+    type: choice
+    title: Where the call goes
+    prompt: |
+      `INumberBase<T>` declares `static abstract T Zero { get; }`. Inside `Sum<T>(IEnumerable<T> items) where T : INumber<T>`, how do you get the zero?
+    options:
+      - text: 'Write `T.Zero`: a static abstract member is called through the type parameter'
+        correct: true
+        feedback: 'Right. `T.Zero` means "the `Zero` that `T` implements". For `Sum<int>` that is `0`, for `Sum<double>` it is `0.0`.'
+      - text: 'Write `INumberBase<T>.Zero`, naming the interface'
+        correct: false
+        feedback: 'The compiler refuses this. An interface has no implementation of its own to run, so the compiler reports error CS8926: a static abstract member can only be accessed on a type parameter.'
+      - text: 'Call `items.First().Zero`, on an instance'
+        correct: false
+        feedback: 'Static members are never called on instances, and an empty list would have no first item to ask.'
+    hints:
+      - Which of the three names a type that actually has an implementation?
+  - id: step.csharp.generic-math.predict-modes
+    type: predict-output
+    title: The caller chooses what overflow means
+    prompt: |
+      `INumberBase<T>` offers three static conversions from another number: `CreateTruncating`, `CreateSaturating` and `CreateChecked`. What does this print?
+    language: csharp
+    code: |
+      using System.Numerics;
+
+      Console.WriteLine(Trunc<byte>(300));
+      Console.WriteLine(Sat<byte>(300));
+      try { Console.WriteLine(Checked<byte>(300)); }
+      catch (OverflowException) { Console.WriteLine("overflow"); }
+
+      static T Trunc<T>(int v) where T : INumber<T> => T.CreateTruncating(v);
+      static T Sat<T>(int v) where T : INumber<T> => T.CreateSaturating(v);
+      static T Checked<T>(int v) where T : INumber<T> => T.CreateChecked(v);
+    accepted:
+      - '44 255 overflow'
+      - |-
+        44
+        255
+        overflow
+    mistakes:
+      - answers:
+          - '255 255 overflow'
+          - |-
+            255
+            255
+            overflow
+        feedback: 'Only `CreateSaturating` clamps to the maximum. `CreateTruncating` keeps the low bits: 300 is 0x12C, and a byte keeps 0x2C, which is 44.'
+      - answers:
+          - '44 44 44'
+          - |-
+            44
+            44
+            44
+        feedback: 'The three methods are three policies. Saturating clamps to 255, and checked throws.'
+    hints:
+      - 300 is `0x12C`. A `byte` has room for the low two hex digits.
+  - id: step.csharp.generic-math.lowered-zero
+    type: lowered
+    title: The call in IL
+    prompt: |
+      Switch to the IL view. How is `T.Zero` compiled?
+    code: |
+      using System.Numerics;
+
+      static class Demo
+      {
+          public static T Zero<T>() where T : INumberBase<T> => T.Zero;
+      }
+    options:
+      - text: 'A `constrained. !!T` prefix and a `call` of the interface''s static getter: no object is involved'
+        correct: true
+        feedback: 'Right. There is no receiver at all. At run time the JIT resolves the call for the actual `T`, and for a struct that means the type''s own getter, direct and inlinable.'
+      - text: 'A `newobj` of `T`, then `callvirt` on it'
+        correct: false
+        feedback: 'No instance is created. That would be the old `new T()` workaround, and it would need a `new()` constraint and an object.'
+      - text: A `box` of a default `T`, then `callvirt`
+        correct: false
+        feedback: 'Nothing is boxed. The member is static, so there is no instance to box.'
+    hints:
+      - A static member has no receiver, so look for a call with nothing loaded before it.
+  - id: step.csharp.generic-math.alloc-twice
+    type: allocations
+    variant: predict
+    title: What generic math costs
+    prompt: |
+      `Run` calls the generic `Twice<T>` with an `int`. How much does one call of `Run` allocate?
+    entrypoint: Run
+    input: '21'
+    code: |
+      using System.Numerics;
+
+      static int Run(int n) => Twice(n);
+
+      static T Twice<T>(T x) where T : IAdditionOperators<T, T, T> => x + x;
+    options:
+      - bytes: 0
+      - bytes: 24
+        feedback: 'That would be one box. The `+` on `T` is a static call resolved for `int`, so nothing becomes an object.'
+      - bytes: 48
+        feedback: 'That would be a box for each operand, the cost of a version taking `object` and adding through a delegate.'
+      - bytes: 72
+  - id: step.csharp.generic-math.sum
+    type: write-code
+    title: Sum for any number
+    prompt: |
+      Make `Sum` work for any `INumber<T>`. Start from `T.Zero` and add each item. It must work for `int` and for `double` alike.
+    language: csharp
+    largeScreenPreferred: true
+    entrypoint: Sum
+    starter: |
+      using System.Numerics;
+
+      static T Sum<T>(IEnumerable<T> items) where T : INumber<T>
+      {
+          return default!;
+      }
+    solution: |
+      using System.Numerics;
+
+      static T Sum<T>(IEnumerable<T> items) where T : INumber<T>
+      {
+          var total = T.Zero;
+          foreach (var item in items)
+          {
+              total += item;
+          }
+          return total;
+      }
+    tests:
+      - input: 'new[] { 1, 2, 3 }'
+        expected: '6'
+      - input: 'new[] { 0.5, 0.25 }'
+        expected: '0.75'
+      - input: 'new int[0]'
+        expected: '0'
+    phoneAlternative:
+      id: step.csharp.generic-math.sum.fill
+      type: fill-blank
+      title: Complete the sum
+      prompt: |
+        `Sum` starts from the zero of `T` and adds each item.
+      language: csharp
+      template: |
+        using System.Numerics;
+
+        static T Sum<T>(IEnumerable<T> items) where T : INumber<T>
+        {
+            var total = {{zero}};
+            foreach (var item in items)
+            {
+                total {{add}} item;
+            }
+            return total;
+        }
+      blanks:
+        - id: zero
+          accepted:
+            - 'T.Zero'
+          mistakes:
+            - answers:
+                - '0'
+                - 'default'
+              feedback: 'A literal `0` is an `int`, which is not a `T`. The zero of `T` is a static member: `T.Zero`.'
+        - id: add
+          accepted:
+            - '+='
+    hints:
+      - 'The first line is `var total = T.Zero;`.'
+      - '`+` and `+=` work on `T` because `INumber<T>` includes `IAdditionOperators<T, T, T>`.'
+  - id: step.csharp.generic-math.recap
+    type: explain
+    title: Generic code with arithmetic
+    body: |
+      - `static abstract` lets an interface require members of the *type*: operators, `Zero`, `Parse`, `CreateChecked`.
+      - They are called through a type parameter (`T.Zero`, `a + b` on `T`), never through the interface name.
+      - The call is `constrained.` with no receiver; for a struct the JIT compiles a separate body per type, so there are no boxes and no virtual calls.
+      - Because the member is chosen by `T`, the *caller* picks policies like truncating, saturating or checked conversion.
+
+      Before C# 11, a generic `Sum` needed a `Func<T,T,T>` for the add and a `T` passed in for zero, and each call went through a delegate.

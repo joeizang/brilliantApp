@@ -20,9 +20,9 @@ Code is current C# (.NET 10 / C# 14) throughout: primary constructors, collectio
 | 2 | `in`, `ref` and `out` | Aliasing a variable: `ref` replaces the caller's arrow, `out` must be assigned, a `ref` local aliases an array element, and an `in` struct that is not `readonly` gets a defensive copy (lowered). The memory view is not used: it reads values, not aliases. |
 | 2 | Boxing | A recorded box in the memory view, mutation through a boxed interface, which lines box, the measured 24-byte cost, the IL `box` instruction, and a rewrite that compares without boxing. |
 | 2 | Nullability flow analysis | The compiler's null state follows the code; guards, CS8602, `[NotNullWhen]`, `?` being compile-time only, and `!` changing the belief and not the value. |
-| 3 | Generic constraints and variance | `where T : …`, `in`/`out` on interfaces and delegates, why `List<T>` is invariant and `IEnumerable<T>` is not. |
-| 3 | Static abstract members | `INumber<T>`, generic math, operators in interfaces. |
-| 3 | Pattern matching, lowered | What `is`, `switch` expressions and list patterns turn into. |
+| 3 | Generic constraints and variance | A constraint as the contract that makes members callable, the `constrained.` IL prefix and a 0-byte constrained call, array covariance's runtime check, `out`/`in` on interfaces, why `List<T>` is invariant. |
+| 3 | Static abstract members | `T.Zero` through a type parameter, the three `Create*` conversion policies, the receiver-less constrained call in IL, a 0-byte generic `+`. |
+| 3 | Pattern matching, lowered | Arms in order with `when`, `isinst` for a type pattern, a list pattern's length check, and `SwitchExpressionException`. |
 
 Only the last pull request says "Closes #158".
 
@@ -32,4 +32,5 @@ Only the last pull request says "Closes #158".
 - Every `write-code` step has `largeScreenPreferred: true` and a `phoneAlternative` ([csharp-write-code.md](csharp-write-code.md)).
 - A prediction is asked before the mechanism is shown wherever the learner is likely to be wrong, because a wrong guess is what makes the
   view stick; the explanation follows the answer.
+- A `choice` prompt is plain text and cannot show a code block (its `code:` field is ignored), so the code a choice asks about goes inline in the prompt; use a predict-output or lowered step when the learner needs to read more than a line.
 - IDs are `lesson.csharp.<slug>`, `step.csharp.<slug>.<what>`, `concept.csharp.<slug>`, `review.csharp.<slug>`.

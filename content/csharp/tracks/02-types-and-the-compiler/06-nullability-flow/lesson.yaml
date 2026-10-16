@@ -38,7 +38,7 @@ steps:
     type: choice
     title: After the guard
     prompt: |
-      What does the compiler believe about `s` on the last line?
+      A method takes `string? s` and begins with `if (s is null) return 0;`. What does the compiler believe about `s` on the next line, `return s.Length;`?
     options:
       - text: '`s` is not null, so `s.Length` gives no warning'
         correct: true
@@ -49,22 +49,13 @@ steps:
       - text: The compiler cannot tell, so it always warns
         correct: false
         feedback: Flow analysis is exactly the compiler telling. A null check followed by an early return is the case it handles best.
-    code: |
-      static int Size(string? s)
-      {
-          if (s is null) return 0;
-          return s.Length;
-      }
     hints:
       - Which paths can reach the line `return s.Length;`?
   - id: step.csharp.nullflow.check-warning
     type: choice
     title: Reading a maybe-null value
     prompt: |
-      `Name` returns `string?`. What does the compiler do with `Name().Length`?
-    code: |
-      static string? Name() => null;
-      var n = Name().Length;
+      `Name()` is declared to return `string?`. What does the compiler do with `var n = Name().Length;`?
     options:
       - text: It reports warning CS8602 (dereference of a possibly null reference), and the program still builds
         correct: true
@@ -81,13 +72,7 @@ steps:
     type: choice
     title: The method that proves it
     prompt: |
-      Why does `s.Length` compile without a warning after `string.IsNullOrEmpty(s)` is checked, even though the guard is a method call?
-    code: |
-      static int Size(string? s)
-      {
-          if (string.IsNullOrEmpty(s)) return 0;
-          return s.Length;
-      }
+      A method takes `string? s` and begins with `if (string.IsNullOrEmpty(s)) return 0;`. Why does `s.Length` on the next line compile without a warning, even though the guard is a method call?
     options:
       - text: The method's parameter is annotated `[NotNullWhen(false)]`, which tells the analysis `s` is not null when it returns `false`
         correct: true
