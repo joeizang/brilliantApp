@@ -1,0 +1,1124 @@
+{
+  "status": 0,
+  "frames": [
+    {
+      "event": "line",
+      "line": 5,
+      "function": "Run",
+      "locals": [],
+      "tracked": {},
+      "tables": null,
+      "lists": null,
+      "calls": null,
+      "trees": null,
+      "grids": null,
+      "graphs": null,
+      "heaps": null
+    },
+    {
+      "event": "line",
+      "line": 6,
+      "function": "Run",
+      "locals": [
+        {
+          "name": "a",
+          "type": "int[]",
+          "repr": "[5, 2, 4, 1]"
+        }
+      ],
+      "tracked": {
+        "a": {
+          "type": "int[]",
+          "cells": [
+            "5",
+            "2",
+            "4",
+            "1"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      },
+      "tables": null,
+      "lists": null,
+      "calls": null,
+      "trees": null,
+      "grids": null,
+      "graphs": null,
+      "heaps": null
+    },
+    {
+      "event": "line",
+      "line": 8,
+      "function": "Run",
+      "locals": [
+        {
+          "name": "a",
+          "type": "int[]",
+          "repr": "[5, 2, 4, 1]"
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "1"
+        }
+      ],
+      "tracked": {
+        "a": {
+          "type": "int[]",
+          "cells": [
+            "5",
+            "2",
+            "4",
+            "1"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      },
+      "tables": null,
+      "lists": null,
+      "calls": null,
+      "trees": null,
+      "grids": null,
+      "graphs": null,
+      "heaps": null
+    },
+    {
+      "event": "line",
+      "line": 9,
+      "function": "Run",
+      "locals": [
+        {
+          "name": "a",
+          "type": "int[]",
+          "repr": "[5, 2, 4, 1]"
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "1"
+        },
+        {
+          "name": "key",
+          "type": "int",
+          "repr": "2"
+        }
+      ],
+      "tracked": {
+        "a": {
+          "type": "int[]",
+          "cells": [
+            "5",
+            "2",
+            "4",
+            "1"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      },
+      "tables": null,
+      "lists": null,
+      "calls": null,
+      "trees": null,
+      "grids": null,
+      "graphs": null,
+      "heaps": null
+    },
+    {
+      "event": "line",
+      "line": 10,
+      "function": "Run",
+      "locals": [
+        {
+          "name": "a",
+          "type": "int[]",
+          "repr": "[5, 2, 4, 1]"
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "1"
+        },
+        {
+          "name": "j",
+          "type": "int",
+          "repr": "0"
+        },
+        {
+          "name": "key",
+          "type": "int",
+          "repr": "2"
+        }
+      ],
+      "tracked": {
+        "a": {
+          "type": "int[]",
+          "cells": [
+            "5",
+            "2",
+            "4",
+            "1"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      },
+      "tables": null,
+      "lists": null,
+      "calls": null,
+      "trees": null,
+      "grids": null,
+      "graphs": null,
+      "heaps": null
+    },
+    {
+      "event": "line",
+      "line": 12,
+      "function": "Run",
+      "locals": [
+        {
+          "name": "a",
+          "type": "int[]",
+          "repr": "[5, 2, 4, 1]"
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "1"
+        },
+        {
+          "name": "j",
+          "type": "int",
+          "repr": "0"
+        },
+        {
+          "name": "key",
+          "type": "int",
+          "repr": "2"
+        }
+      ],
+      "tracked": {
+        "a": {
+          "type": "int[]",
+          "cells": [
+            "5",
+            "2",
+            "4",
+            "1"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      },
+      "tables": null,
+      "lists": null,
+      "calls": null,
+      "trees": null,
+      "grids": null,
+      "graphs": null,
+      "heaps": null
+    },
+    {
+      "event": "line",
+      "line": 13,
+      "function": "Run",
+      "locals": [
+        {
+          "name": "a",
+          "type": "int[]",
+          "repr": "[5, 5, 4, 1]"
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "1"
+        },
+        {
+          "name": "j",
+          "type": "int",
+          "repr": "0"
+        },
+        {
+          "name": "key",
+          "type": "int",
+          "repr": "2"
+        }
+      ],
+      "tracked": {
+        "a": {
+          "type": "int[]",
+          "cells": [
+            "5",
+            "5",
+            "4",
+            "1"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      },
+      "tables": null,
+      "lists": null,
+      "calls": null,
+      "trees": null,
+      "grids": null,
+      "graphs": null,
+      "heaps": null
+    },
+    {
+      "event": "line",
+      "line": 15,
+      "function": "Run",
+      "locals": [
+        {
+          "name": "a",
+          "type": "int[]",
+          "repr": "[5, 5, 4, 1]"
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "1"
+        },
+        {
+          "name": "j",
+          "type": "int",
+          "repr": "-1"
+        },
+        {
+          "name": "key",
+          "type": "int",
+          "repr": "2"
+        }
+      ],
+      "tracked": {
+        "a": {
+          "type": "int[]",
+          "cells": [
+            "5",
+            "5",
+            "4",
+            "1"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      },
+      "tables": null,
+      "lists": null,
+      "calls": null,
+      "trees": null,
+      "grids": null,
+      "graphs": null,
+      "heaps": null
+    },
+    {
+      "event": "line",
+      "line": 8,
+      "function": "Run",
+      "locals": [
+        {
+          "name": "a",
+          "type": "int[]",
+          "repr": "[2, 5, 4, 1]"
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "2"
+        }
+      ],
+      "tracked": {
+        "a": {
+          "type": "int[]",
+          "cells": [
+            "2",
+            "5",
+            "4",
+            "1"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      },
+      "tables": null,
+      "lists": null,
+      "calls": null,
+      "trees": null,
+      "grids": null,
+      "graphs": null,
+      "heaps": null
+    },
+    {
+      "event": "line",
+      "line": 9,
+      "function": "Run",
+      "locals": [
+        {
+          "name": "a",
+          "type": "int[]",
+          "repr": "[2, 5, 4, 1]"
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "2"
+        },
+        {
+          "name": "key",
+          "type": "int",
+          "repr": "4"
+        }
+      ],
+      "tracked": {
+        "a": {
+          "type": "int[]",
+          "cells": [
+            "2",
+            "5",
+            "4",
+            "1"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      },
+      "tables": null,
+      "lists": null,
+      "calls": null,
+      "trees": null,
+      "grids": null,
+      "graphs": null,
+      "heaps": null
+    },
+    {
+      "event": "line",
+      "line": 10,
+      "function": "Run",
+      "locals": [
+        {
+          "name": "a",
+          "type": "int[]",
+          "repr": "[2, 5, 4, 1]"
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "2"
+        },
+        {
+          "name": "j",
+          "type": "int",
+          "repr": "1"
+        },
+        {
+          "name": "key",
+          "type": "int",
+          "repr": "4"
+        }
+      ],
+      "tracked": {
+        "a": {
+          "type": "int[]",
+          "cells": [
+            "2",
+            "5",
+            "4",
+            "1"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      },
+      "tables": null,
+      "lists": null,
+      "calls": null,
+      "trees": null,
+      "grids": null,
+      "graphs": null,
+      "heaps": null
+    },
+    {
+      "event": "line",
+      "line": 12,
+      "function": "Run",
+      "locals": [
+        {
+          "name": "a",
+          "type": "int[]",
+          "repr": "[2, 5, 4, 1]"
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "2"
+        },
+        {
+          "name": "j",
+          "type": "int",
+          "repr": "1"
+        },
+        {
+          "name": "key",
+          "type": "int",
+          "repr": "4"
+        }
+      ],
+      "tracked": {
+        "a": {
+          "type": "int[]",
+          "cells": [
+            "2",
+            "5",
+            "4",
+            "1"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      },
+      "tables": null,
+      "lists": null,
+      "calls": null,
+      "trees": null,
+      "grids": null,
+      "graphs": null,
+      "heaps": null
+    },
+    {
+      "event": "line",
+      "line": 13,
+      "function": "Run",
+      "locals": [
+        {
+          "name": "a",
+          "type": "int[]",
+          "repr": "[2, 5, 5, 1]"
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "2"
+        },
+        {
+          "name": "j",
+          "type": "int",
+          "repr": "1"
+        },
+        {
+          "name": "key",
+          "type": "int",
+          "repr": "4"
+        }
+      ],
+      "tracked": {
+        "a": {
+          "type": "int[]",
+          "cells": [
+            "2",
+            "5",
+            "5",
+            "1"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      },
+      "tables": null,
+      "lists": null,
+      "calls": null,
+      "trees": null,
+      "grids": null,
+      "graphs": null,
+      "heaps": null
+    },
+    {
+      "event": "line",
+      "line": 15,
+      "function": "Run",
+      "locals": [
+        {
+          "name": "a",
+          "type": "int[]",
+          "repr": "[2, 5, 5, 1]"
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "2"
+        },
+        {
+          "name": "j",
+          "type": "int",
+          "repr": "0"
+        },
+        {
+          "name": "key",
+          "type": "int",
+          "repr": "4"
+        }
+      ],
+      "tracked": {
+        "a": {
+          "type": "int[]",
+          "cells": [
+            "2",
+            "5",
+            "5",
+            "1"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      },
+      "tables": null,
+      "lists": null,
+      "calls": null,
+      "trees": null,
+      "grids": null,
+      "graphs": null,
+      "heaps": null
+    },
+    {
+      "event": "line",
+      "line": 8,
+      "function": "Run",
+      "locals": [
+        {
+          "name": "a",
+          "type": "int[]",
+          "repr": "[2, 4, 5, 1]"
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "3"
+        }
+      ],
+      "tracked": {
+        "a": {
+          "type": "int[]",
+          "cells": [
+            "2",
+            "4",
+            "5",
+            "1"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      },
+      "tables": null,
+      "lists": null,
+      "calls": null,
+      "trees": null,
+      "grids": null,
+      "graphs": null,
+      "heaps": null
+    },
+    {
+      "event": "line",
+      "line": 9,
+      "function": "Run",
+      "locals": [
+        {
+          "name": "a",
+          "type": "int[]",
+          "repr": "[2, 4, 5, 1]"
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "3"
+        },
+        {
+          "name": "key",
+          "type": "int",
+          "repr": "1"
+        }
+      ],
+      "tracked": {
+        "a": {
+          "type": "int[]",
+          "cells": [
+            "2",
+            "4",
+            "5",
+            "1"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      },
+      "tables": null,
+      "lists": null,
+      "calls": null,
+      "trees": null,
+      "grids": null,
+      "graphs": null,
+      "heaps": null
+    },
+    {
+      "event": "line",
+      "line": 10,
+      "function": "Run",
+      "locals": [
+        {
+          "name": "a",
+          "type": "int[]",
+          "repr": "[2, 4, 5, 1]"
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "3"
+        },
+        {
+          "name": "j",
+          "type": "int",
+          "repr": "2"
+        },
+        {
+          "name": "key",
+          "type": "int",
+          "repr": "1"
+        }
+      ],
+      "tracked": {
+        "a": {
+          "type": "int[]",
+          "cells": [
+            "2",
+            "4",
+            "5",
+            "1"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      },
+      "tables": null,
+      "lists": null,
+      "calls": null,
+      "trees": null,
+      "grids": null,
+      "graphs": null,
+      "heaps": null
+    },
+    {
+      "event": "line",
+      "line": 12,
+      "function": "Run",
+      "locals": [
+        {
+          "name": "a",
+          "type": "int[]",
+          "repr": "[2, 4, 5, 1]"
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "3"
+        },
+        {
+          "name": "j",
+          "type": "int",
+          "repr": "2"
+        },
+        {
+          "name": "key",
+          "type": "int",
+          "repr": "1"
+        }
+      ],
+      "tracked": {
+        "a": {
+          "type": "int[]",
+          "cells": [
+            "2",
+            "4",
+            "5",
+            "1"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      },
+      "tables": null,
+      "lists": null,
+      "calls": null,
+      "trees": null,
+      "grids": null,
+      "graphs": null,
+      "heaps": null
+    },
+    {
+      "event": "line",
+      "line": 13,
+      "function": "Run",
+      "locals": [
+        {
+          "name": "a",
+          "type": "int[]",
+          "repr": "[2, 4, 5, 5]"
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "3"
+        },
+        {
+          "name": "j",
+          "type": "int",
+          "repr": "2"
+        },
+        {
+          "name": "key",
+          "type": "int",
+          "repr": "1"
+        }
+      ],
+      "tracked": {
+        "a": {
+          "type": "int[]",
+          "cells": [
+            "2",
+            "4",
+            "5",
+            "5"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      },
+      "tables": null,
+      "lists": null,
+      "calls": null,
+      "trees": null,
+      "grids": null,
+      "graphs": null,
+      "heaps": null
+    },
+    {
+      "event": "line",
+      "line": 12,
+      "function": "Run",
+      "locals": [
+        {
+          "name": "a",
+          "type": "int[]",
+          "repr": "[2, 4, 5, 5]"
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "3"
+        },
+        {
+          "name": "j",
+          "type": "int",
+          "repr": "1"
+        },
+        {
+          "name": "key",
+          "type": "int",
+          "repr": "1"
+        }
+      ],
+      "tracked": {
+        "a": {
+          "type": "int[]",
+          "cells": [
+            "2",
+            "4",
+            "5",
+            "5"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      },
+      "tables": null,
+      "lists": null,
+      "calls": null,
+      "trees": null,
+      "grids": null,
+      "graphs": null,
+      "heaps": null
+    },
+    {
+      "event": "line",
+      "line": 13,
+      "function": "Run",
+      "locals": [
+        {
+          "name": "a",
+          "type": "int[]",
+          "repr": "[2, 4, 4, 5]"
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "3"
+        },
+        {
+          "name": "j",
+          "type": "int",
+          "repr": "1"
+        },
+        {
+          "name": "key",
+          "type": "int",
+          "repr": "1"
+        }
+      ],
+      "tracked": {
+        "a": {
+          "type": "int[]",
+          "cells": [
+            "2",
+            "4",
+            "4",
+            "5"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      },
+      "tables": null,
+      "lists": null,
+      "calls": null,
+      "trees": null,
+      "grids": null,
+      "graphs": null,
+      "heaps": null
+    },
+    {
+      "event": "line",
+      "line": 12,
+      "function": "Run",
+      "locals": [
+        {
+          "name": "a",
+          "type": "int[]",
+          "repr": "[2, 4, 4, 5]"
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "3"
+        },
+        {
+          "name": "j",
+          "type": "int",
+          "repr": "0"
+        },
+        {
+          "name": "key",
+          "type": "int",
+          "repr": "1"
+        }
+      ],
+      "tracked": {
+        "a": {
+          "type": "int[]",
+          "cells": [
+            "2",
+            "4",
+            "4",
+            "5"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      },
+      "tables": null,
+      "lists": null,
+      "calls": null,
+      "trees": null,
+      "grids": null,
+      "graphs": null,
+      "heaps": null
+    },
+    {
+      "event": "line",
+      "line": 13,
+      "function": "Run",
+      "locals": [
+        {
+          "name": "a",
+          "type": "int[]",
+          "repr": "[2, 2, 4, 5]"
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "3"
+        },
+        {
+          "name": "j",
+          "type": "int",
+          "repr": "0"
+        },
+        {
+          "name": "key",
+          "type": "int",
+          "repr": "1"
+        }
+      ],
+      "tracked": {
+        "a": {
+          "type": "int[]",
+          "cells": [
+            "2",
+            "2",
+            "4",
+            "5"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      },
+      "tables": null,
+      "lists": null,
+      "calls": null,
+      "trees": null,
+      "grids": null,
+      "graphs": null,
+      "heaps": null
+    },
+    {
+      "event": "line",
+      "line": 15,
+      "function": "Run",
+      "locals": [
+        {
+          "name": "a",
+          "type": "int[]",
+          "repr": "[2, 2, 4, 5]"
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "3"
+        },
+        {
+          "name": "j",
+          "type": "int",
+          "repr": "-1"
+        },
+        {
+          "name": "key",
+          "type": "int",
+          "repr": "1"
+        }
+      ],
+      "tracked": {
+        "a": {
+          "type": "int[]",
+          "cells": [
+            "2",
+            "2",
+            "4",
+            "5"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      },
+      "tables": null,
+      "lists": null,
+      "calls": null,
+      "trees": null,
+      "grids": null,
+      "graphs": null,
+      "heaps": null
+    },
+    {
+      "event": "return",
+      "line": null,
+      "function": "Run",
+      "locals": [
+        {
+          "name": "a",
+          "type": "int[]",
+          "repr": "[1, 2, 4, 5]"
+        }
+      ],
+      "tracked": {
+        "a": {
+          "type": "int[]",
+          "cells": [
+            "1",
+            "2",
+            "4",
+            "5"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      },
+      "tables": null,
+      "lists": null,
+      "calls": null,
+      "trees": null,
+      "grids": null,
+      "graphs": null,
+      "heaps": null
+    }
+  ],
+  "stdout": "",
+  "message": null,
+  "traceback": null,
+  "errorLine": null
+}

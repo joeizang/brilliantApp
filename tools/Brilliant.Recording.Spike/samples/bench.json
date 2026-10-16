@@ -1,0 +1,22 @@
+{
+  "rows": [
+    {
+      "method": "ForLoop",
+      "meanNs": 308.7448541323344,
+      "stdDevNs": 3.93980145303118,
+      "allocatedBytes": 0,
+      "iterations": 3
+    },
+    {
+      "method": "Linq",
+      "meanNs": 1178.4779771169026,
+      "stdDevNs": 167.0333619533295,
+      "allocatedBytes": 48,
+      "iterations": 3
+    }
+  ],
+  "host": "BenchmarkDotNet v0.15.8, macOS Tahoe 26.6.2 (25G83) [Darwin 25.6.0]; Apple M4 Max, 1 CPU, 16 logical and 16 physical cores; .NET SDK 10.0.302",
+  "runtime": "10.0.302",
+  "job": "ShortRun",
+  "totalMs": 12737.65
+}
