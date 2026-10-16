@@ -5,11 +5,12 @@
     <h2>@Step.Title</h2>
     <p class="prompt">@Step.Prompt</p>
     <pre class="code-block" data-language="@Step.Code.Language"><code>@Step.Code.Code</code></pre>
+    @Aside
 
     @if (Step.IsTyped)
     {
-        <textarea class="answer-input box-border w-full resize-y rounded-md border border-border bg-surface px-4 py-3 font-mono text-[1rem] leading-[normal] text-fg transition-shadow duration-150 ease-app focus:ring-2 focus:ring-accent focus:outline-none mb-4" rows="@Math.Max(1, Math.Min(6, _response.Split('\n').Length))" placeholder="Type the output"
-                  aria-label="Predicted output" spellcheck="false" autocomplete="off" autocapitalize="off"
+        <textarea class="answer-input box-border w-full resize-y rounded-md border border-border bg-surface px-4 py-3 font-mono text-[1rem] leading-[normal] text-fg transition-shadow duration-150 ease-app focus:ring-2 focus:ring-accent focus:outline-none mb-4" rows="@Math.Max(1, Math.Min(6, _response.Split('\n').Length))" placeholder="@Placeholder"
+                  aria-label="@AnswerLabel" spellcheck="false" autocomplete="off" autocapitalize="off"
                   disabled="@Locked" @bind="_response" @bind:event="oninput"></textarea>
     }
     else
@@ -58,6 +59,13 @@
     public sealed record Attempt(AnswerResult Result, string? Response, int? Selected);
 
     [Parameter, EditorRequired] public PredictOutputStep Step { get; set; } = default!;
+
+    /// <summary>Extra content under the code, such as a lowered step's compiler output.</summary>
+    [Parameter] public RenderFragment? Aside { get; set; }
+
+    [Parameter] public string Placeholder { get; set; } = "Type the output";
+
+    [Parameter] public string AnswerLabel { get; set; } = "Predicted output";
 
     /// <summary>Raised each time the learner checks an answer (correct or not).</summary>
     [Parameter] public EventCallback<Attempt> OnAnswered { get; set; }

@@ -56,4 +56,16 @@ public class RatingInferenceTests
     [Fact]
     public void A_negative_or_zero_elapsed_time_does_not_throw() =>
         Assert.Equal(Rating.Easy, RatingInference.Infer(true, 0, TimeSpan.FromSeconds(-5), Choice));
+
+    [Fact]
+    public void A_lowered_step_is_given_longer_than_a_prediction_because_reading_generated_code_is_slower()
+    {
+        var lowered = new LoweredStep("l", "L", "?", "code", [], [], [new ChoiceOption("a", true, null)]);
+        var predict = new PredictOutputStep("p", "P", "?", new CodeSnippet("csharp", "code"), [], [], [new ChoiceOption("a", true, null)]);
+
+        Assert.True(RatingInference.Thresholds(lowered).Fast > RatingInference.Thresholds(predict).Fast);
+        Assert.True(RatingInference.Thresholds(lowered).Slow > RatingInference.Thresholds(predict).Slow);
+        Assert.Equal(LessonTestOut.Difficulty(predict), LessonTestOut.Difficulty(lowered));
+        Assert.True(LessonTestOut.Difficulty(lowered) > 0);
+    }
 }

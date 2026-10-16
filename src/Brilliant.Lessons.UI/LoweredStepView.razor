@@ -1,0 +1,44 @@
+@* A question about what the C# compiler made of a snippet: the code, then its lowered C# or IL (toggle), then the same answer box as a prediction. *@
+<PredictOutputStepView Step="_asked" OnAnswered="OnAnswered" OnContinue="OnContinue"
+                       Placeholder="Type your answer" AnswerLabel="Your answer">
+    <Aside>
+        <section class="lowered-view" aria-label="What the compiler made of this code">
+            @if (Step.Lowered is { } lowered)
+            {
+                <div class="lowered-toggle mb-2 flex flex-wrap items-center gap-2" role="group" aria-label="Show the compiler's output as">
+                    <button type="button" class="@ToggleClass(!_il) lowered-show-csharp" aria-pressed="@(!_il ? "true" : "false")" @onclick="() => _il = false">Lowered C#</button>
+                    <button type="button" class="@ToggleClass(_il) lowered-show-il" aria-pressed="@(_il ? "true" : "false")" @onclick="() => _il = true">IL</button>
+                </div>
+                <pre class="code-block lowered-code" data-language="@(_il ? "il" : "csharp")"><code>@(_il ? lowered.Il : lowered.CSharp)</code></pre>
+            }
+            else
+            {
+                <p class="lowered-missing text-fg-secondary">The compiler's output isn't in this pack. Rebuild the pack to include it.</p>
+            }
+        </section>
+    </Aside>
+</PredictOutputStepView>
+
+@code {
+    [Parameter, EditorRequired] public LoweredStep Step { get; set; } = default!;
+
+    /// <summary>Raised each time the learner checks an answer (correct or not).</summary>
+    [Parameter] public EventCallback<PredictOutputStepView.Attempt> OnAnswered { get; set; }
+
+    /// <summary>Raised when the learner continues after a correct answer.</summary>
+    [Parameter] public EventCallback OnContinue { get; set; }
+
+    private bool _il;
+    private PredictOutputStep _asked = default!;
+    private LoweredStep? _source;
+
+    // The answer box is a prediction's: same typed or multiple-choice flow, same evaluator rules.
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(_source, Step)) return;
+        _source = Step;
+        _asked = new PredictOutputStep(Step.Id, Step.Title, Step.Prompt, new CodeSnippet("csharp", Step.Code), Step.Accepted, Step.Mistakes, Step.Options);
+    }
+
+    private static string ToggleClass(bool on) => on ? "btn-primary" : "btn-secondary";
+}

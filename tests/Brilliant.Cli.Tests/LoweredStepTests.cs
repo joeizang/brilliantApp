@@ -106,6 +106,14 @@ public sealed class LoweredStepTests : IDisposable
     }
 
     [Fact]
+    public void The_csharp_manifest_enables_lowered()
+    {
+        var manifest = AppManifest.Parse(File.ReadAllText(Path.Combine(FindRepositoryRoot(), "apps", "csharp", "manifest.yaml")));
+
+        Assert.True(manifest.SupportsStepType("lowered"));
+    }
+
+    [Fact]
     public void A_snippet_that_does_not_compile_blocks_the_pack_with_its_line()
     {
         WritePack(step: """

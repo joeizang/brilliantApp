@@ -51,6 +51,8 @@ public static class RatingInference
     {
         ChoiceStep => (TimeSpan.FromSeconds(6), TimeSpan.FromSeconds(30)),
         PredictOutputStep => (TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(60)),
+        // Reading generated code takes longer than predicting a printed value.
+        LoweredStep => (TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(90)),
         FillBlankStep => (TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(90)),
         ParsonsStep => (TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(150)),
         WriteCodeStep => (TimeSpan.FromSeconds(90), TimeSpan.FromSeconds(420)),
