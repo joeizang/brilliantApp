@@ -219,6 +219,16 @@ public sealed class AllocationsStepTests : IDisposable
     }
 
     [Fact]
+    public void Misplaced_input_and_option_bytes_are_refused_instead_of_ignored()
+    {
+        WritePack(RewriteStep.Replace("    entrypoint: SumTo\n", "    entrypoint: SumTo\n    input: '4'\n"));
+        Assert.Contains(Errors(), e => e.Contains("'input' only applies to variant: predict"));
+
+        WritePack("  - id: step.alloc.pick\n    type: choice\n    title: Pick\n    prompt: Which?\n    options:\n      - {text: A, correct: true}\n      - {text: B, bytes: 8}\n");
+        Assert.Contains(Errors(), e => e.Contains("an option's 'bytes' only applies to allocations steps"));
+    }
+
+    [Fact]
     public void An_app_that_does_not_list_the_type_refuses_it()
     {
         WritePack(PredictStep, stepTypes: "[explain]");
