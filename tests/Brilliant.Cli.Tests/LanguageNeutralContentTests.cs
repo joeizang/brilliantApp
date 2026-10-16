@@ -8,7 +8,7 @@ public sealed class LanguageNeutralContentTests : IDisposable
     private readonly string _repository = Path.Combine(Path.GetTempPath(), "brilliant-languages-" + Guid.NewGuid());
     private string Root => Path.Combine(_repository, "content", "sample");
 
-    private void WriteLesson(string steps, string runtimes = "python, csharp")
+    private void WriteLesson(string steps, string runtimes = "python, csharp", string stepTypes = "explain, write-code, trace, predict-output, fill-blank, parsons")
     {
         var manifest = Path.Combine(_repository, "apps", "sample", "manifest.yaml");
         Directory.CreateDirectory(Path.GetDirectoryName(manifest)!);
@@ -22,7 +22,7 @@ public sealed class LanguageNeutralContentTests : IDisposable
               onLight: '#000000'
             contentPack: sample.pack.zip
             runtimes: [{{runtimes}}]
-            stepTypes: [explain, write-code, trace, predict-output, fill-blank, parsons]
+            stepTypes: [{{stepTypes}}]
             """);
         Directory.CreateDirectory(Path.Combine(Root, "tracks", "t", "l"));
         File.WriteAllText(Path.Combine(Root, "pack.yaml"), "id: pack.sample\nversion: 1.0.0\ntargetFramework: net10.0\nlangVersion: 14\n");
@@ -66,6 +66,42 @@ public sealed class LanguageNeutralContentTests : IDisposable
             visualise:
               - variable: nums
                 as: array
+        """;
+
+    private const string AsyncTimeline = """
+          - id: step.sample.async
+            type: async-timeline
+            title: Follow the continuation
+            body: The UI thread blocks while its queued continuation needs the UI thread.
+            events:
+              - sequence: 1
+                thread: UI
+                kind: enter
+                label: LoadAsync starts
+                state: Start
+              - sequence: 2
+                thread: UI
+                kind: await
+                label: Wait for the operation
+                operation: load
+                state: AwaitingLoad
+              - sequence: 3
+                thread: UI
+                kind: blocking-wait
+                label: Result blocks this thread
+                operation: load
+              - sequence: 4
+                thread: Worker
+                kind: continuation-queued
+                label: LoadAsync continuation is queued
+                operation: load
+                continuationThread: UI
+                state: AwaitingLoad
+              - sequence: 5
+                thread: UI
+                kind: resume
+                label: Continuation resumes
+                state: AfterAwait
         """;
 
     private const string Walkthrough = "\n    walkthrough:\n      language: csharp\n      call: Double(4);\n      explanation: Doubles the argument.\n";
@@ -122,6 +158,56 @@ public sealed class LanguageNeutralContentTests : IDisposable
         var graph = ContentPackFormat.Load(output);
         Assert.Equal(language, graph.Get<Step>("step.sample.write").Walkthrough!.Language);
         Assert.Equal(language, Assert.IsType<TraceStep>(graph.Get<Step>("step.sample.trace")).Language);
+    }
+
+    [Fact]
+    public void Async_timeline_is_validated_and_kept_in_recorded_order_in_the_content_pack()
+    {
+        WriteLesson(AsyncTimeline, stepTypes: "explain, async-timeline");
+        var output = Path.Combine(_repository, "pack.zip");
+        var report = ContentPacker.Pack(Root, output, new Runner("python"));
+
+        Assert.True(report.IsValid, string.Join("\n", report.Errors));
+        var step = Assert.IsType<AsyncTimelineStep>(ContentPackFormat.Load(output).Get<Step>("step.sample.async"));
+        Assert.Equal([1, 2, 3, 4, 5], step.Events.Select(e => e.Sequence));
+        Assert.Equal(AsyncTimelineEventKind.ContinuationQueued, step.Events[3].Kind);
+        Assert.Equal("UI", step.Events[3].ContinuationThread);
+        Assert.Equal("AwaitingLoad", step.Events[3].State);
+        Assert.Equal(new AsyncTimelineDeadlock("UI", "load", 3, 4), AsyncTimelineAnalysis.FindSyncOverAsyncDeadlock(step));
+    }
+
+    [Fact]
+    public void Async_timeline_rejects_duplicate_sequences_and_missing_continuation_targets()
+    {
+        var invalid = AsyncTimeline.Replace("sequence: 4", "sequence: 3").Replace("        continuationThread: UI\n", "");
+        WriteLesson(invalid, stepTypes: "explain, async-timeline");
+
+        var report = ContentValidator.Validate(Root);
+
+        Assert.Contains(report.Errors, e => e.Message.Contains("repeats sequence 3"));
+        Assert.Contains(report.Errors, e => e.Message.Contains("needs a 'continuationThread'"));
+    }
+
+    [Fact]
+    public void Async_timeline_requires_a_recorded_state_machine_state()
+    {
+        var withoutStates = string.Join('\n', AsyncTimeline.Split('\n')
+            .Where(line => !line.TrimStart().StartsWith("state: ", StringComparison.Ordinal)));
+        WriteLesson(withoutStates, stepTypes: "explain, async-timeline");
+
+        var report = ContentValidator.Validate(Root);
+
+        Assert.Contains(report.Errors, e => e.Message.Contains("needs at least one recorded state-machine 'state'"));
+    }
+
+    [Fact]
+    public void App_manifest_must_enable_authored_async_timelines()
+    {
+        WriteLesson(AsyncTimeline);
+
+        var report = ContentValidator.Validate(Root);
+
+        Assert.Contains(report.Errors, e => e.Message.Contains("step type 'async-timeline' is not enabled"));
     }
 
     [Theory]

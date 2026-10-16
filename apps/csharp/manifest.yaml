@@ -8,4 +8,4 @@ accent:
   onLight: '#ffffff'
 contentPack: csharp.pack.zip
 runtimes: [csharp]
-stepTypes: [explain, choice, predict-output, trace, lowered, benchmark-predict, allocations, write-code, fill-blank]
+stepTypes: [explain, choice, predict-output, trace, async-timeline, lowered, benchmark-predict, allocations, write-code, fill-blank]

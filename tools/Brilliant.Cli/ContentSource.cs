@@ -539,10 +539,11 @@ public static partial class ContentValidator
         if (dto.Type == "fill-blank") return WithHints(WithWalkthrough(LoadFillBlank(dto, label, file, report, before), dto, label, file, report), hints);
         if (dto.Type == "parsons") return WithHints(WithWalkthrough(LoadParsons(dto, label, file, report, before), dto, label, file, report), hints);
         if (dto.Type == "trace") return RejectWalkthrough(dto, label, file, report, LoadTrace(dto, label, file, report, before));
+        if (dto.Type == "async-timeline") return RejectWalkthrough(dto, label, file, report, LoadAsyncTimeline(dto, label, file, report, before));
 
         if (dto.Type != "explain")
         {
-            report.Add(file, $"{label}: unsupported step type '{dto.Type ?? "(missing)"}' (supported: explain, choice, predict-output, lowered, benchmark-predict, allocations, write-code, fill-blank, parsons, trace).");
+            report.Add(file, $"{label}: unsupported step type '{dto.Type ?? "(missing)"}' (supported: explain, choice, predict-output, lowered, benchmark-predict, allocations, write-code, fill-blank, parsons, trace, async-timeline).");
             return null;
         }
 
@@ -967,6 +968,49 @@ public static partial class ContentValidator
         return new TraceStep(dto.Id!, dto.Title!, dto.Body!, dto.Code!, visuals) { Language = dto.Language };
     }
 
+    private static Step? LoadAsyncTimeline(StepDto dto, string label, string file, ValidationReport report, int errorsBefore)
+    {
+        Require(dto.Body, "body", file, report, label);
+        var events = new List<AsyncTimelineEvent>();
+        var sequences = new HashSet<int>();
+        for (var i = 0; i < (dto.Events?.Count ?? 0); i++)
+        {
+            var item = dto.Events![i];
+            if (IsEmptyEntry(item, $"{label}: events[{i}]", file, report)) continue;
+            var where = $"{label}: events[{i}]";
+            if (item.Sequence is not > 0) report.Add(file, $"{where} needs a positive 'sequence'.");
+            else if (!sequences.Add(item.Sequence.Value)) report.Add(file, $"{where} repeats sequence {item.Sequence.Value}.");
+            if (string.IsNullOrWhiteSpace(item.Thread)) report.Add(file, $"{where} needs a 'thread'.");
+            if (string.IsNullOrWhiteSpace(item.Label)) report.Add(file, $"{where} needs a 'label'.");
+            if (!TryParseAsyncTimelineKind(item.Kind, out var kind)) report.Add(file, $"{where}: 'kind' must be enter, await, continuation-queued, resume, complete or blocking-wait.");
+            if (kind is AsyncTimelineEventKind.Await or AsyncTimelineEventKind.ContinuationQueued or AsyncTimelineEventKind.BlockingWait)
+                if (string.IsNullOrWhiteSpace(item.Operation)) report.Add(file, $"{where}: '{item.Kind}' needs an 'operation'.");
+            if (kind == AsyncTimelineEventKind.ContinuationQueued && string.IsNullOrWhiteSpace(item.ContinuationThread))
+                report.Add(file, $"{where}: continuation-queued needs a 'continuationThread'.");
+            events.Add(new AsyncTimelineEvent(item.Sequence ?? 0, item.Thread ?? "", kind, item.Label ?? "", item.Operation, item.ContinuationThread, item.State));
+        }
+        if (events.Count == 0) report.Add(file, $"{label}: an async-timeline step needs at least one recorded event.");
+        else if (events.All(e => string.IsNullOrWhiteSpace(e.State))) report.Add(file, $"{label}: an async-timeline needs at least one recorded state-machine 'state'.");
+        if (dto.Code is not null || dto.Language is not null || dto.Visualise is not null)
+            report.Add(file, $"{label}: async-timeline uses recorded 'events'; remove trace-only 'code', 'language' and 'visualise'.");
+        return report.Errors.Count == errorsBefore ? new AsyncTimelineStep(dto.Id!, dto.Title!, dto.Body!, events.OrderBy(e => e.Sequence).ToList()) : null;
+    }
+
+    private static bool TryParseAsyncTimelineKind(string? text, out AsyncTimelineEventKind kind)
+    {
+        kind = text switch
+        {
+            "enter" => AsyncTimelineEventKind.Enter,
+            "await" => AsyncTimelineEventKind.Await,
+            "continuation-queued" => AsyncTimelineEventKind.ContinuationQueued,
+            "resume" => AsyncTimelineEventKind.Resume,
+            "complete" => AsyncTimelineEventKind.Complete,
+            "blocking-wait" => AsyncTimelineEventKind.BlockingWait,
+            _ => AsyncTimelineEventKind.Enter,
+        };
+        return text is "enter" or "await" or "continuation-queued" or "resume" or "complete" or "blocking-wait";
+    }
+
     /// <summary>Reads a <c>visualise</c> list. <paramref name="missing"/> is the error to report when the list is empty, or null when drawing nothing is fine.</summary>
     private static List<Visual> LoadVisuals(List<VisualDto>? list, string label, string file, ValidationReport report, string? missing)
     {
@@ -1372,7 +1416,9 @@ public static partial class ContentValidator
         public string? Input { get; set; }
         public string? Setup { get; set; }
         public List<CandidateDto>? Candidates { get; set; }
+        public List<AsyncTimelineEventDto>? Events { get; set; }
     }
+    private sealed class AsyncTimelineEventDto { public int? Sequence { get; set; } public string? Thread { get; set; } public string? Kind { get; set; } public string? Label { get; set; } public string? Operation { get; set; } public string? ContinuationThread { get; set; } public string? State { get; set; } }
     private sealed class CandidateDto { public string? Id { get; set; } public string? Label { get; set; } public string? Code { get; set; } }
     private sealed class FileDto { public string? Name { get; set; } public string? Starter { get; set; } public string? Solution { get; set; } }
     private sealed class WalkthroughDto { public string? Language { get; set; } public string? Call { get; set; } public List<VisualDto>? Visualise { get; set; } public string? Explanation { get; set; } }
