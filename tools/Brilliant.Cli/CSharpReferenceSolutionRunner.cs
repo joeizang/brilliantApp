@@ -21,31 +21,52 @@ public sealed class CSharpReferenceSolutionRunner(TimeSpan? timeout = null) : IR
 
     public TestRunResult Run(IReadOnlyList<CodeFile> files, string entrypoint, IReadOnlyList<CodeTest> tests)
     {
+        var worked = RunInWorker("--csharp-reference-worker", JsonSerializer.Serialize(new Request(files, entrypoint, tests), Json));
+        if (worked.Failure is { } failure) return Error(failure, worked.TimedOut ? TestRunStatus.TimedOut : TestRunStatus.Error);
+        try { return JsonSerializer.Deserialize<TestRunResult>(worked.Output!, Json) ?? Error("C# reference worker returned no result."); }
+        catch (JsonException) { return Error("C# reference worker returned an invalid result."); }
+    }
+
+    /// <summary>
+    /// Records the example in a killable child process, as the reference solutions are run, and returns what it recorded: the same
+    /// frames the Python tracer gives, which the pack carries so no device ever runs the C#.
+    /// </summary>
+    public TraceResult Trace(string code, IReadOnlyList<Visual> visuals)
+    {
+        var request = new TraceRequest(code, visuals.Select(v => new WatchedVariable(v.Variable, v.As)).ToArray());
+        var worked = RunInWorker("--csharp-trace-worker", JsonSerializer.Serialize(request, Json));
+        if (worked.Failure is { } failure) return new(worked.TimedOut ? TraceStatus.Truncated : TraceStatus.Error, [], "", failure, null, null);
+        try { return TraceResultJson.Parse(worked.Output!); }
+        catch (JsonException) { return new(TraceStatus.Error, [], "", "C# trace worker returned an invalid result.", null, null); }
+    }
+
+    private sealed record Worked(string? Output, string? Failure, bool TimedOut = false);
+
+    private Worked RunInWorker(string flag, string input)
+    {
         var start = new ProcessStartInfo(Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet")
         {
             RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true,
             UseShellExecute = false,
         };
         start.ArgumentList.Add(typeof(CSharpReferenceSolutionRunner).Assembly.Location);
-        start.ArgumentList.Add("--csharp-reference-worker");
+        start.ArgumentList.Add(flag);
         try
         {
             using var process = Process.Start(start) ?? throw new ReferenceRunnerUnavailableException("could not start the C# reference worker.");
             var stdout = process.StandardOutput.ReadToEndAsync();
             var stderr = process.StandardError.ReadToEndAsync();
-            process.StandardInput.Write(JsonSerializer.Serialize(new Request(files, entrypoint, tests), Json));
+            process.StandardInput.Write(input);
             process.StandardInput.Close();
             if (!process.WaitForExit(_timeout))
             {
                 process.Kill(entireProcessTree: true);
                 process.WaitForExit();
-                return Error($"C# reference worker exceeded {_timeout.TotalSeconds:0.##} seconds.", TestRunStatus.TimedOut);
+                return new(null, $"C# reference worker exceeded {_timeout.TotalSeconds:0.##} seconds.", TimedOut: true);
             }
             var output = stdout.GetAwaiter().GetResult();
             var errors = stderr.GetAwaiter().GetResult();
-            if (process.ExitCode != 0) return Error($"C# reference worker exited with code {process.ExitCode}. {errors}");
-            try { return JsonSerializer.Deserialize<TestRunResult>(output, Json) ?? Error("C# reference worker returned no result."); }
-            catch (JsonException) { return Error("C# reference worker returned an invalid result."); }
+            return process.ExitCode != 0 ? new(null, $"C# reference worker exited with code {process.ExitCode}. {errors}") : new(output, null);
         }
         catch (System.ComponentModel.Win32Exception ex)
         {
@@ -53,8 +74,22 @@ public sealed class CSharpReferenceSolutionRunner(TimeSpan? timeout = null) : IR
         }
     }
 
-    public TraceResult Trace(string code, IReadOnlyList<Visual> visuals) =>
-        new(TraceStatus.Error, [], "", "C# recorded trace publishing follows in #153; a Python checker cannot validate C#.", null, null);
+    private sealed record TraceRequest(string Code, IReadOnlyList<WatchedVariable> Watched);
+    private sealed record WatchedVariable(string Variable, string As);
+
+    public static int RunTraceWorker(TextReader input, TextWriter output)
+    {
+        TraceResult result;
+        try
+        {
+            var request = JsonSerializer.Deserialize<TraceRequest>(input.ReadToEnd(), Json)
+                ?? throw new InvalidOperationException("Missing C# trace request.");
+            result = CSharpTraceRecorder.Record(request.Code, request.Watched.Select(w => new Visual(w.Variable, w.As, [])).ToArray());
+        }
+        catch (Exception ex) { result = new(TraceStatus.Error, [], "", ex.Message, null, null); }
+        output.Write(TraceResultJson.Serialize(result));
+        return 0;
+    }
 
     public static int RunWorker(TextReader input, TextWriter output)
     {

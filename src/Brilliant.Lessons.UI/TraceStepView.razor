@@ -2,7 +2,7 @@
 <article class="trace-step lesson-step">
     <h2>@Step.Title</h2>
     <div class="trace-body mb-4 max-w-(--content-width)">@((MarkupString)MarkdownHtml.ToHtml(Step.Body))</div>
-    <TraceRun Language="@(Step.Language ?? "python")" Code="@Step.Code" Visuals="Step.Visuals" />
+    <TraceRun Language="@(Step.Language ?? "python")" Code="@Step.Code" Visuals="Step.Visuals" Recorded="Step.Recorded" />
 </article>
 
 @code {

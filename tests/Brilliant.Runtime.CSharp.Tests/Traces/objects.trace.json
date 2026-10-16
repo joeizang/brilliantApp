@@ -1,0 +1,38 @@
+{
+  "status": "ok",
+  "frames": [
+    {
+      "event": "line",
+      "line": 1,
+      "function": "Main",
+      "locals": [],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 2,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "p",
+          "type": "Point",
+          "repr": "Point { X = 1, Y = 2 }"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "return",
+      "function": "Main",
+      "locals": [
+        {
+          "name": "p",
+          "type": "Point",
+          "repr": "Point { X = 5, Y = 2 }"
+        }
+      ],
+      "tracked": {}
+    }
+  ],
+  "stdout": ""
+}

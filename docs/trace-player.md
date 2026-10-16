@@ -14,8 +14,9 @@ TraceModel.Build(result, visuals)   ──►  TraceState[]   (one per frame, wi
 TracePlayer                         ──►  read-only CodeMirror + SVG cells/pointers + TraceTable(s) + locals + Previous / Play / Next
 ```
 
-Nothing about a trace is stored in the Content Pack: the example is recorded when the step is shown (Python is bundled, so this works
+A Python trace is not stored in the Content Pack: the example is recorded when the step is shown (Python is bundled, so this works
 offline and takes a few milliseconds once Pyodide has started). `content validate` proves the example runs, in CPython, before it can ship.
+A C# trace is the opposite: the CLI records it at pack time and the pack carries the frames (`TraceStep.Recorded`), so every device plays it without a C# runtime; see [csharp-recorded-traces.md](csharp-recorded-traces.md).
 
 ## Authoring
 

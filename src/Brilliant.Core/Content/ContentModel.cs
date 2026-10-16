@@ -135,6 +135,13 @@ public sealed record Walkthrough(string Code, IReadOnlyList<Visual> Visuals, str
     // Missing on existing Python packs; omitted when writing them to preserve their bytes.
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Language { get; init; }
+
+    /// <summary>
+    /// The run recorded when the pack was built, for a language whose runtime can't trace on every device (C#). The player plays it
+    /// as it is; nothing runs on the device. Null for Python, which is recorded when the step is shown.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Brilliant.Core.Code.TraceResult? Recorded { get; init; }
 }
 
 /// <summary>Text (markdown), optional code snippets and an optional comparison of labelled snippets.</summary>
@@ -360,4 +367,11 @@ public sealed record TraceStep(
     // Older packs contain Python traces without a language field.
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Language { get; init; }
+
+    /// <summary>
+    /// The run recorded when the pack was built, for a language whose runtime can't trace on every device (C#). The player plays it
+    /// as it is; nothing runs on the device. Null for Python, which is recorded when the step is shown.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Brilliant.Core.Code.TraceResult? Recorded { get; init; }
 }

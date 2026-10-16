@@ -1,0 +1,294 @@
+{
+  "status": "ok",
+  "frames": [
+    {
+      "event": "line",
+      "line": 1,
+      "function": "Main",
+      "locals": [],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 2,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "stack",
+          "type": "Stack\u003Cint\u003E",
+          "repr": "[]"
+        }
+      ],
+      "tracked": {
+        "stack": {
+          "type": "Stack\u003Cint\u003E",
+          "cells": [],
+          "more": 0,
+          "drawings": [
+            "stack",
+            "array"
+          ]
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 3,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "stack",
+          "type": "Stack\u003Cint\u003E",
+          "repr": "[1]"
+        }
+      ],
+      "tracked": {
+        "stack": {
+          "type": "Stack\u003Cint\u003E",
+          "cells": [
+            "1"
+          ],
+          "more": 0,
+          "drawings": [
+            "stack",
+            "array"
+          ]
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 4,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "stack",
+          "type": "Stack\u003Cint\u003E",
+          "repr": "[1, 2]"
+        }
+      ],
+      "tracked": {
+        "stack": {
+          "type": "Stack\u003Cint\u003E",
+          "cells": [
+            "1",
+            "2"
+          ],
+          "more": 0,
+          "drawings": [
+            "stack",
+            "array"
+          ]
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 5,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "queue",
+          "type": "Queue\u003Cstring\u003E",
+          "repr": "[]"
+        },
+        {
+          "name": "stack",
+          "type": "Stack\u003Cint\u003E",
+          "repr": "[1, 2]"
+        }
+      ],
+      "tracked": {
+        "queue": {
+          "type": "Queue\u003Cstring\u003E",
+          "cells": [],
+          "more": 0,
+          "drawings": [
+            "queue",
+            "array"
+          ]
+        },
+        "stack": {
+          "type": "Stack\u003Cint\u003E",
+          "cells": [
+            "1",
+            "2"
+          ],
+          "more": 0,
+          "drawings": [
+            "stack",
+            "array"
+          ]
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 6,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "queue",
+          "type": "Queue\u003Cstring\u003E",
+          "repr": "[\u0022a\u0022]"
+        },
+        {
+          "name": "stack",
+          "type": "Stack\u003Cint\u003E",
+          "repr": "[1, 2]"
+        }
+      ],
+      "tracked": {
+        "queue": {
+          "type": "Queue\u003Cstring\u003E",
+          "cells": [
+            "\u0022a\u0022"
+          ],
+          "more": 0,
+          "drawings": [
+            "queue",
+            "array"
+          ]
+        },
+        "stack": {
+          "type": "Stack\u003Cint\u003E",
+          "cells": [
+            "1",
+            "2"
+          ],
+          "more": 0,
+          "drawings": [
+            "stack",
+            "array"
+          ]
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 7,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "queue",
+          "type": "Queue\u003Cstring\u003E",
+          "repr": "[\u0022a\u0022, \u0022b\u0022]"
+        },
+        {
+          "name": "stack",
+          "type": "Stack\u003Cint\u003E",
+          "repr": "[1, 2]"
+        }
+      ],
+      "tracked": {
+        "queue": {
+          "type": "Queue\u003Cstring\u003E",
+          "cells": [
+            "\u0022a\u0022",
+            "\u0022b\u0022"
+          ],
+          "more": 0,
+          "drawings": [
+            "queue",
+            "array"
+          ]
+        },
+        "stack": {
+          "type": "Stack\u003Cint\u003E",
+          "cells": [
+            "1",
+            "2"
+          ],
+          "more": 0,
+          "drawings": [
+            "stack",
+            "array"
+          ]
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 8,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "queue",
+          "type": "Queue\u003Cstring\u003E",
+          "repr": "[\u0022a\u0022, \u0022b\u0022]"
+        },
+        {
+          "name": "stack",
+          "type": "Stack\u003Cint\u003E",
+          "repr": "[1]"
+        }
+      ],
+      "tracked": {
+        "queue": {
+          "type": "Queue\u003Cstring\u003E",
+          "cells": [
+            "\u0022a\u0022",
+            "\u0022b\u0022"
+          ],
+          "more": 0,
+          "drawings": [
+            "queue",
+            "array"
+          ]
+        },
+        "stack": {
+          "type": "Stack\u003Cint\u003E",
+          "cells": [
+            "1"
+          ],
+          "more": 0,
+          "drawings": [
+            "stack",
+            "array"
+          ]
+        }
+      }
+    },
+    {
+      "event": "return",
+      "function": "Main",
+      "locals": [
+        {
+          "name": "queue",
+          "type": "Queue\u003Cstring\u003E",
+          "repr": "[\u0022b\u0022]"
+        },
+        {
+          "name": "stack",
+          "type": "Stack\u003Cint\u003E",
+          "repr": "[1]"
+        }
+      ],
+      "tracked": {
+        "queue": {
+          "type": "Queue\u003Cstring\u003E",
+          "cells": [
+            "\u0022b\u0022"
+          ],
+          "more": 0,
+          "drawings": [
+            "queue",
+            "array"
+          ]
+        },
+        "stack": {
+          "type": "Stack\u003Cint\u003E",
+          "cells": [
+            "1"
+          ],
+          "more": 0,
+          "drawings": [
+            "stack",
+            "array"
+          ]
+        }
+      }
+    }
+  ],
+  "stdout": ""
+}

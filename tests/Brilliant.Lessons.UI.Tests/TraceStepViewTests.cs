@@ -68,6 +68,30 @@ public class TraceStepViewTests : ShortcutContext
     }
 
     [Fact]
+    public void A_recorded_trace_plays_with_no_runtime_for_its_language_registered()
+    {
+        // Android has no C# runtime: the pack carries the recording and the device only plays it.
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var recorded = new TraceResult(TraceStatus.Ok, [Frame(2, 0), Frame(2, 1), Frame(null, 1)], "", null, null, null);
+
+        var cut = Render<TraceStepView>(p => p.Add(c => c.Step, Step with { Language = "csharp", Recorded = recorded }));
+
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".trace-player")));
+        Assert.Empty(cut.FindAll("[role=alert]"));
+        Assert.Contains("Step 1 of 3", cut.Markup);
+    }
+
+    [Fact]
+    public void A_recorded_trace_is_not_run_again_by_a_runtime_that_is_there()
+    {
+        var runtime = Setup(() => Ok);
+        var cut = Render<TraceStepView>(p => p.Add(c => c.Step, Step with { Recorded = Ok }));
+
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".trace-player")));
+        Assert.Empty(runtime.Traced);
+    }
+
+    [Fact]
     public void Traces_the_steps_code_with_its_visuals_and_shows_the_player()
     {
         var runtime = Setup(() => Ok);

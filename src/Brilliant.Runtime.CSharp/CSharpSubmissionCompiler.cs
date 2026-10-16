@@ -24,6 +24,9 @@ public static class CSharpSubmissionCompiler
             .Append(MetadataReference.CreateFromImage(buffer.ToArray())).ToImmutableArray();
     });
 
+    /// <summary>The pinned reference assemblies (and the probe runtime) every C# compilation here is checked against.</summary>
+    internal static ImmutableArray<MetadataReference> MetadataReferences => References.Value;
+
     public static Compilation Compile(string code, string entrypoint, IReadOnlyList<CodeTest> tests, bool captureConsole = false, CancellationToken cancellationToken = default) =>
         Compile([new CodeFile(CodeFiles.SingleFileName, code)], entrypoint, tests, captureConsole, allowBlockingCalls: false, cancellationToken);
 

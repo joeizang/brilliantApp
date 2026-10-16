@@ -26,6 +26,9 @@ public sealed class ValidationReport
     internal void Warn(string file, string message) => _warnings.Add(new ValidationError(file, message));
     internal List<ReferenceCheck> ReferenceChecks { get; } = [];
     internal List<TraceCheck> TraceChecks { get; } = [];
+
+    /// <summary>What running each checked C# example recorded, by the step it belongs to and whether it is that step's walkthrough. The pack carries these.</summary>
+    internal Dictionary<(string StepId, bool IsWalkthrough), TraceResult> Recordings { get; } = [];
     internal AppManifest? App { get; set; }
 }
 
@@ -110,8 +113,22 @@ public static partial class ContentValidator
             ReferenceSolutionChecker.CheckAll(report, runner);
 
         if (report.IsValid && manifest is not null)
-            content = new LoadedContent(manifest, tracks, lessons);
+            content = new LoadedContent(manifest, tracks, report.Recordings.Count == 0 ? lessons : lessons.Select(l => WithRecordings(l, report.Recordings)).ToList());
         return report;
+    }
+
+    /// <summary>The lesson with each recorded example attached to the step (or walkthrough) it was run for.</summary>
+    private static Lesson WithRecordings(Lesson lesson, IReadOnlyDictionary<(string StepId, bool IsWalkthrough), TraceResult> recordings)
+    {
+        Step Attach(Step step)
+        {
+            if (step is TraceStep trace && recordings.TryGetValue((step.Id, false), out var recorded)) step = trace with { Recorded = recorded };
+            if (step.Walkthrough is { } walkthrough && recordings.TryGetValue((step.Id, true), out var walked))
+                step = step with { Walkthrough = walkthrough with { Recorded = walked } };
+            if (step.PhoneAlternative is { } alternative) step = step with { PhoneAlternative = Attach(alternative) };
+            return step;
+        }
+        return lesson with { Steps = lesson.Steps.Select(Attach).ToList(), Practice = lesson.Practice.Select(Attach).ToList() };
     }
 
     private static PackManifest? LoadManifest(string root, ValidationReport report)
@@ -555,7 +572,7 @@ public static partial class ContentValidator
         CheckRuntimeLanguage(language, where, file, report);
 
         var code = reference.TrimEnd() + "\n" + (call.Length > 0 ? "\n" + call + "\n" : "");
-        report.TraceChecks.Add(new TraceCheck(file, where, code, visuals, language));
+        report.TraceChecks.Add(new TraceCheck(file, where, code, visuals, language, step.Id, IsWalkthrough: true));
         return step with { Walkthrough = new Walkthrough(code, visuals, w.Explanation ?? "") { Language = w.Language ?? (language == "python" ? null : language) } };
     }
 
@@ -750,7 +767,7 @@ public static partial class ContentValidator
         if (report.Errors.Count != errorsBefore) return null;
         var language = dto.Language ?? "python";
         CheckRuntimeLanguage(language, label, file, report);
-        report.TraceChecks.Add(new TraceCheck(file, label, dto.Code!, visuals, language));
+        report.TraceChecks.Add(new TraceCheck(file, label, dto.Code!, visuals, language, dto.Id ?? "", IsWalkthrough: false));
         return new TraceStep(dto.Id!, dto.Title!, dto.Body!, dto.Code!, visuals) { Language = dto.Language };
     }
 

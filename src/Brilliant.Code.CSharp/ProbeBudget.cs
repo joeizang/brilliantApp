@@ -7,11 +7,19 @@ namespace Brilliant.Code.CSharp;
 /// <summary>A cooperative execution limit. Learner catch clauses must never intercept this exception.</summary>
 public sealed class BudgetExceededException(string message) : Exception(message);
 
-public sealed record CapturedSequence(string Type, IReadOnlyList<object?> Values);
-public sealed record CapturedObject(string Type, IReadOnlyDictionary<string, object?> Fields);
+/// <summary>How a captured sequence is laid out: an array or a list front to back, a stack bottom (index 0) to top, a queue front to back.</summary>
+public enum CapturedShape { Array, List, Stack, Queue }
+
+/// <summary>
+/// An array or framework collection frozen at a probe. <see cref="Values"/> holds at most 128 items in <see cref="Shape"/>'s order;
+/// <see cref="Total"/> is how many the collection held (-1: all of them). <see cref="Display"/> is its C# name, e.g. <c>List&lt;int&gt;</c>.
+/// </summary>
+public sealed record CapturedSequence(string Type, IReadOnlyList<object?> Values, string Display = "", CapturedShape Shape = CapturedShape.Array, int Total = -1);
+public sealed record CapturedObject(string Type, IReadOnlyDictionary<string, object?> Fields, string Display = "");
 public sealed record UnavailableCapture(string Reason);
 
-public sealed record ProbeSnapshot(int Line, IReadOnlyDictionary<string, object?> Locals);
+/// <summary><see cref="Function"/> is the method, local function or lambda the probe sits in (null when the rewriter wasn't told).</summary>
+public sealed record ProbeSnapshot(int Line, IReadOnlyDictionary<string, object?> Locals, string? Function = null);
 
 /// <summary>One synchronous run's limits, installed on the dedicated execution thread before invoking learner code.</summary>
 public sealed class ProbeBudget(int maxSteps = 100_000, TimeSpan? timeout = null, int maxDepth = 128, int maxSnapshots = 1_000)
@@ -29,6 +37,9 @@ public sealed class ProbeBudget(int maxSteps = 100_000, TimeSpan? timeout = null
     public int Depth { get; private set; }
     public int Steps { get; private set; }
     public IReadOnlyList<ProbeSnapshot> Snapshots => _snapshots;
+
+    /// <summary>True once a probe fired after the snapshot limit was reached: the recording stops short of the run.</summary>
+    public bool SnapshotsDropped { get; private set; }
 
     /// <summary>Request cooperative stopping from a watchdog; the next probe throws.</summary>
     public void Cancel() => Interlocked.CompareExchange(ref _exhausted, "The code exceeded its time budget.", null);
@@ -68,14 +79,16 @@ public sealed class ProbeBudget(int maxSteps = 100_000, TimeSpan? timeout = null
         Tick();
     }
 
-    public void Snapshot(int line, string[] names, object?[] values)
+    public void Snapshot(int line, string[] names, object?[] values) => Snapshot(line, null, names, values);
+
+    public void Snapshot(int line, string? function, string[] names, object?[] values)
     {
         Tick();
-        if (_snapshots.Count >= _maxSnapshots) return;
+        if (_snapshots.Count >= _maxSnapshots) { SnapshotsDropped = true; return; }
         var locals = new Dictionary<string, object?>(StringComparer.Ordinal);
         for (var i = 0; i < Math.Min(names.Length, values.Length); i++)
             locals[names[i]] = Freeze(values[i], new HashSet<object>(ReferenceEqualityComparer.Instance), 0, new CaptureLimit());
-        _snapshots.Add(new(line, locals));
+        _snapshots.Add(new(line, locals, function));
     }
 
     private sealed class CaptureLimit { public int Remaining = 1_000; }
@@ -92,11 +105,26 @@ public sealed class ProbeBudget(int maxSteps = 100_000, TimeSpan? timeout = null
         {
             if (value is Array array)
                 return new CapturedSequence(type.FullName ?? type.Name,
-                    array.Cast<object?>().Take(128).Select(item => Freeze(item, path, depth + 1, limit)).ToArray());
-            // Only framework List<T>; arbitrary IList implementations can execute user code.
+                    array.Cast<object?>().Take(128).Select(item => Freeze(item, path, depth + 1, limit)).ToArray(),
+                    TypeNames.Of(type), CapturedShape.Array, array.Length);
+            // Only framework collections; arbitrary IList/IEnumerable implementations can execute user code.
             if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>))
+            {
+                var list = (IList)value;
                 return new CapturedSequence(type.FullName ?? type.Name,
-                    ((IList)value).Cast<object?>().Take(128).Select(item => Freeze(item, path, depth + 1, limit)).ToArray());
+                    list.Cast<object?>().Take(128).Select(item => Freeze(item, path, depth + 1, limit)).ToArray(),
+                    TypeNames.Of(type), CapturedShape.List, list.Count);
+            }
+            if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Stack<>))
+            {
+                // Enumerates top first; the drawing runs bottom (index 0) to top.
+                var items = ((IEnumerable)value).Cast<object?>().Take(128).Reverse().Select(item => Freeze(item, path, depth + 1, limit)).ToArray();
+                return new CapturedSequence(type.FullName ?? type.Name, items, TypeNames.Of(type), CapturedShape.Stack, Count(value));
+            }
+            if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Queue<>))
+                return new CapturedSequence(type.FullName ?? type.Name,
+                    ((IEnumerable)value).Cast<object?>().Take(128).Select(item => Freeze(item, path, depth + 1, limit)).ToArray(),
+                    TypeNames.Of(type), CapturedShape.Queue, Count(value));
             var fields = new Dictionary<string, object?>(StringComparer.Ordinal);
             for (var current = type; current is not null; current = current.BaseType)
                 foreach (var field in current.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly).Take(128))
@@ -104,8 +132,10 @@ public sealed class ProbeBudget(int maxSteps = 100_000, TimeSpan? timeout = null
                     if (limit.Remaining-- <= 0) { fields["…"] = new UnavailableCapture("limit"); break; }
                     fields[current.Name + "." + field.Name] = Freeze(field.GetValue(value), path, depth + 1, limit);
                 }
-            return new CapturedObject(type.FullName ?? type.Name, fields);
+            return new CapturedObject(type.FullName ?? type.Name, fields, TypeNames.Of(type));
         }
         finally { path.Remove(value); }
     }
+
+    private static int Count(object collection) => (int)collection.GetType().GetProperty("Count")!.GetValue(collection)!;
 }
