@@ -1,0 +1,220 @@
+id: lesson.csharp.constraints-and-variance
+title: Generic constraints and variance
+concepts:
+  - id: concept.csharp.constraint-contract
+    title: A constraint is what lets a generic body call members of T
+  - id: concept.csharp.constraint-no-box
+    title: A constrained call on a struct does not box
+  - id: concept.csharp.covariance
+    title: out makes a generic type covariant, for reference types only
+  - id: concept.csharp.contravariance
+    title: in makes a generic type contravariant
+reviewItems:
+  - id: review.csharp.constraint-contract
+    concept: concept.csharp.constraint-contract
+    step: step.csharp.variance.check-contract
+  - id: review.csharp.constraint-no-box
+    concept: concept.csharp.constraint-no-box
+    step: step.csharp.variance.lowered-constrained
+  - id: review.csharp.covariance
+    concept: concept.csharp.covariance
+    step: step.csharp.variance.check-covariance
+  - id: review.csharp.contravariance
+    concept: concept.csharp.contravariance
+    step: step.csharp.variance.check-contravariance
+steps:
+  - id: step.csharp.variance.intro
+    type: explain
+    title: What T is allowed to do, and what it may be swapped for
+    body: |
+      A generic method is compiled once for every `T`, so inside it `T` is known only as `object` until you say more. A **constraint** (`where T : IComparable<T>`)
+      says more: it is the contract the caller must meet, and the members of the constraint become callable on `T`.
+
+      **Variance** is the other half: when `Derived` converts to `Base`, may `Thing<Derived>` convert to `Thing<Base>`? The answer depends on whether `T` is only
+      read from (`out`, **covariant**) or only written to (`in`, **contravariant**). A `List<T>` does both, so it is **invariant**.
+      Variance exists only on interfaces and delegates, and only for reference types.
+  - id: step.csharp.variance.check-contract
+    type: choice
+    title: What a constraint buys
+    prompt: |
+      `Largest<T>(IReadOnlyList<T> items)` needs to ask whether one item is greater than another. What does adding `where T : IComparable<T>` change?
+    options:
+      - text: 'The body may call `CompareTo` on a `T`, and callers may only pass types that implement `IComparable<T>`'
+        correct: true
+        feedback: 'Right. Without a constraint, `T` offers only the members of `object`, so `items[i].CompareTo(best)` does not compile. The constraint is checked at every call site.'
+      - text: The method is compiled separately for each type that is passed
+        correct: false
+        feedback: 'That is a detail of how the JIT treats structs, not what the constraint does. The constraint is a compile-time contract either way.'
+      - text: '`T` becomes `IComparable<T>`, so every item is converted to the interface'
+        correct: false
+        feedback: '`T` stays `T`. The constraint only says what is known about it. Converting a struct to the interface would box it; a constrained call does not.'
+    hints:
+      - Without the constraint, what can the compiler assume about a bare `T`?
+  - id: step.csharp.variance.lowered-constrained
+    type: lowered
+    title: Calling through T without a box
+    prompt: |
+      `Compare<T>` is called with `int` and with `string`. Switch to the IL view. Which prefix on the `callvirt` lets one body call `CompareTo` on either, without boxing a struct?
+    code: |
+      static class Demo
+      {
+          public static int Compare<T>(T a, T b) where T : IComparable<T> => a.CompareTo(b);
+      }
+    options:
+      - text: '`constrained.`'
+        correct: true
+        feedback: 'Right. `constrained. !!T` tells the runtime: if `T` is a struct that implements the method, call it directly on the value; if `T` is a reference type, call it virtually. No box either way.'
+      - text: '`box`'
+        correct: false
+        feedback: '`box` is what a call through an interface-typed parameter (`IComparable a`) would need. The constraint exists so that it is not needed.'
+      - text: '`castclass`'
+        correct: false
+        feedback: 'Nothing is cast. `T` already has the method; the question is only whether the receiver has to become an object.'
+    hints:
+      - The prefix names the thing the compiler knows about `T`.
+  - id: step.csharp.variance.alloc-constrained
+    type: allocations
+    variant: predict
+    title: What the generic call costs
+    prompt: |
+      `Run` calls the constrained `Larger<T>` with two `int`s. How much does one call of `Run` allocate?
+    entrypoint: Run
+    input: '5'
+    code: |
+      static int Run(int n) => Larger(n, 3);
+
+      static T Larger<T>(T a, T b) where T : IComparable<T> => a.CompareTo(b) >= 0 ? a : b;
+    options:
+      - bytes: 0
+      - bytes: 24
+        feedback: 'That would be one box. A constrained call on `int` calls its own `CompareTo` directly.'
+      - bytes: 48
+        feedback: 'That would be a box for each argument, which is what `Larger(IComparable a, IComparable b)` would cost.'
+      - bytes: 72
+  - id: step.csharp.variance.predict-array
+    type: predict-output
+    title: Arrays are covariant, and checked
+    prompt: |
+      An array of `string` converts to an array of `object`. Does that make the store on the second line safe? What does this print?
+    language: csharp
+    code: |
+      object[] items = new string[1];
+      try { items[0] = 1; Console.WriteLine("stored"); }
+      catch (ArrayTypeMismatchException) { Console.WriteLine("mismatch"); }
+    accepted:
+      - mismatch
+    mistakes:
+      - answers:
+          - stored
+        feedback: 'The array really is a `string[]`. The conversion to `object[]` is allowed, so the compiler accepts the store, and the runtime checks it and throws `ArrayTypeMismatchException`.'
+    hints:
+      - What is the real type of the array on the heap?
+  - id: step.csharp.variance.check-covariance
+    type: choice
+    title: Which conversion compiles?
+    prompt: |
+      `IEnumerable<out T>`, `List<T>` and `string` are involved. Which of these assignments compiles?
+    options:
+      - text: '`IEnumerable<object> o = new List<string>();`'
+        correct: true
+        feedback: 'Right. `IEnumerable<out T>` only gives out `T`s, so a sequence of strings is safely a sequence of objects.'
+      - text: '`List<object> o = new List<string>();`'
+        correct: false
+        feedback: '`List<T>` is invariant. If this compiled, `o.Add(1)` would put an `int` in a list of strings, which is the array problem again.'
+      - text: '`IEnumerable<object> o = new List<int>();`'
+        correct: false
+        feedback: 'Variance works only when the conversion between the type arguments is a reference conversion. `int` to `object` boxes, so it does not count.'
+    hints:
+      - Which of them would let someone write the wrong type into the collection afterwards?
+  - id: step.csharp.variance.check-contravariance
+    type: choice
+    title: The other direction
+    prompt: |
+      `IComparer<in T>` only takes `T`s in, to compare them. A `Sort` needs an `IComparer<string>`. Which one can you pass?
+    options:
+      - text: An `IComparer<object>`
+        correct: true
+        feedback: 'Right. Something that can compare any two objects can compare any two strings. With `in`, `Thing<Base>` converts to `Thing<Derived>`: the opposite direction from `out`.'
+      - text: An `IComparer<char>`
+        correct: false
+        feedback: 'There is no conversion from `string` to `char`, so nothing about this comparer fits strings.'
+      - text: Nothing but an `IComparer<string>`
+        correct: false
+        feedback: '`IComparer<in T>` is declared contravariant, so a comparer of a base type is accepted.'
+    hints:
+      - A comparer that can handle every `object` can certainly handle the `string`s.
+  - id: step.csharp.variance.largest
+    type: write-code
+    title: Largest, with a constraint
+    prompt: |
+      `Largest` returns the biggest item of a non-empty list. Add the constraint that `T` is `IComparable<T>` and finish the loop, so it works for `int`, `string` or any other comparable type.
+    language: csharp
+    largeScreenPreferred: true
+    entrypoint: Largest
+    starter: |
+      static T Largest<T>(IReadOnlyList<T> items)
+      {
+          return items[0];
+      }
+    solution: |
+      static T Largest<T>(IReadOnlyList<T> items) where T : IComparable<T>
+      {
+          var best = items[0];
+          for (var i = 1; i < items.Count; i++)
+          {
+              if (items[i].CompareTo(best) > 0) best = items[i];
+          }
+          return best;
+      }
+    tests:
+      - input: 'new[] { 3, 9, 4 }'
+        expected: '9'
+      - input: 'new[] { "b", "z", "a" }'
+        expected: '"z"'
+      - input: 'new[] { 2.5, -1.0 }'
+        expected: '2.5'
+    phoneAlternative:
+      id: step.csharp.variance.largest.fill
+      type: fill-blank
+      title: Complete the constraint
+      prompt: |
+        `Largest` keeps the best item seen so far.
+      language: csharp
+      template: |
+        static T Largest<T>(IReadOnlyList<T> items) where T : {{constraint}}
+        {
+            var best = items[0];
+            for (var i = 1; i < items.Count; i++)
+            {
+                if (items[i].{{call}} > 0) best = items[i];
+            }
+            return best;
+        }
+      blanks:
+        - id: constraint
+          accepted:
+            - 'IComparable<T>'
+          mistakes:
+            - answers:
+                - 'IComparable'
+              feedback: 'The non-generic `IComparable` compares `object`s, so a struct would be boxed. `IComparable<T>` is the one that takes a `T`.'
+        - id: call
+          accepted:
+            - 'CompareTo(best)'
+          mistakes:
+            - answers:
+                - 'CompareTo(items[i])'
+              feedback: 'That compares the item with itself. Compare the item with the best so far.'
+    hints:
+      - 'The constraint goes after the parameter list, as `where T : ...`.'
+      - '`a.CompareTo(b)` is positive when `a` is greater than `b`.'
+  - id: step.csharp.variance.recap
+    type: explain
+    title: Contract and direction
+    body: |
+      - A constraint is a contract. It makes members of the constraint callable on `T`, and the compiler enforces it at each call.
+      - A constrained call on a struct is made on the value itself (`constrained.`), so a generic algorithm over `int` costs nothing extra. Taking `IComparable` as a parameter instead boxes.
+      - `out T` (covariant): `IEnumerable<string>` is an `IEnumerable<object>`. `in T` (contravariant): `IComparer<object>` is an `IComparer<string>`. Both only for reference types.
+      - `List<T>` is invariant because it reads and writes. Arrays are covariant for historical reasons and pay for it with a runtime check on every store.
+
+      The next lesson uses constraints for something new: requiring that `T` itself, the type and not an instance, provides members.

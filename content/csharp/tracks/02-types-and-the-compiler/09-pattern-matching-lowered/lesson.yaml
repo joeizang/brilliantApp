@@ -1,0 +1,202 @@
+id: lesson.csharp.pattern-matching-lowered
+title: Pattern matching, lowered
+concepts:
+  - id: concept.csharp.pattern-arm-order
+    title: Switch arms are tried in order and the first match wins
+  - id: concept.csharp.pattern-type-test
+    title: A type pattern is an isinst test, and null never matches it
+  - id: concept.csharp.pattern-list
+    title: A list pattern checks the length before it reads an element
+  - id: concept.csharp.pattern-exhaustive
+    title: A switch expression with no matching arm throws
+reviewItems:
+  - id: review.csharp.pattern-arm-order
+    concept: concept.csharp.pattern-arm-order
+    step: step.csharp.patterns.predict-arms
+  - id: review.csharp.pattern-type-test
+    concept: concept.csharp.pattern-type-test
+    step: step.csharp.patterns.lowered-is
+  - id: review.csharp.pattern-list
+    concept: concept.csharp.pattern-list
+    step: step.csharp.patterns.lowered-list
+  - id: review.csharp.pattern-exhaustive
+    concept: concept.csharp.pattern-exhaustive
+    step: step.csharp.patterns.check-exhaustive
+steps:
+  - id: step.csharp.patterns.intro
+    type: explain
+    title: Patterns are tests, in an order
+    body: |
+      `is`, `switch` statements and `switch` expressions all ask the same question: does this value have this shape, and if so, name its parts?
+      The shapes are **patterns**: type (`string s`), constant (`0`, `null`), relational (`> 10`), property (`{ Age: > 18 }`), list (`[var a, .., var b]`) and
+      the combinators `and`, `or`, `not`.
+
+      None of this is new machinery. The compiler turns every pattern into ordinary tests and assignments, and it is allowed to reorder or share them if the
+      result is the same. What it must preserve is the *meaning*: arms are considered top to bottom, and a `when` clause runs only for an arm whose pattern matched.
+  - id: step.csharp.patterns.predict-arms
+    type: predict-output
+    title: Which arms run
+    prompt: |
+      `Log` prints its first argument and returns the second. What does this program print?
+    language: csharp
+    code: |
+      var v = 5;
+      var result = v switch
+      {
+          var x when Log("a", x > 10) => 1,
+          var x when Log("b", x > 3) => 2,
+          var x when Log("c", true) => 3,
+          _ => 0,
+      };
+      Console.WriteLine(result);
+
+      static bool Log(string s, bool r) { Console.Write(s); return r; }
+    accepted:
+      - 'ab2'
+    mistakes:
+      - answers:
+          - 'abc2'
+          - 'abc3'
+        feedback: 'The first arm whose pattern and `when` both succeed is taken, and the rest are never tried. `c` is not printed.'
+      - answers:
+          - 'a1'
+          - 'a'
+        feedback: '`x > 10` is false for 5, so the first arm does not match and the next arm is tried.'
+    hints:
+      - Stop at the first arm that matches. Which `when` is the first to be true?
+  - id: step.csharp.patterns.lowered-is
+    type: lowered
+    title: What is string s compiles to
+    prompt: |
+      `o is string s` is a type pattern. In the IL view, which instruction does the type test, and what does it produce when `o` is `null`?
+    code: |
+      static class Demo
+      {
+          public static int Len(object o)
+          {
+              if (o is string s) return s.Length;
+              return -1;
+          }
+      }
+    options:
+      - text: '`isinst`, which produces `null` for a `null` or non-matching `o`, so the pattern is false'
+        correct: true
+        feedback: 'Right. `isinst` never throws: it returns the reference as that type, or `null`. So `null is string` is false, and the compiler only needs one null check to know whether the pattern matched.'
+      - text: '`castclass`, which throws `InvalidCastException` if the type is wrong, caught by a hidden `try`'
+        correct: false
+        feedback: 'A pattern never throws. `castclass` would, and the compiler does not hide a try block behind `is`.'
+      - text: A call to `o.GetType()` compared with `typeof(string)`
+        correct: false
+        feedback: 'That would throw for `null`, and would miss subclasses. `isinst` is the cheap, non-throwing test.'
+    hints:
+      - The instruction is the IL form of the `as` operator.
+  - id: step.csharp.patterns.lowered-list
+    type: lowered
+    title: A list pattern, lowered
+    prompt: |
+      `a is [var first, .., var last]` matches an array with at least two elements. Looking at the lowered C#, what does the compiler check before it reads any element?
+    code: |
+      static class Demo
+      {
+          public static int Ends(int[] a)
+          {
+              if (a is [var first, .., var last]) return first + last;
+              return 0;
+          }
+      }
+    options:
+      - text: 'That `a` is not null and its `Length` is at least 2'
+        correct: true
+        feedback: 'Right. The slice `..` stands for any number of elements, including none, so the pattern needs at least the two named elements. After the length check, the elements are read by index (`a[0]`, and the last one counted from the end).'
+      - text: Nothing. It reads `a[0]` and `a[^1]` and catches `IndexOutOfRangeException`
+        correct: false
+        feedback: 'Patterns do not use exceptions for control flow. A short array simply makes the pattern false.'
+      - text: It copies the array into a list and matches the list
+        correct: false
+        feedback: 'No copy is made. The compiler uses the array''s `Length` and indexer directly. For types that are not arrays, it uses `Count` and an indexer, or the type must be countable and indexable.'
+    hints:
+      - How many elements must exist for both `first` and `last` to be named?
+  - id: step.csharp.patterns.check-exhaustive
+    type: choice
+    title: When no arm matches
+    prompt: |
+      A switch expression has the arms `< 0 => "neg"` and `0 => "zero"`, and is evaluated for `5`. What happens?
+    options:
+      - text: 'The compiler warned (CS8509) that the switch is not exhaustive, and at run time it throws `SwitchExpressionException`'
+        correct: true
+        feedback: 'Right. A switch expression must produce a value, so it has no fall-through. The warning tells you at build time which value is missing; the exception is what you get if you ignore it.'
+      - text: It returns `default` for the result type
+        correct: false
+        feedback: 'Never. A `switch` statement may match nothing and do nothing, but an expression has to produce a value or throw.'
+      - text: It is a compile error and the program does not build
+        correct: false
+        feedback: 'It is a warning by default (CS8509). The program builds, which is why adding a `_` arm, or covering every case, is a habit worth having.'
+    hints:
+      - An expression has to produce a value for every input. What does it do when it cannot?
+  - id: step.csharp.patterns.describe
+    type: write-code
+    title: Describe an array
+    prompt: |
+      Finish `Describe` with a switch expression on list patterns: an empty array gives `"empty"`, a one-element array `"one:" + that element`, and anything longer
+      `"first-last"` using its first and last elements, such as `"1-3"`.
+    language: csharp
+    largeScreenPreferred: true
+    entrypoint: Describe
+    starter: |
+      static string Describe(int[] xs) => xs switch
+      {
+          _ => "",
+      };
+    solution: |
+      static string Describe(int[] xs) => xs switch
+      {
+          [] => "empty",
+          [var x] => $"one:{x}",
+          [var first, .., var last] => $"{first}-{last}",
+      };
+    tests:
+      - input: 'new int[0]'
+        expected: '"empty"'
+      - input: 'new[] { 7 }'
+        expected: '"one:7"'
+      - input: 'new[] { 1, 2, 3 }'
+        expected: '"1-3"'
+      - input: 'new[] { 4, 9 }'
+        expected: '"4-9"'
+    phoneAlternative:
+      id: step.csharp.patterns.describe.fill
+      type: fill-blank
+      title: Complete the patterns
+      prompt: |
+        Three list patterns cover every length: none, one, and two or more.
+      language: csharp
+      template: |
+        static string Describe(int[] xs) => xs switch
+        {
+            {{empty}} => "empty",
+            [var x] => $"one:{x}",
+            [var first, {{slice}}, var last] => $"{first}-{last}",
+        };
+      blanks:
+        - id: empty
+          accepted:
+            - '[]'
+        - id: slice
+          accepted:
+            - '..'
+          mistakes:
+            - answers:
+                - '...'
+              feedback: 'The slice pattern is two dots, `..`.'
+    hints:
+      - The empty list pattern is `[]`, and the last arm needs a slice `..` between the two named elements.
+  - id: step.csharp.patterns.recap
+    type: explain
+    title: What the compiler turns patterns into
+    body: |
+      - A switch expression is a chain of tests in source order; the first arm whose pattern *and* `when` succeed wins, and later arms are not evaluated.
+      - A type pattern is `isinst` and a null check; `null` never matches a type pattern, so `is not string` is true for `null`.
+      - A list pattern on an array checks the length first, then reads elements by index.
+      - A switch expression that can fall through is warned about (CS8509) and throws `SwitchExpressionException` at run time.
+
+      The compiler may share tests between arms, but it may not change what the code means, so you can read patterns as the straight-line tests above.
