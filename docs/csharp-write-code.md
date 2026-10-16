@@ -33,7 +33,7 @@ contexts are not guaranteed to be reclaimed by the runtime. Printing is capped a
 
 ## Allocation budgets (#151)
 
-A C# test may declare `maxAllocatedBytes`, the most heap memory one call of the entrypoint may allocate (0 to 1,000,000):
+A C# test may declare `maxAllocatedBytes`, the most heap memory one call of the entrypoint may allocate (0 to 1,000,000). The `allocations` step ([csharp-allocations-step.md](csharp-allocations-step.md)) builds on this: its `rewrite` variant is a write-code step that must declare a budget, and its `predict` variant asks the learner what the measurement will be.
 
 ```yaml
 tests:
