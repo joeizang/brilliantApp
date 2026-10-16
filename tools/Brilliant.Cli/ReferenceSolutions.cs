@@ -14,6 +14,9 @@ internal sealed record ReferenceCheck(string File, string Label, string StepId, 
 internal sealed record TraceCheck(string File, string Label, string Code, IReadOnlyList<Visual> Visuals, string Language = "python",
     string StepId = "", bool IsWalkthrough = false);
 
+/// <summary>A <c>lowered</c> step's snippet, waiting to be compiled so the pack can carry what the compiler made of it.</summary>
+internal sealed record LoweringCheck(string File, string Label, string Code, string StepId);
+
 /// <summary>Runs source in one language against an exercise's tests. Production adapters use CPython or the C# compiler gate; tests may substitute a fake.</summary>
 public interface IReferenceSolutionRunner
 {

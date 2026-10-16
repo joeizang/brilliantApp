@@ -1,0 +1,21 @@
+using System;
+using System.IO;
+
+internal static class Demo
+{
+    public static string FirstLine(string path)
+    {
+        StreamReader streamReader = new StreamReader(path);
+        try
+        {
+            return streamReader.ReadLine() ?? "";
+        }
+        finally
+        {
+            if (streamReader != null)
+            {
+                ((IDisposable)streamReader).Dispose();
+            }
+        }
+    }
+}

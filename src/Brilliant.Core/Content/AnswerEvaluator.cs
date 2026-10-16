@@ -43,6 +43,24 @@ public static class AnswerEvaluator
         return Judge(step.Accepted, step.Mistakes, response);
     }
 
+    /// <summary>Typed lowered step: judged like a typed prediction.</summary>
+    public static AnswerResult Evaluate(LoweredStep step, string? response)
+    {
+        if (!step.IsTyped) throw new InvalidOperationException($"Step '{step.Id}' is multiple-choice; pass the selected option index.");
+        return Judge(step.Accepted, step.Mistakes, response);
+    }
+
+    /// <summary>Multiple-choice lowered step: the picked option's own feedback is returned either way.</summary>
+    public static AnswerResult Evaluate(LoweredStep step, int optionIndex)
+    {
+        if (step.IsTyped) throw new InvalidOperationException($"Step '{step.Id}' is typed; pass the response text.");
+        if (optionIndex < 0 || optionIndex >= step.Options.Count)
+            throw new ArgumentOutOfRangeException(nameof(optionIndex), "Option index is out of range.");
+
+        var option = step.Options[optionIndex];
+        return new AnswerResult(option.Correct, option.Feedback);
+    }
+
     /// <summary>
     /// Fill-in-the-blank: each blank is judged on its own, like a typed prediction. A blank missing from
     /// <paramref name="responses"/> counts as left empty, so it is wrong.

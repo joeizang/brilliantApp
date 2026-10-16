@@ -1,0 +1,23 @@
+using System;
+using System.Runtime.CompilerServices;
+
+internal static class Demo
+{
+    [CompilerGenerated]
+    private sealed class <>c__DisplayClass0_0
+    {
+        public int count;
+
+        internal int <Counter>b__0()
+        {
+            return count++;
+        }
+    }
+
+    public static Func<int> Counter(int start)
+    {
+        <>c__DisplayClass0_0 obj = new <>c__DisplayClass0_0();
+        obj.count = start;
+        return new Func<int>(obj.<Counter>b__0);
+    }
+}

@@ -1,0 +1,10 @@
+using System.Threading.Tasks;
+
+static class Demo
+{
+    public static async Task<int> FetchAsync(int n)
+    {
+        await Task.Delay(1);
+        return n * 2;
+    }
+}

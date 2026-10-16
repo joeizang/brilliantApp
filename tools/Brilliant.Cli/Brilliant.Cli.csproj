@@ -9,6 +9,8 @@
 
   <ItemGroup>
     <PackageReference Include="YamlDotNet" Version="18.1.0" />
+    <!-- Pack-time only: reads the compiler's output back as lowered C# and IL. Never referenced by the app. -->
+    <PackageReference Include="ICSharpCode.Decompiler" Version="11.1.0.9782" />
   </ItemGroup>
 
   <ItemGroup>
@@ -16,6 +18,10 @@
     <EmbeddedResource Include="..\..\src\Brilliant.Runtime.Python\wwwroot\python\harness.py" LogicalName="harness.py" />
     <!-- ...and the trace recorder, to prove a trace step's code runs and draws what the lesson says it does. -->
     <EmbeddedResource Include="..\..\src\Brilliant.Runtime.Python\wwwroot\python\tracer.py" LogicalName="tracer.py" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Brilliant.Cli.Tests" />
   </ItemGroup>
 
   <ItemGroup>
