@@ -38,6 +38,19 @@ public sealed class CSharpTrack1ContentTests
         }
     }
 
+    [Fact]
+    public void Async_track_covers_the_required_mechanics_with_recorded_timelines()
+    {
+        var track = Assert.Single(Shipped.Value.Tracks, track => track.Id == "track.csharp.async-in-depth");
+        var lessons = track.LessonIds.Select(Shipped.Value.Get<Lesson>).ToList();
+
+        Assert.Equal(4, lessons.Count);
+        Assert.Contains(lessons.SelectMany(lesson => lesson.Steps), step => step is AsyncTimelineStep);
+        Assert.Contains(lessons.SelectMany(lesson => lesson.Steps), step => step is LoweredStep);
+        Assert.Contains(lessons.SelectMany(lesson => lesson.Steps), step => step.Id == "step.csharp.contexts.timeline-deadlock");
+        Assert.Contains(lessons.SelectMany(lesson => lesson.Steps), step => step.Id == "step.csharp.streams.check-bounded");
+    }
+
     private static string FindManifest()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
