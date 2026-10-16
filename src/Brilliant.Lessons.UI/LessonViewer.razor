@@ -1,4 +1,5 @@
 @using Brilliant.Core.Progress
+@using Brilliant.Core.Review
 @implements IDisposable
 @inject ProgressRecorder Recorder
 @inject StepShortcuts Shortcuts
@@ -26,9 +27,20 @@
     <span>@(step is null ? (Review ? "Review finished" : "Lesson complete") : newSteps > 0 ? $"{newSteps} new {(newSteps == 1 ? "step" : "steps")} since you finished" : $"{total - done} of {total} steps remaining")</span>
 </div>
 
-@if (step is not null)
+@if (!Review && _testing)
+{
+    <TestOutView Lesson="Lesson" OnPassed="PassedTestOut" OnMissed="() => _testing = false" />
+}
+else if (step is not null)
 {
     var shown = Shown(step);
+    @if (!Review && LessonTestOut.IsOffered(progress))
+    {
+        <div class="testout-offer content-column mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-hairline bg-surface-raised px-4 py-3 text-[.95rem]">
+            <span class="flex-1">Already know this? Answer @LessonTestOut.Select(Lesson).Count questions from the lesson and skip it. A miss costs nothing.</span>
+            <button class="secondary btn-secondary" @onclick="() => _testing = true">I know this — test me</button>
+        </div>
+    }
     <div @key="step.Id">
         @if ((step.LargeScreenPreferred && Screen.IsPhone) || Screen.RequiresPhoneAlternative(step))
         {
@@ -85,7 +97,7 @@
 }
 else
 {
-    <p class="lesson-done content-column mt-12 mb-12 text-[1.3rem]">@(Review ? "That's the whole lesson." : "You've finished this lesson. 🎉")</p>
+    <p class="lesson-done content-column mt-12 mb-12 text-[1.3rem]">@(Review ? "That's the whole lesson." : progress.TestedOut && !progress.CompletionRecorded ? "You tested out of this lesson. 🎉" : "You've finished this lesson. 🎉")</p>
     <div class="step-actions content-column pb-6"><button class="primary btn-primary" @onclick="Finish">@(FinishedText ?? "Back to track")</button></div>
 }
 
@@ -109,6 +121,7 @@ else
     private int _reviewIndex;
     private IDisposable? _shortcuts;
     private bool _useAlternative;
+    private bool _testing;
 
     protected override void OnInitialized()
     {
@@ -147,6 +160,12 @@ else
         }
         StateHasChanged();
     });
+
+    private async Task PassedTestOut()
+    {
+        _testing = false;
+        await OnProgress.InvokeAsync();
+    }
 
     private Task Finish() => (OnFinished.HasDelegate ? OnFinished : OnExit).InvokeAsync();
 

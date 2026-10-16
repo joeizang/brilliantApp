@@ -18,7 +18,7 @@ public static class LearnerStateFingerprint
         var lines = new List<string>();
 
         foreach (var l in state.Tracks.SelectMany(t => t.Lessons))
-            lines.Add($"lesson {l.Lesson.Id} {l.Status} {l.Progress.CompletedCount}/{l.Progress.TotalSteps} next={l.Progress.NextStep?.Id} new={l.Progress.NewSteps.Count} recorded={l.Progress.CompletionRecorded}");
+            lines.Add($"lesson {l.Lesson.Id} {l.Status} {l.Progress.CompletedCount}/{l.Progress.TotalSteps} next={l.Progress.NextStep?.Id} new={l.Progress.NewSteps.Count} recorded={l.Progress.CompletionRecorded} testedOut={l.Progress.TestedOut}");
 
         var t = state.Today;
         lines.Add($"today goal={t.GoalSteps} done={t.DoneToday} streak={t.Streak} due={t.ReviewsDue} next={t.NextLesson?.Lesson.Id} session={t.Session?.LessonId}@{t.Session?.StartedAt.UtcTicks}");

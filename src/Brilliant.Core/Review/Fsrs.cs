@@ -42,6 +42,15 @@ public static class FsrsScheduler
         return Next(stability, difficulty, now, rating, card.Reps + 1, card.Lapses + (rating == Rating.Again ? 1 : 0));
     }
 
+    /// <summary>Stability, in days, of an item the learner has shown they already know (see <see cref="Known"/>).</summary>
+    public const double KnownStabilityDays = 30;
+
+    /// <summary>
+    /// The card for an item the learner proved they know without answering it in Review (a perfect test-out, #146): as strong as a long,
+    /// successful history would make it, and as easy as a first "Easy". Real answers after it go through <see cref="Schedule"/> as usual.
+    /// </summary>
+    public static CardState Known(DateTimeOffset at) => Next(KnownStabilityDays, InitialDifficulty(4), at, Rating.Easy, reps: 1, lapses: 0);
+
     /// <summary>The chance (0–1) the learner can still recall the item at <paramref name="now"/>.</summary>
     public static double Retrievability(CardState card, DateTimeOffset now) =>
         Retrievability(Math.Max(0, (now - card.LastReview).TotalDays), card.Stability);

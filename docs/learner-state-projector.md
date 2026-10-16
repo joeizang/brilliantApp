@@ -27,6 +27,7 @@ Progress attaches to stable step and lesson IDs, never to positions.
 | Lesson deleted | Its events are ignored. |
 | Step added to an **unfinished** lesson | Just another remaining step. |
 | Step added to a **finished** lesson | The lesson stays `Completed`, the next lesson stays unlocked, and the step is listed in `NewSteps`. The track screen shows "N new steps" with a **Play new step(s)** button and a secondary **Review** button, and the lesson player offers only those steps. Finishing them clears the marker and does not record `LessonCompleted` again. |
+| Lesson **tested out** (`LessonTestedOut`) | The lesson is `Completed` without its steps being played: no next step, no "new" steps, no `LessonCompleted`, and its review items start as already known. See [lesson-test-out.md](lesson-test-out.md). |
 
 `LessonProgress.CurrentStep` is `null` for a finished lesson; `NextStep` is the first step without a `StepCompleted`
 event either way, which is what the lesson player uses.

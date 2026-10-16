@@ -32,7 +32,7 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
         var recorded = 0;
         foreach (var lesson in Project(content).Tracks.SelectMany(t => t.Lessons))
         {
-            if (lesson.Status != LessonStatus.Completed || lesson.Progress.CompletionRecorded || lesson.Progress.TotalSteps == 0) continue;
+            if (lesson.Status != LessonStatus.Completed || lesson.Progress.CompletionRecorded || lesson.Progress.TestedOut || lesson.Progress.TotalSteps == 0) continue;
             Append(ProgressEventTypes.LessonCompleted, lesson.Lesson.Id, "", null);
             recorded++;
         }
@@ -81,6 +81,13 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
         if (progress.IsComplete && !progress.CompletionRecorded)
             Append(ProgressEventTypes.LessonCompleted, lesson.Id, "", null);
     }
+
+    /// <summary>
+    /// Records that the learner passed the lesson's test-out with <paramref name="asked"/>. Only ever called for a perfect attempt: a miss
+    /// records nothing, so it can't touch the schedule.
+    /// </summary>
+    public void LessonTestedOut(Lesson lesson, IReadOnlyList<ReviewItem> asked) =>
+        Append(ProgressEventTypes.LessonTestedOut, lesson.Id, "", JsonSerializer.Serialize(new { items = asked.Select(i => i.Id) }));
 
     /// <summary>Records a review answer with an explicit rating.</summary>
     public void ReviewAnswered(string lessonId, ReviewItem item, bool correct, int hintsUsed, TimeSpan elapsed, Rating rating) =>

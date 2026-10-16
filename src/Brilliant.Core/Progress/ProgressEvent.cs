@@ -18,6 +18,13 @@ public static class ProgressEventTypes
     public const string LessonCompleted = "LessonCompleted";
 
     /// <summary>
+    /// The learner passed a lesson's test-out: every one of its 3–4 questions right on the first try. Data holds the <c>items</c> asked. It
+    /// completes the lesson without its steps being played and seeds the lesson's review items as already known. A failed attempt records
+    /// nothing at all. Lesson-level, empty StepId.
+    /// </summary>
+    public const string LessonTestedOut = "LessonTestedOut";
+
+    /// <summary>
     /// A review item was answered. Data holds the item ID, correctness, hints used, time taken and the FSRS rating
     /// that was inferred; the rating is stored so the schedule replays identically even if inference is tuned later.
     /// </summary>
