@@ -1132,6 +1132,27 @@ public sealed class TraceStepValidatorTests : IDisposable
         Assert.DoesNotContain(m, x => x.Contains("function 'fact'"));
     }
 
+    // ---- Memory (stack and heap) ----
+
+    [Fact]
+    public void A_memory_view_is_for_csharp_code_only()
+    {
+        var m = Errors(Head + Body + Fact + "    visualise:\n      - as: memory\n", new FakeRunner((_, _) => CallTrace("fact")));
+
+        Assert.Contains(m, x => x.Contains("a memory view is for C# code") && x.Contains("python"));
+    }
+
+    [Fact]
+    public void A_memory_view_takes_no_variable_and_no_pointers_and_is_drawn_once()
+    {
+        var m = Errors(Head + Body + Fact + "    visualise:\n      - as: memory\n        variable: n\n        pointers: [n]\n      - as: memory\n",
+            new FakeRunner((_, _) => CallTrace("fact")));
+
+        Assert.Contains(m, x => x.Contains("visualise[0]") && x.Contains("a memory draws the stack and heap") && x.Contains("leave 'variable' out"));
+        Assert.Contains(m, x => x.Contains("visualise[0]") && x.Contains("has no pointers"));
+        Assert.Contains(m, x => x.Contains("visualise[1]") && x.Contains("memory view is already drawn by visualise[0]"));
+    }
+
     [Fact]
     public void Real_cpython_traces_a_recursive_call_stack()
     {

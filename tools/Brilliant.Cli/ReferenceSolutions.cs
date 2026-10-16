@@ -304,6 +304,7 @@ internal static class ReferenceSolutionChecker
                         Visual.CallStack => visual.Functions.Count == 0
                             ? "the code never calls a method or local function of its own, so the call stack has nothing to draw."
                             : $"the code never calls {string.Join(" or ", visual.Functions.Select(f => $"'{f}'"))}, so the call stack has nothing to draw.",
+                        Visual.Memory => "the code never has a local variable or an object to show, so the memory view has nothing to draw.",
                         _ => $"variable '{visual.Variable}' is never an array, List<T>, Stack<T> or Queue<T> in the trace, so there is nothing to draw.",
                     };
                     continue;
@@ -351,6 +352,7 @@ internal static class ReferenceSolutionChecker
                 foreach (var problem in DescribeGraph(result, visual, language)) yield return problem;
                 continue;
             }
+            if (visual.As == Visual.Memory) continue;
             if (visual.As == Visual.CallStack)
             {
                 foreach (var function in visual.Functions)
@@ -471,6 +473,7 @@ internal static class ReferenceSolutionChecker
         Visual.Tree => frame.Trees is not null && frame.Trees.TryGetValue(visual.Variable, out var tree) && tree.Root is not null,
         Visual.LinkedList => frame.Lists is not null && frame.Lists.TryGetValue(visual.Variable, out var list) && list.Head is not null,
         Visual.CallStack => frame.Calls is { Frames.Count: > 0 },
+        Visual.Memory => frame.Memory is { } memory && (memory.Objects.Count > 0 || memory.Frames.Any(f => f.Slots.Count > 0)),
         _ when Visual.Sequences.Contains(visual.As) => frame.Tracked.TryGetValue(visual.Variable, out var tracked) && tracked.Draws(visual.As),
         _ => frame.Tables is not null && frame.Tables.TryGetValue(visual.Variable, out var table) && table.Kind == visual.As,
     };

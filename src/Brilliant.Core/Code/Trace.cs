@@ -130,6 +130,39 @@ public sealed record ReturnedValue(string Function, string Value, int? To);
 /// </summary>
 public sealed record TrackedCalls(IReadOnlyList<RecordedCall> Frames, int More, ReturnedValue? Returned);
 
+/// <summary>
+/// One place that holds a value, as recorded: a local, a field or an array element. It holds a primitive or string inline
+/// (<see cref="Value"/>), a struct inline (<see cref="Fields"/>: the struct's own fields, copied with it), or a reference to a heap object
+/// (<see cref="Ref"/>: the object's <see cref="MemoryObject.Id"/>; null with <see cref="Value"/> "null" for a null reference).
+/// </summary>
+public sealed record MemorySlot(string Name, string Type, string? Value, int? Ref = null, IReadOnlyList<MemorySlot>? Fields = null);
+
+/// <summary>
+/// A call's locals on the stack. <see cref="Id"/> is the call's (the same at every step it is under way; -1 for the code outside any method),
+/// <see cref="Function"/> its method.
+/// </summary>
+public sealed record MemoryFrame(int Id, string Function, IReadOnlyList<MemorySlot> Slots);
+
+/// <summary>
+/// An object on the heap. <see cref="Kind"/> is <see cref="MemoryKinds.Class"/> (an instance of a class, its fields in <see cref="Slots"/>),
+/// <see cref="MemoryKinds.Box"/> (a value type boxed: the one slot is the value copied out of its variable) or <see cref="MemoryKinds.Array"/>
+/// (its elements, <c>[0]</c> on; <see cref="More"/> counts the ones cut off). <see cref="Id"/> is the same at every step the object is alive.
+/// </summary>
+public sealed record MemoryObject(int Id, string Type, string Kind, IReadOnlyList<MemorySlot> Slots, int More = 0);
+
+public static class MemoryKinds
+{
+    public const string Class = "class";
+    public const string Box = "box";
+    public const string Array = "array";
+}
+
+/// <summary>
+/// The stack and the heap at one step: the frames outermost first (the running call is last; at most the innermost ones, <see cref="MoreFrames"/>
+/// counts the outer ones cut off) and every heap object they reach, directly or through other objects.
+/// </summary>
+public sealed record TrackedMemory(IReadOnlyList<MemoryFrame> Frames, IReadOnlyList<MemoryObject> Objects, int MoreFrames = 0);
+
 /// <summary>A heap's cells, front (index 0, its root) first, at most five levels of them; <paramref name="More"/> counts the rest.</summary>
 public sealed record TrackedHeap(string Type, IReadOnlyList<string> Cells, int More);
 
@@ -150,7 +183,8 @@ public sealed record TraceFrame(
     IReadOnlyDictionary<string, TrackedTree>? Trees = null,
     IReadOnlyDictionary<string, TrackedGrid>? Grids = null,
     IReadOnlyDictionary<string, TrackedGraph>? Graphs = null,
-    IReadOnlyDictionary<string, TrackedHeap>? Heaps = null);
+    IReadOnlyDictionary<string, TrackedHeap>? Heaps = null,
+    TrackedMemory? Memory = null);
 
 /// <summary>What the Python tracer (wwwroot/python/tracer.py) recorded.</summary>
 public sealed record TraceResult(
@@ -199,7 +233,7 @@ public static class TraceResultJson
 
         var watch = new JsonArray();
         var seen = new HashSet<string>();
-        foreach (var v in visuals.Where(v => Visual.Kinds.Contains(v.As) && seen.Add(v.As == Visual.CallStack ? "<call stack>" : v.Variable)))
+        foreach (var v in visuals.Where(v => Visual.Kinds.Contains(v.As) && seen.Add(v.As == Visual.CallStack ? "<call stack>" : v.As == Visual.Memory ? "<memory>" : v.Variable)))
             watch.Add(v.As switch
             {
                 Visual.LinkedList => new JsonObject
@@ -225,6 +259,7 @@ public static class TraceResultJson
                 },
                 Visual.Heap => new JsonObject { ["variable"] = v.Variable, ["as"] = v.As },
                 Visual.CallStack => new JsonObject { ["as"] = v.As, ["functions"] = Names(v.Functions) },
+                Visual.Memory => new JsonObject { ["as"] = v.As },
                 _ => JsonValue.Create(v.Variable),
             });
         return watch.ToJsonString();
@@ -439,6 +474,27 @@ public sealed record HeapView(string Variable, IReadOnlyList<HeapCellView> Cells
     public IReadOnlyList<HeapGoneCell> Gone { get; init; } = Gone ?? [];
 }
 
+/// <summary>
+/// A slot as drawn. <see cref="Changed"/>: its value, or the object it refers to, is not what it was the step before (or, for a struct,
+/// one of its <see cref="Fields"/> is not), or it is new on a frame that was already there.
+/// </summary>
+public sealed record SlotView(string Name, string Type, string? Value, int? Ref, IReadOnlyList<SlotView> Fields, bool Changed = false)
+{
+    public bool IsStruct => Fields.Count > 0;
+}
+
+/// <summary>A call's frame on the stack. <see cref="Pushed"/>: the call began since the step before.</summary>
+public sealed record MemoryFrameView(int Id, string Function, IReadOnlyList<SlotView> Slots, bool Running, bool Pushed);
+
+/// <summary>An object on the heap. <see cref="Added"/>: it did not exist the step before (a boxing, a <c>new</c>).</summary>
+public sealed record MemoryObjectView(int Id, string Type, string Kind, IReadOnlyList<SlotView> Slots, int More, bool Added);
+
+/// <summary>The stack and heap at a step: frames outermost first (the running one last), and the heap objects they reach.</summary>
+public sealed record MemoryView(IReadOnlyList<MemoryFrameView> Frames, IReadOnlyList<MemoryObjectView> Objects, int MoreFrames)
+{
+    public MemoryObjectView? Object(int id) => Objects.FirstOrDefault(o => o.Id == id);
+}
+
 /// <summary>One step of the player: what to highlight and draw. <see cref="Line"/> is null on the final state.</summary>
 public sealed record TraceState(
     int Index, int? Line, string Function, bool IsFinal,
@@ -446,6 +502,8 @@ public sealed record TraceState(
     IReadOnlyList<LinkedListView>? Lists = null, CallStackView? Calls = null, IReadOnlyList<TreeView>? Trees = null,
     IReadOnlyList<GridView>? Grids = null, IReadOnlyList<GraphView>? Graphs = null, IReadOnlyList<HeapView>? Heaps = null)
 {
+    /// <summary>The stack and heap, when the example watches memory.</summary>
+    public MemoryView? Memory { get; init; }
     public IReadOnlyList<HeapView> Heaps { get; init; } = Heaps ?? [];
     public IReadOnlyList<LinkedListView> Lists { get; init; } = Lists ?? [];
     public IReadOnlyList<TreeView> Trees { get; init; } = Trees ?? [];
@@ -472,6 +530,7 @@ public static class TraceModel
         var heapVisuals = visuals.Where(v => v.As == Visual.Heap).ToList();
         var slots = graphVisuals.ToDictionary(v => v.Variable, v => Slots(result, v.Variable));
         var drawsCalls = visuals.Any(v => v.As == Visual.CallStack);
+        var drawsMemory = visuals.Any(v => v.As == Visual.Memory);
         var states = new List<TraceState>(result.Frames.Count);
         TraceFrame? previousFrame = null;
         TraceState? previous = null;
@@ -481,12 +540,48 @@ public static class TraceModel
             var state = new TraceState(index, frame.Line, frame.Function, frame.Line is null,
                 Locals(frame, comparable), Arrays(frame, arrayVisuals, comparable), Tables(frame, tableVisuals, comparable),
                 Lists(frame, listVisuals, comparable), drawsCalls ? Calls(frame, previous) : null, Trees(frame, treeVisuals, comparable),
-                Grids(frame, gridVisuals, comparable), Graphs(frame, graphVisuals, slots, comparable), Heaps(frame, heapVisuals, comparable));
+                Grids(frame, gridVisuals, comparable), Graphs(frame, graphVisuals, slots, comparable), Heaps(frame, heapVisuals, comparable))
+            {
+                // Like the call stack, memory spans the functions, so it is compared with the step before whichever function that ran in.
+                Memory = drawsMemory && frame.Memory is { } memory ? MemoryOf(memory, previousFrame?.Memory) : null,
+            };
             states.Add(state);
             previousFrame = frame;
             previous = state;
         }
         return states;
+    }
+
+    private static bool SameSlot(MemorySlot a, MemorySlot b) =>
+        a.Value == b.Value && a.Ref == b.Ref && a.Type == b.Type && (a.Fields?.Count ?? 0) == (b.Fields?.Count ?? 0)
+        && (a.Fields ?? []).Zip(b.Fields ?? [], SameSlot).All(same => same);
+
+    private static SlotView SlotOf(MemorySlot slot, MemorySlot? before, bool compare)
+    {
+        var fields = (slot.Fields ?? []).Select(f => SlotOf(f, before?.Fields?.FirstOrDefault(b => b.Name == f.Name), compare)).ToList();
+        // A slot that is new where there was a step before is a change, as a new local is in the locals list.
+        var changed = compare && (before is null || (fields.Count > 0 ? fields.Any(f => f.Changed) : !SameSlot(slot, before)));
+        return new SlotView(slot.Name, slot.Type, slot.Value, slot.Ref, fields, changed);
+    }
+
+    private static MemoryView MemoryOf(TrackedMemory memory, TrackedMemory? before)
+    {
+        var compare = before is not null;
+        var frames = memory.Frames.Select((f, i) =>
+        {
+            var was = before?.Frames.FirstOrDefault(b => b.Id == f.Id);
+            return new MemoryFrameView(f.Id, f.Function,
+                f.Slots.Select(s => SlotOf(s, was?.Slots.FirstOrDefault(b => b.Name == s.Name), compare && was is not null)).ToList(),
+                Running: i == memory.Frames.Count - 1, Pushed: compare && was is null);
+        }).ToList();
+        var objects = memory.Objects.Select(o =>
+        {
+            var was = before?.Objects.FirstOrDefault(b => b.Id == o.Id);
+            return new MemoryObjectView(o.Id, o.Type, o.Kind,
+                o.Slots.Select(s => SlotOf(s, was?.Slots.FirstOrDefault(b => b.Name == s.Name), compare && was is not null)).ToList(),
+                o.More, Added: compare && was is null);
+        }).ToList();
+        return new MemoryView(frames, objects, memory.MoreFrames);
     }
 
     private static IReadOnlyList<LocalView> Locals(TraceFrame frame, TraceState? previous) =>

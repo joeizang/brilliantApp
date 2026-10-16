@@ -283,7 +283,8 @@ public sealed record PackManifest(string PackId, string Version, int FormatVersi
 /// root node the variable holds, laid out level by level), <see cref="Heap"/> (a list kept in heap order, shown as cells and as the
 /// tree they stand for, the children of cell i at 2i+1 and 2i+2), <see cref="Grid"/> (a list of lists or strings, as a 2-D table), <see cref="Graph"/>
 /// (a dict of each node's neighbours, its nodes round a circle) or <see cref="CallStack"/> (the calls under way,
-/// one frame each, the running one on top; it draws no variable, so <see cref="Variable"/> is empty).
+/// one frame each, the running one on top; it draws no variable, so <see cref="Variable"/> is empty) or <see cref="Memory"/> (C# only: the
+/// stack frames with their locals beside the heap objects they reference, joined by arrows; it too draws no variable).
 /// <see cref="Pointers"/> name variables drawn as labelled markers: for an array, stack, queue or heap, int variables, on the cell they
 /// index (a heap's on its tree's node too); for a dict or set, variables holding a key, on the row with that key (a lookup); for a linked list or a tree, variables
 /// holding a node, on that node (or at None). <see cref="Next"/> and <see cref="Value"/> are a linked list's node attributes: the link
@@ -333,6 +334,7 @@ public sealed record Visual(string Variable, string As, IReadOnlyList<string> Po
     public const string Grid = "grid";
     public const string Graph = "graph";
     public const string CallStack = "call_stack";
+    public const string Memory = "memory";
 
     public const string DefaultNext = "next";
     public const string DefaultValue = "val";
@@ -340,7 +342,7 @@ public sealed record Visual(string Variable, string As, IReadOnlyList<string> Po
     public const string DefaultRight = "right";
 
     /// <summary>Every drawing the player knows, in the order the docs list them.</summary>
-    public static readonly IReadOnlyList<string> Kinds = [Array, Stack, Queue, Dict, Set, LinkedList, Tree, Heap, Grid, Graph, CallStack];
+    public static readonly IReadOnlyList<string> Kinds = [Array, Stack, Queue, Dict, Set, LinkedList, Tree, Heap, Grid, Graph, CallStack, Memory];
 
     /// <summary>The drawings of a sequence as cells, whose pointers are indexes.</summary>
     public static readonly IReadOnlyList<string> Sequences = [Array, Stack, Queue];

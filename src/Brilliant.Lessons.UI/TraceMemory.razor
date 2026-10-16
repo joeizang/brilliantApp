@@ -1,0 +1,241 @@
+@* The stack and the heap in the Trace Player (C#): the calls under way as frames of locals on the left, the running call on top, the objects they
+   reach on the right. A value type sits inside the frame (a struct's fields are written out beside it, so a copy is a second, separate set of
+   fields); a reference is a dot with an arrow to the heap object it points at, so two copies of a reference are two arrows to one object. A
+   value type put into an object variable is a box: a new heap object holding a copy. What changed since the step before flashes, and a new
+   frame or object grows in. *@
+@using Brilliant.Core.Code
+
+<figure class="memory mx-0 my-4 rounded-md border border-hairline bg-surface-raised px-4 pt-2 pb-4" data-kind="memory">
+    <figcaption class="memory-name mb-1 text-[.9rem] text-fg-secondary">Stack and heap <span class="ml-[.4rem] text-[.8rem]">running call on top</span></figcaption>
+    @* Laid out in user units (16 to 1rem) and scaled to the width there is, so a phone sees the whole drawing rather than scrolling it. *@
+    <svg class="memory-svg block h-auto w-full overflow-visible" role="img" aria-label="@Describe()" style="max-width: @U(Width / 16.0)rem" viewBox="0 0 @Width @Height">
+        <defs>
+            <marker id="memory-arrow-head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path class="fill-accent" d="M0 0 L10 5 L0 10 Z" />
+            </marker>
+        </defs>
+
+        <text class="fill-fg-secondary font-semibold" font-size="@U(SmallText)" x="@StackX" y="@(HeadingY)">Stack</text>
+        <text class="fill-fg-secondary font-semibold" font-size="@U(SmallText)" x="@HeapX" y="@(HeadingY)">Heap</text>
+
+        @if (View.MoreFrames > 0)
+        {
+            <g><text class="more fill-fg-secondary font-mono" font-size="@U(SmallText)" x="@StackX" y="@(Top + _stackHeight + 14)">+@View.MoreFrames more @(View.MoreFrames == 1 ? "call" : "calls") below</text></g>
+        }
+
+        @foreach (var box in _frames)
+        {
+            var frame = box.Frame;
+            <g class="@FrameClass(frame)" data-id="@frame.Id" data-function="@frame.Function" transform="translate(@StackX @box.Y)" @key="@($"frame-{frame.Id}")">
+                <title>@frame.Function</title>
+                <g class="frame-body origin-center [transform-box:fill-box] @(frame.Pushed ? "animate-cell-in" : "")">
+                    <rect class="frame-box fill-surface stroke-2 @(frame.Running ? "stroke-accent" : "stroke-border")" width="@StackW" height="@box.Height" rx="6" />
+                    <text class="frame-label fill-fg font-semibold font-mono" font-size="@U(LabelText)" x="@Pad" y="@(HeaderH / 2)" dominant-baseline="central">@Clip(frame.Function, 16)</text>
+                    @foreach (var row in box.Rows)
+                    {
+                        @Slot(row, StackW, box.Y)
+                    }
+                </g>
+            </g>
+        }
+
+        @foreach (var box in _objects)
+        {
+            var obj = box.Object;
+            <g class="@ObjectClass(obj)" data-id="@obj.Id" data-kind="@obj.Kind" transform="translate(@HeapX @box.Y)" @key="@($"object-{obj.Id}")">
+                <title>@ObjectTitle(obj)</title>
+                <g class="object-body origin-center [transform-box:fill-box] @(obj.Added ? "animate-cell-in" : "")">
+                    <rect class="object-box @(obj.Kind == MemoryKinds.Box ? "fill-accent-tint [stroke-dasharray:5_3]" : "fill-surface") stroke-border stroke-2" width="@HeapW" height="@box.Height" rx="6" />
+                    <text class="object-label fill-fg font-semibold font-mono" font-size="@U(LabelText)" x="@Pad" y="@(HeaderH / 2)" dominant-baseline="central">@Clip(ObjectLabel(obj), 11)</text>
+                    <text class="object-id fill-fg-secondary font-mono" font-size="@U(SmallText)" x="@(HeapW - Pad)" y="@(HeaderH / 2)" text-anchor="end" dominant-baseline="central">#@obj.Id</text>
+                    @foreach (var row in box.Rows)
+                    {
+                        @Slot(row, HeapW, box.Y)
+                    }
+                    @if (obj.More > 0)
+                    {
+                        <g><text class="more fill-fg-secondary font-mono" font-size="@U(SmallText)" x="@Pad" y="@(box.Height - RowH / 2)" dominant-baseline="central">+@obj.More more</text></g>
+                    }
+                </g>
+            </g>
+        }
+
+        @* The arrows go last so they are drawn over the boxes they cross. *@
+        @foreach (var arrow in Arrows())
+        {
+            <path class="@(arrow.Changed ? "arrow changed" : "arrow") fill-none stroke-accent stroke-2 @(arrow.Changed ? "animate-cell-flash" : "")" data-from="@arrow.From" data-to="@arrow.To"
+                  d="@arrow.Path" marker-end="url(#memory-arrow-head)" @key="@($"arrow-{arrow.From}-{arrow.To}-{arrow.Key}")" />
+        }
+    </svg>
+    @if (Notes().Count > 0)
+    {
+        <p class="memory-note mt-2 mb-0 text-[.9rem] text-fg-secondary">@string.Join(" ", Notes())</p>
+    }
+</figure>
+
+@code {
+    [Parameter, EditorRequired] public MemoryView View { get; set; } = default!;
+
+    [Parameter, EditorRequired] public int Step { get; set; }
+
+    private const int StackX = 4, StackW = 150, HeapW = 150, Gap = 44, HeaderH = 30, RowH = 24, Pad = 8, Top = 28, HeadingY = 14, BoxGap = 14, ArrowRoom = 24, Indent = 12;
+    private const double LabelText = 14, SmallText = 13, MonoW = .6;
+
+    private int HeapX => StackX + StackW + Gap;
+    private int Width => HeapX + HeapW + ArrowRoom;
+
+    /// <summary>A line of a box: a slot, or one field of a struct that sits inside a slot (<see cref="Depth"/> 1).</summary>
+    private sealed record Row(SlotView Slot, int Depth, bool Inline, int Index, string Path);
+
+    private sealed record FrameBox(MemoryFrameView Frame, int Y, int Height, IReadOnlyList<Row> Rows);
+    private sealed record ObjectBox(MemoryObjectView Object, int Y, int Height, IReadOnlyList<Row> Rows);
+
+    private List<FrameBox> _frames = [];
+    private List<ObjectBox> _objects = [];
+    private int _stackHeight, _heapHeight;
+    private int Height => Top + Math.Max(_stackHeight, _heapHeight) + (View.MoreFrames > 0 ? 24 : 4);
+
+    protected override void OnParametersSet()
+    {
+        _frames = [];
+        var y = Top;
+        // The running call is on top, so the frames are laid out last first.
+        foreach (var frame in View.Frames.Reverse())
+        {
+            var rows = Flatten(frame.Slots);
+            var height = HeaderH + Math.Max(1, rows.Count) * RowH + 6;
+            _frames.Add(new FrameBox(frame, y, height, rows));
+            y += height + BoxGap;
+        }
+        _stackHeight = y - Top - BoxGap;
+
+        _objects = [];
+        y = Top;
+        foreach (var obj in View.Objects.OrderBy(o => o.Id))
+        {
+            var rows = Flatten(obj.Slots);
+            var height = HeaderH + Math.Max(1, rows.Count) * RowH + (obj.More > 0 ? RowH : 0) + 6;
+            _objects.Add(new ObjectBox(obj, y, height, rows));
+            y += height + BoxGap;
+        }
+        _heapHeight = y - Top - BoxGap;
+        if (_frames.Count == 0) _stackHeight = 0;
+        if (_objects.Count == 0) _heapHeight = 0;
+    }
+
+    private static List<Row> Flatten(IReadOnlyList<SlotView> slots)
+    {
+        var rows = new List<Row>();
+        void Add(SlotView slot, int depth, string path)
+        {
+            rows.Add(new Row(slot, depth, depth > 0, rows.Count, path));
+            // A struct is written out inside the slot that holds it, and a struct inside it in turn: its own fields, copied with it.
+            foreach (var field in slot.Fields) Add(field, depth + 1, $"{path}.{field.Name}");
+        }
+        foreach (var slot in slots) Add(slot, 0, slot.Name);
+        return rows;
+    }
+
+    private static int RowY(Row row) => HeaderH + row.Index * RowH;
+
+    // A slot as a line: its name on the left, its value (or the dot an arrow starts from) on the right.
+    private RenderFragment Slot(Row row, int boxW, int boxY) => __builder =>
+    {
+        var slot = row.Slot;
+        var y = RowY(row);
+        var x = Pad + row.Depth * Indent;
+        var isStruct = slot.IsStruct;
+        var valueW = isStruct ? Math.Min(slot.Type.Length, 14) * 7.8 : slot.Ref is not null ? 18 : Math.Min((slot.Value ?? "").Length, 8) * 8.4;
+        var maxName = Math.Max(3, (int)((boxW - 2 * Pad - row.Depth * Indent - valueW) / 8.4));
+        <g class="@SlotClass(slot, row)" data-name="@slot.Name" transform="translate(0 @y)" @key="@($"slot-{boxY}-{row.Index}")">
+            <title>@SlotTitle(slot)</title>
+            @if (slot.Changed)
+            {
+                <rect class="slot-flash animate-cell-flash fill-accent-tint" x="2" y="1" width="@(boxW - 4)" height="@(RowH - 2)" rx="4" />
+            }
+            <text class="slot-name fill-fg font-mono" font-size="@U(LabelText)" x="@x" y="@(RowH / 2)" dominant-baseline="central">@Clip(slot.Name, maxName)@(isStruct ? " " : "")</text>
+            @if (isStruct)
+            {
+                <g><text class="slot-type fill-fg-secondary font-mono" font-size="@U(SmallText)" x="@(boxW - Pad)" y="@(RowH / 2)" text-anchor="end" dominant-baseline="central">@Clip(slot.Type, 14)</text></g>
+            }
+            else if (slot.Ref is not null)
+            {
+                <circle class="ref-dot fill-accent" cx="@(boxW - Pad - 4)" cy="@(RowH / 2)" r="4.5" />
+            }
+            else
+            {
+                <g><text class="slot-value fill-fg font-mono" font-size="@U(LabelText)" x="@(boxW - Pad)" y="@(RowH / 2)" text-anchor="end" dominant-baseline="central">@Clip(slot.Value ?? "", 8)</text></g>
+            }
+        </g>
+    };
+
+    private sealed record Arrow(string From, string To, string Path, bool Changed, string Key);
+
+    private List<Arrow> Arrows()
+    {
+        var arrows = new List<Arrow>();
+        foreach (var box in _frames)
+            foreach (var row in box.Rows)
+                if (row.Slot.Ref is { } target && _objects.FirstOrDefault(o => o.Object.Id == target) is { } to)
+                {
+                    var x1 = StackX + StackW - Pad - 4 + 5;
+                    var y1 = box.Y + RowY(row) + RowH / 2;
+                    var x2 = HeapX - 1;
+                    var y2 = to.Y + HeaderH / 2;
+                    var reach = (x2 - x1) / 2;
+                    arrows.Add(new Arrow($"{box.Frame.Function}.{row.Path}", $"#{target}",
+                        $"M{x1} {y1} C{x1 + reach} {y1}, {x2 - reach} {y2}, {x2} {y2}", row.Slot.Changed, $"{box.Frame.Id}-{row.Index}"));
+                }
+        foreach (var box in _objects)
+            foreach (var row in box.Rows)
+                if (row.Slot.Ref is { } target && _objects.FirstOrDefault(o => o.Object.Id == target) is { } to)
+                {
+                    // Between two objects the arrow leaves by the right edge and comes back to the target's right edge, round the outside.
+                    var x1 = HeapX + HeapW - Pad - 4 + 5;
+                    var y1 = box.Y + RowY(row) + RowH / 2;
+                    var x2 = HeapX + HeapW + 1;
+                    var y2 = to.Y + HeaderH / 2;
+                    var out2 = ArrowRoom - 4;
+                    arrows.Add(new Arrow($"#{box.Object.Id}.{row.Path}", $"#{target}",
+                        $"M{x1} {y1} C{x1 + out2} {y1 - 4}, {x2 + out2} {y2 + 4}, {x2} {y2}", row.Slot.Changed, $"{box.Object.Id}-{row.Index}"));
+                }
+        return arrows;
+    }
+
+    private static string FrameClass(MemoryFrameView frame) => "frame" + (frame.Running ? " running" : "") + (frame.Pushed ? " pushed" : "");
+
+    private static string ObjectClass(MemoryObjectView obj) => "object " + obj.Kind + (obj.Added ? " added" : "");
+
+    private static string SlotClass(SlotView slot, Row row) =>
+        "slot" + (slot.Ref is not null ? " ref" : slot.IsStruct ? " struct" : " value") + (row.Inline ? " field" : "") + (slot.Changed ? " changed" : "");
+
+    private static string ObjectLabel(MemoryObjectView obj) => obj.Kind == MemoryKinds.Box ? $"box {obj.Type}" : obj.Type;
+
+    private static string ObjectTitle(MemoryObjectView obj) => $"{(obj.Kind == MemoryKinds.Box ? "box of " : "")}{obj.Type} #{obj.Id}";
+
+    private static string SlotTitle(SlotView slot) =>
+        slot.IsStruct ? $"{slot.Name}: {slot.Type} (a value, copied with it)"
+        : slot.Ref is { } target ? $"{slot.Name}: {slot.Type}, a reference to #{target}"
+        : $"{slot.Name}: {slot.Type} = {slot.Value}";
+
+    private static string Clip(string text, int max) => text.Length <= max ? text : text[..Math.Max(1, max - 1)] + "…";
+
+    private static string U(double value) => value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    private List<string> Notes()
+    {
+        var notes = new List<string>();
+        foreach (var obj in View.Objects.Where(o => o.Added))
+            notes.Add(obj.Kind == MemoryKinds.Box ? $"A new box #{obj.Id} on the heap holds a copy of the {obj.Type}." : $"A new {obj.Type} #{obj.Id} on the heap.");
+        return notes;
+    }
+
+    private string Describe()
+    {
+        string Slots(IEnumerable<SlotView> slots) => string.Join(", ", slots.Select(s =>
+            s.IsStruct ? $"{s.Name} is a {s.Type} with {Slots(s.Fields)}" : s.Ref is { } r ? $"{s.Name} refers to #{r}" : $"{s.Name} = {s.Value}"));
+        var frames = View.Frames.Reverse().Select((f, i) => $"{f.Function}{(f.Running ? " (running)" : "")}: {(f.Slots.Count == 0 ? "no locals" : Slots(f.Slots))}");
+        var objects = View.Objects.Select(o => $"#{o.Id} {(o.Kind == MemoryKinds.Box ? "box of " : "")}{o.Type}: {(o.Slots.Count == 0 ? "empty" : Slots(o.Slots))}");
+        return "Stack, running call first: " + string.Join("; ", frames) + ". Heap: " + (View.Objects.Count == 0 ? "no objects" : string.Join("; ", objects)) + ".";
+    }
+}

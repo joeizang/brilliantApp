@@ -44,7 +44,7 @@ A C# trace is the opposite: the CLI records it at pack time and the pack carries
       as: set
 ```
 
-`as` is `array`, `stack`, `queue`, `dict`, `set`, `linked_list`, `tree`, `heap`, `grid` or `call_stack`. A pointer on a dict or set is any variable, of any type, whose value is a key: the row with that key
+`as` is `array`, `stack`, `queue`, `dict`, `set`, `linked_list`, `tree`, `heap`, `grid`, `graph`, `call_stack` or `memory` (C# only). A pointer on a dict or set is any variable, of any type, whose value is a key: the row with that key
 is marked with the pointer's name, and when no row has that key the player says *Looking up `word` finds no such key.*
 
 `body` and `code` are required, and there must be at least one visual. A trace step takes no `hints` and can't be a review item.
@@ -78,6 +78,7 @@ The validator rejects, with the file and step in the message:
 - on the call stack: a `variable` or `pointers` (it has neither), a second `call_stack`, `functions` on any other kind, a function name
   that isn't an identifier or is listed twice, code that never calls a function of its own (or none of those listed), and a listed
   function that is never called.
+- on memory: a `variable` or `pointers`, a second `memory`, a step whose language isn't C#, and code that never has a local or an object to show.
 
 ### Stacks and queues
 
@@ -334,6 +335,30 @@ Two more options: `weights: true` reads a neighbour given as a `(node, weight)` 
 - A frontier that is a set has no order to number, so it isn't recorded (and the validator says so): use a list or deque. To see the
   frontier as a queue (or stack) too, draw its variable as one beside the graph, as above.
 
+### The stack and the heap (C#)
+
+```yaml
+visualise:
+  - as: memory        # no variable: it draws the frames of the calls under way and the heap objects they reach
+```
+
+Issue [#157](https://github.com/joeizang/brilliantApp/issues/157). A C# trace step can show where each value lives:
+
+- **Frames** on the left, the running call on top, each listing its locals and parameters. A **value type** (an `int`, a `struct`) sits
+  *inside* the frame, and a struct's fields are written out beneath it, so `var q = p;` is visibly a second set of fields: change one and
+  the other stays.
+- **Objects** on the right, one box per heap object with its fields and a `#id`. A **reference** is a dot in the slot and an arrow to the
+  object it points at, so `var d = c;` is a second arrow to the same box, and a change through one shows through the other.
+- **Boxing** (`object o = n;`) adds a new dashed *box* object on the heap holding a copy of the value, with the arrow from `o` to it; the
+  note under the drawing says so. The box keeps its value when `n` changes.
+- What changed since the step before flashes (a slot, a field, an arrow), and a new frame or object grows in.
+- It needs no variable and no pointers, is drawn at most once, and is for `language: csharp` steps only (the validator says so for Python,
+  where there is no such distinction to draw). It sits above the other visuals and works beside them.
+- `validate`/`pack` refuse a memory view over code that never has a local or an object to show.
+
+On a phone the drawing is 372 units wide and scales down to the column rather than scrolling, which keeps its text at about 12px (labels) and 11px (types, ids) on a 375px
+screen. Long names and values are clipped with `…` and carry the full text in a tooltip, and the SVG's label reads every frame and object aloud.
+
 ### The call stack
 
 ```yaml
@@ -503,6 +528,11 @@ being "new" isn't a change the learner caused.
   `Pushed` when its id is bigger than any the step before had, and `Received` is the value handed back to it since the step before (by
   `returned.to`). `Gone` are the calls the step before had that this one hasn't (ghosts for one step; when the stack is cut off, only
   those above the bottom one shown), and `ToModule` is a value handed back to the module or to a call not drawn.
+- **Memory** (`MemoryView`, `TraceState.Memory`, only when a `memory` visual is watched): `Frames` are `MemoryFrameView`s (`Id`, `Function`,
+  `Slots`, `Running` for the innermost, `Pushed` when its id is new since the step before), `Objects` are `MemoryObjectView`s (`Id`, `Type`,
+  `Kind` of `class`, `box` or `array`, `Slots`, `More` fields cut off, `Added` when new). A `SlotView` is a name, a type and either a `Value`,
+  a `Ref` (an object id, drawn as an arrow) or `Fields` (a struct written out inline, so `IsStruct`), and `Changed` when it differs from the
+  same slot the step before. Like the call stack it is compared with the step before whichever function that ran in.
 - `PointerView.Index`: the cell the pointer's variable indexes (on an array, stack or queue alike). Null when the variable is missing, isn't an `int`, or is outside the
   recorded cells (negative, or past the end). `Moved` is true when the index differs from the previous state's.
 
@@ -555,6 +585,10 @@ being "new" isn't a change the learner caused.
   and returned value, scrolling sideways (and up and down, at most 30rem) on a phone. Each frame is a `<g>` keyed by its id and placed with
   a CSS transform; a new call grows in (`animate-cell-in`), a gone one rises away (`animate-cell-out`), the *running* marker slides to the
   new top, and a value handed back is keyed by step, so it pops (`animate-pop`) every time.
+- The stack and heap (`TraceMemory.razor`) is one SVG in two columns, `viewBox` 372 wide, scaled to the width there is (`w-full h-auto`, capped at its own
+  size). A struct's fields (and those of a struct inside it, indented a level each) are rows inside the frame; a reference is a dot with a cubic arrow (a `<path>` with an arrowhead marker) to the
+  object's header, drawn last so it crosses the boxes under it; an arrow between two objects loops round the heap's right edge. A new frame or
+  object grows in (`animate-cell-in`), a changed slot or arrow flashes (`animate-cell-flash`), and a box is dashed on a tinted fill.
 - A trace step is finished with *Continue* (or Return), like an explanation: it records `StepCompleted`, nothing else.
 
 ### Playback
@@ -597,7 +631,7 @@ by the last rung of the hint ladder, see [hints.md](hints.md).
 Per-variable speed or scrubbing, trees with more than two children (a general tree), drawing nested structures (a dict of lists, a node whose value is a node), doubly linked
 lists (a `prev` arrow), and reading a trace aloud.
 `Visual.As` is a string and the model builds one `ArrayView` per `array`, `stack` or `queue` visual, one `TableView` per `dict` or `set`
-visual, one `LinkedListView` per `linked_list` visual, one `TreeView` per `tree` visual, one `HeapView` per `heap` visual, one `GridView` per `grid` visual, one `GraphView` per `graph` visual and one `CallStackView` for the `call_stack`, so another kind slots in beside them.
+visual, one `LinkedListView` per `linked_list` visual, one `TreeView` per `tree` visual, one `HeapView` per `heap` visual, one `GridView` per `grid` visual, one `GraphView` per `graph` visual, one `CallStackView` for the `call_stack` and one `MemoryView` for the `memory` visual, so another kind slots in beside them.
 
 ## Tests
 

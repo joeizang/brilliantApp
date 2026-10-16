@@ -188,6 +188,16 @@ public sealed class CSharpRecordedTraceTests : IDisposable
     }
 
     [Fact]
+    public void A_memory_view_over_code_with_no_local_or_object_is_reported_in_csharp_terms()
+    {
+        WritePack("Console.WriteLine(1);", "[{as: memory}]");
+
+        var report = ContentPacker.Pack(Root, Path.Combine(_repository, "memory.zip"));
+
+        Assert.Contains("the memory view has nothing to draw", Assert.Single(report.Errors).Message);
+    }
+
+    [Fact]
     public void A_call_stack_over_code_that_never_calls_is_reported_in_csharp_terms()
     {
         WritePack("var total = 1;\ntotal += 1;", "[{as: call_stack}]");

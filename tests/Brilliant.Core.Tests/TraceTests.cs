@@ -1864,4 +1864,113 @@ public class TraceTests
         Assert.Empty(states[0].Heaps);
         Assert.Empty(HeapAt(states, 1).Cells);
     }
+
+    // ---- Stack and heap ----
+
+    private static readonly Visual Memory = new("", Visual.Memory, []);
+
+    private static MemorySlot Val(string name, string type, string value) => new(name, type, value);
+    private static MemorySlot RefTo(string name, string type, int id) => new(name, type, null, id);
+    private static MemorySlot Struct(string name, string type, params MemorySlot[] fields) => new(name, type, null, Fields: fields);
+
+    private static TraceFrame MemoryFrame(int line, TrackedMemory memory) =>
+        new("line", line, "Main", [], new Dictionary<string, TrackedArray>(), Memory: memory);
+
+    private static MemoryFrame MainFrame(params MemorySlot[] slots) => new(0, "Main", slots);
+
+    private static MemoryObject Obj(int id, string type, params MemorySlot[] slots) => new(id, type, MemoryKinds.Class, slots);
+
+    private static MemoryObject BoxOf(int id, string type, string value) => new(id, type, MemoryKinds.Box, [Val("value", type, value)]);
+
+    private static TrackedMemory Mem(MemoryFrame[] frames, params MemoryObject[] objects) => new(frames, objects);
+
+    [Fact]
+    public void The_watch_list_includes_memory()
+    {
+        Assert.Equal("""[{"as":"memory"}]""", TraceResultJson.SerializeWatch([Memory, Memory]));
+    }
+
+    [Fact]
+    public void Memory_is_built_only_when_a_visual_asks_for_it()
+    {
+        var run = Run(MemoryFrame(1, Mem([MainFrame(Val("n", "int", "1"))])));
+        Assert.Null(Build(run).Single().Memory);
+        var view = Build(run, Memory).Single().Memory!;
+        Assert.Equal("Main", view.Frames.Single().Function);
+        Assert.True(view.Frames.Single().Running);
+        Assert.Equal("1", view.Frames.Single().Slots.Single().Value);
+    }
+
+    [Fact]
+    public void A_struct_copy_is_a_second_set_of_fields_and_a_reference_copy_is_a_second_arrow_to_one_object()
+    {
+        var states = Build(Run(
+            MemoryFrame(1, Mem([MainFrame(
+                Struct("p", "Point", Val("X", "int", "1"), Val("Y", "int", "2")),
+                RefTo("c", "Counter", 1))], Obj(1, "Counter", Val("n", "int", "0")))),
+            MemoryFrame(2, Mem([MainFrame(
+                Struct("p", "Point", Val("X", "int", "1"), Val("Y", "int", "2")),
+                RefTo("c", "Counter", 1),
+                Struct("q", "Point", Val("X", "int", "1"), Val("Y", "int", "2")),
+                RefTo("d", "Counter", 1))], Obj(1, "Counter", Val("n", "int", "0"))))), Memory);
+
+        var frame = states[1].Memory!.Frames.Single();
+        var (p, q) = (frame.Slots[0], frame.Slots[2]);
+        Assert.True(p.IsStruct && q.IsStruct);
+        Assert.Equal(p.Fields.Select(f => f.Value), q.Fields.Select(f => f.Value));   // the copy has its own fields...
+        Assert.All(q.Fields, f => Assert.Null(f.Ref));
+        Assert.Equal([1, 1], frame.Slots.Where(s => s.Ref is not null).Select(s => s.Ref));   // ...a reference copy points at the same object
+        Assert.Single(states[1].Memory!.Objects);
+        Assert.False(states[1].Memory!.Objects.Single().Added);
+        Assert.True(q.Changed);
+    }
+
+    [Fact]
+    public void Boxing_adds_a_heap_object_the_step_it_happens()
+    {
+        var states = Build(Run(
+            MemoryFrame(1, Mem([MainFrame(Val("n", "int", "5"))])),
+            MemoryFrame(2, Mem([MainFrame(Val("n", "int", "5"), RefTo("o", "object", 1))], BoxOf(1, "int", "5"))),
+            MemoryFrame(3, Mem([MainFrame(Val("n", "int", "6"), RefTo("o", "object", 1))], BoxOf(1, "int", "5")))), Memory);
+
+        Assert.Empty(states[0].Memory!.Objects);
+        var box = states[1].Memory!.Objects.Single();
+        Assert.Equal((MemoryKinds.Box, "int", true), (box.Kind, box.Type, box.Added));
+        Assert.Equal(1, states[1].Memory!.Frames.Single().Slots[1].Ref);
+        // The box keeps the old value when the local changes: it is a copy.
+        Assert.False(states[2].Memory!.Objects.Single().Added);
+        Assert.Equal("5", states[2].Memory!.Objects.Single().Slots.Single().Value);
+        Assert.Equal("6", states[2].Memory!.Frames.Single().Slots[0].Value);
+        Assert.True(states[2].Memory!.Frames.Single().Slots[0].Changed);
+        Assert.False(states[2].Memory!.Objects.Single().Slots.Single().Changed);
+    }
+
+    [Fact]
+    public void A_field_that_changed_is_marked_on_the_object_and_a_new_call_is_pushed()
+    {
+        var callee = new MemoryFrame(1, "Bump", [RefTo("c", "Counter", 1)]);
+        var states = Build(Run(
+            MemoryFrame(1, Mem([MainFrame(RefTo("c", "Counter", 1))], Obj(1, "Counter", Val("n", "int", "0")))),
+            MemoryFrame(2, Mem([MainFrame(RefTo("c", "Counter", 1)), callee], Obj(1, "Counter", Val("n", "int", "0")))),
+            MemoryFrame(3, Mem([MainFrame(RefTo("c", "Counter", 1)), callee], Obj(1, "Counter", Val("n", "int", "1"))))), Memory);
+
+        Assert.Equal([false], states[0].Memory!.Frames.Select(f => f.Pushed));
+        Assert.Equal([false, true], states[1].Memory!.Frames.Select(f => f.Pushed));
+        Assert.Equal(["Main", "Bump"], states[1].Memory!.Frames.Select(f => f.Function));
+        Assert.Equal([false, true], states[1].Memory!.Frames.Select(f => f.Running));
+        Assert.False(states[1].Memory!.Objects.Single().Slots.Single().Changed);
+        Assert.True(states[2].Memory!.Objects.Single().Slots.Single().Changed);
+        Assert.Equal(states[2].Memory!.Objects.Single(), states[2].Memory!.Object(1));
+    }
+
+    [Fact]
+    public void Memory_survives_the_pack_round_trip()
+    {
+        var memory = Mem([MainFrame(Struct("p", "Point", Val("X", "int", "1")), RefTo("o", "object", 1))], BoxOf(1, "int", "5"));
+        var json = System.Text.Json.JsonSerializer.Serialize(Run(MemoryFrame(1, memory)));
+        var back = System.Text.Json.JsonSerializer.Deserialize<TraceResult>(json)!.Frames.Single().Memory!;
+        Assert.Equal("X", back.Frames.Single().Slots[0].Fields!.Single().Name);
+        Assert.Equal(MemoryKinds.Box, back.Objects.Single().Kind);
+        Assert.Equal(1, back.Frames.Single().Slots[1].Ref);
+    }
 }

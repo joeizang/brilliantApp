@@ -36,6 +36,11 @@
         <TraceCallStack View="calls" Step="Current.Index" />
     }
 
+    @if (Current.Memory is { } memory)
+    {
+        <TraceMemory View="memory" Step="Current.Index" />
+    }
+
     @foreach (var array in Current.Arrays.Where(a => a.Kind != Visual.Array))
     {
         <TraceSequence View="array" Step="Current.Index" @key="array.Variable" />
