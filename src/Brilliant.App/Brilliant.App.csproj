@@ -105,7 +105,7 @@
     <ItemGroup>
       <ContentPackInput Include="$(ContentRoot)/**/*.yaml;$(ContentRoot)/**/*.md" />
       <!-- Schema/validator/runtime recorder changes must invalidate an already generated pack too. -->
-      <ContentPackInput Include="$(AppRepositoryRoot)tools/Brilliant.Cli/**/*.cs;$(AppRepositoryRoot)tools/Brilliant.Cli/*.csproj;$(AppRepositoryRoot)src/Brilliant.Core/**/*.cs;$(AppRepositoryRoot)src/Brilliant.Core/*.csproj;$(AppRepositoryRoot)src/Brilliant.Runtime.Python/wwwroot/python/*.py"
+      <ContentPackInput Include="$(AppRepositoryRoot)tools/Brilliant.Cli/**/*.cs;$(AppRepositoryRoot)tools/Brilliant.Cli/*.csproj;$(AppRepositoryRoot)src/Brilliant.Core/**/*.cs;$(AppRepositoryRoot)src/Brilliant.Core/*.csproj;$(AppRepositoryRoot)src/Brilliant.Runtime.Python/wwwroot/python/*.py;$(AppRepositoryRoot)src/Brilliant.Code.CSharp/**/*.cs;$(AppRepositoryRoot)src/Brilliant.Code.CSharp/*.csproj"
                         Exclude="$(AppRepositoryRoot)**/bin/**;$(AppRepositoryRoot)**/obj/**;$(AppRepositoryRoot)**/__pycache__/**" />
       <Content Include="$(FlavorGeneratedDir)index.html" Link="wwwroot/index.html" CopyToOutputDirectory="PreserveNewest" />
       <MauiIcon Include="$(FlavorIconPath)" Condition="'$(FlavorIconPath)' != ''" />

@@ -7,9 +7,11 @@ paths, credential key, pack and progress. There is no in-app subject switcher.
 The C# pack lives in `content/csharp/`. Its starter lesson covers target framework
 versus language version, inferred types, and following assignments to predict output.
 Explanation, choice and predict-output steps work through the existing lesson and
-review views. The manifest enables those three step types and declares `csharp`;
-it enables no Python runtime. Code editing/execution and recorded traces belong to
-later issues, so this starter uses no write-code or live-trace steps.
+review views. The manifest also enables write-code and declares `csharp`;
+it enables no Python runtime. The starter now includes AddTwo, whose reference
+solution is compiled and tested by the CLI gate (#149). Native execution still
+requires #150, so that exercise cannot yet be completed in the app. Recorded
+traces follow separately in #153.
 
 ```sh
 dotnet run --project tools/Brilliant.Cli -- validate --app apps/csharp/manifest.yaml
@@ -27,7 +29,7 @@ uses `adb install -r dist/brilliant-csharp.apk` (or the APK helper's `--install`
 
 ```yaml
 id: pack.csharp.starter
-version: 0.1.0
+version: 0.1.1
 targetFramework: net10.0
 langVersion: '14'
 ```
@@ -36,7 +38,7 @@ The validator requires both pins for an app that enables C#. Supplied values mus
 be exactly `net10.0` and `14`; framework-qualified native host TFMs such as
 `net10.0-android` are not curriculum target frameworks. The pins are carried in
 `manifest.json`. Old DSA packs remain readable, and absent pins stay omitted from
-DSA JSON. These metadata fields do not implement the C# compilation gate (#149).
+DSA JSON. The CLI uses these same pins in its C# compilation gate; see [C# reference checks](csharp-reference-checks.md).
 
 ## Separate pairing and synchronization
 

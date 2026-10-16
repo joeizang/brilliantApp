@@ -1,3 +1,4 @@
+using Brilliant.Core.Code;
 using System.Text.RegularExpressions;
 using Brilliant.Core.Apps;
 using Brilliant.Core.Content;
@@ -100,9 +101,13 @@ public static partial class ContentValidator
                 LoadTrack(contentRoot, trackDir, report, seenIds, tracks, lessons, patterns);
         patterns.Check(report);
 
+        if (report.ReferenceChecks.Any(c => c.Language == "csharp") &&
+            (manifest?.TargetFramework != CSharpPins.TargetFramework || manifest.LangVersion != CSharpPins.LanguageVersion))
+            report.Add("pack.yaml", $"C# reference solutions require targetFramework: {CSharpPins.TargetFramework} and langVersion: {CSharpPins.LanguageVersion}.");
+
         // Only once the content is structurally sound: prove every exercise's reference solution passes its own tests.
         if (report.IsValid && (report.ReferenceChecks.Count > 0 || report.TraceChecks.Count > 0))
-            ReferenceSolutionChecker.CheckAll(report, runner ?? new CPythonRunner());
+            ReferenceSolutionChecker.CheckAll(report, runner);
 
         if (report.IsValid && manifest is not null)
             content = new LoadedContent(manifest, tracks, lessons);
@@ -121,16 +126,16 @@ public static partial class ContentValidator
         var csharp = report.App?.SupportsRuntime("csharp") == true;
         if (dto.TargetFramework is null)
         {
-            if (csharp) report.Add("pack.yaml", "'targetFramework' is required for apps enabling csharp (supported: net10.0).");
+            if (csharp) report.Add("pack.yaml", $"'targetFramework' is required for apps enabling csharp (supported: {CSharpPins.TargetFramework}).");
         }
-        else if (dto.TargetFramework != "net10.0")
-            report.Add("pack.yaml", $"unsupported targetFramework '{dto.TargetFramework}' (supported: net10.0).");
+        else if (dto.TargetFramework != CSharpPins.TargetFramework)
+            report.Add("pack.yaml", $"unsupported targetFramework '{dto.TargetFramework}' (supported: {CSharpPins.TargetFramework}).");
         if (dto.LangVersion is null)
         {
-            if (csharp) report.Add("pack.yaml", "'langVersion' is required for apps enabling csharp (supported: 14).");
+            if (csharp) report.Add("pack.yaml", $"'langVersion' is required for apps enabling csharp (supported: {CSharpPins.LanguageVersion}).");
         }
-        else if (dto.LangVersion != "14")
-            report.Add("pack.yaml", $"unsupported langVersion '{dto.LangVersion}' (supported: 14).");
+        else if (dto.LangVersion != CSharpPins.LanguageVersion)
+            report.Add("pack.yaml", $"unsupported langVersion '{dto.LangVersion}' (supported: {CSharpPins.LanguageVersion}).");
 
         return report.IsValid ? new PackManifest(dto.Id!, dto.Version!, ContentPackFormat.CurrentFormatVersion)
         {

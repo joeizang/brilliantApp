@@ -103,6 +103,34 @@ steps:
         feedback: '`count` is an `int`, so `+= 2` adds numbers. There are no strings to join here.'
     hints:
       - Start with `count = 3`, then add `2`. Which value reaches the final line?
+  - id: step.csharp.add-count
+    type: write-code
+    title: Return the updated count
+    prompt: |
+      Finish AddTwo so it returns the input count plus two. The return value is an int.
+      Keep the function's name and parameter so the tests can call it.
+    language: csharp
+    entrypoint: AddTwo
+    starter: |
+      static int AddTwo(int count)
+      {
+          return count;
+      }
+    solution: |
+      static int AddTwo(int count)
+      {
+          return count + 2;
+      }
+    tests:
+      - input: '3'
+        expected: '5'
+      - input: '0'
+        expected: '2'
+      - input: '-2'
+        expected: '0'
+    hints:
+      - The function must return an int. Use the count parameter in the expression after return.
+      - Add two to count before returning it.
   - id: step.csharp.values-recap
     type: explain
     title: Read a declaration, then follow its value
