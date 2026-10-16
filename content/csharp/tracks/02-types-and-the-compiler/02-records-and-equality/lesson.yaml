@@ -27,9 +27,9 @@ steps:
     type: explain
     title: A record is a class with the boring parts written for you
     body: |
-      `record Point(int X, int Y);` is an ordinary class (or struct, if you write `record struct`) plus members the compiler writes:
-      the properties, a constructor, `Deconstruct`, `ToString`, `Equals`, `GetHashCode`, the `==` and `!=` operators, and a hidden copy method
-      that `with` uses.
+      `record Point(int X, int Y);` is an ordinary class plus members the compiler writes: the properties, a constructor, `Deconstruct`,
+      `ToString`, `Equals`, `GetHashCode`, the `==` and `!=` operators and, for a record class, a hidden copy method that `with` uses.
+      A `record struct` gets the same members except that copy method: `with` on a struct is a plain value copy followed by the setters.
 
       The interesting change is **equality**. A class compares by reference unless you override `Equals`. A record compares its
       members. That is useful, and it has edges: equality of a record is only as deep as the equality of each of its members.

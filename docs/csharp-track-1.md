@@ -16,7 +16,7 @@ Code is current C# (.NET 10 / C# 14) throughout: primary constructors, collectio
 |---|---|---|
 | 1 | Where values live | The stack-and-heap view: a struct copy is a second set of fields, a reference is a second arrow, passing either by value copies the variable. |
 | 1 | Records and value equality | What `record` and `record struct` generate; `with` copies; equality is by value, identity is not. |
-| 1 | What the compiler writes | Lowered steps: `foreach`, a captured variable's closure class, `using`, a primary constructor's parameter capture. |
+| 1 | What the compiler writes | Lowered steps: `foreach`, a captured variable's closure class, a primary constructor's parameter capture, and what a capturing lambda allocates. |
 | 2 | `in`, `ref` and `out` | Aliasing a variable: the memory view with a `ref` local, defensive copies of an `in` struct, `ref readonly`. |
 | 2 | Boxing | Where a box comes from (`object`, interfaces, non-generic collections), allocations questions, and generics as the way out. |
 | 2 | Nullability flow analysis | The compiler's null state follows the code; `?`, `!`, `[NotNull]`-style attributes, and what it cannot know. |
