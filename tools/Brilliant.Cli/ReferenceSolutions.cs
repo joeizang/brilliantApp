@@ -12,7 +12,7 @@ internal sealed record ReferenceCheck(string File, string Label, string StepId, 
 /// <summary>A trace step's code, waiting to be run to prove it works and draws the variables the lesson says it does.</summary>
 internal sealed record TraceCheck(string File, string Label, string Code, IReadOnlyList<Visual> Visuals, string Language = "python");
 
-/// <summary>Runs source in one language against an exercise's tests. The real implementation uses CPython; tests substitute a fake.</summary>
+/// <summary>Runs source in one language against an exercise's tests. Production adapters use CPython or the C# compiler gate; tests may substitute a fake.</summary>
 public interface IReferenceSolutionRunner
 {
     /// <summary>The language accepted by this runner. Existing CPython adapters default to Python.</summary>
@@ -146,16 +146,24 @@ public sealed class CPythonRunner : IReferenceSolutionRunner
 internal static class ReferenceSolutionChecker
 {
     /// <summary>Proves the write-code solutions, then the trace steps. Stops at the first sign that Python is not available.</summary>
-    public static void CheckAll(ValidationReport report, IReferenceSolutionRunner runner)
+    public static void CheckAll(ValidationReport report, IReferenceSolutionRunner? runner = null)
     {
-        if (Check(report.ReferenceChecks, runner, report)) CheckTraces(report.TraceChecks, runner, report);
+        var defaults = new Dictionary<string, IReferenceSolutionRunner>(StringComparer.Ordinal);
+        IReferenceSolutionRunner Select(string language)
+        {
+            if (runner is not null) return runner;
+            if (!defaults.TryGetValue(language, out var selected)) defaults[language] = selected = DefaultRunner(language);
+            return selected;
+        }
+        if (Check(report.ReferenceChecks, Select, report)) CheckTraces(report.TraceChecks, Select, report);
     }
 
     /// <summary>Runs every trace step's code once and checks it ran to the end and drew everything the lesson declares.</summary>
-    private static void CheckTraces(IReadOnlyList<TraceCheck> checks, IReferenceSolutionRunner runner, ValidationReport report)
+    private static void CheckTraces(IReadOnlyList<TraceCheck> checks, Func<string, IReferenceSolutionRunner> select, ValidationReport report)
     {
         foreach (var check in checks)
         {
+            var runner = select(check.Language);
             if (!CheckLanguage(check.Language, runner, check.File, check.Label, report)) continue;
             TraceResult result;
             try { result = runner.Trace(check.Code, check.Visuals); }
@@ -361,10 +369,11 @@ internal static class ReferenceSolutionChecker
     };
 
     /// <summary>Runs every reference solution against its step's tests and reports each failure with lesson, step, test, expected and actual. False when Python was not available.</summary>
-    private static bool Check(IReadOnlyList<ReferenceCheck> checks, IReferenceSolutionRunner runner, ValidationReport report)
+    private static bool Check(IReadOnlyList<ReferenceCheck> checks, Func<string, IReferenceSolutionRunner> select, ValidationReport report)
     {
         foreach (var check in checks)
         {
+            var runner = select(check.Language);
             if (!CheckLanguage(check.Language, runner, check.File, check.Label, report)) continue;
             TestRunResult result;
             try { result = runner.Run(check.Solution, check.Entrypoint, check.Tests); }
@@ -380,10 +389,13 @@ internal static class ReferenceSolutionChecker
         return true;
     }
 
+    private static IReferenceSolutionRunner DefaultRunner(string language) => language == "csharp"
+        ? new CSharpReferenceSolutionRunner() : new CPythonRunner();
+
     private static bool CheckLanguage(string language, IReferenceSolutionRunner runner, string file, string label, ValidationReport report)
     {
         if (runner.Language == language) return true;
-        report.Add(file, $"{label}: no reference/trace checker is available for '{language}' (selected checker: '{runner.Language}'). Publishing requires a checker for the exercise language; C# support follows in #149.");
+        report.Add(file, $"{label}: no reference/trace checker is available for '{language}' (selected checker: '{runner.Language}'). Publishing requires a checker for the exercise language.");
         return false;
     }
 
@@ -393,6 +405,7 @@ internal static class ReferenceSolutionChecker
         {
             case TestRunStatus.Passed:
                 return null;
+            case TestRunStatus.TimedOut:
             case TestRunStatus.Error:
                 var text = new StringBuilder(result.Message ?? "It could not be run.");
                 if (!string.IsNullOrEmpty(result.Traceback)) text.Append('\n').Append(Indent(result.Traceback));
