@@ -15,13 +15,13 @@
       "locals": [
         {
           "name": "values",
-          "type": "List\u003Cdouble\u003E",
+          "type": "List<double>",
           "repr": "[1.5, 2.25]"
         }
       ],
       "tracked": {
         "values": {
-          "type": "List\u003Cdouble\u003E",
+          "type": "List<double>",
           "cells": [
             "1.5",
             "2.25"
@@ -42,13 +42,13 @@
       "locals": [
         {
           "name": "values",
-          "type": "List\u003Cdouble\u003E",
+          "type": "List<double>",
           "repr": "[1.5, 2.25, 3]"
         }
       ],
       "tracked": {
         "values": {
-          "type": "List\u003Cdouble\u003E",
+          "type": "List<double>",
           "cells": [
             "1.5",
             "2.25",
@@ -70,17 +70,17 @@
         {
           "name": "text",
           "type": "string",
-          "repr": "\u0022hi\u0022"
+          "repr": "\"hi\""
         },
         {
           "name": "values",
-          "type": "List\u003Cdouble\u003E",
+          "type": "List<double>",
           "repr": "[1.5, 2.25, 3]"
         }
       ],
       "tracked": {
         "values": {
-          "type": "List\u003Cdouble\u003E",
+          "type": "List<double>",
           "cells": [
             "1.5",
             "2.25",

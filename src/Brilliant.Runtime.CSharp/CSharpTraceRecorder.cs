@@ -98,12 +98,13 @@ public static class CSharpTraceRecorder
         finished = thread.Join(RunTimeout);
         if (!finished) budget.Cancel();
 
+        // A learner thread that outlived the timeout may still be writing to the snapshots and the output, so none of it is read.
+        if (!finished) return new(TraceStatus.Truncated, [], "", "The example didn't finish in time and was stopped.", null, null);
         var snapshots = budget.Snapshots;
         var completed = failure is null && finished;
         var frames = Frames(snapshots, completed, visuals);
         var stdout = Clip(printed.ToString().ReplaceLineEndings("\n"), MaxOutput, ellipsis: false);
         if (finished) context.Unload();
-        if (!finished) return new(TraceStatus.Truncated, frames, stdout, "The example didn't finish in time and was stopped.", null, null);
         if (failure is BudgetExceededException exceeded) return new(TraceStatus.Truncated, frames, stdout, exceeded.Message, null, LastLine(snapshots));
         if (failure is not null)
             return new(TraceStatus.Error, frames, stdout, $"{failure.GetType().Name}: {failure.Message}", null, LastLine(snapshots));
@@ -171,8 +172,8 @@ public static class CSharpTraceRecorder
     private static string Repr(object? value) => value switch
     {
         null => "null",
-        string text => System.Text.Json.JsonSerializer.Serialize(text),
-        char c => "'" + System.Text.Json.JsonSerializer.Serialize(c.ToString())[1..^1] + "'",
+        string text => SymbolDisplay.FormatLiteral(text, quote: true),
+        char c => SymbolDisplay.FormatLiteral(c, quote: true),
         bool b => b ? "true" : "false",
         double d => d.ToString("R", CultureInfo.InvariantCulture),
         float f => f.ToString("R", CultureInfo.InvariantCulture),

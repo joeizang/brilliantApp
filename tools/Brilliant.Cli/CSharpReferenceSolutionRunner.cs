@@ -21,7 +21,7 @@ public sealed class CSharpReferenceSolutionRunner(TimeSpan? timeout = null) : IR
 
     public TestRunResult Run(IReadOnlyList<CodeFile> files, string entrypoint, IReadOnlyList<CodeTest> tests)
     {
-        var worked = RunInWorker("--csharp-reference-worker", JsonSerializer.Serialize(new Request(files, entrypoint, tests), Json));
+        var worked = RunInWorker("--csharp-reference-worker", "reference", JsonSerializer.Serialize(new Request(files, entrypoint, tests), Json));
         if (worked.Failure is { } failure) return Error(failure, worked.TimedOut ? TestRunStatus.TimedOut : TestRunStatus.Error);
         try { return JsonSerializer.Deserialize<TestRunResult>(worked.Output!, Json) ?? Error("C# reference worker returned no result."); }
         catch (JsonException) { return Error("C# reference worker returned an invalid result."); }
@@ -34,7 +34,7 @@ public sealed class CSharpReferenceSolutionRunner(TimeSpan? timeout = null) : IR
     public TraceResult Trace(string code, IReadOnlyList<Visual> visuals)
     {
         var request = new TraceRequest(code, visuals.Select(v => new WatchedVariable(v.Variable, v.As)).ToArray());
-        var worked = RunInWorker("--csharp-trace-worker", JsonSerializer.Serialize(request, Json));
+        var worked = RunInWorker("--csharp-trace-worker", "trace", JsonSerializer.Serialize(request, Json));
         if (worked.Failure is { } failure) return new(worked.TimedOut ? TraceStatus.Truncated : TraceStatus.Error, [], "", failure, null, null);
         try { return TraceResultJson.Parse(worked.Output!); }
         catch (JsonException) { return new(TraceStatus.Error, [], "", "C# trace worker returned an invalid result.", null, null); }
@@ -42,7 +42,7 @@ public sealed class CSharpReferenceSolutionRunner(TimeSpan? timeout = null) : IR
 
     private sealed record Worked(string? Output, string? Failure, bool TimedOut = false);
 
-    private Worked RunInWorker(string flag, string input)
+    private Worked RunInWorker(string flag, string name, string input)
     {
         var start = new ProcessStartInfo(Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet")
         {
@@ -53,7 +53,7 @@ public sealed class CSharpReferenceSolutionRunner(TimeSpan? timeout = null) : IR
         start.ArgumentList.Add(flag);
         try
         {
-            using var process = Process.Start(start) ?? throw new ReferenceRunnerUnavailableException("could not start the C# reference worker.");
+            using var process = Process.Start(start) ?? throw new ReferenceRunnerUnavailableException($"could not start the C# {name} worker.");
             var stdout = process.StandardOutput.ReadToEndAsync();
             var stderr = process.StandardError.ReadToEndAsync();
             process.StandardInput.Write(input);
@@ -62,15 +62,15 @@ public sealed class CSharpReferenceSolutionRunner(TimeSpan? timeout = null) : IR
             {
                 process.Kill(entireProcessTree: true);
                 process.WaitForExit();
-                return new(null, $"C# reference worker exceeded {_timeout.TotalSeconds:0.##} seconds.", TimedOut: true);
+                return new(null, $"C# {name} worker exceeded {_timeout.TotalSeconds:0.##} seconds.", TimedOut: true);
             }
             var output = stdout.GetAwaiter().GetResult();
             var errors = stderr.GetAwaiter().GetResult();
-            return process.ExitCode != 0 ? new(null, $"C# reference worker exited with code {process.ExitCode}. {errors}") : new(output, null);
+            return process.ExitCode != 0 ? new(null, $"C# {name} worker exited with code {process.ExitCode}. {errors}") : new(output, null);
         }
         catch (System.ComponentModel.Win32Exception ex)
         {
-            throw new ReferenceRunnerUnavailableException($"could not start the .NET 10 C# reference worker: {ex.Message}");
+            throw new ReferenceRunnerUnavailableException($"could not start the .NET 10 C# {name} worker: {ex.Message}");
         }
     }
 

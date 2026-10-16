@@ -15,13 +15,13 @@
       "locals": [
         {
           "name": "stack",
-          "type": "Stack\u003Cint\u003E",
+          "type": "Stack<int>",
           "repr": "[]"
         }
       ],
       "tracked": {
         "stack": {
-          "type": "Stack\u003Cint\u003E",
+          "type": "Stack<int>",
           "cells": [],
           "more": 0,
           "drawings": [
@@ -38,13 +38,13 @@
       "locals": [
         {
           "name": "stack",
-          "type": "Stack\u003Cint\u003E",
+          "type": "Stack<int>",
           "repr": "[1]"
         }
       ],
       "tracked": {
         "stack": {
-          "type": "Stack\u003Cint\u003E",
+          "type": "Stack<int>",
           "cells": [
             "1"
           ],
@@ -63,13 +63,13 @@
       "locals": [
         {
           "name": "stack",
-          "type": "Stack\u003Cint\u003E",
+          "type": "Stack<int>",
           "repr": "[1, 2]"
         }
       ],
       "tracked": {
         "stack": {
-          "type": "Stack\u003Cint\u003E",
+          "type": "Stack<int>",
           "cells": [
             "1",
             "2"
@@ -89,18 +89,18 @@
       "locals": [
         {
           "name": "queue",
-          "type": "Queue\u003Cstring\u003E",
+          "type": "Queue<string>",
           "repr": "[]"
         },
         {
           "name": "stack",
-          "type": "Stack\u003Cint\u003E",
+          "type": "Stack<int>",
           "repr": "[1, 2]"
         }
       ],
       "tracked": {
         "queue": {
-          "type": "Queue\u003Cstring\u003E",
+          "type": "Queue<string>",
           "cells": [],
           "more": 0,
           "drawings": [
@@ -109,7 +109,7 @@
           ]
         },
         "stack": {
-          "type": "Stack\u003Cint\u003E",
+          "type": "Stack<int>",
           "cells": [
             "1",
             "2"
@@ -129,20 +129,20 @@
       "locals": [
         {
           "name": "queue",
-          "type": "Queue\u003Cstring\u003E",
-          "repr": "[\u0022a\u0022]"
+          "type": "Queue<string>",
+          "repr": "[\"a\"]"
         },
         {
           "name": "stack",
-          "type": "Stack\u003Cint\u003E",
+          "type": "Stack<int>",
           "repr": "[1, 2]"
         }
       ],
       "tracked": {
         "queue": {
-          "type": "Queue\u003Cstring\u003E",
+          "type": "Queue<string>",
           "cells": [
-            "\u0022a\u0022"
+            "\"a\""
           ],
           "more": 0,
           "drawings": [
@@ -151,7 +151,7 @@
           ]
         },
         "stack": {
-          "type": "Stack\u003Cint\u003E",
+          "type": "Stack<int>",
           "cells": [
             "1",
             "2"
@@ -171,21 +171,21 @@
       "locals": [
         {
           "name": "queue",
-          "type": "Queue\u003Cstring\u003E",
-          "repr": "[\u0022a\u0022, \u0022b\u0022]"
+          "type": "Queue<string>",
+          "repr": "[\"a\", \"b\"]"
         },
         {
           "name": "stack",
-          "type": "Stack\u003Cint\u003E",
+          "type": "Stack<int>",
           "repr": "[1, 2]"
         }
       ],
       "tracked": {
         "queue": {
-          "type": "Queue\u003Cstring\u003E",
+          "type": "Queue<string>",
           "cells": [
-            "\u0022a\u0022",
-            "\u0022b\u0022"
+            "\"a\"",
+            "\"b\""
           ],
           "more": 0,
           "drawings": [
@@ -194,7 +194,7 @@
           ]
         },
         "stack": {
-          "type": "Stack\u003Cint\u003E",
+          "type": "Stack<int>",
           "cells": [
             "1",
             "2"
@@ -214,21 +214,21 @@
       "locals": [
         {
           "name": "queue",
-          "type": "Queue\u003Cstring\u003E",
-          "repr": "[\u0022a\u0022, \u0022b\u0022]"
+          "type": "Queue<string>",
+          "repr": "[\"a\", \"b\"]"
         },
         {
           "name": "stack",
-          "type": "Stack\u003Cint\u003E",
+          "type": "Stack<int>",
           "repr": "[1]"
         }
       ],
       "tracked": {
         "queue": {
-          "type": "Queue\u003Cstring\u003E",
+          "type": "Queue<string>",
           "cells": [
-            "\u0022a\u0022",
-            "\u0022b\u0022"
+            "\"a\"",
+            "\"b\""
           ],
           "more": 0,
           "drawings": [
@@ -237,7 +237,7 @@
           ]
         },
         "stack": {
-          "type": "Stack\u003Cint\u003E",
+          "type": "Stack<int>",
           "cells": [
             "1"
           ],
@@ -255,20 +255,20 @@
       "locals": [
         {
           "name": "queue",
-          "type": "Queue\u003Cstring\u003E",
-          "repr": "[\u0022b\u0022]"
+          "type": "Queue<string>",
+          "repr": "[\"b\"]"
         },
         {
           "name": "stack",
-          "type": "Stack\u003Cint\u003E",
+          "type": "Stack<int>",
           "repr": "[1]"
         }
       ],
       "tracked": {
         "queue": {
-          "type": "Queue\u003Cstring\u003E",
+          "type": "Queue<string>",
           "cells": [
-            "\u0022b\u0022"
+            "\"b\""
           ],
           "more": 0,
           "drawings": [
@@ -277,7 +277,7 @@
           ]
         },
         "stack": {
-          "type": "Stack\u003Cint\u003E",
+          "type": "Stack<int>",
           "cells": [
             "1"
           ],

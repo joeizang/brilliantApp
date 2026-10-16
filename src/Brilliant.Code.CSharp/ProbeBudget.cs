@@ -117,8 +117,8 @@ public sealed class ProbeBudget(int maxSteps = 100_000, TimeSpan? timeout = null
             }
             if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Stack<>))
             {
-                // Enumerates top first; the drawing runs bottom (index 0) to top.
-                var items = ((IEnumerable)value).Cast<object?>().Take(128).Reverse().Select(item => Freeze(item, path, depth + 1, limit)).ToArray();
+                // Enumerates top first; the drawing runs bottom (index 0) to top, so a deep stack keeps its bottom 128 items.
+                var items = ((IEnumerable)value).Cast<object?>().Reverse().Take(128).Select(item => Freeze(item, path, depth + 1, limit)).ToArray();
                 return new CapturedSequence(type.FullName ?? type.Name, items, TypeNames.Of(type), CapturedShape.Stack, Count(value));
             }
             if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Queue<>))

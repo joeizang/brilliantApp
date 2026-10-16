@@ -49,7 +49,7 @@ no closing frame. `async`, iterators, `unsafe`, `#define`/`#undef` and interacti
 ## Determinism
 
 Re-recording the same source gives byte-identical output (and so a byte-identical pack): the assembly is built with `deterministic`,
-locals are sorted, stdout is normalised, and nothing that depends on time, thread or address is recorded. Golden files in
+locals are sorted, stdout is normalised, and nothing that depends on time, thread or address is recorded. The one exception is the 2-second wall-clock budget: an example that comes near it could record `Ok` on a fast machine and `Truncated` on a slow one. Only the step and frame limits are reproducible, so teaching examples must finish well inside it. Golden files in
 `tests/Brilliant.Runtime.CSharp.Tests/Traces/` (`*.snippet` with its `*.trace.json`) pin the output for a fixed set of snippets.
 After an intended change, regenerate them with `UPDATE_GOLDENS=1 dotnet test tests/Brilliant.Runtime.CSharp.Tests` and review the diff.
 

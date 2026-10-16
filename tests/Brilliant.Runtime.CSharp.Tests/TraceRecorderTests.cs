@@ -46,6 +46,26 @@ public sealed class TraceRecorderTests
     }
 
     [Fact]
+    public void Strings_and_chars_are_shown_as_c_literals_without_json_escapes()
+    {
+        var last = Record("text").Frames[^1];
+        var reprs = last.Locals.ToDictionary(l => l.Name, l => l.Repr);
+        Assert.Equal("\"it's <b> a+b & café\"", reprs["word"]);
+        Assert.Equal("'é'", reprs["letter"]);
+        Assert.Equal("'\\''", reprs["quote"]);
+        Assert.Equal("[\"<li>\", \"naïve\", \"tab\\there\"]", reprs["words"]);
+    }
+
+    [Fact]
+    public void A_stack_deeper_than_the_cap_keeps_its_bottom_items()
+    {
+        var result = CSharpTraceRecorder.Record("var stack = new Stack<int>();\nfor (var i = 0; i < 200; i++) stack.Push(i);\nvar done = true;", [new("stack", Visual.Stack, [])]);
+        var cells = result.Frames[^1].Tracked!["stack"].Cells;
+        Assert.Equal("0", cells[0]);
+        Assert.Equal(200, result.Frames[^1].Tracked!["stack"].Cells.Count + result.Frames[^1].Tracked!["stack"].More);
+    }
+
+    [Fact]
     public void A_recording_survives_the_json_a_pack_stores()
     {
         var result = Record("array-scan");

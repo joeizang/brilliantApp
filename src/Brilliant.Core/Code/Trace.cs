@@ -173,6 +173,7 @@ public static class TraceResultJson
     {
         WriteIndented = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,   // readable text; it is JSON data, never HTML
     };
 
     /// <summary>The recording as JSON, indented and without nulls, in the form <see cref="Parse"/> reads: the same recording is the same text.</summary>

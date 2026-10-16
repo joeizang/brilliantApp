@@ -1,0 +1,94 @@
+{
+  "status": "ok",
+  "frames": [
+    {
+      "event": "line",
+      "line": 1,
+      "function": "Main",
+      "locals": [],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 2,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "word",
+          "type": "string",
+          "repr": "\"it's <b> a+b & café\""
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 3,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "letter",
+          "type": "char",
+          "repr": "'é'"
+        },
+        {
+          "name": "word",
+          "type": "string",
+          "repr": "\"it's <b> a+b & café\""
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 4,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "letter",
+          "type": "char",
+          "repr": "'é'"
+        },
+        {
+          "name": "quote",
+          "type": "char",
+          "repr": "'\\''"
+        },
+        {
+          "name": "word",
+          "type": "string",
+          "repr": "\"it's <b> a+b & café\""
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "return",
+      "function": "Main",
+      "locals": [
+        {
+          "name": "letter",
+          "type": "char",
+          "repr": "'é'"
+        },
+        {
+          "name": "quote",
+          "type": "char",
+          "repr": "'\\''"
+        },
+        {
+          "name": "word",
+          "type": "string",
+          "repr": "\"it's <b> a+b & café\""
+        },
+        {
+          "name": "words",
+          "type": "List<string>",
+          "repr": "[\"<li>\", \"naïve\", \"tab\\there\"]"
+        }
+      ],
+      "tracked": {}
+    }
+  ],
+  "stdout": ""
+}
