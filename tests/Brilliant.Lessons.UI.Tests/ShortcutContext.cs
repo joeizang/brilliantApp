@@ -1,3 +1,4 @@
+using Brilliant.Core.Code;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -16,6 +17,7 @@ public abstract class ShortcutContext : BunitContext
 
     protected ShortcutContext()
     {
+        Services.AddScoped(sp => new CodeRuntimeRegistry(sp.GetServices<ICodeRuntime>()));
         Services.AddSingleton(Shortcuts);
         Services.AddSingleton(Screen);
         Services.AddSingleton<TimeProvider>(PlaybackClock);

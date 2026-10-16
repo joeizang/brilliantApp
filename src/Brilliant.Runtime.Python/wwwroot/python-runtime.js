@@ -8,7 +8,7 @@ let nextId = 1;
 const pending = new Map();
 
 function start() {
-    worker = new Worker('python-worker.js', { type: 'module' });
+    worker = new Worker(new URL('./python-worker.js', import.meta.url), { type: 'module' });
     worker.onmessage = e => {
         const { id, started, ok, result, error } = e.data;
         const request = pending.get(id);

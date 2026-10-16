@@ -1,0 +1,11 @@
+# Build fixture proving that an app without a code runtime ships no Pyodide.
+appId: com.joeizang.brilliantapp.runtimecheck
+displayName: Brilliant Runtime Check
+accent:
+  dark: '#78a8ff'
+  light: '#2456d6'
+  onDark: '#08101f'
+  onLight: '#ffffff'
+contentPack: runtime-check.pack.zip
+runtimes: []
+stepTypes: [explain]

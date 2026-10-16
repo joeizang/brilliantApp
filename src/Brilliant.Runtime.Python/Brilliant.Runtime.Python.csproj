@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- Native WebViews use the original assets; precompressed copies only inflate the bundle. -->
+    <CompressionEnabled>false</CompressionEnabled>
+    <DefaultItemExcludes>$(DefaultItemExcludes);wwwroot/**/__pycache__/**</DefaultItemExcludes>
+  </PropertyGroup>
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.10" />
+    <ProjectReference Include="../Brilliant.Core/Brilliant.Core.csproj" />
+  </ItemGroup>
+</Project>

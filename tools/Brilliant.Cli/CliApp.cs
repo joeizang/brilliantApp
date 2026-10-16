@@ -33,6 +33,18 @@ public static class CliApp
         }
         switch (args)
         {
+            case ["app-runtimes", var manifestPath, var outputPath]:
+                try
+                {
+                    AppBuildInputs.WriteRuntimeSelection(manifestPath, outputPath);
+                    return 0;
+                }
+                catch (Exception ex) when (ex is Brilliant.Core.Apps.AppManifestException or IOException or UnauthorizedAccessException)
+                {
+                    error.WriteLine($"error: {ex.Message}");
+                    return 1;
+                }
+
             case ["prepare-app", var manifest, var template, var repository, var generated]:
                 try
                 {

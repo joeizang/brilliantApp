@@ -1,5 +1,5 @@
 @* How a recording ended: what the code printed, the error that stopped it, or that it was cut short. Shown on the last step. *@
-@using Brilliant.Core.Python
+@using Brilliant.Core.Code
 
 <div class="trace-ending mt-4 empty:hidden" aria-live="polite">
     @if (Result.Status == TraceStatus.Error)
@@ -8,7 +8,7 @@
             <p class="verdict incorrect font-medium text-danger">@(Result.Message ?? "The code raised an error.")</p>
             @if (!string.IsNullOrEmpty(Result.Traceback))
             {
-                <pre class="traceback m-0 rounded-sm border-l-[.25rem] border-l-danger px-4 py-2 whitespace-pre-wrap" aria-label="Python error">@Result.Traceback</pre>
+                <pre class="traceback m-0 rounded-sm border-l-[.25rem] border-l-danger px-4 py-2 whitespace-pre-wrap" aria-label="@(CodeLanguages.DisplayName(Language) + " error")">@Result.Traceback</pre>
             }
         </div>
     }
@@ -26,5 +26,7 @@
 </div>
 
 @code {
+    [Parameter] public string Language { get; set; } = "python";
+
     [Parameter, EditorRequired] public TraceResult Result { get; set; } = default!;
 }

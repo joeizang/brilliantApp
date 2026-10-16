@@ -1,6 +1,6 @@
 using Brilliant.Core.Content;
 using Brilliant.Core.Progress;
-using Brilliant.Core.Python;
+using Brilliant.Core.Code;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
@@ -18,8 +18,9 @@ public class TraceStepViewTests : ShortcutContext
 
     private static readonly TraceResult Ok = new(TraceStatus.Ok, [Frame(2, 0), Frame(null, 0)], "", null, null, null);
 
-    private sealed class FakeRuntime(Func<TraceResult> trace) : IPythonRuntime
+    private sealed class FakeRuntime(Func<TraceResult> trace) : ICodeRuntime
     {
+        public string Language { get; init; } = "python";
         public List<(string Code, IReadOnlyList<Visual> Visuals)> Traced { get; } = [];
         public TaskCompletionSource? Gate { get; init; }
 
@@ -39,8 +40,31 @@ public class TraceStepViewTests : ShortcutContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         JSInterop.SetupModule("./_content/Brilliant.Lessons.UI/code-editor.js").Setup<int>("create", _ => true).SetResult(1);
         var runtime = new FakeRuntime(trace) { Gate = gate };
-        Services.AddSingleton<IPythonRuntime>(runtime);
+        Services.AddSingleton<ICodeRuntime>(runtime);
         return runtime;
+    }
+
+    [Fact]
+    public void Trace_language_selects_its_runtime_and_names_its_startup_and_error()
+    {
+        var python = Setup(() => Ok);
+        var gate = new TaskCompletionSource();
+        var csharp = new FakeRuntime(() => new TraceResult(TraceStatus.Error, [], "", "Compile error", "C# diagnostic", 1))
+            { Language = "csharp", Gate = gate };
+        Services.AddSingleton<ICodeRuntime>(csharp);
+        var cut = Render<TraceStepView>(p => p.Add(c => c.Step, Step with { Language = "csharp" }));
+        Assert.Contains("Starting C#", cut.Find(".note").TextContent);
+        gate.SetResult();
+        cut.WaitForAssertion(() => Assert.Equal("C# diagnostic", cut.Find("[aria-label='C# error']").TextContent));
+        Assert.Single(csharp.Traced);
+        Assert.Empty(python.Traced);
+    }
+
+    [Fact]
+    public void A_trace_with_no_registered_runtime_reports_the_missing_language()
+    {
+        var cut = Render<TraceStepView>(p => p.Add(c => c.Step, Step with { Language = "csharp" }));
+        cut.WaitForAssertion(() => Assert.Contains("No runtime is enabled for C#", cut.Find("[role=alert]").TextContent));
     }
 
     [Fact]

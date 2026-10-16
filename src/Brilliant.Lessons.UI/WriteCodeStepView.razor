@@ -1,6 +1,6 @@
 @using Brilliant.Core.Drafts
-@using Brilliant.Core.Python
-@inject IPythonRuntime Runtime
+@using Brilliant.Core.Code
+@inject CodeRuntimeRegistry Runtimes
 @inject ICodeDraftStore Drafts
 @inject StepShortcuts Shortcuts
 @implements IDisposable
@@ -27,7 +27,7 @@
         }
         @if (_running && !_warmedUp)
         {
-            <span class="note text-[.95rem] text-fg-secondary">Starting Python… the first run takes a few seconds.</span>
+            <span class="note text-[.95rem] text-fg-secondary">Starting @CodeLanguages.DisplayName(Step.Language)… the first run takes a few seconds.</span>
         }
     </div>
 
@@ -171,7 +171,7 @@
     }
 
     /// <summary>
-    /// Runs the code in the editor against the tests, as the Run button does, and returns how it did: null when Python itself couldn't
+    /// Runs the code in the editor against the tests, as the Run button does, and returns how it did: null when the runtime itself couldn't
     /// run. An interview submits a solution this way, so what is judged is the code as it stands.
     /// </summary>
     public async Task<Submission?> RunAsync()
@@ -192,7 +192,7 @@
         var code = await _editor.GetCodeAsync();
         try
         {
-            _result = await Runtime.RunTestsAsync(code, Step.Entrypoint, Step.Tests);
+            _result = await Runtimes.Resolve(Step.Language).RunTestsAsync(code, Step.Entrypoint, Step.Tests);
             _warmedUp = true;
         }
         catch (Exception ex)
@@ -225,6 +225,6 @@
     private static RenderFragment StdoutBlock(string label, string stdout) =>
         @<text>@if (!string.IsNullOrEmpty(stdout)) { <div class="output"><h4 class="mt-[.6rem] mb-[.2rem] text-[.9rem] font-semibold text-fg-secondary">@label</h4><pre>@stdout</pre></div> }</text>;
 
-    private static RenderFragment TracebackBlock(string? traceback) =>
-        @<text>@if (!string.IsNullOrEmpty(traceback)) { <pre class="traceback border-l-4 border-l-danger whitespace-pre-wrap" aria-label="Python error">@traceback</pre> }</text>;
+    private RenderFragment TracebackBlock(string? traceback) =>
+        @<text>@if (!string.IsNullOrEmpty(traceback)) { <pre class="traceback border-l-4 border-l-danger whitespace-pre-wrap" aria-label="@(CodeLanguages.DisplayName(Step.Language) + " error")">@traceback</pre> }</text>;
 }

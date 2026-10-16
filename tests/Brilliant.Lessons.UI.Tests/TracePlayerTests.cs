@@ -1,6 +1,6 @@
 using System.Globalization;
 using Brilliant.Core.Content;
-using Brilliant.Core.Python;
+using Brilliant.Core.Code;
 using Bunit;
 using Microsoft.JSInterop;
 

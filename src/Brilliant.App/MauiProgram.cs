@@ -2,8 +2,11 @@ using Brilliant.Core.Apps;
 using Brilliant.Core.Content;
 using Brilliant.Core.Drafts;
 using Brilliant.Core.Progress;
-using Brilliant.Core.Python;
+using Brilliant.Core.Code;
 using Brilliant.Core.Sync;
+#if BRILLIANT_PYTHON
+using Brilliant.Runtime.Python;
+#endif
 using Brilliant.Data;
 using Brilliant.Lessons.UI;
 
@@ -88,7 +91,10 @@ public static class MauiProgram
         });
 
         // The Python runtime talks to the webview it lives in, so it is scoped to the BlazorWebView.
-        builder.Services.AddScoped<IPythonRuntime, PyodideRuntime>();
+#if BRILLIANT_PYTHON
+        builder.Services.AddScoped<ICodeRuntime, PyodideRuntime>();
+#endif
+        builder.Services.AddScoped(sp => new CodeRuntimeRegistry(sp.GetServices<ICodeRuntime>()));
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();

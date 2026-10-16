@@ -7,7 +7,7 @@ import json
 import pathlib
 import unittest
 
-_path = pathlib.Path(__file__).resolve().parents[2] / "src/Brilliant.App/wwwroot/python/tracer.py"
+_path = pathlib.Path(__file__).resolve().parents[2] / "src/Brilliant.Runtime.Python/wwwroot/python/tracer.py"
 _spec = importlib.util.spec_from_file_location("tracer", _path)
 tracer = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(tracer)

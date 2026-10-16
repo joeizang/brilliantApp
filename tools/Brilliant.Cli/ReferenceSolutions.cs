@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Text;
 using Brilliant.Core.Content;
-using Brilliant.Core.Python;
+using Brilliant.Core.Code;
 
 namespace Brilliant.Cli;
 

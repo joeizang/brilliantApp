@@ -63,8 +63,9 @@ the same folder explicitly. The selected root is projected into the build metada
 and its YAML/Markdown files form the pack's incremental inputs. The app manifest
 is also an input, so changing `stepTypes` reruns validation before bundling.
 The pack command receives the selected app manifest explicitly, including when
-flavors share sources. #143 makes runtime references conditional. Both flavors
-currently enable Python.
+flavors share sources. Runtime references are selected from the manifest during restore and build.
+DSA and `flavor-check` enable Python; `runtime-check` enables no runtime and ships
+no Pyodide. See [Code runtimes](code-runtimes.md).
 
 See [Per-app content](app-content.md) for validation, packing and publishing.
 

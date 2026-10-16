@@ -28,7 +28,7 @@ Load time is measured inside the worker (`loadPyodide`), on first use after proc
 - Memory use and behaviour under a long-running or looping script were not measured.
 - Only the stdlib was loaded; no extra packages (numpy etc.), which v1 does not need.
 - APK size is from a plain Release build; trimming/AOT settings will change absolute numbers but the ~6 MB delta from compression should hold roughly.
-- Throwaway code: `src/Brilliant.App/Components/Spike.razor`, `wwwroot/spike.js`, `wwwroot/pyodide-worker.js`. The Pyodide files are gitignored; fetch the `pyodide` npm package 314.0.7 and copy the 5 files above into `src/Brilliant.App/wwwroot/pyodide/`.
+- Throwaway code: `src/Brilliant.App/Components/Spike.razor`, `wwwroot/spike.js`, `wwwroot/pyodide-worker.js`. The Pyodide files are gitignored; fetch the `pyodide` npm package 314.0.7 and copy the 5 files above into `src/Brilliant.Runtime.Python/wwwroot/pyodide/`. Existing checkouts must move their downloaded files from the old `src/Brilliant.App/wwwroot/pyodide/` folder; builds reject files left there. See [Code runtimes](../code-runtimes.md).
 
 ## Fallback if this regresses
 

@@ -1,6 +1,6 @@
 @* Records one run of some code (offline, by the Python runtime) and shows it in the Trace Player: a trace step's example, or a solution's walkthrough. *@
-@using Brilliant.Core.Python
-@inject IPythonRuntime Runtime
+@using Brilliant.Core.Code
+@inject CodeRuntimeRegistry Runtimes
 @implements IDisposable
 
 @if (_failure is not null)
@@ -9,18 +9,20 @@
 }
 else if (_result is null)
 {
-    <p class="note text-fg-secondary">Starting Python… the first run takes a few seconds.</p>
+    <p class="note text-fg-secondary">Starting @CodeLanguages.DisplayName(Language)… the first run takes a few seconds.</p>
 }
 else if (_states.Count == 0)
 {
-    <TraceEnding Result="_result" />
+    <TraceEnding Result="_result" Language="@Language" />
 }
 else
 {
-    <TracePlayer Code="@Code" States="_states" Result="_result" />
+    <TracePlayer Language="@Language" Code="@Code" States="_states" Result="_result" />
 }
 
 @code {
+    [Parameter] public string Language { get; set; } = "python";
+
     [Parameter, EditorRequired] public string Code { get; set; } = "";
 
     [Parameter, EditorRequired] public IReadOnlyList<Visual> Visuals { get; set; } = [];
@@ -35,7 +37,7 @@ else
     {
         try
         {
-            _result = await Runtime.TraceAsync(Code, Visuals, _cancel.Token);
+            _result = await Runtimes.Resolve(Language).TraceAsync(Code, Visuals, _cancel.Token);
             _states = TraceModel.Build(_result, Visuals);
         }
         catch (OperationCanceledException) when (_cancel.IsCancellationRequested) { }

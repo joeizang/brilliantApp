@@ -1,6 +1,6 @@
 using Brilliant.Core.Content;
 using Brilliant.Core.Drafts;
-using Brilliant.Core.Python;
+using Brilliant.Core.Code;
 using Brilliant.Lessons.UI;
 using Bunit;
 using Microsoft.AspNetCore.Components;
@@ -14,8 +14,9 @@ public class WriteCodeStepViewTests : ShortcutContext
     private static readonly WriteCodeStep Step = new("step.w", "Echo", "Write f", "python", "def f(x):\n    pass\n", "f",
         [new CodeTest("7", "7")]);
 
-    private sealed class FakeRuntime(TestRunResult result) : IPythonRuntime
+    private sealed class FakeRuntime(TestRunResult result) : ICodeRuntime
     {
+        public string Language { get; init; } = "python";
         public Task<TestRunResult> RunTestsAsync(string code, string entrypoint, IReadOnlyList<CodeTest> tests, CancellationToken ct = default) =>
             Task.FromResult(result);
         public Task<TraceResult> TraceAsync(string code, IReadOnlyList<Visual> visuals, CancellationToken ct = default) =>
@@ -33,15 +34,15 @@ public class WriteCodeStepViewTests : ShortcutContext
     private readonly MemoryDrafts _drafts = new();
 
     // Renders the step with a stubbed editor module, then returns it (the module is returned so tests can inspect JS calls).
-    private (IRenderedComponent<WriteCodeStepView> Cut, BunitJSModuleInterop Module) Open(Action? onContinue = null)
+    private (IRenderedComponent<WriteCodeStepView> Cut, BunitJSModuleInterop Module) Open(Action? onContinue = null, WriteCodeStep? step = null)
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         var module = JSInterop.SetupModule("./_content/Brilliant.Lessons.UI/code-editor.js");
         module.Setup<int>("create", _ => true).SetResult(1);
         module.Setup<string>("getCode", _ => true).SetResult("def f(x):\n    return x\n");
         Services.AddSingleton<ICodeDraftStore>(_drafts);
-        Services.AddSingleton<IPythonRuntime>(new FakeRuntime(new TestRunResult(TestRunStatus.Passed, "", null, null, null, [])));
-        var cut = Render<WriteCodeStepView>(p => p.Add(c => c.Step, Step).Add(c => c.OnContinue, () => onContinue?.Invoke()));
+        Services.AddSingleton<ICodeRuntime>(new FakeRuntime(new TestRunResult(TestRunStatus.Passed, "", null, null, null, [])));
+        var cut = Render<WriteCodeStepView>(p => p.Add(c => c.Step, step ?? Step).Add(c => c.OnContinue, () => onContinue?.Invoke()));
         cut.WaitForAssertion(() => Assert.Single(module.Invocations["create"]));
         return (cut, module);
     }
@@ -58,7 +59,7 @@ public class WriteCodeStepViewTests : ShortcutContext
         module.Setup<int>("create", _ => true).SetResult(1);
         module.Setup<string>("getCode", _ => true).SetResult("def f(x):\n    return x\n");
         Services.AddSingleton<ICodeDraftStore>(_drafts);
-        Services.AddSingleton<IPythonRuntime>(new FakeRuntime(result));
+        Services.AddSingleton<ICodeRuntime>(new FakeRuntime(result));
 
         var cut = Render<WriteCodeStepView>(p => p.Add(c => c.Step, Step));
         cut.Find("button.primary").Click();
@@ -147,7 +148,7 @@ public class WriteCodeStepViewTests : ShortcutContext
         module.Setup<string>("getCode", _ => true).SetResult("code");
         var release = new TaskCompletionSource<TestRunResult>();
         Services.AddSingleton<ICodeDraftStore>(_drafts);
-        Services.AddSingleton<IPythonRuntime>(new SlowRuntime(release.Task, () => runs++));
+        Services.AddSingleton<ICodeRuntime>(new SlowRuntime(release.Task, () => runs++));
         var cut = Render<WriteCodeStepView>(p => p.Add(c => c.Step, Step));
         cut.WaitForAssertion(() => Assert.Single(module.Invocations["create"]));
 
@@ -161,8 +162,9 @@ public class WriteCodeStepViewTests : ShortcutContext
         await first;
     }
 
-    private sealed class SlowRuntime(Task<TestRunResult> result, Action onRun) : IPythonRuntime
+    private sealed class SlowRuntime(Task<TestRunResult> result, Action onRun) : ICodeRuntime
     {
+        public string Language { get; init; } = "python";
         public Task<TestRunResult> RunTestsAsync(string code, string entrypoint, IReadOnlyList<CodeTest> tests, CancellationToken ct = default)
         {
             onRun();
@@ -171,6 +173,30 @@ public class WriteCodeStepViewTests : ShortcutContext
 
         public Task<TraceResult> TraceAsync(string code, IReadOnlyList<Visual> visuals, CancellationToken ct = default) =>
             throw new NotSupportedException("This test does not trace.");
+    }
+
+    [Fact]
+    public async Task Uses_the_exercise_language_for_runtime_selection_startup_and_errors()
+    {
+        var release = new TaskCompletionSource<TestRunResult>();
+        var runs = 0;
+        Services.AddSingleton<ICodeRuntime>(new SlowRuntime(release.Task, () => runs++) { Language = "csharp" });
+        var (cut, _) = Open(step: Step with { Language = "csharp" });
+        var running = Press(StepCommand.Run);
+        cut.WaitForAssertion(() => Assert.Equal(1, runs));
+        Assert.Contains("Starting C#", cut.Find(".note").TextContent);
+        release.SetResult(new TestRunResult(TestRunStatus.Error, "", "Compile error", "C# diagnostic", 1, []));
+        await running;
+        Assert.Equal("C# diagnostic", cut.Find("[aria-label='C# error']").TextContent);
+        Assert.Empty(cut.FindAll("[aria-label='Python error']"));
+    }
+
+    [Fact]
+    public void A_missing_runtime_reports_an_error_without_using_Python()
+    {
+        var (cut, _) = Open(step: Step with { Language = "csharp" });
+        cut.Find("button.primary").Click();
+        cut.WaitForAssertion(() => Assert.Contains("No runtime is enabled for C#", cut.Find("[role=alert]").TextContent));
     }
 
     [Fact]
@@ -257,7 +283,7 @@ public class WriteCodeStepViewTests : ShortcutContext
         module.Setup<int>("create", _ => true).SetResult(1);
         var setCode = module.SetupVoid("setCode", _ => true);   // stays pending until we complete it
         Services.AddSingleton<ICodeDraftStore>(_drafts);
-        Services.AddSingleton<IPythonRuntime>(new FakeRuntime(new TestRunResult(TestRunStatus.Passed, "", null, null, null, [])));
+        Services.AddSingleton<ICodeRuntime>(new FakeRuntime(new TestRunResult(TestRunStatus.Passed, "", null, null, null, [])));
         var cut = Render<WriteCodeStepView>(p => p.Add(c => c.Step, Step));
         cut.WaitForAssertion(() => Assert.Single(module.Invocations["create"]));
 

@@ -14,6 +14,24 @@ public sealed class AppBuildInputsTests : IDisposable
             """<manifest xmlns:android="http://schemas.android.com/apk/res/android"><application android:allowBackup="true"/></manifest>""");
     }
 
+    [Theory]
+    [InlineData("runtimes: [python]", "true")]
+    [InlineData("runtimes:\n  - python", "true")]
+    [InlineData("runtimes: []", "false")]
+    public void Runtime_build_selection_uses_the_validated_manifest_parser(string runtimes, string enabled)
+    {
+        var repo = new DirectoryInfo(AppContext.BaseDirectory);
+        while (repo is not null && !File.Exists(Path.Combine(repo.FullName, "BrilliantApp.sln"))) repo = repo.Parent;
+        var yaml = File.ReadAllText(Path.Combine(repo!.FullName, "apps/dsa/manifest.yaml"));
+        var path = Path.Combine(_root, "manifest.yaml");
+        File.WriteAllText(path, yaml.Replace("runtimes: [python]", runtimes));
+        var output = Path.Combine(_root, "selection.xml");
+
+        AppBuildInputs.WriteRuntimeSelection(path, output);
+
+        Assert.Equal(enabled, XDocument.Load(output).Root!.Element("PythonEnabled")!.Value);
+    }
+
     [Fact]
     public void Manifest_generates_native_identity_and_branding_before_Blazor_renders()
     {

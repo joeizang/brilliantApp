@@ -1,15 +1,17 @@
 using Brilliant.Core.Content;
-using Brilliant.Core.Python;
+using Brilliant.Core.Code;
 using Microsoft.JSInterop;
 
-namespace Brilliant.App;
+namespace Brilliant.Runtime.Python;
 
 /// <summary>
 /// The Python Runtime over the bundled Pyodide, running in a Web Worker inside the BlazorWebView
 /// (wwwroot/python-runtime.js). Works offline: nothing is fetched from the network.
 /// </summary>
-public sealed class PyodideRuntime(IJSRuntime js) : IPythonRuntime, IAsyncDisposable
+public sealed class PyodideRuntime(IJSRuntime js) : ICodeRuntime, IAsyncDisposable
 {
+    public string Language => "python";
+
     private IJSObjectReference? _module;
 
     /// <summary>How long a run may take (after Python has started) before the worker is stopped and recreated.</summary>
@@ -18,7 +20,7 @@ public sealed class PyodideRuntime(IJSRuntime js) : IPythonRuntime, IAsyncDispos
     public async Task<TestRunResult> RunTestsAsync(string code, string entrypoint, IReadOnlyList<CodeTest> tests,
         CancellationToken cancellationToken = default)
     {
-        _module ??= await js.InvokeAsync<IJSObjectReference>("import", cancellationToken, "./python-runtime.js");
+        _module ??= await js.InvokeAsync<IJSObjectReference>("import", cancellationToken, "./_content/Brilliant.Runtime.Python/python-runtime.js");
         var json = await _module.InvokeAsync<string>("runTests", cancellationToken, code, entrypoint,
             TestRunResultJson.SerializeTests(tests), (int)RunTimeout.TotalMilliseconds);
         return TestRunResultJson.Parse(json);
@@ -26,7 +28,7 @@ public sealed class PyodideRuntime(IJSRuntime js) : IPythonRuntime, IAsyncDispos
 
     public async Task<TraceResult> TraceAsync(string code, IReadOnlyList<Visual> visuals, CancellationToken cancellationToken = default)
     {
-        _module ??= await js.InvokeAsync<IJSObjectReference>("import", cancellationToken, "./python-runtime.js");
+        _module ??= await js.InvokeAsync<IJSObjectReference>("import", cancellationToken, "./_content/Brilliant.Runtime.Python/python-runtime.js");
         var json = await _module.InvokeAsync<string>("trace", cancellationToken, code,
             TraceResultJson.SerializeWatch(visuals), (int)RunTimeout.TotalMilliseconds);
         return TraceResultJson.Parse(json);
