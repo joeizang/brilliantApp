@@ -2016,4 +2016,153 @@ public class TracePlayerTests : ShortcutContext
         Assert.Contains("→", hint);
         Assert.Contains("Space", hint);
     }
+
+    // ---- The stack and the heap ----
+
+    private static readonly IReadOnlyList<Visual> MemoryVisual = [new Visual("", Visual.Memory, [])];
+
+    private static MemorySlot Val(string name, string type, string value) => new(name, type, value);
+    private static MemorySlot RefTo(string name, string type, int id) => new(name, type, null, id);
+    private static MemorySlot Struct(string name, string type, params MemorySlot[] fields) => new(name, type, null, Fields: fields);
+
+    private static TraceFrame MemoryFrame(int line, TrackedMemory memory) =>
+        new("line", line, "Main", [], new Dictionary<string, TrackedArray>(), Memory: memory);
+
+    private static TrackedMemory Mem(MemorySlot[] locals, params MemoryObject[] objects) => new([new MemoryFrame(0, "Main", locals)], objects);
+
+    private static MemoryObject Counter(int id, string n) => new(id, "Counter", MemoryKinds.Class, [Val("n", "int", n)]);
+
+    // p = a Point struct, c = a Counter; q = p (a copy of the value), d = c (a copy of the reference), o = (object)n (a box).
+    private static readonly TraceResult MemoryRun = RunOf(
+        MemoryFrame(1, Mem([Struct("p", "Point", Val("X", "int", "1"), Val("Y", "int", "2")), RefTo("c", "Counter", 1)], Counter(1, "0"))),
+        MemoryFrame(2, Mem([Struct("p", "Point", Val("X", "int", "1"), Val("Y", "int", "2")), RefTo("c", "Counter", 1),
+            Struct("q", "Point", Val("X", "int", "1"), Val("Y", "int", "2"))], Counter(1, "0"))),
+        MemoryFrame(3, Mem([Struct("p", "Point", Val("X", "int", "1"), Val("Y", "int", "2")), RefTo("c", "Counter", 1),
+            Struct("q", "Point", Val("X", "int", "1"), Val("Y", "int", "2")), RefTo("d", "Counter", 1)], Counter(1, "0"))),
+        MemoryFrame(4, Mem([Struct("p", "Point", Val("X", "int", "1"), Val("Y", "int", "2")), RefTo("c", "Counter", 1),
+            Struct("q", "Point", Val("X", "int", "1"), Val("Y", "int", "2")), RefTo("d", "Counter", 1), RefTo("o", "object", 2)],
+            Counter(1, "0"), new MemoryObject(2, "int", MemoryKinds.Box, [Val("value", "int", "5")]))));
+
+    private IRenderedComponent<TracePlayer> MemoryAt(int step)
+    {
+        var cut = Start(MemoryRun, MemoryVisual, out _);
+        for (var n = 1; n < step; n++) cut.Find("button.next").Click();
+        return cut;
+    }
+
+    [Fact]
+    public void Memory_is_drawn_only_when_the_example_watches_it()
+    {
+        Assert.Empty(Start(MemoryRun, [], out _).FindAll("figure.memory"));
+        Assert.NotNull(MemoryAt(1).Find("figure.memory"));
+    }
+
+    [Fact]
+    public void A_struct_sits_inside_its_frame_with_its_fields_and_a_class_is_a_heap_object()
+    {
+        var cut = MemoryAt(1);
+
+        var frame = cut.Find("figure.memory g.frame[data-function='Main']");
+        Assert.Contains("running", frame.ClassList);
+        var p = frame.QuerySelector("g.slot.struct[data-name='p']")!;
+        Assert.Equal("Point", p.QuerySelector(".slot-type")!.TextContent);
+        Assert.Equal(["X", "Y"], frame.QuerySelectorAll("g.slot.field").Select(f => f.GetAttribute("data-name")));
+        Assert.Equal(["1", "2"], frame.QuerySelectorAll("g.slot.field .slot-value").Select(v => v.TextContent));
+        Assert.Empty(p.QuerySelectorAll(".ref-dot"));
+        // The class instance is not in the frame: the frame holds a dot, and the object is on the heap.
+        Assert.NotNull(frame.QuerySelector("g.slot.ref[data-name='c'] .ref-dot"));
+        var heap = cut.Find("figure.memory g.object[data-id='1']");
+        Assert.Equal("Counter", heap.QuerySelector(".object-label")!.TextContent);
+        Assert.Single(cut.FindAll("figure.memory path.arrow"));
+        Assert.Equal(("Main.c", "#1"), (cut.Find("path.arrow").GetAttribute("data-from"), cut.Find("path.arrow").GetAttribute("data-to")));
+    }
+
+    [Fact]
+    public void Copying_a_struct_is_a_second_set_of_fields_with_no_arrow()
+    {
+        var cut = MemoryAt(2);
+
+        Assert.Equal(["X", "Y", "X", "Y"], cut.FindAll("figure.memory g.frame g.slot.field").Select(f => f.GetAttribute("data-name")));
+        Assert.Single(cut.FindAll("figure.memory path.arrow"));
+        Assert.Single(cut.FindAll("figure.memory g.object"));
+        Assert.Contains("changed", cut.Find("g.slot[data-name='q']").ClassList);
+        Assert.Contains("animate-cell-flash", cut.Find("g.slot[data-name='q'] .slot-flash").ClassName);
+    }
+
+    [Fact]
+    public void Copying_a_reference_adds_a_second_arrow_to_the_same_object()
+    {
+        var cut = MemoryAt(3);
+
+        Assert.Single(cut.FindAll("figure.memory g.object"));
+        var arrows = cut.FindAll("figure.memory path.arrow");
+        Assert.Equal(["Main.c", "Main.d"], arrows.Select(a => a.GetAttribute("data-from")));
+        Assert.Equal(["#1", "#1"], arrows.Select(a => a.GetAttribute("data-to")));
+        Assert.Contains("changed", arrows[1].ClassList);
+        Assert.DoesNotContain("changed", arrows[0].ClassList);
+    }
+
+    [Fact]
+    public void Boxing_shows_a_new_heap_box_holding_a_copy_with_an_arrow_to_it()
+    {
+        var cut = MemoryAt(4);
+
+        var box = cut.Find("figure.memory g.object[data-id='2']");
+        Assert.Equal("box", box.GetAttribute("data-kind"));
+        Assert.Equal("box int", box.QuerySelector(".object-label")!.TextContent);
+        Assert.Equal("5", box.QuerySelector(".slot-value")!.TextContent);
+        Assert.Contains("animate-cell-in", box.QuerySelector(".object-body")!.ClassName);
+        Assert.Contains("fill-accent-tint", box.QuerySelector(".object-box")!.ClassName);
+        Assert.DoesNotContain("animate-cell-in", cut.Find("g.object[data-id='1'] .object-body").ClassName);
+        Assert.Equal(["#1", "#1", "#2"], cut.FindAll("figure.memory path.arrow").Select(a => a.GetAttribute("data-to")));
+        Assert.Contains("A new box #2 on the heap holds a copy of the int.", cut.Find("figure.memory .memory-note").TextContent);
+    }
+
+    [Fact]
+    public void The_stack_and_heap_are_readable_by_a_screen_reader_and_fit_a_phone()
+    {
+        var cut = MemoryAt(4);
+
+        var label = cut.Find("figure.memory svg").GetAttribute("aria-label")!;
+        Assert.Contains("Main (running): p is a Point with X = 1, Y = 2", label);
+        Assert.Contains("d refers to #1", label);
+        Assert.Contains("#2 box of int: value = 5", label);
+        // It scales to the width there is, and its text at that scale is not tiny: the drawing is narrower than a 375px phone's column.
+        var svg = cut.Find("figure.memory svg");
+        var box = svg.GetAttribute("viewBox")!.Split(' ').Select(v => double.Parse(v, CultureInfo.InvariantCulture)).ToArray();
+        Assert.True(box[2] <= 400);
+        Assert.Contains("w-full", svg.ClassName);
+        Assert.Contains("h-auto", svg.ClassName);
+        Assert.Contains($"max-width: {(box[2] / 16).ToString(CultureInfo.InvariantCulture)}rem", svg.GetAttribute("style"));
+    }
+
+    [Fact]
+    public void Calls_stack_up_in_the_frames_with_the_running_one_on_top()
+    {
+        var run = RunOf(
+            MemoryFrame(1, Mem([RefTo("c", "Counter", 1)], Counter(1, "0"))),
+            MemoryFrame(2, new([new MemoryFrame(0, "Main", [RefTo("c", "Counter", 1)]), new MemoryFrame(1, "Bump", [RefTo("counter", "Counter", 1)])],
+                [Counter(1, "0")])));
+        var cut = Start(run, MemoryVisual, out _);
+        cut.Find("button.next").Click();
+
+        var frames = cut.FindAll("figure.memory g.frame");
+        Assert.Equal(["Bump", "Main"], frames.Select(f => f.GetAttribute("data-function")));
+        Assert.Contains("running", frames[0].ClassList);
+        Assert.DoesNotContain("running", frames[1].ClassList);
+        Assert.Contains("animate-cell-in", frames[0].QuerySelector(".frame-body")!.ClassName);
+        Assert.Equal(["Bump.counter", "Main.c"], cut.FindAll("figure.memory path.arrow").Select(a => a.GetAttribute("data-from")));
+        Assert.Single(cut.FindAll("figure.memory g.object"));
+    }
+
+    [Fact]
+    public void An_object_that_refers_to_another_has_an_arrow_between_them_on_the_heap()
+    {
+        var node = new MemoryObject(1, "Node", MemoryKinds.Class, [Val("value", "int", "1"), RefTo("next", "Node", 2)]);
+        var tail = new MemoryObject(2, "Node", MemoryKinds.Class, [Val("value", "int", "2"), Val("next", "Node", "null")]);
+        var cut = Start(RunOf(MemoryFrame(1, Mem([RefTo("head", "Node", 1)], node, tail))), MemoryVisual, out _);
+
+        Assert.Equal([("Main.head", "#1"), ("#1.next", "#2")],
+            cut.FindAll("figure.memory path.arrow").Select(a => (a.GetAttribute("data-from")!, a.GetAttribute("data-to")!)));
+    }
 }

@@ -632,6 +632,7 @@ public static partial class ContentValidator
         if (w.Language is not null && w.Language != language)
             report.Add(file, $"{where}: language '{w.Language}' must match the step's language '{language}'.");
         CheckRuntimeLanguage(language, where, file, report);
+        CheckMemoryLanguage(visuals, language, where, file, report);
 
         var code = reference.TrimEnd() + "\n" + (call.Length > 0 ? "\n" + call + "\n" : "");
         report.TraceChecks.Add(new TraceCheck(file, where, code, visuals, language, step.Id, IsWalkthrough: true));
@@ -960,6 +961,8 @@ public static partial class ContentValidator
         if (report.Errors.Count != errorsBefore) return null;
         var language = dto.Language ?? "python";
         CheckRuntimeLanguage(language, label, file, report);
+        CheckMemoryLanguage(visuals, language, label, file, report);
+        if (report.Errors.Count != errorsBefore) return null;
         report.TraceChecks.Add(new TraceCheck(file, label, dto.Code!, visuals, language, dto.Id ?? "", IsWalkthrough: false));
         return new TraceStep(dto.Id!, dto.Title!, dto.Body!, dto.Code!, visuals) { Language = dto.Language };
     }
@@ -982,15 +985,15 @@ public static partial class ContentValidator
                 if (!string.IsNullOrWhiteSpace(v.As) && !Visual.Kinds.Contains(v.As))
                     report.Add(file, $"{where}: unsupported 'as' value '{v.As}' (supported: {string.Join(", ", Visual.Kinds)}).");
 
-                // The call stack draws the calls under way, not a variable, and is drawn once.
-                if (v.As == Visual.CallStack)
+                // The call stack and memory draw the calls and objects of the run, not a variable, and each is drawn once.
+                if (v.As is Visual.CallStack or Visual.Memory)
                 {
                     if (v.Variable is not null)
-                        report.Add(file, $"{where}: a {Visual.CallStack} draws the calls under way, not a variable; leave 'variable' out.");
+                        report.Add(file, $"{where}: a {v.As} draws the {(v.As == Visual.Memory ? "stack and heap" : "calls under way")}, not a variable; leave 'variable' out.");
                     if (v.Pointers is { Count: > 0 })
-                        report.Add(file, $"{where}: a {Visual.CallStack} has no pointers.");
-                    if (visuals.FindIndex(x => x.As == Visual.CallStack) is var drawn and >= 0)
-                        report.Add(file, $"{where}: the call stack is already drawn by visualise[{drawn}].");
+                        report.Add(file, $"{where}: a {v.As} has no pointers.");
+                    if (visuals.FindIndex(x => x.As == v.As) is var drawn and >= 0)
+                        report.Add(file, $"{where}: the {(v.As == Visual.Memory ? "memory view" : "call stack")} is already drawn by visualise[{drawn}].");
                 }
                 else
                 {
@@ -1137,7 +1140,7 @@ public static partial class ContentValidator
                     else
                         pointers.Add(pointer);
                 }
-                visuals.Add(new Visual(v.As == Visual.CallStack ? "" : v.Variable ?? "", v.As ?? "", pointers,
+                visuals.Add(new Visual(v.As is Visual.CallStack or Visual.Memory ? "" : v.Variable ?? "", v.As ?? "", pointers,
                     v.Next ?? Visual.DefaultNext, v.Value ?? Visual.DefaultValue, functions,
                     v.Left ?? Visual.DefaultLeft, v.Right ?? Visual.DefaultRight, v.Visited)
                 {
@@ -1148,6 +1151,13 @@ public static partial class ContentValidator
             }
 
         return visuals;
+    }
+
+    /// <summary>The memory view shows what the C# recorder captures (value types, references, boxes); Python has no such distinction to draw.</summary>
+    private static void CheckMemoryLanguage(IEnumerable<Visual> visuals, string language, string label, string file, ValidationReport report)
+    {
+        if (language != "csharp" && visuals.Any(v => v.As == Visual.Memory))
+            report.Add(file, $"{label}: a {Visual.Memory} view is for C# code (it draws value types, references and boxes); this step's language is {language}.");
     }
 
     private static void CheckLanguage(string language, string label, string file, ValidationReport report)

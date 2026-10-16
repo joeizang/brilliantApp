@@ -140,3 +140,14 @@ A return is a step of its own (`Event` `"return"` with the line of the `return`)
 of its closing brace, with the parameters and the top-level locals it had assigned. Known quirks: `if (n <= 1) return 1;` gives two steps on one line
 (a probe before the `if`, a probe before the `return`), and a thrown exception ends the call with no return step.
 
+## The stack and the heap
+
+A `memory` visual (no variable) is for the recorded C# trace's stack-and-heap view, see [trace-player.md](trace-player.md#the-stack-and-the-heap-c).
+`TraceFrame.Memory` is a `TrackedMemory`: `Frames` (the open calls, outermost first, each a `MemoryFrame` with an `Id`, the function and its
+`Slots`), `Objects` (each a `MemoryObject` with an `Id`, its type, a `Kind` of `class`, `box` or `array`, its field `Slots` and the number cut
+off in `More`) and `MoreFrames`. A `MemorySlot` is a name and a type with one of: a `Value` (a primitive, string or enum), a `Ref` (the id of
+an object, never an address) or `Fields` (a struct, written out so a copy is a second set of values).
+
+The model and the player are in place and `validate` understands the visual (C# only, one per step, no variable or pointers); the recorder
+that fills `Memory` follows in the next change, so until it lands a `memory` visual is reported as having nothing to draw.
+
