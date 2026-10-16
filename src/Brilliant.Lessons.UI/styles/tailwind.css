@@ -225,6 +225,24 @@
     /* A trace step is the one with room to use: the Trace Player lays its code and visuals side by side when the column allows. */
     .lesson-step.trace-step { @apply max-w-5xl; }
 
+    /* Recorded async events are grouped into thread lanes; they stack on narrow phone screens. */
+    .lesson-step.async-timeline-step { @apply max-w-5xl; }
+    .async-lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr)); gap: 1rem; }
+    .async-lane, .async-event { min-width: 0; overflow-wrap: anywhere; }
+    .async-lane-title { font-size: 1rem; font-weight: 700; }
+    .async-events { display: grid; gap: .75rem; margin: 0; padding: 0; list-style: none; }
+    .async-event-order {
+        display: inline-grid; width: 1.6rem; height: 1.6rem; place-items: center; margin-right: .4rem;
+        border-radius: 999px; background: var(--accent); color: var(--on-accent);
+        font-variant-numeric: tabular-nums; font-size: .8rem; font-weight: 700;
+    }
+    .async-event-kind { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+    .async-event-meta { color: var(--fg-secondary); font-size: .88rem; }
+    .async-deadlock { border-color: var(--danger); }
+    .async-event-list summary { cursor: pointer; font-weight: 600; }
+    .async-event-list li + li { margin-top: .5rem; }
+    @media (width <= 600px) { .async-lanes { grid-template-columns: minmax(0, 1fr); } }
+
     /* Code on a lesson page (explanations, predict-output, fill-in-the-blank, test output) and markdown's own <pre>. */
     pre, .code-block {
         @apply mt-0 mb-4 overflow-x-auto rounded-md border border-hairline bg-code-bg px-[1.1rem] py-[.85rem] font-mono text-code-fg;

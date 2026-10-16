@@ -73,6 +73,10 @@ else if (step is not null)
                 <TraceStepView Step="trace" />
                 <div class="step-actions content-column pb-6"><button class="primary continue btn-primary" @onclick="() => Complete(step)">Continue</button></div>
                 break;
+            case AsyncTimelineStep timeline:
+                <AsyncTimelineStepView Step="timeline" />
+                <div class="step-actions content-column pb-6"><button class="primary continue btn-primary" @onclick="() => Complete(step)">Continue</button></div>
+                break;
             case ChoiceStep choice:
                 <ChoiceStepView Step="choice"
                                 OnAnswered="r => { if (!Review) Recorder.StepAnswered(Lesson.Id, step.Id, r.IsCorrect, r.Selected); }"
@@ -160,7 +164,7 @@ else
             case StepCommand.Advance when CurrentStep is null:
                 await Finish();
                 return;
-            case StepCommand.Advance when CurrentStep is ExplainStep or TraceStep:
+            case StepCommand.Advance when CurrentStep is ExplainStep or TraceStep or AsyncTimelineStep:
                 await Complete(CurrentStep);
                 break;
         }

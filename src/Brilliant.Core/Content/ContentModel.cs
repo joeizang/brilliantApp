@@ -71,6 +71,7 @@ public sealed record LabelledSnippet(string Label, string Language, string Code)
 [JsonDerivedType(typeof(FillBlankStep), "fill-blank")]
 [JsonDerivedType(typeof(ParsonsStep), "parsons")]
 [JsonDerivedType(typeof(TraceStep), "trace")]
+[JsonDerivedType(typeof(AsyncTimelineStep), "async-timeline")]
 [JsonDerivedType(typeof(LoweredStep), "lowered")]
 [JsonDerivedType(typeof(BenchmarkPredictStep), "benchmark-predict")]
 public abstract record Step(string Id, string Title) : ContentItem(Id)
@@ -378,6 +379,55 @@ public sealed record TraceStep(
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Brilliant.Core.Code.TraceResult? Recorded { get; init; }
+}
+
+/// <summary>An event recorded while an async example ran. Sequence preserves causal order across thread lanes.</summary>
+public sealed record AsyncTimelineEvent(
+    int Sequence,
+    string Thread,
+    AsyncTimelineEventKind Kind,
+    string Label,
+    string? Operation = null,
+    string? ContinuationThread = null,
+    string? State = null);
+
+[JsonConverter(typeof(JsonStringEnumConverter<AsyncTimelineEventKind>))]
+public enum AsyncTimelineEventKind
+{
+    Enter,
+    Await,
+    ContinuationQueued,
+    Resume,
+    Complete,
+    BlockingWait,
+}
+
+/// <summary>A pack-time recording of async method events, grouped into thread lanes by the timeline view.</summary>
+public sealed record AsyncTimelineStep(
+    string Id,
+    string Title,
+    string Body,
+    IReadOnlyList<AsyncTimelineEvent> Events) : Step(Id, Title);
+
+/// <summary>Explains the sync-over-async cycle when a blocked thread is also needed to run an operation's continuation.</summary>
+public sealed record AsyncTimelineDeadlock(string Thread, string Operation, int BlockingSequence, int ContinuationSequence);
+
+public static class AsyncTimelineAnalysis
+{
+    public static AsyncTimelineDeadlock? FindSyncOverAsyncDeadlock(AsyncTimelineStep step)
+    {
+        foreach (var wait in step.Events.Where(e => e.Kind == AsyncTimelineEventKind.BlockingWait && !string.IsNullOrWhiteSpace(e.Operation)))
+        {
+            var continuation = step.Events.FirstOrDefault(e =>
+                e.Kind == AsyncTimelineEventKind.ContinuationQueued &&
+                e.Sequence > wait.Sequence &&
+                string.Equals(e.Operation, wait.Operation, StringComparison.Ordinal) &&
+                string.Equals(e.ContinuationThread, wait.Thread, StringComparison.Ordinal));
+            if (continuation is not null)
+                return new AsyncTimelineDeadlock(wait.Thread, wait.Operation!, wait.Sequence, continuation.Sequence);
+        }
+        return null;
+    }
 }
 
 /// <summary>
