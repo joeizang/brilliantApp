@@ -45,6 +45,7 @@ public static class LessonTestOut
         ParsonsStep => 4,
         FillBlankStep => 3,
         PredictOutputStep => 2,
+        LoweredStep => 2,
         ChoiceStep => 1,
         _ => 0,
     };

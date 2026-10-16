@@ -6,9 +6,8 @@ C# hides a lot behind small keywords: `foreach` is an enumerator and a `try`/`fi
 captures a variable is a generated class. A `lowered` step shows the learner a snippet next to what the compiler made of it, and asks
 a question about the lowered form.
 
-This work ships in two pull requests. **This one** is the model, the lowering service, the loader and validator, the pack attach and
-the golden tests. The next adds the view (phone and Mac), the toggle between lowered C# and IL, and turns the step on in
-`apps/csharp/manifest.yaml`.
+This shipped in two pull requests: the model, lowering service, loader and validator, pack attach and goldens (#200), then the view, the
+toggle between lowered C# and IL, the UI wiring and the C# manifest entry.
 
 ## Authoring
 
@@ -56,7 +55,14 @@ Nothing is run, so there is no worker process. A snippet that doesn't compile bl
   allow-list: the DSA manifest does not enable `lowered`, and a manifest that omits it gets
   `step type 'lowered' is not enabled by app …`.
 
-## Not in this PR
+## The view (part 2)
 
-The view and the IL/C# toggle, enabling the step in the C# manifest, and how `lowered` steps feed test-out difficulty, review and rating
-inference (they use the defaults until then).
+`LoweredStepView` (`src/Brilliant.Lessons.UI`) shows the snippet, then the compiler's output in the same code style, with a
+**Lowered C# / IL** toggle (the same two pill buttons on a phone and on the Mac; the code scrolls sideways rather than wrapping). The
+answer box is `PredictOutputStepView`'s, reused through its `Aside` slot, so typed answers, multiple choice, the verdict, Try again and
+keyboard shortcuts behave exactly as for a prediction. A pack built before lowering existed shows "The compiler's output isn't in this
+pack" instead of an empty panel.
+
+It is wired into `LessonViewer` (answers recorded, nothing recorded when replaying), `ReviewView`, `TestOutView` and
+`ProblemPrompt`. Weights: test-out difficulty 2 (same as predict-output) and rating thresholds of 15 s (Easy) / 90 s (Hard), longer than a
+prediction's 10 s / 60 s because reading generated code takes longer. `apps/csharp/manifest.yaml` lists `lowered`; the DSA manifest does not.
