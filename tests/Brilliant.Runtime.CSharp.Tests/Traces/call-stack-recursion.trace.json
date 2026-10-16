@@ -1,0 +1,569 @@
+{
+  "status": "ok",
+  "frames": [
+    {
+      "event": "line",
+      "line": 1,
+      "function": "Main",
+      "locals": [],
+      "tracked": {},
+      "calls": {
+        "frames": [],
+        "more": 0
+      }
+    },
+    {
+      "event": "line",
+      "line": 6,
+      "function": "Fact",
+      "locals": [
+        {
+          "name": "n",
+          "type": "int",
+          "repr": "3",
+          "index": 3
+        }
+      ],
+      "tracked": {},
+      "calls": {
+        "frames": [
+          {
+            "id": 0,
+            "function": "Fact",
+            "args": [
+              {
+                "name": "n",
+                "repr": "3"
+              }
+            ]
+          }
+        ],
+        "more": 0
+      }
+    },
+    {
+      "event": "line",
+      "line": 7,
+      "function": "Fact",
+      "locals": [
+        {
+          "name": "n",
+          "type": "int",
+          "repr": "3",
+          "index": 3
+        }
+      ],
+      "tracked": {},
+      "calls": {
+        "frames": [
+          {
+            "id": 0,
+            "function": "Fact",
+            "args": [
+              {
+                "name": "n",
+                "repr": "3"
+              }
+            ]
+          }
+        ],
+        "more": 0
+      }
+    },
+    {
+      "event": "line",
+      "line": 6,
+      "function": "Fact",
+      "locals": [
+        {
+          "name": "n",
+          "type": "int",
+          "repr": "2",
+          "index": 2
+        }
+      ],
+      "tracked": {},
+      "calls": {
+        "frames": [
+          {
+            "id": 0,
+            "function": "Fact",
+            "args": [
+              {
+                "name": "n",
+                "repr": "3"
+              }
+            ]
+          },
+          {
+            "id": 1,
+            "function": "Fact",
+            "args": [
+              {
+                "name": "n",
+                "repr": "2"
+              }
+            ]
+          }
+        ],
+        "more": 0
+      }
+    },
+    {
+      "event": "line",
+      "line": 7,
+      "function": "Fact",
+      "locals": [
+        {
+          "name": "n",
+          "type": "int",
+          "repr": "2",
+          "index": 2
+        }
+      ],
+      "tracked": {},
+      "calls": {
+        "frames": [
+          {
+            "id": 0,
+            "function": "Fact",
+            "args": [
+              {
+                "name": "n",
+                "repr": "3"
+              }
+            ]
+          },
+          {
+            "id": 1,
+            "function": "Fact",
+            "args": [
+              {
+                "name": "n",
+                "repr": "2"
+              }
+            ]
+          }
+        ],
+        "more": 0
+      }
+    },
+    {
+      "event": "line",
+      "line": 6,
+      "function": "Fact",
+      "locals": [
+        {
+          "name": "n",
+          "type": "int",
+          "repr": "1",
+          "index": 1
+        }
+      ],
+      "tracked": {},
+      "calls": {
+        "frames": [
+          {
+            "id": 0,
+            "function": "Fact",
+            "args": [
+              {
+                "name": "n",
+                "repr": "3"
+              }
+            ]
+          },
+          {
+            "id": 1,
+            "function": "Fact",
+            "args": [
+              {
+                "name": "n",
+                "repr": "2"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "function": "Fact",
+            "args": [
+              {
+                "name": "n",
+                "repr": "1"
+              }
+            ]
+          }
+        ],
+        "more": 0
+      }
+    },
+    {
+      "event": "line",
+      "line": 6,
+      "function": "Fact",
+      "locals": [
+        {
+          "name": "n",
+          "type": "int",
+          "repr": "1",
+          "index": 1
+        }
+      ],
+      "tracked": {},
+      "calls": {
+        "frames": [
+          {
+            "id": 0,
+            "function": "Fact",
+            "args": [
+              {
+                "name": "n",
+                "repr": "3"
+              }
+            ]
+          },
+          {
+            "id": 1,
+            "function": "Fact",
+            "args": [
+              {
+                "name": "n",
+                "repr": "2"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "function": "Fact",
+            "args": [
+              {
+                "name": "n",
+                "repr": "1"
+              }
+            ]
+          }
+        ],
+        "more": 0
+      }
+    },
+    {
+      "event": "return",
+      "line": 6,
+      "function": "Fact",
+      "locals": [
+        {
+          "name": "n",
+          "type": "int",
+          "repr": "1",
+          "index": 1
+        }
+      ],
+      "tracked": {},
+      "calls": {
+        "frames": [
+          {
+            "id": 0,
+            "function": "Fact",
+            "args": [
+              {
+                "name": "n",
+                "repr": "3"
+              }
+            ]
+          },
+          {
+            "id": 1,
+            "function": "Fact",
+            "args": [
+              {
+                "name": "n",
+                "repr": "2"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "function": "Fact",
+            "args": [
+              {
+                "name": "n",
+                "repr": "1"
+              }
+            ],
+            "returning": "1"
+          }
+        ],
+        "more": 0
+      }
+    },
+    {
+      "event": "line",
+      "line": 8,
+      "function": "Fact",
+      "locals": [
+        {
+          "name": "n",
+          "type": "int",
+          "repr": "2",
+          "index": 2
+        },
+        {
+          "name": "smaller",
+          "type": "int",
+          "repr": "1",
+          "index": 1
+        }
+      ],
+      "tracked": {},
+      "calls": {
+        "frames": [
+          {
+            "id": 0,
+            "function": "Fact",
+            "args": [
+              {
+                "name": "n",
+                "repr": "3"
+              }
+            ]
+          },
+          {
+            "id": 1,
+            "function": "Fact",
+            "args": [
+              {
+                "name": "n",
+                "repr": "2"
+              }
+            ]
+          }
+        ],
+        "more": 0,
+        "returned": {
+          "function": "Fact",
+          "value": "1",
+          "to": 1
+        }
+      }
+    },
+    {
+      "event": "return",
+      "line": 8,
+      "function": "Fact",
+      "locals": [
+        {
+          "name": "n",
+          "type": "int",
+          "repr": "2",
+          "index": 2
+        },
+        {
+          "name": "smaller",
+          "type": "int",
+          "repr": "1",
+          "index": 1
+        }
+      ],
+      "tracked": {},
+      "calls": {
+        "frames": [
+          {
+            "id": 0,
+            "function": "Fact",
+            "args": [
+              {
+                "name": "n",
+                "repr": "3"
+              }
+            ]
+          },
+          {
+            "id": 1,
+            "function": "Fact",
+            "args": [
+              {
+                "name": "n",
+                "repr": "2"
+              }
+            ],
+            "returning": "2"
+          }
+        ],
+        "more": 0
+      }
+    },
+    {
+      "event": "line",
+      "line": 8,
+      "function": "Fact",
+      "locals": [
+        {
+          "name": "n",
+          "type": "int",
+          "repr": "3",
+          "index": 3
+        },
+        {
+          "name": "smaller",
+          "type": "int",
+          "repr": "2",
+          "index": 2
+        }
+      ],
+      "tracked": {},
+      "calls": {
+        "frames": [
+          {
+            "id": 0,
+            "function": "Fact",
+            "args": [
+              {
+                "name": "n",
+                "repr": "3"
+              }
+            ]
+          }
+        ],
+        "more": 0,
+        "returned": {
+          "function": "Fact",
+          "value": "2",
+          "to": 0
+        }
+      }
+    },
+    {
+      "event": "return",
+      "line": 8,
+      "function": "Fact",
+      "locals": [
+        {
+          "name": "n",
+          "type": "int",
+          "repr": "3",
+          "index": 3
+        },
+        {
+          "name": "smaller",
+          "type": "int",
+          "repr": "2",
+          "index": 2
+        }
+      ],
+      "tracked": {},
+      "calls": {
+        "frames": [
+          {
+            "id": 0,
+            "function": "Fact",
+            "args": [
+              {
+                "name": "n",
+                "repr": "3"
+              }
+            ],
+            "returning": "6"
+          }
+        ],
+        "more": 0
+      }
+    },
+    {
+      "event": "line",
+      "line": 2,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "answer",
+          "type": "int",
+          "repr": "6",
+          "index": 6
+        }
+      ],
+      "tracked": {},
+      "calls": {
+        "frames": [],
+        "more": 0,
+        "returned": {
+          "function": "Fact",
+          "value": "6"
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 13,
+      "function": "Print",
+      "locals": [
+        {
+          "name": "text",
+          "type": "string",
+          "repr": "\"done\""
+        }
+      ],
+      "tracked": {},
+      "calls": {
+        "frames": [
+          {
+            "id": 3,
+            "function": "Print",
+            "args": [
+              {
+                "name": "text",
+                "repr": "\"done\""
+              }
+            ]
+          }
+        ],
+        "more": 0
+      }
+    },
+    {
+      "event": "return",
+      "line": 14,
+      "function": "Print",
+      "locals": [
+        {
+          "name": "text",
+          "type": "string",
+          "repr": "\"done\""
+        }
+      ],
+      "tracked": {},
+      "calls": {
+        "frames": [
+          {
+            "id": 3,
+            "function": "Print",
+            "args": [
+              {
+                "name": "text",
+                "repr": "\"done\""
+              }
+            ],
+            "returning": "void"
+          }
+        ],
+        "more": 0
+      }
+    },
+    {
+      "event": "return",
+      "function": "Main",
+      "locals": [
+        {
+          "name": "answer",
+          "type": "int",
+          "repr": "6",
+          "index": 6
+        }
+      ],
+      "tracked": {},
+      "calls": {
+        "frames": [],
+        "more": 0
+      }
+    }
+  ],
+  "stdout": "done\n"
+}

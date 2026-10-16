@@ -18,6 +18,8 @@ internal sealed class CSharpTraceViews(IReadOnlyList<Visual> visuals)
     public const int MaxTreeNodes = 31;   // tree nodes recorded per frame, five full levels
     public const int MaxWalk = 1000;      // nodes walked from a start, the most a cyclic or huge structure costs
     public const int MaxVisited = 100;    // members of a tree's visited list or set looked at
+    public const int MaxGraphNodes = 20;  // graph nodes recorded per frame (the rest are counted in More)
+    public const int MaxGraphEdges = 60;  // graph edges recorded per frame (the rest are counted in MoreEdges)
     public const int MaxMarked = 100;     // members of a grid's highlight looked at (the rest mark nothing)
 
     // One watch per variable, the first given, as the Python tracer's watch list.
@@ -43,6 +45,9 @@ internal sealed class CSharpTraceViews(IReadOnlyList<Visual> visuals)
 
     public IReadOnlyDictionary<string, TrackedList>? Lists(IReadOnlyDictionary<string, object?> locals) =>
         Collect(_watch.Where(v => v.As == Visual.LinkedList), v => List(v, locals));
+
+    public IReadOnlyDictionary<string, TrackedGraph>? Graphs(IReadOnlyDictionary<string, object?> locals) =>
+        Collect(_watch.Where(v => v.As == Visual.Graph), v => Graph(v, locals));
 
     public IReadOnlyDictionary<string, TrackedTree>? Trees(IReadOnlyDictionary<string, object?> locals) =>
         Collect(_watch.Where(v => v.As == Visual.Tree), v => Tree(v, locals));
@@ -279,10 +284,126 @@ internal sealed class CSharpTraceViews(IReadOnlyList<Visual> visuals)
         bool b => "b:" + b,
         sbyte or byte or short or ushort or int or uint or long or ulong => "n:" + Convert.ToString(value, CultureInfo.InvariantCulture),
         CapturedSequence sequence => "q:" + sequence.Display + CSharpTraceRecorder.Repr(sequence),
+        CapturedObject { Identity: >= 0 } tracked => "o#" + tracked.Identity.ToString(CultureInfo.InvariantCulture),
+        CapturedReference reference => "o#" + reference.Identity.ToString(CultureInfo.InvariantCulture),
         CapturedObject captured => "o:" + captured.Display + CSharpTraceRecorder.Repr(captured),
-        UnavailableCapture or CapturedTable or CapturedReference => null,
+        UnavailableCapture or CapturedTable => null,
         _ => value.GetType().Name + ":" + CSharpTraceRecorder.Repr(value),
     };
+
+    // ---- graphs ----
+
+    // A graph is a dictionary of each node's neighbours: a sequence or a set of them, or a dictionary of them to their weights. A node is whatever a key is,
+    // told apart by value (or, for an object of the learner's own class, by identity); its id is the same one a table of the same keys would give it.
+    private TrackedGraph? Graph(Visual visual, IReadOnlyDictionary<string, object?> locals)
+    {
+        if (!locals.TryGetValue(visual.Variable, out var held) || held is not CapturedTable { IsSet: false } graph) return null;
+        var nodes = new List<GraphNode>();
+        var kept = new HashSet<int>();
+        var cut = new HashSet<int>();
+        var edges = new List<GraphEdge>();
+        var moreEdges = 0;
+
+        int Node(object? value)
+        {
+            var id = Identity(value);
+            if (!kept.Contains(id) && !cut.Contains(id))
+            {
+                if (nodes.Count < MaxGraphNodes)
+                {
+                    kept.Add(id);
+                    nodes.Add(new(id, value is string text ? CSharpTraceRecorder.Clip(text, CSharpTraceRecorder.MaxCellRepr) : CSharpTraceRecorder.Clip(CSharpTraceRecorder.Repr(value), CSharpTraceRecorder.MaxCellRepr)));
+                }
+                else cut.Add(id);
+            }
+            return id;
+        }
+
+        var keys = graph.Rows.Take(MaxWalk).ToArray();
+        foreach (var key in keys) Node(key.Key);
+        var looked = keys.Length;
+        foreach (var (key, listed) in keys)
+        {
+            var start = Identity(key);
+            var neighbours = Neighbours(listed, visual.Weights, out var uncaptured);
+            foreach (var (neighbour, weight) in neighbours)
+            {
+                if (looked >= MaxWalk) break;
+                looked++;
+                var end = Node(neighbour);
+                if (kept.Contains(start) && kept.Contains(end) && edges.Count < MaxGraphEdges)
+                    edges.Add(new(start, end, weight is null ? null : CSharpTraceRecorder.Clip(CSharpTraceRecorder.Repr(weight.Value.Value), CSharpTraceRecorder.MaxCellRepr)));
+                else moreEdges++;
+            }
+            moreEdges += uncaptured;
+        }
+
+        int? Found(object? value) => Lookup(value) is { } id && kept.Contains(id) ? id : null;
+        var pointers = new Dictionary<string, int?>(StringComparer.Ordinal);
+        foreach (var name in visual.Pointers)
+        {
+            if (!locals.TryGetValue(name, out var pointer)) continue;
+            if (pointer is null) pointers[name] = null;
+            else if (Found(pointer) is { } id) pointers[name] = id;
+        }
+
+        GraphMarks? Named(string? name, bool tables) =>
+            name is { Length: > 0 } && locals.TryGetValue(name, out var marked) ? Marks(marked, Found, tables) : null;
+        return new(nodes, cut.Count + Math.Max(0, graph.Total - keys.Length), edges, moreEdges, pointers, Named(visual.Visited, tables: true), Named(visual.Frontier, tables: false));
+    }
+
+    // The neighbours a node's entry lists, each with its weight (null: none given); `uncaptured` counts the ones the capture left out.
+    private static IEnumerable<(object? Node, Weight? Weight)> Neighbours(object? listed, bool weights, out int uncaptured)
+    {
+        uncaptured = 0;
+        switch (listed)
+        {
+            case CapturedTable { IsSet: false } table:
+                uncaptured = Math.Max(0, table.Total - table.Rows.Count);
+                return table.Rows.Select(row => (row.Key, (Weight?)new Weight(row.Value))).ToArray();
+            case CapturedTable table:
+                uncaptured = Math.Max(0, table.Total - table.Rows.Count);
+                return Members(table).Select(row => (row.Key, (Weight?)null)).ToArray();
+            case CapturedSequence sequence:
+                uncaptured = Math.Max(0, Length(sequence) - sequence.Values.Count);
+                return sequence.Values.Select(member => weights && Weighted(member) is { } pair ? (pair.Node, (Weight?)new Weight(pair.Weight)) : (member, (Weight?)null)).ToArray();
+            default:
+                return [];
+        }
+    }
+
+    private readonly record struct Weight(object? Value);
+
+    // (node, weight) when a member is a pair of two: a (node, weight) tuple, or an array or list of two.
+    private static (object? Node, object? Weight)? Weighted(object? member) => member switch
+    {
+        CapturedSequence { Shape: CapturedShape.Array or CapturedShape.List, Values: [var node, var weight] } => (node, weight),
+        CapturedObject captured when captured.Type.StartsWith("System.ValueTuple`2", StringComparison.Ordinal) =>
+            (captured.Fields.FirstOrDefault(f => f.Key.EndsWith(".Item1", StringComparison.Ordinal)).Value, captured.Fields.FirstOrDefault(f => f.Key.EndsWith(".Item2", StringComparison.Ordinal)).Value),
+        _ => null,
+    };
+
+    // The id a value has when it has been met as a node, without handing out a new one.
+    private int? Lookup(object? value) => _identities.TryGetValue(Canonical(value) ?? CSharpTraceRecorder.Repr(value), out var id) ? id : null;
+
+    // The recorded nodes a visited or frontier variable holds, in the order met, and how many of its members are none of them.
+    private static GraphMarks? Marks(object? value, Func<object?, int?> found, bool tables)
+    {
+        IReadOnlyList<object?> members;
+        int total;
+        switch (value)
+        {
+            case CapturedSequence sequence: members = sequence.Values; total = Length(sequence); break;
+            case CapturedTable table when tables: members = table.Rows.Select(row => row.Key).ToArray(); total = table.Total; break;
+            default: return null;
+        }
+        var marked = new List<int>();
+        var unmatched = 0;
+        foreach (var member in members.Take(MaxVisited))
+            if (found(member) is not { } id) unmatched++;
+            else if (!marked.Contains(id)) marked.Add(id);
+        return new(marked, unmatched + Math.Max(0, total - MaxVisited));
+    }
 
     // ---- heaps ----
 

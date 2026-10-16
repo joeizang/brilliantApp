@@ -163,14 +163,38 @@ public sealed class CSharpRecordedTraceTests : IDisposable
     }
 
     [Fact]
-    public void A_drawing_not_recorded_for_csharp_yet_is_refused_rather_than_drawn_empty()
+    public void A_graph_and_a_call_stack_are_recorded_into_the_pack()
+    {
+        WritePack("var graph = new Dictionary<string, string[]> { [\"a\"] = new[] { \"b\" }, [\"b\"] = new string[0] };\nvar total = Sum(3);\n\nint Sum(int n) => n <= 0 ? 0 : n + Sum(n - 1);",
+            "[{variable: graph, as: graph}, {as: call_stack, functions: [Sum]}]");
+
+        var step = Assert.IsType<TraceStep>(PackAndLoad().Lessons.Single().Steps[0]);
+
+        var frames = step.Recorded!.Frames;
+        Assert.Equal(2, frames[^1].Graphs!["graph"].Nodes.Count);
+        Assert.Single(frames[^1].Graphs!["graph"].Edges);
+        Assert.Contains(frames, frame => frame.Calls is { Frames.Count: 4 });
+        Assert.Contains(frames, frame => frame.Event == "return" && frame.Calls!.Frames[^1].Returning == "6");
+    }
+
+    [Fact]
+    public void A_graph_variable_that_is_never_a_dictionary_is_reported_in_csharp_terms()
     {
         WritePack("var seen = new HashSet<int> { 1 };", "[{variable: seen, as: graph}]");
 
         var report = ContentPacker.Pack(Root, Path.Combine(_repository, "graph.zip"));
 
-        var error = Assert.Single(report.Errors);
-        Assert.Contains("'graph' drawings of C# code are not recorded yet", error.Message);
+        Assert.Contains("'seen' is never a non-empty Dictionary<,>", Assert.Single(report.Errors).Message);
+    }
+
+    [Fact]
+    public void A_call_stack_over_code_that_never_calls_is_reported_in_csharp_terms()
+    {
+        WritePack("var total = 1;\ntotal += 1;", "[{as: call_stack}]");
+
+        var report = ContentPacker.Pack(Root, Path.Combine(_repository, "calls.zip"));
+
+        Assert.Contains("never calls a method or local function of its own", Assert.Single(report.Errors).Message);
     }
 
     [Fact]

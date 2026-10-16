@@ -18,6 +18,9 @@ public sealed class TraceRecorderTests
         ["linked-list"] = [new("head", Visual.LinkedList, ["prev", "cur"])],
         ["circular-list"] = [new("a", Visual.LinkedList, ["walker"], Next: "After", Value: "Item")],
         ["tree"] = [new("root", Visual.Tree, [], Value: "Key", Visited: "seen")],
+        ["graph-bfs"] = [new("graph", Visual.Graph, ["node"], Visited: "seen") { Frontier = "queue" }],
+        ["graph-weighted"] = [new("roads", Visual.Graph, ["here"]), new("tuples", Visual.Graph, []) { Weights = true }],
+        ["call-stack-recursion"] = [new("", Visual.CallStack, [])],
         ["heap"] = [new("heap", Visual.Heap, ["i"])],
         ["grid"] = [new("grid", Visual.Grid, []) { Cells = [new("row", "col")], RowLabels = "names", Highlight = "path" }, new("square", Visual.Grid, []), new("rows", Visual.Grid, [])],
     };
@@ -82,7 +85,7 @@ public sealed class TraceRecorderTests
     public void The_run_ends_with_a_return_frame_holding_the_final_variables()
     {
         var result = Record("counter-loop");
-        Assert.Equal(TraceStatus.Ok, result.Status);
+        Assert.True(result.Status == TraceStatus.Ok, result.Message);
         var last = result.Frames[^1];
         Assert.Equal("return", last.Event);
         Assert.Null(last.Line);
@@ -321,5 +324,111 @@ public sealed class TraceRecorderTests
     public void A_cycle_still_reads_as_a_cycle_in_the_locals()
     {
         Assert.StartsWith("Link { Item = \"a\", After = Link { Item = \"b\", After = <cycl", Record("circular-list").Frames[^1].Locals.First(l => l.Name == "a").Repr);
+    }
+
+    [Fact]
+    public void A_graph_marks_the_nodes_visited_and_queued_in_the_order_met()
+    {
+        var graph = Record("graph-bfs").Frames[^1].Graphs!["graph"];
+        Assert.Equal(["A", "B", "C", "D"], graph.Nodes.Select(n => n.Label));
+        Assert.Equal([0, 1, 2, 3], graph.Visited!.Nodes);
+        Assert.Empty(graph.Frontier!.Nodes);
+        Assert.Equal(3, graph.Pointers["node"]);
+        Assert.Equal(4, graph.Edges.Count);
+    }
+
+    [Fact]
+    public void A_graph_of_more_than_twenty_nodes_records_twenty_and_counts_the_rest()
+    {
+        var result = CSharpTraceRecorder.Record("var g = new Dictionary<int, int[]>();\nfor (var i = 0; i < 25; i++) g[i] = new[] { (i + 1) % 25 };\nvar done = 1;",
+            [new("g", Visual.Graph, [])]);
+        var graph = result.Frames[^1].Graphs!["g"];
+        Assert.Equal(20, graph.Nodes.Count);
+        Assert.Equal(5, graph.More);
+        Assert.Equal(19, graph.Edges.Count);   // the edge out of node 19 goes to a node cut off
+        Assert.Equal(6, graph.MoreEdges);
+    }
+
+    [Fact]
+    public void A_graph_over_objects_gives_each_object_the_same_id_at_every_step()
+    {
+        var result = CSharpTraceRecorder.Record("var a = new City(\"A\");\nvar b = new City(\"B\");\nvar roads = new Dictionary<City, List<City>>();\nroads[a] = new() { b };\nroads[b] = new() { a };\nvar done = 1;\nrecord City(string Name);",
+            [new("roads", Visual.Graph, [])]);
+        var last = result.Frames[^1].Graphs!["roads"];
+        Assert.Equal(2, last.Nodes.Count);
+        Assert.Equal(2, last.Edges.Count);
+        var first = result.Frames.First(f => f.Graphs?.ContainsKey("roads") == true && f.Graphs["roads"].Nodes.Count > 0).Graphs!["roads"];
+        Assert.All(first.Nodes, node => Assert.Contains(node.Id, last.Nodes.Select(n => n.Id)));
+    }
+
+    [Fact]
+    public void A_weighted_graph_reads_weights_from_nested_dictionaries_and_from_tuples()
+    {
+        var graphs = Record("graph-weighted").Frames[^1].Graphs!;
+        Assert.Equal(["7", "9", "10"], graphs["roads"].Edges.Select(e => e.Weight));
+        Assert.Equal(["4", "4"], graphs["tuples"].Edges.Select(e => e.Weight));
+        Assert.Equal(2, graphs["roads"].Pointers["here"]);
+    }
+
+    [Fact]
+    public void Each_call_has_its_own_id_and_the_stack_grows_and_shrinks_with_them()
+    {
+        var frames = Record("call-stack-recursion").Frames;
+        Assert.Equal(3, frames.Max(f => f.Calls!.Frames.Count));
+        var deepest = frames.First(f => f.Calls!.Frames.Count == 3).Calls!.Frames;
+        Assert.Equal([0, 1, 2], deepest.Select(c => c.Id));
+        Assert.Equal(["3", "2", "1"], deepest.Select(c => c.Args.Single().Repr));
+        Assert.All(frames, frame => Assert.NotNull(frame.Calls));
+        Assert.Empty(frames[^1].Calls!.Frames);
+    }
+
+    [Fact]
+    public void A_return_is_a_step_of_its_own_with_the_value_and_the_next_step_carries_what_came_back()
+    {
+        var frames = Record("call-stack-recursion").Frames.ToList();
+        var returns = frames.Where(f => f.Event == "return" && f.Line is not null).ToArray();
+        Assert.Equal(["1", "2", "6", "void"], returns.Select(f => f.Calls!.Frames[^1].Returning));
+        var after = frames[frames.IndexOf(returns[0]) + 1];
+        Assert.Equal(new ReturnedValue("Fact", "1", 1), after.Calls!.Returned);
+        Assert.Null(frames[frames.IndexOf(after) + 1].Calls!.Returned);
+        Assert.Equal(new ReturnedValue("Fact", "6", null), frames[frames.IndexOf(returns[2]) + 1].Calls!.Returned);
+    }
+
+    [Fact]
+    public void The_functions_filter_keeps_only_the_named_calls_and_a_return_of_the_rest_is_not_a_step()
+    {
+        var code = File.ReadAllText(Path.Combine(TracesDirectory(), "call-stack-recursion.snippet"));
+        var result = CSharpTraceRecorder.Record(code, [new("", Visual.CallStack, []) { Functions = ["Print"] }]);
+        Assert.All(result.Frames.SelectMany(f => f.Calls!.Frames), call => Assert.Equal("Print", call.Function));
+        Assert.DoesNotContain(result.Frames, f => f.Event == "return" && f.Function == "Fact");
+    }
+
+    [Fact]
+    public void A_stack_deeper_than_twelve_calls_shows_the_innermost_and_counts_the_rest()
+    {
+        var result = CSharpTraceRecorder.Record("var r = Down(20);\nint Down(int n) => n == 0 ? 0 : Down(n - 1);", [new("", Visual.CallStack, [])]);
+        var deepest = result.Frames.OrderByDescending(f => f.Calls!.Frames.Count + f.Calls.More).First().Calls!;
+        Assert.Equal(12, deepest.Frames.Count);
+        Assert.Equal(9, deepest.More);
+        Assert.Equal(20, deepest.Frames[^1].Id);
+    }
+
+    [Fact]
+    public void A_call_that_throws_leaves_the_stack_and_a_catch_carries_on()
+    {
+        var result = CSharpTraceRecorder.Record("var ok = 0;\ntry { Boom(1); } catch (InvalidOperationException) { ok = 1; }\nvar after = Quiet(2);\nint Boom(int n) { throw new InvalidOperationException(); }\nint Quiet(int n) => n;",
+            [new("", Visual.CallStack, [])]);
+        Assert.True(result.Status == TraceStatus.Ok, result.Message);
+        var quiet = result.Frames.First(f => f.Function == "Quiet").Calls!.Frames;
+        Assert.Equal(["Quiet"], quiet.Select(c => c.Function));
+        Assert.Equal(1, quiet.Single().Id);
+    }
+
+    [Fact]
+    public void Without_a_call_stack_nothing_about_calls_is_recorded_and_no_return_is_a_step()
+    {
+        var result = CSharpTraceRecorder.Record("var x = F(2);\nint F(int n) { return n + 1; }", []);
+        Assert.All(result.Frames, frame => Assert.Null(frame.Calls));
+        Assert.DoesNotContain(result.Frames, f => f.Event == "return" && f.Line is not null);
     }
 }

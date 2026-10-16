@@ -217,11 +217,6 @@ internal static class ReferenceSolutionChecker
 
         foreach (var visual in visuals)
         {
-            if (language == "csharp" && visual.As is Visual.Graph or Visual.CallStack)
-            {
-                yield return $"'{visual.As}' drawings of C# code are not recorded yet; a C# trace can draw an array, a List<T>, a Stack<T>, a Queue<T>, a Dictionary<,>, a HashSet<T>, a heap, a grid, a linked list or a tree.";
-                continue;
-            }
             if (!result.Frames.Any(f => Draws(f, visual)))
             {
                 if (language == "csharp")
@@ -236,6 +231,10 @@ internal static class ReferenceSolutionChecker
                         Visual.LinkedList => $"variable '{visual.Variable}' never holds a node (an object with a '{visual.Next}' field or property) in the trace, so there is no list to draw.",
                         Visual.Tree => $"variable '{visual.Variable}' never holds a tree node (an object with '{visual.Left}' and '{visual.Right}' fields or properties) in the trace, so there is no tree to draw.",
                         Visual.Grid => $"variable '{visual.Variable}' is never a non-empty array of arrays, a List<List<T>>, a rectangular array or an array of strings in the trace, so there is no grid to draw.",
+                        Visual.Graph => $"variable '{visual.Variable}' is never a non-empty Dictionary<,> (each node's neighbours) in the trace, so there is no graph to draw.",
+                        Visual.CallStack => visual.Functions.Count == 0
+                            ? "the code never calls a method or local function of its own, so the call stack has nothing to draw."
+                            : $"the code never calls {string.Join(" or ", visual.Functions.Select(f => $"'{f}'"))}, so the call stack has nothing to draw.",
                         _ => $"variable '{visual.Variable}' is never an array, List<T>, Stack<T> or Queue<T> in the trace, so there is nothing to draw.",
                     };
                     continue;
@@ -280,7 +279,7 @@ internal static class ReferenceSolutionChecker
             }
             if (visual.As == Visual.Graph)
             {
-                foreach (var problem in DescribeGraph(result, visual)) yield return problem;
+                foreach (var problem in DescribeGraph(result, visual, language)) yield return problem;
                 continue;
             }
             if (visual.As == Visual.CallStack)
@@ -371,7 +370,7 @@ internal static class ReferenceSolutionChecker
     /// Each graph pointer must hold one of its nodes at some step, the edge's two names must hold the ends of one of its edges at some
     /// step, and the visited and frontier variables must be recorded at some step and mark a node at some step.
     /// </summary>
-    private static IEnumerable<string> DescribeGraph(TraceResult result, Visual visual)
+    private static IEnumerable<string> DescribeGraph(TraceResult result, Visual visual, string language)
     {
         var graphs = result.Frames.Select(f => f.Graphs?.GetValueOrDefault(visual.Variable)).OfType<TrackedGraph>().ToList();
         foreach (var pointer in visual.Pointers)
@@ -383,8 +382,8 @@ internal static class ReferenceSolutionChecker
             yield return $"edge [{edge.From}, {edge.To}] (of '{visual.Variable}') never holds the two ends of an edge of the graph in the trace.";
         foreach (var (option, name, marks, kinds) in new[]
                  {
-                     ("visited", visual.Visited, graphs.Select(g => g.Visited).ToList(), "a list, tuple, deque, set or dict"),
-                     ("frontier", visual.Frontier, graphs.Select(g => g.Frontier).ToList(), "a list, tuple or deque"),
+                     ("visited", visual.Visited, graphs.Select(g => g.Visited).ToList(), language == "csharp" ? "an array, List<T>, Stack<T>, Queue<T>, HashSet<T> or Dictionary<,>" : "a list, tuple, deque, set or dict"),
+                     ("frontier", visual.Frontier, graphs.Select(g => g.Frontier).ToList(), language == "csharp" ? "an array, List<T>, Stack<T> or Queue<T>" : "a list, tuple or deque"),
                  })
         {
             if (name is null) continue;

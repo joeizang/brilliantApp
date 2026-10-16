@@ -1,0 +1,1788 @@
+{
+  "status": "ok",
+  "frames": [
+    {
+      "event": "line",
+      "line": 1,
+      "function": "Main",
+      "locals": [],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 8,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "graph",
+          "type": "Dictionary<string, List<string>>",
+          "repr": "{\"A\": [\"B\", \"C\"], \"B\": [\"D\"], \"C\": [\"D\"], \"D\": []}"
+        }
+      ],
+      "tracked": {},
+      "graphs": {
+        "graph": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "A"
+            },
+            {
+              "id": 1,
+              "label": "B"
+            },
+            {
+              "id": 2,
+              "label": "C"
+            },
+            {
+              "id": 3,
+              "label": "D"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1
+            },
+            {
+              "from": 0,
+              "to": 2
+            },
+            {
+              "from": 1,
+              "to": 3
+            },
+            {
+              "from": 2,
+              "to": 3
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {}
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 9,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "graph",
+          "type": "Dictionary<string, List<string>>",
+          "repr": "{\"A\": [\"B\", \"C\"], \"B\": [\"D\"], \"C\": [\"D\"], \"D\": []}"
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<string>",
+          "repr": "{\"A\"}"
+        }
+      ],
+      "tracked": {},
+      "graphs": {
+        "graph": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "A"
+            },
+            {
+              "id": 1,
+              "label": "B"
+            },
+            {
+              "id": 2,
+              "label": "C"
+            },
+            {
+              "id": 3,
+              "label": "D"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1
+            },
+            {
+              "from": 0,
+              "to": 2
+            },
+            {
+              "from": 1,
+              "to": 3
+            },
+            {
+              "from": 2,
+              "to": 3
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {},
+          "visited": {
+            "nodes": [
+              0
+            ],
+            "unmatched": 0
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 10,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "graph",
+          "type": "Dictionary<string, List<string>>",
+          "repr": "{\"A\": [\"B\", \"C\"], \"B\": [\"D\"], \"C\": [\"D\"], \"D\": []}"
+        },
+        {
+          "name": "queue",
+          "type": "Queue<string>",
+          "repr": "[]"
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<string>",
+          "repr": "{\"A\"}"
+        }
+      ],
+      "tracked": {},
+      "graphs": {
+        "graph": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "A"
+            },
+            {
+              "id": 1,
+              "label": "B"
+            },
+            {
+              "id": 2,
+              "label": "C"
+            },
+            {
+              "id": 3,
+              "label": "D"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1
+            },
+            {
+              "from": 0,
+              "to": 2
+            },
+            {
+              "from": 1,
+              "to": 3
+            },
+            {
+              "from": 2,
+              "to": 3
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {},
+          "visited": {
+            "nodes": [
+              0
+            ],
+            "unmatched": 0
+          },
+          "frontier": {
+            "nodes": [],
+            "unmatched": 0
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 11,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "graph",
+          "type": "Dictionary<string, List<string>>",
+          "repr": "{\"A\": [\"B\", \"C\"], \"B\": [\"D\"], \"C\": [\"D\"], \"D\": []}"
+        },
+        {
+          "name": "queue",
+          "type": "Queue<string>",
+          "repr": "[\"A\"]"
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<string>",
+          "repr": "{\"A\"}"
+        }
+      ],
+      "tracked": {},
+      "graphs": {
+        "graph": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "A"
+            },
+            {
+              "id": 1,
+              "label": "B"
+            },
+            {
+              "id": 2,
+              "label": "C"
+            },
+            {
+              "id": 3,
+              "label": "D"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1
+            },
+            {
+              "from": 0,
+              "to": 2
+            },
+            {
+              "from": 1,
+              "to": 3
+            },
+            {
+              "from": 2,
+              "to": 3
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {},
+          "visited": {
+            "nodes": [
+              0
+            ],
+            "unmatched": 0
+          },
+          "frontier": {
+            "nodes": [
+              0
+            ],
+            "unmatched": 0
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 12,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "graph",
+          "type": "Dictionary<string, List<string>>",
+          "repr": "{\"A\": [\"B\", \"C\"], \"B\": [\"D\"], \"C\": [\"D\"], \"D\": []}"
+        },
+        {
+          "name": "node",
+          "type": "string",
+          "repr": "\"\""
+        },
+        {
+          "name": "queue",
+          "type": "Queue<string>",
+          "repr": "[\"A\"]"
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<string>",
+          "repr": "{\"A\"}"
+        }
+      ],
+      "tracked": {},
+      "graphs": {
+        "graph": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "A"
+            },
+            {
+              "id": 1,
+              "label": "B"
+            },
+            {
+              "id": 2,
+              "label": "C"
+            },
+            {
+              "id": 3,
+              "label": "D"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1
+            },
+            {
+              "from": 0,
+              "to": 2
+            },
+            {
+              "from": 1,
+              "to": 3
+            },
+            {
+              "from": 2,
+              "to": 3
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {},
+          "visited": {
+            "nodes": [
+              0
+            ],
+            "unmatched": 0
+          },
+          "frontier": {
+            "nodes": [
+              0
+            ],
+            "unmatched": 0
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 14,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "graph",
+          "type": "Dictionary<string, List<string>>",
+          "repr": "{\"A\": [\"B\", \"C\"], \"B\": [\"D\"], \"C\": [\"D\"], \"D\": []}"
+        },
+        {
+          "name": "node",
+          "type": "string",
+          "repr": "\"\""
+        },
+        {
+          "name": "queue",
+          "type": "Queue<string>",
+          "repr": "[\"A\"]"
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<string>",
+          "repr": "{\"A\"}"
+        }
+      ],
+      "tracked": {},
+      "graphs": {
+        "graph": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "A"
+            },
+            {
+              "id": 1,
+              "label": "B"
+            },
+            {
+              "id": 2,
+              "label": "C"
+            },
+            {
+              "id": 3,
+              "label": "D"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1
+            },
+            {
+              "from": 0,
+              "to": 2
+            },
+            {
+              "from": 1,
+              "to": 3
+            },
+            {
+              "from": 2,
+              "to": 3
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {},
+          "visited": {
+            "nodes": [
+              0
+            ],
+            "unmatched": 0
+          },
+          "frontier": {
+            "nodes": [
+              0
+            ],
+            "unmatched": 0
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 15,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "graph",
+          "type": "Dictionary<string, List<string>>",
+          "repr": "{\"A\": [\"B\", \"C\"], \"B\": [\"D\"], \"C\": [\"D\"], \"D\": []}"
+        },
+        {
+          "name": "node",
+          "type": "string",
+          "repr": "\"A\""
+        },
+        {
+          "name": "queue",
+          "type": "Queue<string>",
+          "repr": "[]"
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<string>",
+          "repr": "{\"A\"}"
+        }
+      ],
+      "tracked": {},
+      "graphs": {
+        "graph": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "A"
+            },
+            {
+              "id": 1,
+              "label": "B"
+            },
+            {
+              "id": 2,
+              "label": "C"
+            },
+            {
+              "id": 3,
+              "label": "D"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1
+            },
+            {
+              "from": 0,
+              "to": 2
+            },
+            {
+              "from": 1,
+              "to": 3
+            },
+            {
+              "from": 2,
+              "to": 3
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {
+            "node": 0
+          },
+          "visited": {
+            "nodes": [
+              0
+            ],
+            "unmatched": 0
+          },
+          "frontier": {
+            "nodes": [],
+            "unmatched": 0
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 17,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "graph",
+          "type": "Dictionary<string, List<string>>",
+          "repr": "{\"A\": [\"B\", \"C\"], \"B\": [\"D\"], \"C\": [\"D\"], \"D\": []}"
+        },
+        {
+          "name": "next",
+          "type": "string",
+          "repr": "\"B\""
+        },
+        {
+          "name": "node",
+          "type": "string",
+          "repr": "\"A\""
+        },
+        {
+          "name": "queue",
+          "type": "Queue<string>",
+          "repr": "[]"
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<string>",
+          "repr": "{\"A\"}"
+        }
+      ],
+      "tracked": {},
+      "graphs": {
+        "graph": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "A"
+            },
+            {
+              "id": 1,
+              "label": "B"
+            },
+            {
+              "id": 2,
+              "label": "C"
+            },
+            {
+              "id": 3,
+              "label": "D"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1
+            },
+            {
+              "from": 0,
+              "to": 2
+            },
+            {
+              "from": 1,
+              "to": 3
+            },
+            {
+              "from": 2,
+              "to": 3
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {
+            "node": 0
+          },
+          "visited": {
+            "nodes": [
+              0
+            ],
+            "unmatched": 0
+          },
+          "frontier": {
+            "nodes": [],
+            "unmatched": 0
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 17,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "graph",
+          "type": "Dictionary<string, List<string>>",
+          "repr": "{\"A\": [\"B\", \"C\"], \"B\": [\"D\"], \"C\": [\"D\"], \"D\": []}"
+        },
+        {
+          "name": "next",
+          "type": "string",
+          "repr": "\"B\""
+        },
+        {
+          "name": "node",
+          "type": "string",
+          "repr": "\"A\""
+        },
+        {
+          "name": "queue",
+          "type": "Queue<string>",
+          "repr": "[]"
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<string>",
+          "repr": "{\"A\", \"B\"}"
+        }
+      ],
+      "tracked": {},
+      "graphs": {
+        "graph": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "A"
+            },
+            {
+              "id": 1,
+              "label": "B"
+            },
+            {
+              "id": 2,
+              "label": "C"
+            },
+            {
+              "id": 3,
+              "label": "D"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1
+            },
+            {
+              "from": 0,
+              "to": 2
+            },
+            {
+              "from": 1,
+              "to": 3
+            },
+            {
+              "from": 2,
+              "to": 3
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {
+            "node": 0
+          },
+          "visited": {
+            "nodes": [
+              0,
+              1
+            ],
+            "unmatched": 0
+          },
+          "frontier": {
+            "nodes": [],
+            "unmatched": 0
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 17,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "graph",
+          "type": "Dictionary<string, List<string>>",
+          "repr": "{\"A\": [\"B\", \"C\"], \"B\": [\"D\"], \"C\": [\"D\"], \"D\": []}"
+        },
+        {
+          "name": "next",
+          "type": "string",
+          "repr": "\"C\""
+        },
+        {
+          "name": "node",
+          "type": "string",
+          "repr": "\"A\""
+        },
+        {
+          "name": "queue",
+          "type": "Queue<string>",
+          "repr": "[\"B\"]"
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<string>",
+          "repr": "{\"A\", \"B\"}"
+        }
+      ],
+      "tracked": {},
+      "graphs": {
+        "graph": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "A"
+            },
+            {
+              "id": 1,
+              "label": "B"
+            },
+            {
+              "id": 2,
+              "label": "C"
+            },
+            {
+              "id": 3,
+              "label": "D"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1
+            },
+            {
+              "from": 0,
+              "to": 2
+            },
+            {
+              "from": 1,
+              "to": 3
+            },
+            {
+              "from": 2,
+              "to": 3
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {
+            "node": 0
+          },
+          "visited": {
+            "nodes": [
+              0,
+              1
+            ],
+            "unmatched": 0
+          },
+          "frontier": {
+            "nodes": [
+              1
+            ],
+            "unmatched": 0
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 17,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "graph",
+          "type": "Dictionary<string, List<string>>",
+          "repr": "{\"A\": [\"B\", \"C\"], \"B\": [\"D\"], \"C\": [\"D\"], \"D\": []}"
+        },
+        {
+          "name": "next",
+          "type": "string",
+          "repr": "\"C\""
+        },
+        {
+          "name": "node",
+          "type": "string",
+          "repr": "\"A\""
+        },
+        {
+          "name": "queue",
+          "type": "Queue<string>",
+          "repr": "[\"B\"]"
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<string>",
+          "repr": "{\"A\", \"B\", \"C\"}"
+        }
+      ],
+      "tracked": {},
+      "graphs": {
+        "graph": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "A"
+            },
+            {
+              "id": 1,
+              "label": "B"
+            },
+            {
+              "id": 2,
+              "label": "C"
+            },
+            {
+              "id": 3,
+              "label": "D"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1
+            },
+            {
+              "from": 0,
+              "to": 2
+            },
+            {
+              "from": 1,
+              "to": 3
+            },
+            {
+              "from": 2,
+              "to": 3
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {
+            "node": 0
+          },
+          "visited": {
+            "nodes": [
+              0,
+              1,
+              2
+            ],
+            "unmatched": 0
+          },
+          "frontier": {
+            "nodes": [
+              1
+            ],
+            "unmatched": 0
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 14,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "graph",
+          "type": "Dictionary<string, List<string>>",
+          "repr": "{\"A\": [\"B\", \"C\"], \"B\": [\"D\"], \"C\": [\"D\"], \"D\": []}"
+        },
+        {
+          "name": "node",
+          "type": "string",
+          "repr": "\"A\""
+        },
+        {
+          "name": "queue",
+          "type": "Queue<string>",
+          "repr": "[\"B\", \"C\"]"
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<string>",
+          "repr": "{\"A\", \"B\", \"C\"}"
+        }
+      ],
+      "tracked": {},
+      "graphs": {
+        "graph": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "A"
+            },
+            {
+              "id": 1,
+              "label": "B"
+            },
+            {
+              "id": 2,
+              "label": "C"
+            },
+            {
+              "id": 3,
+              "label": "D"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1
+            },
+            {
+              "from": 0,
+              "to": 2
+            },
+            {
+              "from": 1,
+              "to": 3
+            },
+            {
+              "from": 2,
+              "to": 3
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {
+            "node": 0
+          },
+          "visited": {
+            "nodes": [
+              0,
+              1,
+              2
+            ],
+            "unmatched": 0
+          },
+          "frontier": {
+            "nodes": [
+              1,
+              2
+            ],
+            "unmatched": 0
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 15,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "graph",
+          "type": "Dictionary<string, List<string>>",
+          "repr": "{\"A\": [\"B\", \"C\"], \"B\": [\"D\"], \"C\": [\"D\"], \"D\": []}"
+        },
+        {
+          "name": "node",
+          "type": "string",
+          "repr": "\"B\""
+        },
+        {
+          "name": "queue",
+          "type": "Queue<string>",
+          "repr": "[\"C\"]"
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<string>",
+          "repr": "{\"A\", \"B\", \"C\"}"
+        }
+      ],
+      "tracked": {},
+      "graphs": {
+        "graph": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "A"
+            },
+            {
+              "id": 1,
+              "label": "B"
+            },
+            {
+              "id": 2,
+              "label": "C"
+            },
+            {
+              "id": 3,
+              "label": "D"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1
+            },
+            {
+              "from": 0,
+              "to": 2
+            },
+            {
+              "from": 1,
+              "to": 3
+            },
+            {
+              "from": 2,
+              "to": 3
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {
+            "node": 1
+          },
+          "visited": {
+            "nodes": [
+              0,
+              1,
+              2
+            ],
+            "unmatched": 0
+          },
+          "frontier": {
+            "nodes": [
+              2
+            ],
+            "unmatched": 0
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 17,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "graph",
+          "type": "Dictionary<string, List<string>>",
+          "repr": "{\"A\": [\"B\", \"C\"], \"B\": [\"D\"], \"C\": [\"D\"], \"D\": []}"
+        },
+        {
+          "name": "next",
+          "type": "string",
+          "repr": "\"D\""
+        },
+        {
+          "name": "node",
+          "type": "string",
+          "repr": "\"B\""
+        },
+        {
+          "name": "queue",
+          "type": "Queue<string>",
+          "repr": "[\"C\"]"
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<string>",
+          "repr": "{\"A\", \"B\", \"C\"}"
+        }
+      ],
+      "tracked": {},
+      "graphs": {
+        "graph": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "A"
+            },
+            {
+              "id": 1,
+              "label": "B"
+            },
+            {
+              "id": 2,
+              "label": "C"
+            },
+            {
+              "id": 3,
+              "label": "D"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1
+            },
+            {
+              "from": 0,
+              "to": 2
+            },
+            {
+              "from": 1,
+              "to": 3
+            },
+            {
+              "from": 2,
+              "to": 3
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {
+            "node": 1
+          },
+          "visited": {
+            "nodes": [
+              0,
+              1,
+              2
+            ],
+            "unmatched": 0
+          },
+          "frontier": {
+            "nodes": [
+              2
+            ],
+            "unmatched": 0
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 17,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "graph",
+          "type": "Dictionary<string, List<string>>",
+          "repr": "{\"A\": [\"B\", \"C\"], \"B\": [\"D\"], \"C\": [\"D\"], \"D\": []}"
+        },
+        {
+          "name": "next",
+          "type": "string",
+          "repr": "\"D\""
+        },
+        {
+          "name": "node",
+          "type": "string",
+          "repr": "\"B\""
+        },
+        {
+          "name": "queue",
+          "type": "Queue<string>",
+          "repr": "[\"C\"]"
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<string>",
+          "repr": "{\"A\", \"B\", \"C\", \"D\"}"
+        }
+      ],
+      "tracked": {},
+      "graphs": {
+        "graph": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "A"
+            },
+            {
+              "id": 1,
+              "label": "B"
+            },
+            {
+              "id": 2,
+              "label": "C"
+            },
+            {
+              "id": 3,
+              "label": "D"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1
+            },
+            {
+              "from": 0,
+              "to": 2
+            },
+            {
+              "from": 1,
+              "to": 3
+            },
+            {
+              "from": 2,
+              "to": 3
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {
+            "node": 1
+          },
+          "visited": {
+            "nodes": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "unmatched": 0
+          },
+          "frontier": {
+            "nodes": [
+              2
+            ],
+            "unmatched": 0
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 14,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "graph",
+          "type": "Dictionary<string, List<string>>",
+          "repr": "{\"A\": [\"B\", \"C\"], \"B\": [\"D\"], \"C\": [\"D\"], \"D\": []}"
+        },
+        {
+          "name": "node",
+          "type": "string",
+          "repr": "\"B\""
+        },
+        {
+          "name": "queue",
+          "type": "Queue<string>",
+          "repr": "[\"C\", \"D\"]"
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<string>",
+          "repr": "{\"A\", \"B\", \"C\", \"D\"}"
+        }
+      ],
+      "tracked": {},
+      "graphs": {
+        "graph": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "A"
+            },
+            {
+              "id": 1,
+              "label": "B"
+            },
+            {
+              "id": 2,
+              "label": "C"
+            },
+            {
+              "id": 3,
+              "label": "D"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1
+            },
+            {
+              "from": 0,
+              "to": 2
+            },
+            {
+              "from": 1,
+              "to": 3
+            },
+            {
+              "from": 2,
+              "to": 3
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {
+            "node": 1
+          },
+          "visited": {
+            "nodes": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "unmatched": 0
+          },
+          "frontier": {
+            "nodes": [
+              2,
+              3
+            ],
+            "unmatched": 0
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 15,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "graph",
+          "type": "Dictionary<string, List<string>>",
+          "repr": "{\"A\": [\"B\", \"C\"], \"B\": [\"D\"], \"C\": [\"D\"], \"D\": []}"
+        },
+        {
+          "name": "node",
+          "type": "string",
+          "repr": "\"C\""
+        },
+        {
+          "name": "queue",
+          "type": "Queue<string>",
+          "repr": "[\"D\"]"
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<string>",
+          "repr": "{\"A\", \"B\", \"C\", \"D\"}"
+        }
+      ],
+      "tracked": {},
+      "graphs": {
+        "graph": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "A"
+            },
+            {
+              "id": 1,
+              "label": "B"
+            },
+            {
+              "id": 2,
+              "label": "C"
+            },
+            {
+              "id": 3,
+              "label": "D"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1
+            },
+            {
+              "from": 0,
+              "to": 2
+            },
+            {
+              "from": 1,
+              "to": 3
+            },
+            {
+              "from": 2,
+              "to": 3
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {
+            "node": 2
+          },
+          "visited": {
+            "nodes": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "unmatched": 0
+          },
+          "frontier": {
+            "nodes": [
+              3
+            ],
+            "unmatched": 0
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 17,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "graph",
+          "type": "Dictionary<string, List<string>>",
+          "repr": "{\"A\": [\"B\", \"C\"], \"B\": [\"D\"], \"C\": [\"D\"], \"D\": []}"
+        },
+        {
+          "name": "next",
+          "type": "string",
+          "repr": "\"D\""
+        },
+        {
+          "name": "node",
+          "type": "string",
+          "repr": "\"C\""
+        },
+        {
+          "name": "queue",
+          "type": "Queue<string>",
+          "repr": "[\"D\"]"
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<string>",
+          "repr": "{\"A\", \"B\", \"C\", \"D\"}"
+        }
+      ],
+      "tracked": {},
+      "graphs": {
+        "graph": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "A"
+            },
+            {
+              "id": 1,
+              "label": "B"
+            },
+            {
+              "id": 2,
+              "label": "C"
+            },
+            {
+              "id": 3,
+              "label": "D"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1
+            },
+            {
+              "from": 0,
+              "to": 2
+            },
+            {
+              "from": 1,
+              "to": 3
+            },
+            {
+              "from": 2,
+              "to": 3
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {
+            "node": 2
+          },
+          "visited": {
+            "nodes": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "unmatched": 0
+          },
+          "frontier": {
+            "nodes": [
+              3
+            ],
+            "unmatched": 0
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 14,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "graph",
+          "type": "Dictionary<string, List<string>>",
+          "repr": "{\"A\": [\"B\", \"C\"], \"B\": [\"D\"], \"C\": [\"D\"], \"D\": []}"
+        },
+        {
+          "name": "node",
+          "type": "string",
+          "repr": "\"C\""
+        },
+        {
+          "name": "queue",
+          "type": "Queue<string>",
+          "repr": "[\"D\"]"
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<string>",
+          "repr": "{\"A\", \"B\", \"C\", \"D\"}"
+        }
+      ],
+      "tracked": {},
+      "graphs": {
+        "graph": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "A"
+            },
+            {
+              "id": 1,
+              "label": "B"
+            },
+            {
+              "id": 2,
+              "label": "C"
+            },
+            {
+              "id": 3,
+              "label": "D"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1
+            },
+            {
+              "from": 0,
+              "to": 2
+            },
+            {
+              "from": 1,
+              "to": 3
+            },
+            {
+              "from": 2,
+              "to": 3
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {
+            "node": 2
+          },
+          "visited": {
+            "nodes": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "unmatched": 0
+          },
+          "frontier": {
+            "nodes": [
+              3
+            ],
+            "unmatched": 0
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 15,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "graph",
+          "type": "Dictionary<string, List<string>>",
+          "repr": "{\"A\": [\"B\", \"C\"], \"B\": [\"D\"], \"C\": [\"D\"], \"D\": []}"
+        },
+        {
+          "name": "node",
+          "type": "string",
+          "repr": "\"D\""
+        },
+        {
+          "name": "queue",
+          "type": "Queue<string>",
+          "repr": "[]"
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<string>",
+          "repr": "{\"A\", \"B\", \"C\", \"D\"}"
+        }
+      ],
+      "tracked": {},
+      "graphs": {
+        "graph": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "A"
+            },
+            {
+              "id": 1,
+              "label": "B"
+            },
+            {
+              "id": 2,
+              "label": "C"
+            },
+            {
+              "id": 3,
+              "label": "D"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1
+            },
+            {
+              "from": 0,
+              "to": 2
+            },
+            {
+              "from": 1,
+              "to": 3
+            },
+            {
+              "from": 2,
+              "to": 3
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {
+            "node": 3
+          },
+          "visited": {
+            "nodes": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "unmatched": 0
+          },
+          "frontier": {
+            "nodes": [],
+            "unmatched": 0
+          }
+        }
+      }
+    },
+    {
+      "event": "return",
+      "function": "Main",
+      "locals": [
+        {
+          "name": "graph",
+          "type": "Dictionary<string, List<string>>",
+          "repr": "{\"A\": [\"B\", \"C\"], \"B\": [\"D\"], \"C\": [\"D\"], \"D\": []}"
+        },
+        {
+          "name": "node",
+          "type": "string",
+          "repr": "\"D\""
+        },
+        {
+          "name": "queue",
+          "type": "Queue<string>",
+          "repr": "[]"
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<string>",
+          "repr": "{\"A\", \"B\", \"C\", \"D\"}"
+        }
+      ],
+      "tracked": {},
+      "graphs": {
+        "graph": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "A"
+            },
+            {
+              "id": 1,
+              "label": "B"
+            },
+            {
+              "id": 2,
+              "label": "C"
+            },
+            {
+              "id": 3,
+              "label": "D"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1
+            },
+            {
+              "from": 0,
+              "to": 2
+            },
+            {
+              "from": 1,
+              "to": 3
+            },
+            {
+              "from": 2,
+              "to": 3
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {
+            "node": 3
+          },
+          "visited": {
+            "nodes": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "unmatched": 0
+          },
+          "frontier": {
+            "nodes": [],
+            "unmatched": 0
+          }
+        }
+      }
+    }
+  ],
+  "stdout": ""
+}
