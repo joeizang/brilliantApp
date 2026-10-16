@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><LangVersion>14</LangVersion></PropertyGroup>
+  <ItemGroup><InternalsVisibleTo Include="Brilliant.Runtime.CSharp.Tests" /></ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Brilliant.Core/Brilliant.Core.csproj" />
     <ProjectReference Include="../Brilliant.Code.CSharp/Brilliant.Code.CSharp.csproj" />
@@ -8,7 +9,9 @@
   <!-- A separate item path avoids Apple's packaging pipeline treating the runtime DLL as a resource. -->
   <Target Name="EmbedProbeMetadata" BeforeTargets="AssignTargetPaths" DependsOnTargets="ResolveProjectReferences">
     <PropertyGroup><ProbeMetadataPath>$(IntermediateOutputPath)metadata/probe-runtime.bin</ProbeMetadataPath></PropertyGroup>
-    <Copy SourceFiles="../Brilliant.Code.CSharp/bin/$(Configuration)/net10.0/Brilliant.Code.CSharp.dll" DestinationFiles="$(ProbeMetadataPath)" />
+    <ItemGroup><ProbeMetadataSource Include="@(_ResolvedProjectReferencePaths)" Condition="'%(Filename)%(Extension)' == 'Brilliant.Code.CSharp.dll'" /></ItemGroup>
+    <Error Condition="'@(ProbeMetadataSource)' == ''" Text="The Brilliant.Code.CSharp project reference output was not resolved." />
+    <Copy SourceFiles="@(ProbeMetadataSource)" DestinationFiles="$(ProbeMetadataPath)" />
     <ItemGroup><EmbeddedResource Include="$(ProbeMetadataPath)" LogicalName="probe-runtime.dll" /></ItemGroup>
   </Target>
 </Project>

@@ -16,6 +16,8 @@ public sealed class CSharpRuntime(TimeSpan? testTimeout = null) : ICodeRuntime
 {
     public string Language => "csharp";
     public const int AssemblyLoadLimit = 50;
+    /// <summary>Test seam: lets a submission block so the watchdog can be exercised. Learner code never runs with this set.</summary>
+    internal bool AllowBlockingCalls { get; init; }
     private readonly TimeSpan _testTimeout = testTimeout is { } t && t <= TimeSpan.Zero ? throw new ArgumentOutOfRangeException(nameof(testTimeout)) : testTimeout ?? TimeSpan.FromSeconds(2);
     private readonly SemaphoreSlim _runs = new(1);
     private readonly object _state = new();
@@ -51,13 +53,16 @@ public sealed class CSharpRuntime(TimeSpan? testTimeout = null) : ICodeRuntime
             {
                 using var compilationStop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 compilationStop.CancelAfter(TimeSpan.FromSeconds(15));
-                var compilation = Task.Run(() => CSharpSubmissionCompiler.Compile(code, entrypoint, copy, captureConsole: true, compilationStop.Token), compilationStop.Token);
+                var compilation = Task.Run(() => CSharpSubmissionCompiler.Compile(code, entrypoint, copy, captureConsole: true, AllowBlockingCalls, compilationStop.Token), compilationStop.Token);
                 CSharpSubmissionCompiler.Compilation compiled;
                 try { compiled = await compilation.WaitAsync(TimeSpan.FromSeconds(15), cancellationToken); }
                 catch (Exception ex) when (ex is TimeoutException or OperationCanceledException)
                 {
                     compilationStop.Cancel();
-                    if (!compilation.IsCompleted) lock (_state) _blocked = true;
+                    // Roslyn usually honours cancellation quickly; only a compile that ignores it poisons the session.
+                    try { await compilation.WaitAsync(TimeSpan.FromMilliseconds(100)); }
+                    catch (Exception unwound) when (unwound is TimeoutException) { lock (_state) _blocked = true; }
+                    catch (Exception unwound) when (unwound is OperationCanceledException) { }
                     // Observe late faults without retaining its emitted result.
                     _ = compilation.ContinueWith(t => _ = t.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
                     return Error("C# compilation was stopped. Quit and reopen the app if another run requires a restart; your draft is saved.", TestRunStatus.TimedOut);
@@ -105,7 +110,8 @@ public sealed class CSharpRuntime(TimeSpan? testTimeout = null) : ICodeRuntime
                     return Error($"C# test {i + 1} ({entrypoint}({tests[i].Input})) exceeded its time budget.{restart}", TestRunStatus.TimedOut);
                 }
                 if (execution.Timeout is { } timeout)
-                    return Error($"C# test {i + 1} ({entrypoint}({tests[i].Input})): {timeout}", TestRunStatus.TimedOut);
+                    return Error($"C# test {i + 1} ({entrypoint}({tests[i].Input})): {timeout}",
+                        timeout == SubmissionOutput.LimitMessage ? TestRunStatus.Error : TestRunStatus.TimedOut);
                 outcomes.Add(execution.Outcome!);
             }
             return new(outcomes.All(t => t.Passed) ? TestRunStatus.Passed : TestRunStatus.Failed, "", null, null, null, outcomes);

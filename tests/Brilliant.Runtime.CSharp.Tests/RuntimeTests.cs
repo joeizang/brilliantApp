@@ -21,7 +21,7 @@ public sealed class RuntimeTests
     [Fact]
     public async Task A_probe_free_blocking_call_returns_a_timeout_without_waiting_for_the_call()
     {
-        var runtime = new CSharpRuntime(TimeSpan.FromMilliseconds(100));
+        var runtime = new CSharpRuntime(TimeSpan.FromMilliseconds(100)) { AllowBlockingCalls = true };
         var result = await runtime.RunTestsAsync("static int F() { System.Threading.Thread.Sleep(2000); return 1; }", "F", [new CodeTest("", "1")]);
         Assert.True(result.Status == TestRunStatus.TimedOut, result.Message + result.Traceback);
         Assert.Contains("test 1", result.Message);
@@ -111,7 +111,7 @@ public sealed class RuntimeTests
     [Fact]
     public async Task Cancelled_blocking_execution_requires_restart_and_prevents_more_loads()
     {
-        var runtime = new CSharpRuntime(TimeSpan.FromMilliseconds(50));
+        var runtime = new CSharpRuntime(TimeSpan.FromMilliseconds(50)) { AllowBlockingCalls = true };
         var result = await runtime.RunTestsAsync("static int F() { System.Threading.Thread.Sleep(1000); return 1; }", "F", [new CodeTest("", "1")]);
         Assert.True(result.Status == TestRunStatus.TimedOut, result.Message + result.Traceback);
         Assert.True(runtime.Diagnostics.RequiresRestart);
@@ -120,6 +120,7 @@ public sealed class RuntimeTests
     }
 
     [Theory]
+    [InlineData("static int F() { System.Threading.Thread.Sleep(5000); return 1; }")]
     [InlineData("static int F() { Action<int> exit = Environment.Exit; return 1; }")]
     [InlineData("static int F() { System.Threading.Tasks.Task.Delay(10).Wait(); return 1; }")]
     [InlineData("static int F() { object x = 1; return x.GetType().GetHashCode(); }")]
@@ -165,8 +166,28 @@ public sealed class RuntimeTests
     {
         var runtime = new CSharpRuntime();
         var result = await runtime.RunTestsAsync("static int F() { Console.Write(new string('x', 20000)); return 1; }", "F", [new CodeTest("", "1")]);
-        Assert.True(result.Status == TestRunStatus.TimedOut, result.Message + result.Traceback);
+        Assert.True(result.Status == TestRunStatus.Error, result.Message + result.Traceback);
         Assert.Contains("output", result.Message);
         Assert.False(runtime.Diagnostics.RequiresRestart);
+    }
+
+    [Fact]
+    public async Task A_signature_that_does_not_match_the_test_call_explains_the_test_without_a_learner_line()
+    {
+        var result = await new CSharpRuntime().RunTestsAsync("static int AddTwo(int a, int b)\n{\n    return a + b;\n}", "AddTwo", [new CodeTest("1", "3")]);
+        Assert.Equal(TestRunStatus.Error, result.Status);
+        Assert.Null(result.ErrorLine);
+        Assert.Contains("Test 1 calls AddTwo(1)", result.Message);
+        Assert.DoesNotContain("test-1.cs", result.Traceback);
+        Assert.Contains("CS7036", result.Traceback);
+    }
+
+    [Fact]
+    public async Task A_learner_error_alongside_a_test_call_error_keeps_the_learner_line()
+    {
+        var result = await new CSharpRuntime().RunTestsAsync("static int F(int a, int b)\n{\n    return missing;\n}", "F", [new CodeTest("1", "1")]);
+        Assert.Equal(TestRunStatus.Error, result.Status);
+        Assert.Equal(3, result.ErrorLine);
+        Assert.Equal("C# compilation failed.", result.Message);
     }
 }

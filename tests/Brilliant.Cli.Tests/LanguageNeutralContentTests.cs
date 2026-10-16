@@ -37,12 +37,23 @@ public sealed class LanguageNeutralContentTests : IDisposable
             title: Double
             prompt: Double it
             language: csharp
+            largeScreenPreferred: true
             entrypoint: Double
             starter: 'static int Double(int n) => 0;'
             solution: 'static int Double(int n) => n * 2;'
             tests:
               - input: '4'
                 expected: '8'
+            phoneAlternative:
+              id: step.sample.write.fill
+              type: fill-blank
+              title: Complete Double
+              prompt: Finish Double.
+              language: csharp
+              template: 'static int Double(int n) => n * {{factor}};'
+              blanks:
+                - id: factor
+                  accepted: ['2']
         """;
 
     private const string Trace = """

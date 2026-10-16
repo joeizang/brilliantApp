@@ -23,7 +23,10 @@ public static class CSharpSubmissionCompiler
             .Append(MetadataReference.CreateFromImage(buffer.ToArray())).ToImmutableArray();
     });
 
-    public static Compilation Compile(string code, string entrypoint, IReadOnlyList<CodeTest> tests, bool captureConsole = false, CancellationToken cancellationToken = default)
+    public static Compilation Compile(string code, string entrypoint, IReadOnlyList<CodeTest> tests, bool captureConsole = false, CancellationToken cancellationToken = default) =>
+        Compile(code, entrypoint, tests, captureConsole, allowBlockingCalls: false, cancellationToken);
+
+    internal static Compilation Compile(string code, string entrypoint, IReadOnlyList<CodeTest> tests, bool captureConsole, bool allowBlockingCalls, CancellationToken cancellationToken)
     {
         if (code.Length > 65_536 || tests.Count is < 1 or > 64 || tests.Any(t => t.Input.Length > 4_096 || t.Expected.Length > 4_096))
             return Error("C# exercises support up to 64 tests, 64 KiB of source and 4 KiB per test expression.");
@@ -65,12 +68,12 @@ public static class CSharpSubmissionCompiler
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, optimizationLevel: OptimizationLevel.Debug,
                 nullableContextOptions: NullableContextOptions.Enable, allowUnsafe: false));
         var errors = compilation.GetDiagnostics(cancellationToken).Where(d => d.Severity == DiagnosticSeverity.Error).ToArray();
-        if (errors.Length > 0) return CompileError(errors);
+        if (errors.Length > 0) return CompileError(errors, entrypoint, tests);
         try
         {
             if (captureConsole)
             {
-                NativeCodePolicy.Validate(tree, compilation.GetSemanticModel(tree), cancellationToken);
+                NativeCodePolicy.Validate(tree, compilation.GetSemanticModel(tree), allowBlockingCalls, cancellationToken);
                 var captured = tree.WithRootAndOptions(new ConsoleCaptureRewriter(compilation.GetSemanticModel(tree)).Visit(tree.GetRoot())!, tree.Options);
                 compilation = compilation.ReplaceSyntaxTree(tree, captured);
                 tree = captured;
@@ -81,7 +84,7 @@ public static class CSharpSubmissionCompiler
         catch (NotSupportedException ex) { return Error(ex.Message); }
         using var pe = new MemoryStream();
         var emit = compilation.Emit(pe, cancellationToken: cancellationToken);
-        if (!emit.Success) return CompileError(emit.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        if (!emit.Success) return CompileError(emit.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error), entrypoint, tests);
         if (pe.Length > 1_048_576) return Error("The compiled C# submission exceeds 1 MiB.");
         return new(pe.ToArray(), null);
     }
@@ -93,11 +96,27 @@ public static class CSharpSubmissionCompiler
         text.AppendLine("#line default");
     }
 
-    private static Compilation CompileError(IEnumerable<Diagnostic> errors)
+    private static readonly System.Text.RegularExpressions.Regex TestFile = new(@"^test-(\d+)\.cs$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>
+    /// The editor highlights only lines in the learner's code. An error in a generated test call (for example a signature that
+    /// doesn't match the call) has no learner line, so it is explained in terms of the test instead of a harness file.
+    /// </summary>
+    private static Compilation CompileError(IEnumerable<Diagnostic> errors, string entrypoint, IReadOnlyList<CodeTest> tests)
     {
         var list = errors.ToArray();
-        var line = list.FirstOrDefault()?.Location.GetMappedLineSpan().StartLinePosition.Line + 1;
-        return new(null, new(TestRunStatus.Error, "", "C# compilation failed.", string.Join("\n", list.Select(d => d.ToString())), line, []));
+        var learner = list.FirstOrDefault(d => d.Location.GetMappedLineSpan().Path == "solution.cs");
+        var line = learner?.Location.GetMappedLineSpan().StartLinePosition.Line + 1;
+        var message = "C# compilation failed.";
+        if (learner is null && list.Select(d => TestFile.Match(d.Location.GetMappedLineSpan().Path)).FirstOrDefault(m => m.Success) is { } match)
+        {
+            var number = int.Parse(match.Groups[1].Value);
+            message = $"Test {number} calls {entrypoint}({tests[number - 1].Input}); check your method's name, parameters and return type.";
+        }
+        var details = list.Select(d => TestFile.Match(d.Location.GetMappedLineSpan().Path) is { Success: true } m
+            ? $"test {m.Groups[1].Value}: error {d.Id}: {d.GetMessage(System.Globalization.CultureInfo.InvariantCulture)}"
+            : d.ToString());
+        return new(null, new(TestRunStatus.Error, "", message, string.Join("\n", details), line, []));
     }
     private static Compilation Error(string message) => new(null, new(TestRunStatus.Error, "", message, null, null, []));
 }
