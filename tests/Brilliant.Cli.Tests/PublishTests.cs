@@ -51,8 +51,12 @@ public sealed class PublishTests : IDisposable
                 title: Intro
                 body: Hello
                 comparison:
-                  csharp: var x = 1;
-                  python: x = 1
+                  - label: C#
+                    language: csharp
+                    code: var x = 1;
+                  - label: Python
+                    language: python
+                    code: x = 1
             """);
     }
 

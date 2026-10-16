@@ -61,21 +61,21 @@ Quit the app and everything is forgotten. An unknown lesson id fails at startup.
 - Every track, lesson and step has a stable `id` (`track.…`, `lesson.…`, `step.…`; lowercase words joined by `-` or `.`), unique across the pack.
 - `pack.yaml` has an `id` and a `version` like `1.2.3`.
 - Step types so far: `explain`, `choice`, `predict-output`, `write-code`, `fill-blank` and `parsons`.
-  - `explain` needs `title` and `body` (markdown); `snippets` and a C#↔Python `comparison` are optional but must be complete if present.
+  - `explain` needs `title` and `body` (markdown); `snippets` and a `comparison` list of `{label, language, code}` snippets are optional but must be complete if present.
   - `choice` needs `title`, `prompt` and at least 2 `options` (`text`, `correct`, optional `feedback`). Exactly one option must be correct unless `multiSelect: true`.
   - `predict-output` shows a `code` snippet (optional `language`, default `python`) and a `prompt`, in one of two variants (exactly one is required):
     - **typed**: `accepted` lists the correct outputs. Optional `mistakes` give specific feedback; each needs `feedback` plus `answers` (exact matches) and/or a `regex`, and must not repeat an accepted answer.
     - **multiple choice**: `options` as for `choice`, with exactly one `correct`; `mistakes` are not allowed (use per-option `feedback`).
     - Answers are compared after normalising: runs of spaces/tabs collapse, lines and ends are trimmed, curly quotes are straightened and `"`/`'` are treated alike. Case still matters. Regexes run against the normalised response.
-  - `fill-blank` shows code that is read-only except at its blanks. It needs `prompt`, a `template` and `blanks` (optional `language`, only `python` for now):
+  - `fill-blank` shows code that is read-only except at its blanks. It needs `prompt`, a `template` and `blanks` (optional `language`, `python` by default or `csharp`):
     - In the `template`, `{{blank-id}}` marks a blank (lowercase words joined by `-`); everything else is read-only code. Every marker must name a declared blank, and every blank must appear exactly once. Literal double braces (an f-string's `{{`) aren't supported in a template.
     - Each blank has an `id`, one or more `accepted` answers (single-line, no duplicates after normalising) and optional `mistakes` with the same shape and rules as `predict-output` mistakes (`answers` and/or `regex`, plus `feedback`).
     - Answers are normalised exactly as for `predict-output` (runs of spaces collapse, quotes unify, case still matters), so list spacing variants the learner might reasonably type (`range(1,n)` and `range(1, n)`) or accept them all with a `regex`.
     - Each blank is judged on its own: the learner sees which are right and any mistake feedback, keeps the right ones and fixes the rest. Attempts are recorded as `StepAnswered` with the text of every blank.
     - Not yet supported: checking the finished code by running tests, and multi-line blanks.
-  - `parsons` shows the lines of a short program shuffled; the learner puts them in order and gives each the right indentation. It needs `prompt` and a `solution` (optional `language`, only `python` for now):
+  - `parsons` shows the lines of a short program shuffled; the learner puts them in order and gives each the right indentation. It needs `prompt` and a `solution` (optional `language`, `python` by default or `csharp`):
     - `solution` is the program as it should end up, written normally. The validator reads the order and indentation from it, so the lines and their levels are never listed separately. Blank lines are dropped and every other line becomes one piece. Indent with spaces, in a consistent unit (2 or 4 spaces, say).
-    - The validator checks the solution is structurally sound, since there is no syntax check for it: at least 2 lines and at least 2 distinct ones, the first line not indented, a line ending in `:` (a trailing `# comment` is ignored) followed by a line one level deeper, and no line deeper than the one before it unless that one ends in `:`.
+    - The validator checks the solution is structurally sound, since there is no syntax check for it: at least 2 lines and at least 2 distinct ones, the first line not indented, for Python, a line ending in `:` (a trailing `# comment` is ignored) followed by a line one level deeper, and no line deeper than the one before it unless that one ends in `:`.
     - Lines are compared by text and level, row by row, so two identical lines can be swapped freely. The learner sees which rows are right, and whether a wrong one has the right line with the wrong indentation or needs a different line. They keep their arrangement and fix what's wrong.
     - Moving: drag a line, use the ▲▼ buttons, or press <kbd>⌥</kbd><kbd>↑</kbd> / <kbd>⌥</kbd><kbd>↓</kbd> on the selected line. Indenting: the ⇤⇥ buttons or <kbd>⌥</kbd><kbd>←</kbd> / <kbd>⌥</kbd><kbd>→</kbd>. Lines can't be indented deeper than the solution's deepest level.
     - Attempts are recorded as `StepAnswered` with the verdict and the arrangement (each row's solution-line index and level).

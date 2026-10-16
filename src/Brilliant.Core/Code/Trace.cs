@@ -11,11 +11,26 @@ namespace Brilliant.Core.Code;
 /// </summary>
 public enum TraceStatus { Ok, Error, Truncated }
 
-/// <summary>A local variable at one step. <see cref="Repr"/> is the Python repr, clipped.</summary>
-public sealed record TraceLocal(string Name, string Type, string Repr);
+/// <summary>A local variable at one step. <see cref="Repr"/> is the runtime-provided representation, clipped.</summary>
+public sealed record TraceLocal(string Name, string Type, string Repr,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? Index = null)
+{
+    /// <summary>Integer value supplied by the runtime for sequence pointers. Missing on legacy Python traces.</summary>
+    public int? IntegerValue() => Index ?? (Type == "int" && int.TryParse(Repr, out var value) ? value : null);
+}
 
-/// <summary>A watched list, tuple or deque as recorded at one step: the first cells' reprs (front to back), and how many more there were.</summary>
-public sealed record TrackedArray(string Type, IReadOnlyList<string> Cells, int More);
+/// <summary>A recorded sequence: runtime type label, cell representations (front to back), omitted count and supported drawings.
+/// The runtime supplies drawing capabilities independently of its display type name.</summary>
+public sealed record TrackedArray(string Type, IReadOnlyList<string> Cells, int More,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? Drawings = null)
+{
+    public bool Draws(string kind) => Drawings?.Contains(kind) ?? LegacyPythonDraws(kind);
+
+    // Compatibility for traces recorded before runtimes supplied semantic drawing capabilities.
+    // New runtimes must set Drawings; type labels themselves are otherwise opaque.
+    private bool LegacyPythonDraws(string kind) => kind == Visual.Array ||
+        (kind is Visual.Stack or Visual.Queue && Type is "list" or "deque");
+}
 
 /// <summary>
 /// One dict entry or set member as recorded: the repr of the key, and of the value (null for a set). <see cref="Key"/> is only a
@@ -477,7 +492,7 @@ public static class TraceModel
         var views = new List<ArrayView>();
         foreach (var visual in visuals)
         {
-            if (!frame.Tracked.TryGetValue(visual.Variable, out var tracked) || !visual.Draws(tracked.Type)) continue;
+            if (!frame.Tracked.TryGetValue(visual.Variable, out var tracked) || !tracked.Draws(visual.As)) continue;
             var before = previous?.Arrays.FirstOrDefault(a => a.Variable == visual.Variable);
 
             var (cells, gone) = visual.As == Visual.Array
@@ -645,7 +660,7 @@ public static class TraceModel
     private static int? PointerIndex(TraceFrame frame, string name, int cellCount)
     {
         var local = frame.Locals.FirstOrDefault(l => l.Name == name);
-        if (local is not { Type: "int" } || !int.TryParse(local.Repr, out var value)) return null;
+        if (local?.IntegerValue() is not { } value) return null;
         return value >= 0 && value < cellCount ? value : null;
     }
 

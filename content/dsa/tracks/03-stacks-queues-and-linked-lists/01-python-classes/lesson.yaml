@@ -54,35 +54,39 @@ steps:
         makes you write it. Inside a method, an attribute is always `self.count`, never just `count`.
       - You create an object by calling the class like a function. There is no `new`.
     comparison:
-      csharp: |
-        public class Counter
-        {
-            public int Count;
+      - label: C#
+        language: csharp
+        code: |
+          public class Counter
+          {
+              public int Count;
 
-            public Counter(int start = 0)
-            {
-                Count = start;
-            }
+              public Counter(int start = 0)
+              {
+                  Count = start;
+              }
 
-            public void Increment()
-            {
-                Count++;
-            }
-        }
+              public void Increment()
+              {
+                  Count++;
+              }
+          }
 
-        var c = new Counter(5);
-        c.Increment();
-      python: |
-        class Counter:
-            def __init__(self, start=0):
-                self.count = start
+          var c = new Counter(5);
+          c.Increment();
+      - label: Python
+        language: python
+        code: |
+          class Counter:
+              def __init__(self, start=0):
+                  self.count = start
 
-            def increment(self):
-                self.count += 1
+              def increment(self):
+                  self.count += 1
 
 
-        c = Counter(5)
-        c.increment()
+          c = Counter(5)
+          c.increment()
   - id: step.python-classes.predict-counter
     type: predict-output
     title: Predict the output
@@ -162,29 +166,33 @@ steps:
       Methods with double underscores on both sides (`__init__`, `__repr__`, `__eq__`) are called *dunder* methods. You don't call
       them yourself; Python calls them for you when you construct, print or compare.
     comparison:
-      csharp: |
-        public class Point
-        {
-            public int X, Y;
-            public Point(int x, int y) { X = x; Y = y; }
+      - label: C#
+        language: csharp
+        code: |
+          public class Point
+          {
+              public int X, Y;
+              public Point(int x, int y) { X = x; Y = y; }
 
-            public override string ToString() => $"Point({X}, {Y})";
+              public override string ToString() => $"Point({X}, {Y})";
 
-            public override bool Equals(object? o) =>
-                o is Point p && p.X == X && p.Y == Y;
-            public override int GetHashCode() => HashCode.Combine(X, Y);
-        }
-      python: |
-        class Point:
-            def __init__(self, x, y):
-                self.x = x
-                self.y = y
+              public override bool Equals(object? o) =>
+                  o is Point p && p.X == X && p.Y == Y;
+              public override int GetHashCode() => HashCode.Combine(X, Y);
+          }
+      - label: Python
+        language: python
+        code: |
+          class Point:
+              def __init__(self, x, y):
+                  self.x = x
+                  self.y = y
 
-            def __repr__(self):
-                return f"Point({self.x}, {self.y})"
+              def __repr__(self):
+                  return f"Point({self.x}, {self.y})"
 
-            def __eq__(self, other):
-                return isinstance(other, Point) and (self.x, self.y) == (other.x, other.y)
+              def __eq__(self, other):
+                  return isinstance(other, Point) and (self.x, self.y) == (other.x, other.y)
   - id: step.python-classes.predict-default-eq
     type: predict-output
     title: Predict the output
@@ -227,23 +235,27 @@ steps:
         a dict key or a set member.
       - You can still add your own methods underneath the fields.
     comparison:
-      csharp: |
-        public record Point(int X, int Y = 0);
+      - label: C#
+        language: csharp
+        code: |
+          public record Point(int X, int Y = 0);
 
-        var p = new Point(1, 2);
-        Console.WriteLine(p);              // Point { X = 1, Y = 2 }
-        Console.WriteLine(p == new Point(1, 2));   // True
-      python: |
-        from dataclasses import dataclass
+          var p = new Point(1, 2);
+          Console.WriteLine(p);              // Point { X = 1, Y = 2 }
+          Console.WriteLine(p == new Point(1, 2));   // True
+      - label: Python
+        language: python
+        code: |
+          from dataclasses import dataclass
 
-        @dataclass
-        class Point:
-            x: int
-            y: int = 0
+          @dataclass
+          class Point:
+              x: int
+              y: int = 0
 
-        p = Point(1, 2)
-        print(p)                    # Point(x=1, y=2)
-        print(p == Point(1, 2))     # True
+          p = Point(1, 2)
+          print(p)                    # Point(x=1, y=2)
+          print(p == Point(1, 2))     # True
   - id: step.python-classes.predict-dataclass
     type: predict-output
     title: Predict the output
@@ -292,23 +304,27 @@ steps:
       Reading an attribute of `None` raises `AttributeError: 'NoneType' object has no attribute 'next'`. That is the
       `NullReferenceException` of Python, and it is the most common error in linked-list code.
     comparison:
-      csharp: |
-        var a = new Node(1);
-        var b = a;          // the same object
-        b.Val = 99;         // a.Val is 99 too
+      - label: C#
+        language: csharp
+        code: |
+          var a = new Node(1);
+          var b = a;          // the same object
+          b.Val = 99;         // a.Val is 99 too
 
-        Node? n = null;
-        if (n == null) { }
-        n.Val = 1;          // NullReferenceException
-      python: |
-        a = Node(1)
-        b = a               # the same object
-        b.val = 99          # a.val is 99 too
+          Node? n = null;
+          if (n == null) { }
+          n.Val = 1;          // NullReferenceException
+      - label: Python
+        language: python
+        code: |
+          a = Node(1)
+          b = a               # the same object
+          b.val = 99          # a.val is 99 too
 
-        n = None
-        if n is None:
-            pass
-        n.val = 1           # AttributeError
+          n = None
+          if n is None:
+              pass
+          n.val = 1           # AttributeError
   - id: step.python-classes.trace-chain
     type: trace
     title: Objects that point at objects

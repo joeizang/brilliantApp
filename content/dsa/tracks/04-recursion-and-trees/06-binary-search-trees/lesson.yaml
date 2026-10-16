@@ -47,18 +47,22 @@ steps:
       order to search by. The usual stand-ins are a sorted list with the `bisect` module (fast search, O(n) insert), or the
       third-party `sortedcontainers` package.
     comparison:
-      csharp: |
-        var set = new SortedSet<int> { 8, 3, 10, 1, 6 };
-        set.Contains(6);                 // O(log n): walks down the tree
-        var smallest = set.Min;          // 1
-        set.GetViewBetween(3, 8);        // { 3, 6, 8 }
-      python: |
-        import bisect
+      - label: C#
+        language: csharp
+        code: |
+          var set = new SortedSet<int> { 8, 3, 10, 1, 6 };
+          set.Contains(6);                 // O(log n): walks down the tree
+          var smallest = set.Min;          // 1
+          set.GetViewBetween(3, 8);        // { 3, 6, 8 }
+      - label: Python
+        language: python
+        code: |
+          import bisect
 
-        values = [1, 3, 6, 8, 10]        # kept sorted
-        i = bisect.bisect_left(values, 6)
-        i < len(values) and values[i] == 6   # True, O(log n)
-        bisect.insort(values, 7)         # O(n): shifts the items after it
+          values = [1, 3, 6, 8, 10]        # kept sorted
+          i = bisect.bisect_left(values, 6)
+          i < len(values) and values[i] == 6   # True, O(log n)
+          bisect.insort(values, 7)         # O(n): shifts the items after it
   - id: step.bst.trace-search
     type: trace
     title: One side at every node
@@ -293,27 +297,31 @@ steps:
       visit per node. Python's `float("inf")` compares with any number, which saves a special case for the root. In C# you'd
       use `long.MinValue` and `long.MaxValue`, or a nullable `int?`, so that `int.MinValue` itself can be a value.
     comparison:
-      csharp: |
-        static bool Check(Node? node, long low, long high)
-        {
-            if (node == null) return true;
-            if (node.Val <= low || node.Val >= high) return false;
-            return Check(node.Left, low, node.Val)
-                && Check(node.Right, node.Val, high);
-        }
+      - label: C#
+        language: csharp
+        code: |
+          static bool Check(Node? node, long low, long high)
+          {
+              if (node == null) return true;
+              if (node.Val <= low || node.Val >= high) return false;
+              return Check(node.Left, low, node.Val)
+                  && Check(node.Right, node.Val, high);
+          }
 
-        bool ok = Check(root, long.MinValue, long.MaxValue);
-      python: |
-        def check(node, low, high):
-            if node is None:
-                return True
-            if not low < node.val < high:
-                return False
-            return (check(node.left, low, node.val)
-                    and check(node.right, node.val, high))
+          bool ok = Check(root, long.MinValue, long.MaxValue);
+      - label: Python
+        language: python
+        code: |
+          def check(node, low, high):
+              if node is None:
+                  return True
+              if not low < node.val < high:
+                  return False
+              return (check(node.left, low, node.val)
+                      and check(node.right, node.val, high))
 
 
-        ok = check(root, float("-inf"), float("inf"))
+          ok = check(root, float("-inf"), float("inf"))
   - id: step.bst.check-which-problem
     type: choice
     title: Which one uses the order?

@@ -45,16 +45,20 @@ steps:
 
       Reading a key that isn't there raises a **`KeyError`**, the cousin of C#'s `KeyNotFoundException`.
     comparison:
-      csharp: |
-        var ages = new Dictionary<string, int> { ["ana"] = 31, ["bo"] = 25 };
-        ages["cy"] = 40;
-        int n = ages["ana"];
-        int count = ages.Count;
-      python: |
-        ages = {"ana": 31, "bo": 25}
-        ages["cy"] = 40
-        n = ages["ana"]
-        count = len(ages)
+      - label: C#
+        language: csharp
+        code: |
+          var ages = new Dictionary<string, int> { ["ana"] = 31, ["bo"] = 25 };
+          ages["cy"] = 40;
+          int n = ages["ana"];
+          int count = ages.Count;
+      - label: Python
+        language: python
+        code: |
+          ages = {"ana": 31, "bo": 25}
+          ages["cy"] = 40
+          n = ages["ana"]
+          count = len(ages)
   - id: step.dicts.trace-count
     type: trace
     title: Watch a dict fill up
@@ -110,18 +114,22 @@ steps:
       To walk a dict, `for k in d` gives the keys, `d.values()` the values and `d.items()` both, as `(key, value)` pairs
       that you can unpack in the loop header.
     comparison:
-      csharp: |
-        int age = ages.GetValueOrDefault("cy", 0);
-        bool known = ages.ContainsKey("cy");
-        foreach (var (name, years) in ages)
-        {
-            Console.WriteLine($"{name} {years}");
-        }
-      python: |
-        age = ages.get("cy", 0)
-        known = "cy" in ages
-        for name, years in ages.items():
-            print(name, years)
+      - label: C#
+        language: csharp
+        code: |
+          int age = ages.GetValueOrDefault("cy", 0);
+          bool known = ages.ContainsKey("cy");
+          foreach (var (name, years) in ages)
+          {
+              Console.WriteLine($"{name} {years}");
+          }
+      - label: Python
+        language: python
+        code: |
+          age = ages.get("cy", 0)
+          known = "cy" in ages
+          for name, years in ages.items():
+              print(name, years)
   - id: step.dicts.predict-get
     type: predict-output
     title: Predict the output
@@ -223,17 +231,21 @@ steps:
 
       Watch out: `{}` is an empty **dict**, not an empty set. Write `set()` for the empty set.
     comparison:
-      csharp: |
-        var seen = new HashSet<int> { 3, 1, 2 };
-        seen.Add(2);
-        bool has = seen.Contains(3);
-        var both = new HashSet<int>(a);
-        both.IntersectWith(b);
-      python: |
-        seen = {3, 1, 2}
-        seen.add(2)
-        has = 3 in seen
-        both = a & b
+      - label: C#
+        language: csharp
+        code: |
+          var seen = new HashSet<int> { 3, 1, 2 };
+          seen.Add(2);
+          bool has = seen.Contains(3);
+          var both = new HashSet<int>(a);
+          both.IntersectWith(b);
+      - label: Python
+        language: python
+        code: |
+          seen = {3, 1, 2}
+          seen.add(2)
+          has = 3 in seen
+          both = a & b
   - id: step.dicts.trace-set
     type: trace
     title: Watch a set ignore repeats
@@ -311,13 +323,17 @@ steps:
 
       In C# the one-liner is `words.GroupBy(w => w).ToDictionary(g => g.Key, g => g.Count())`.
     comparison:
-      csharp: |
-        var counts = words
-            .GroupBy(w => w)
-            .ToDictionary(g => g.Key, g => g.Count());
-      python: |
-        from collections import Counter
-        counts = Counter(words)
+      - label: C#
+        language: csharp
+        code: |
+          var counts = words
+              .GroupBy(w => w)
+              .ToDictionary(g => g.Key, g => g.Count());
+      - label: Python
+        language: python
+        code: |
+          from collections import Counter
+          counts = Counter(words)
   - id: step.dicts.predict-counter
     type: predict-output
     title: Predict the output

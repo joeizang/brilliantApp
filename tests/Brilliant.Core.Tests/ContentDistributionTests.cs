@@ -406,6 +406,28 @@ public sealed class ContentUpdateServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task A_newer_legacy_format_one_pack_is_still_downloaded_and_loadable()
+    {
+        var (service, server, cache) = Start();
+        var legacy = Packs.Raw("""
+            {"tracks":[{"id":"track.a","title":"A","lessonIds":["lesson.1"]}],
+             "lessons":[{"id":"lesson.1","title":"One","trackId":"track.a","steps":[
+              {"type":"explain","id":"step.a","title":"A","body":"Body","snippets":[],
+               "comparison":{"cSharp":"var x = 1;","python":"x = 1"}}]}]}
+            """, version: "1.1.0");
+        server.Held.Add(legacy);
+        server.Listing = [Packs.Info(legacy, format: 1)];
+
+        var result = await service.CheckAsync();
+
+        Assert.Equal(ContentUpdateOutcome.Downloaded, result.Outcome);
+        Assert.Equal(1, server.Downloads);
+        var graph = cache.LoadNewest("pack.t", PackVersion.Parse("1.0.0"))!.Value.Graph;
+        Assert.Equal(1, graph.Manifest.FormatVersion);
+        Assert.Equal("Python", Assert.IsType<ExplainStep>(graph.Get<Step>("step.a")).Comparison![1].Label);
+    }
+
+    [Fact]
     public async Task The_same_version_is_up_to_date_and_downloads_nothing()
     {
         var (service, server, _) = Start();

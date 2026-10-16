@@ -56,25 +56,29 @@ steps:
       Ints are immutable in both languages, so the C# version behaves the same: `remaining` is a parameter, copied into
       each call.
     comparison:
-      csharp: |
-        static bool HasPathSum(Node? node, int remaining)
-        {
-            if (node == null) return false;
-            remaining -= node.Val;
-            if (node.Left == null && node.Right == null)
-                return remaining == 0;
-            return HasPathSum(node.Left, remaining)
-                || HasPathSum(node.Right, remaining);
-        }
-      python: |
-        def has_path_sum(node, remaining):
-            if node is None:
-                return False
-            remaining -= node.val
-            if node.left is None and node.right is None:
-                return remaining == 0
-            return (has_path_sum(node.left, remaining)
-                    or has_path_sum(node.right, remaining))
+      - label: C#
+        language: csharp
+        code: |
+          static bool HasPathSum(Node? node, int remaining)
+          {
+              if (node == null) return false;
+              remaining -= node.Val;
+              if (node.Left == null && node.Right == null)
+                  return remaining == 0;
+              return HasPathSum(node.Left, remaining)
+                  || HasPathSum(node.Right, remaining);
+          }
+      - label: Python
+        language: python
+        code: |
+          def has_path_sum(node, remaining):
+              if node is None:
+                  return False
+              remaining -= node.val
+              if node.left is None and node.right is None:
+                  return remaining == 0
+              return (has_path_sum(node.left, remaining)
+                      or has_path_sum(node.right, remaining))
   - id: step.top-down.trace
     type: trace
     title: Each call has its own remaining
@@ -211,38 +215,42 @@ steps:
       The copy matters just as much. `path` is one list object, so saving `path` itself saves a reference to a list that
       later pops will empty. In C#, `new List<int>(path)` makes the copy.
     comparison:
-      csharp: |
-        var result = new List<List<int>>();
-        var path = new List<int>();
+      - label: C#
+        language: csharp
+        code: |
+          var result = new List<List<int>>();
+          var path = new List<int>();
 
-        void Walk(Node? node)
-        {
-            if (node == null) return;
-            path.Add(node.Val);
-            if (node.Left == null && node.Right == null)
-                result.Add(new List<int>(path));   // a copy
-            else
-            {
-                Walk(node.Left);
-                Walk(node.Right);
-            }
-            path.RemoveAt(path.Count - 1);
-        }
-      python: |
-        result = []
-        path = []
+          void Walk(Node? node)
+          {
+              if (node == null) return;
+              path.Add(node.Val);
+              if (node.Left == null && node.Right == null)
+                  result.Add(new List<int>(path));   // a copy
+              else
+              {
+                  Walk(node.Left);
+                  Walk(node.Right);
+              }
+              path.RemoveAt(path.Count - 1);
+          }
+      - label: Python
+        language: python
+        code: |
+          result = []
+          path = []
 
 
-        def walk(node):
-            if node is None:
-                return
-            path.append(node.val)
-            if node.left is None and node.right is None:
-                result.append(path[:])            # a copy
-            else:
-                walk(node.left)
-                walk(node.right)
-            path.pop()
+          def walk(node):
+              if node is None:
+                  return
+              path.append(node.val)
+              if node.left is None and node.right is None:
+                  result.append(path[:])            # a copy
+              else:
+                  walk(node.left)
+                  walk(node.right)
+              path.pop()
   - id: step.top-down.trace-paths
     type: trace
     title: The path grows and shrinks

@@ -57,31 +57,35 @@ steps:
       C# has `Array.BinarySearch` and `List<T>.BinarySearch`, but the loop is worth writing by hand: almost every binary-search
       problem changes it a little.
     comparison:
-      csharp: |
-        int Search(int[] nums, int target)
-        {
-            int lo = 0, hi = nums.Length - 1;
-            while (lo <= hi)
-            {
-                int mid = lo + (hi - lo) / 2;
-                if (nums[mid] == target) return mid;
-                if (nums[mid] < target) lo = mid + 1;
-                else hi = mid - 1;
-            }
-            return -1;
-        }
-      python: |
-        def search(nums, target):
-            lo, hi = 0, len(nums) - 1
-            while lo <= hi:
-                mid = (lo + hi) // 2
-                if nums[mid] == target:
-                    return mid
-                if nums[mid] < target:
-                    lo = mid + 1
-                else:
-                    hi = mid - 1
-            return -1
+      - label: C#
+        language: csharp
+        code: |
+          int Search(int[] nums, int target)
+          {
+              int lo = 0, hi = nums.Length - 1;
+              while (lo <= hi)
+              {
+                  int mid = lo + (hi - lo) / 2;
+                  if (nums[mid] == target) return mid;
+                  if (nums[mid] < target) lo = mid + 1;
+                  else hi = mid - 1;
+              }
+              return -1;
+          }
+      - label: Python
+        language: python
+        code: |
+          def search(nums, target):
+              lo, hi = 0, len(nums) - 1
+              while lo <= hi:
+                  mid = (lo + hi) // 2
+                  if nums[mid] == target:
+                      return mid
+                  if nums[mid] < target:
+                      lo = mid + 1
+                  else:
+                      hi = mid - 1
+              return -1
   - id: step.binary-search.trace-found
     type: trace
     title: Halving down to the target

@@ -46,24 +46,28 @@ steps:
       One difference from C#: there is no `TryPop`. `pop()` on an empty list raises `IndexError: pop from empty list`, and
       `stack[-1]` on an empty list raises `IndexError: list index out of range`. Check `if stack:` first.
     comparison:
-      csharp: |
-        var stack = new Stack<int>();
-        stack.Push(1);
-        stack.Push(2);
-        int top = stack.Peek();    // 2
-        int x = stack.Pop();       // 2, and the stack is [1]
-        if (stack.Count == 0) { }
-        if (stack.TryPop(out var y)) { }
-      python: |
-        stack = []
-        stack.append(1)
-        stack.append(2)
-        top = stack[-1]            # 2
-        x = stack.pop()            # 2, and the stack is [1]
-        if not stack:
-            pass
-        if stack:
-            y = stack.pop()
+      - label: C#
+        language: csharp
+        code: |
+          var stack = new Stack<int>();
+          stack.Push(1);
+          stack.Push(2);
+          int top = stack.Peek();    // 2
+          int x = stack.Pop();       // 2, and the stack is [1]
+          if (stack.Count == 0) { }
+          if (stack.TryPop(out var y)) { }
+      - label: Python
+        language: python
+        code: |
+          stack = []
+          stack.append(1)
+          stack.append(2)
+          top = stack[-1]            # 2
+          x = stack.pop()            # 2, and the stack is [1]
+          if not stack:
+              pass
+          if stack:
+              y = stack.pop()
   - id: step.stacks.trace-ops
     type: trace
     title: Push and pop
@@ -151,30 +155,34 @@ steps:
       Why the top? Because nesting means the last thing opened must be the first thing closed. In `{[()]}` the `)` closes the
       `(`, not the `{`. A stack gives you exactly that item in `O(1)`, and the whole walk is `O(n)`.
     comparison:
-      csharp: |
-        bool IsValid(string s)
-        {
-            var pairs = new Dictionary<char, char>
-                { [')'] = '(', [']'] = '[', ['}'] = '{' };
-            var stack = new Stack<char>();
-            foreach (var ch in s)
-            {
-                if ("([{".Contains(ch)) stack.Push(ch);
-                else if (stack.Count == 0 || stack.Pop() != pairs[ch])
-                    return false;
-            }
-            return stack.Count == 0;
-        }
-      python: |
-        def is_valid(s):
-            pairs = {")": "(", "]": "[", "}": "{"}
-            stack = []
-            for ch in s:
-                if ch in "([{":
-                    stack.append(ch)
-                elif not stack or stack.pop() != pairs[ch]:
-                    return False
-            return not stack
+      - label: C#
+        language: csharp
+        code: |
+          bool IsValid(string s)
+          {
+              var pairs = new Dictionary<char, char>
+                  { [')'] = '(', [']'] = '[', ['}'] = '{' };
+              var stack = new Stack<char>();
+              foreach (var ch in s)
+              {
+                  if ("([{".Contains(ch)) stack.Push(ch);
+                  else if (stack.Count == 0 || stack.Pop() != pairs[ch])
+                      return false;
+              }
+              return stack.Count == 0;
+          }
+      - label: Python
+        language: python
+        code: |
+          def is_valid(s):
+              pairs = {")": "(", "]": "[", "}": "{"}
+              stack = []
+              for ch in s:
+                  if ch in "([{":
+                      stack.append(ch)
+                  elif not stack or stack.pop() != pairs[ch]:
+                      return False
+              return not stack
   - id: step.stacks.trace-brackets
     type: trace
     title: Checking brackets

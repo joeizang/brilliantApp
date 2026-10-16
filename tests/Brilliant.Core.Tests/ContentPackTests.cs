@@ -4,7 +4,7 @@ namespace Brilliant.Core.Tests;
 
 public class ContentPackTests
 {
-    private static readonly Comparison Cmp = new("var x = 1;", "x = 1");
+    private static readonly IReadOnlyList<LabelledSnippet> Cmp = [new("C#", "csharp", "var x = 1;"), new("Python", "python", "x = 1")];
 
     private static MemoryStream BuildPack(IEnumerable<Track>? tracks = null, IEnumerable<Lesson>? lessons = null)
     {

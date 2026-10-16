@@ -126,26 +126,30 @@ steps:
 
       Each step is a pattern you know; the skill is seeing which ones the problem needs.
     comparison:
-      csharp: |
-        // 3. weave: first = head, second = reversed second half
-        while (second != null)
-        {
-            var n1 = first!.Next;
-            var n2 = second.Next;
-            first.Next = second;
-            second.Next = n1;
-            first = n1;
-            second = n2;
-        }
-      python: |
-        # 3. weave: first = head, second = reversed second half
-        while second:
-            n1 = first.next
-            n2 = second.next
-            first.next = second
-            second.next = n1
-            first = n1
-            second = n2
+      - label: C#
+        language: csharp
+        code: |
+          // 3. weave: first = head, second = reversed second half
+          while (second != null)
+          {
+              var n1 = first!.Next;
+              var n2 = second.Next;
+              first.Next = second;
+              second.Next = n1;
+              first = n1;
+              second = n2;
+          }
+      - label: Python
+        language: python
+        code: |
+          # 3. weave: first = head, second = reversed second half
+          while second:
+              n1 = first.next
+              n2 = second.next
+              first.next = second
+              second.next = n1
+              first = n1
+              second = n2
   - id: step.choose-lists.trace-reorder
     type: trace
     title: Reordering 1 → 2 → 3 → 4 → 5

@@ -47,19 +47,23 @@ steps:
       It's as if one imaginary node were joined to every source: a BFS from it reaches the sources first, then everything else
       in order of distance to the nearest one.
     comparison:
-      csharp: |
-        var dist = new Dictionary<string, int>();
-        var queue = new Queue<string>();
-        foreach (var s in sources)
-        {
-            dist[s] = 0;
-            queue.Enqueue(s);
-        }
-        // then the same BFS loop as before
-      python: |
-        dist = {s: 0 for s in sources}
-        queue = deque(sources)
-        # then the same BFS loop as before
+      - label: C#
+        language: csharp
+        code: |
+          var dist = new Dictionary<string, int>();
+          var queue = new Queue<string>();
+          foreach (var s in sources)
+          {
+              dist[s] = 0;
+              queue.Enqueue(s);
+          }
+          // then the same BFS loop as before
+      - label: Python
+        language: python
+        code: |
+          dist = {s: 0 for s in sources}
+          queue = deque(sources)
+          # then the same BFS loop as before
   - id: step.multi-source.trace-nearest
     type: trace
     title: Distance to the nearest zero

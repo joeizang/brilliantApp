@@ -71,7 +71,7 @@ public sealed class ContentUpdateService(ContentGraph running, PackCache cache, 
 
             // The newest version of our pack that this app can read. A pack in a newer format waits for a newer app.
             var offer = (await client.ListAsync(creds, ct))
-                .Where(p => p.PackId == running.Manifest.PackId && p.FormatVersion == ContentPackFormat.CurrentFormatVersion && PackVersion.TryParse(p.Version, out _))
+                .Where(p => p.PackId == running.Manifest.PackId && ContentPackFormat.SupportsFormatVersion(p.FormatVersion) && PackVersion.TryParse(p.Version, out _))
                 .OrderByDescending(p => PackVersion.Parse(p.Version))
                 .FirstOrDefault();
             if (offer is null || PackVersion.Parse(offer.Version) <= have || _unusable.Contains(offer.Sha256))

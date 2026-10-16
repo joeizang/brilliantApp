@@ -50,31 +50,35 @@ steps:
 
       Add both. `dp[0] = 1`: the empty prefix is read one way, by reading nothing.
     comparison:
-      csharp: |
-        static long DecodeWays(string s)
-        {
-            var dp = new long[s.Length + 1];
-            dp[0] = 1;
-            for (int i = 1; i <= s.Length; i++)
-            {
-                if (s[i - 1] != '0')
-                    dp[i] += dp[i - 1];
-                if (i >= 2 && string.CompareOrdinal(s, i - 2, "10", 0, 2) >= 0
-                           && string.CompareOrdinal(s, i - 2, "26", 0, 2) <= 0)
-                    dp[i] += dp[i - 2];
-            }
-            return dp[s.Length];
-        }
-      python: |
-        def decode_ways(s):
-            dp = [0] * (len(s) + 1)
-            dp[0] = 1
-            for i in range(1, len(s) + 1):
-                if s[i - 1] != "0":
-                    dp[i] += dp[i - 1]
-                if i >= 2 and "10" <= s[i - 2:i] <= "26":
-                    dp[i] += dp[i - 2]
-            return dp[len(s)]
+      - label: C#
+        language: csharp
+        code: |
+          static long DecodeWays(string s)
+          {
+              var dp = new long[s.Length + 1];
+              dp[0] = 1;
+              for (int i = 1; i <= s.Length; i++)
+              {
+                  if (s[i - 1] != '0')
+                      dp[i] += dp[i - 1];
+                  if (i >= 2 && string.CompareOrdinal(s, i - 2, "10", 0, 2) >= 0
+                             && string.CompareOrdinal(s, i - 2, "26", 0, 2) <= 0)
+                      dp[i] += dp[i - 2];
+              }
+              return dp[s.Length];
+          }
+      - label: Python
+        language: python
+        code: |
+          def decode_ways(s):
+              dp = [0] * (len(s) + 1)
+              dp[0] = 1
+              for i in range(1, len(s) + 1):
+                  if s[i - 1] != "0":
+                      dp[i] += dp[i - 1]
+                  if i >= 2 and "10" <= s[i - 2:i] <= "26":
+                      dp[i] += dp[i - 2]
+              return dp[len(s)]
   - id: step.prefixdp.trace-decode
     type: trace
     title: Reading "2261" a prefix at a time
@@ -192,25 +196,29 @@ steps:
       Decoding had two possible last pieces; here there's one per starting point `j`. Keep the words in a **set**, so each check
       is quick.
     comparison:
-      csharp: |
-        static bool WordBreak(string s, HashSet<string> words)
-        {
-            var dp = new bool[s.Length + 1];
-            dp[0] = true;
-            for (int i = 1; i <= s.Length; i++)
-                for (int j = 0; j < i && !dp[i]; j++)
-                    dp[i] = dp[j] && words.Contains(s[j..i]);
-            return dp[s.Length];
-        }
-      python: |
-        def word_break(s, words):
-            dp = [True] + [False] * len(s)
-            for i in range(1, len(s) + 1):
-                for j in range(i):
-                    if dp[j] and s[j:i] in words:
-                        dp[i] = True
-                        break
-            return dp[len(s)]
+      - label: C#
+        language: csharp
+        code: |
+          static bool WordBreak(string s, HashSet<string> words)
+          {
+              var dp = new bool[s.Length + 1];
+              dp[0] = true;
+              for (int i = 1; i <= s.Length; i++)
+                  for (int j = 0; j < i && !dp[i]; j++)
+                      dp[i] = dp[j] && words.Contains(s[j..i]);
+              return dp[s.Length];
+          }
+      - label: Python
+        language: python
+        code: |
+          def word_break(s, words):
+              dp = [True] + [False] * len(s)
+              for i in range(1, len(s) + 1):
+                  for j in range(i):
+                      if dp[j] and s[j:i] in words:
+                          dp[i] = True
+                          break
+              return dp[len(s)]
   - id: step.prefixdp.trace-break
     type: trace
     title: Which prefixes split?

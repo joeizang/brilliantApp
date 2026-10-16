@@ -51,28 +51,32 @@ steps:
       This is the frequency table's big sibling. A frequency table keeps a **count** for each key. Grouping keeps the
       **items themselves**. One pass, `O(n)` dict operations. The cue to remember is *"same key, same group"*.
     comparison:
-      csharp: |
-        // A dictionary of lists, built by hand...
-        var groups = new Dictionary<int, List<string>>();
-        foreach (var w in words)
-        {
-            if (!groups.TryGetValue(w.Length, out var list))
-                groups[w.Length] = list = new List<string>();
-            list.Add(w);
-        }
+      - label: C#
+        language: csharp
+        code: |
+          // A dictionary of lists, built by hand...
+          var groups = new Dictionary<int, List<string>>();
+          foreach (var w in words)
+          {
+              if (!groups.TryGetValue(w.Length, out var list))
+                  groups[w.Length] = list = new List<string>();
+              list.Add(w);
+          }
 
-        // ...or LINQ, which builds the same thing for you
-        var byLength = words.ToLookup(w => w.Length);
-      python: |
-        groups = {}
-        for w in words:
-            groups.setdefault(len(w), []).append(w)
+          // ...or LINQ, which builds the same thing for you
+          var byLength = words.ToLookup(w => w.Length);
+      - label: Python
+        language: python
+        code: |
+          groups = {}
+          for w in words:
+              groups.setdefault(len(w), []).append(w)
 
-        # or, with a dict that makes the empty list for you
-        from collections import defaultdict
-        groups = defaultdict(list)
-        for w in words:
-            groups[len(w)].append(w)
+          # or, with a dict that makes the empty list for you
+          from collections import defaultdict
+          groups = defaultdict(list)
+          for w in words:
+              groups[len(w)].append(w)
   - id: step.grouping.trace-anagrams
     type: trace
     title: Grouping anagrams
@@ -119,21 +123,25 @@ steps:
       with an empty list, even if you only meant to look. To ask without creating anything, use `"x" in groups` or
       `groups.get("x")`.
     comparison:
-      csharp: |
-        // C# has no defaultdict. You write the check yourself,
-        if (!groups.ContainsKey(key))
-            groups[key] = new List<string>();
-        groups[key].Add(item);
+      - label: C#
+        language: csharp
+        code: |
+          // C# has no defaultdict. You write the check yourself,
+          if (!groups.ContainsKey(key))
+              groups[key] = new List<string>();
+          groups[key].Add(item);
 
-        // or let ToLookup / GroupBy do it
-        var lookup = items.ToLookup(KeyOf);
-      python: |
-        # a plain dict needs the check (or setdefault)
-        groups.setdefault(key, []).append(item)
+          // or let ToLookup / GroupBy do it
+          var lookup = items.ToLookup(KeyOf);
+      - label: Python
+        language: python
+        code: |
+          # a plain dict needs the check (or setdefault)
+          groups.setdefault(key, []).append(item)
 
-        # a defaultdict does not
-        groups = defaultdict(list)
-        groups[key].append(item)
+          # a defaultdict does not
+          groups = defaultdict(list)
+          groups[key].append(item)
   - id: step.grouping.predict-by-length
     type: predict-output
     title: Predict the output

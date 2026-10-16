@@ -11,14 +11,13 @@
     @if (Step.Comparison is { } cmp)
     {
         <div class="comparison grid grid-cols-[1fr_1fr] gap-4 narrow:grid-cols-[1fr]">
-            <section>
-                <h3 class="mt-0 mb-1 text-[.9rem] font-semibold text-fg-secondary">C#</h3>
-                <pre class="code-block" data-language="csharp"><code>@cmp.CSharp</code></pre>
-            </section>
-            <section>
-                <h3 class="mt-0 mb-1 text-[.9rem] font-semibold text-fg-secondary">Python</h3>
-                <pre class="code-block" data-language="python"><code>@cmp.Python</code></pre>
-            </section>
+            @foreach (var snippet in cmp)
+            {
+                <section>
+                    <h3 class="mt-0 mb-1 text-[.9rem] font-semibold text-fg-secondary">@snippet.Label</h3>
+                    <pre class="code-block" data-language="@snippet.Language"><code>@snippet.Code</code></pre>
+                </section>
+            }
         </div>
     }
 </article>

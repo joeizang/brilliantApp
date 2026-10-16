@@ -11,7 +11,7 @@ public enum TestRunStatus { Passed, Failed, Error, TimedOut }
 
 /// <summary>
 /// The outcome of one hidden test. <see cref="Call"/> is the call that was made (e.g. <c>min_max([3, 1, 2])</c>);
-/// <see cref="Expected"/> and <see cref="Actual"/> are Python reprs. <see cref="Actual"/> is null when the call raised.
+/// <see cref="Expected"/> and <see cref="Actual"/> are representations supplied by the exercise runtime. <see cref="Actual"/> is null when the call raised.
 /// </summary>
 public sealed record TestOutcome(
     string Call,

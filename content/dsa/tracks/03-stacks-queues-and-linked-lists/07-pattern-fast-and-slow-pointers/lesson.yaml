@@ -47,21 +47,25 @@ steps:
       The loop runs `while fast and fast.next`. Both checks are needed, because `fast` jumps two nodes: with an odd number of
       nodes it stops on the last one, where `fast.next` is `None`; with an even number it jumps off the end to `None` itself.
     comparison:
-      csharp: |
-        Node? slow = head, fast = head;
-        while (fast != null && fast.Next != null)
-        {
-            slow = slow!.Next;
-            fast = fast.Next.Next;
-        }
-        return slow;          // the middle
-      python: |
-        slow = head
-        fast = head
-        while fast and fast.next:
-            slow = slow.next
-            fast = fast.next.next
-        return slow           # the middle
+      - label: C#
+        language: csharp
+        code: |
+          Node? slow = head, fast = head;
+          while (fast != null && fast.Next != null)
+          {
+              slow = slow!.Next;
+              fast = fast.Next.Next;
+          }
+          return slow;          // the middle
+      - label: Python
+        language: python
+        code: |
+          slow = head
+          fast = head
+          while fast and fast.next:
+              slow = slow.next
+              fast = fast.next.next
+          return slow           # the middle
   - id: step.fast-slow.trace-middle
     type: trace
     title: The middle of 1 → 2 → 3 → 4 → 5
@@ -153,24 +157,28 @@ steps:
       This is Floyd's *tortoise and hare*. Keeping a `set` of nodes already seen would also work, but takes `O(n)` memory; two
       pointers take `O(1)`.
     comparison:
-      csharp: |
-        Node? slow = head, fast = head;
-        while (fast != null && fast.Next != null)
-        {
-            slow = slow!.Next;
-            fast = fast.Next.Next;
-            if (ReferenceEquals(slow, fast)) return true;
-        }
-        return false;
-      python: |
-        slow = head
-        fast = head
-        while fast and fast.next:
-            slow = slow.next
-            fast = fast.next.next
-            if slow is fast:
-                return True
-        return False
+      - label: C#
+        language: csharp
+        code: |
+          Node? slow = head, fast = head;
+          while (fast != null && fast.Next != null)
+          {
+              slow = slow!.Next;
+              fast = fast.Next.Next;
+              if (ReferenceEquals(slow, fast)) return true;
+          }
+          return false;
+      - label: Python
+        language: python
+        code: |
+          slow = head
+          fast = head
+          while fast and fast.next:
+              slow = slow.next
+              fast = fast.next.next
+              if slow is fast:
+                  return True
+          return False
   - id: step.fast-slow.trace-cycle
     type: trace
     title: A cycle back to 2
@@ -271,24 +279,28 @@ steps:
       - *the `k`th node from the end*, *remove the `n`th from the end*
       - a check that needs the second half: *is the list a palindrome* (find the middle, then reverse from there, as in the last lesson)
     comparison:
-      csharp: |
-        Node? slow = head, fast = head;
-        for (int i = 0; i < k; i++) fast = fast!.Next;
-        while (fast != null)
-        {
-            slow = slow!.Next;
-            fast = fast.Next;
-        }
-        return slow;          // k from the end
-      python: |
-        slow = head
-        fast = head
-        for _ in range(k):
-            fast = fast.next
-        while fast:
-            slow = slow.next
-            fast = fast.next
-        return slow           # k from the end
+      - label: C#
+        language: csharp
+        code: |
+          Node? slow = head, fast = head;
+          for (int i = 0; i < k; i++) fast = fast!.Next;
+          while (fast != null)
+          {
+              slow = slow!.Next;
+              fast = fast.Next;
+          }
+          return slow;          // k from the end
+      - label: Python
+        language: python
+        code: |
+          slow = head
+          fast = head
+          for _ in range(k):
+              fast = fast.next
+          while fast:
+              slow = slow.next
+              fast = fast.next
+          return slow           # k from the end
   - id: step.fast-slow.check-gap
     type: choice
     title: How far ahead?

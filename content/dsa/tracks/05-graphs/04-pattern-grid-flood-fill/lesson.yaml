@@ -50,22 +50,26 @@ steps:
       the grid). A DFS from one cell **floods** the whole region it belongs to: that's the "paint bucket" in a drawing program.
       A grid of `R` rows and `C` columns has `R × C` nodes and at most four edges each, so a flood is O(R × C).
     comparison:
-      csharp: |
-        int[][] dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-        foreach (var d in dirs)
-        {
-            int nr = r + d[0], nc = c + d[1];
-            if (nr >= 0 && nr < rows && nc >= 0 && nc < cols
-                && grid[nr][nc] == '1')
-            {
-                // (nr, nc) is a neighbour on land
-            }
-        }
-      python: |
-        for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-            nr, nc = r + dr, c + dc
-            if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == "1":
-                ...  # (nr, nc) is a neighbour on land
+      - label: C#
+        language: csharp
+        code: |
+          int[][] dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+          foreach (var d in dirs)
+          {
+              int nr = r + d[0], nc = c + d[1];
+              if (nr >= 0 && nr < rows && nc >= 0 && nc < cols
+                  && grid[nr][nc] == '1')
+              {
+                  // (nr, nc) is a neighbour on land
+              }
+          }
+      - label: Python
+        language: python
+        code: |
+          for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+              nr, nc = r + dr, c + dc
+              if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == "1":
+                  ...  # (nr, nc) is a neighbour on land
   - id: step.grid.trace-flood
     type: trace
     title: Flooding one island

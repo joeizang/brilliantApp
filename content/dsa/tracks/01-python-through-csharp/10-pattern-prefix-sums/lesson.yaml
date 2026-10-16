@@ -50,24 +50,28 @@ steps:
       pass, `O(n)`. After that, the sum of any stretch is **two lookups and a subtraction**: `O(1)`. The cue to remember is
       *"many range-sum questions on a list that doesn't change"*.
     comparison:
-      csharp: |
-        // Each question loops over the stretch: O(n) per question
-        int Sum(int[] nums, int left, int right) =>
-            nums.Skip(left).Take(right - left).Sum();
+      - label: C#
+        language: csharp
+        code: |
+          // Each question loops over the stretch: O(n) per question
+          int Sum(int[] nums, int left, int right) =>
+              nums.Skip(left).Take(right - left).Sum();
 
-        // Precompute once...
-        var prefix = new int[nums.Length + 1];
-        for (int i = 0; i < nums.Length; i++)
-            prefix[i + 1] = prefix[i] + nums[i];
-        // ...then any stretch is O(1)
-        int sum = prefix[right] - prefix[left];
-      python: |
-        from itertools import accumulate
+          // Precompute once...
+          var prefix = new int[nums.Length + 1];
+          for (int i = 0; i < nums.Length; i++)
+              prefix[i + 1] = prefix[i] + nums[i];
+          // ...then any stretch is O(1)
+          int sum = prefix[right] - prefix[left];
+      - label: Python
+        language: python
+        code: |
+          from itertools import accumulate
 
-        # accumulate keeps a running total; initial=0 puts the leading 0 in
-        prefix = list(accumulate(nums, initial=0))
+          # accumulate keeps a running total; initial=0 puts the leading 0 in
+          prefix = list(accumulate(nums, initial=0))
 
-        total = prefix[right] - prefix[left]
+          total = prefix[right] - prefix[left]
   - id: step.prefix.trace-build
     type: trace
     title: Building the prefix list

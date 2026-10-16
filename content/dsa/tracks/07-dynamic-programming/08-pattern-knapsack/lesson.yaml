@@ -52,28 +52,32 @@ steps:
 
       Unlike the coins of lesson 4, every row reads only **the row before**, so an item can't be used twice.
     comparison:
-      csharp: |
-        static bool SubsetSum(int[] nums, int target)
-        {
-            var dp = new bool[nums.Length + 1, target + 1];
-            dp[0, 0] = true;
-            for (int i = 1; i <= nums.Length; i++)
-            {
-                int x = nums[i - 1];
-                for (int t = 0; t <= target; t++)
-                    dp[i, t] = dp[i - 1, t] || (x <= t && dp[i - 1, t - x]);
-            }
-            return dp[nums.Length, target];
-        }
-      python: |
-        def subset_sum(nums, target):
-            dp = [[False] * (target + 1) for _ in range(len(nums) + 1)]
-            dp[0][0] = True
-            for i in range(1, len(nums) + 1):
-                x = nums[i - 1]
-                for t in range(target + 1):
-                    dp[i][t] = dp[i - 1][t] or (x <= t and dp[i - 1][t - x])
-            return dp[len(nums)][target]
+      - label: C#
+        language: csharp
+        code: |
+          static bool SubsetSum(int[] nums, int target)
+          {
+              var dp = new bool[nums.Length + 1, target + 1];
+              dp[0, 0] = true;
+              for (int i = 1; i <= nums.Length; i++)
+              {
+                  int x = nums[i - 1];
+                  for (int t = 0; t <= target; t++)
+                      dp[i, t] = dp[i - 1, t] || (x <= t && dp[i - 1, t - x]);
+              }
+              return dp[nums.Length, target];
+          }
+      - label: Python
+        language: python
+        code: |
+          def subset_sum(nums, target):
+              dp = [[False] * (target + 1) for _ in range(len(nums) + 1)]
+              dp[0][0] = True
+              for i in range(1, len(nums) + 1):
+                  x = nums[i - 1]
+                  for t in range(target + 1):
+                      dp[i][t] = dp[i - 1][t] or (x <= t and dp[i - 1][t - x])
+              return dp[len(nums)][target]
   - id: step.knapsack.trace-table
     type: trace
     title: One row per item
@@ -108,23 +112,27 @@ steps:
 
       Loop upwards, and `dp[t - x]` may already include `x`, so `x` gets used again: that's lesson 4's unbounded coins.
     comparison:
-      csharp: |
-        static bool SubsetSum(int[] nums, int target)
-        {
-            var dp = new bool[target + 1];
-            dp[0] = true;
-            foreach (var x in nums)
-                for (int t = target; t >= x; t--)
-                    dp[t] = dp[t] || dp[t - x];
-            return dp[target];
-        }
-      python: |
-        def subset_sum(nums, target):
-            dp = [True] + [False] * target
-            for x in nums:
-                for t in range(target, x - 1, -1):
-                    dp[t] = dp[t] or dp[t - x]
-            return dp[target]
+      - label: C#
+        language: csharp
+        code: |
+          static bool SubsetSum(int[] nums, int target)
+          {
+              var dp = new bool[target + 1];
+              dp[0] = true;
+              foreach (var x in nums)
+                  for (int t = target; t >= x; t--)
+                      dp[t] = dp[t] || dp[t - x];
+              return dp[target];
+          }
+      - label: Python
+        language: python
+        code: |
+          def subset_sum(nums, target):
+              dp = [True] + [False] * target
+              for x in nums:
+                  for t in range(target, x - 1, -1):
+                      dp[t] = dp[t] or dp[t - x]
+              return dp[target]
   - id: step.knapsack.predict-sums
     type: predict-output
     title: Predict the output
@@ -212,22 +220,26 @@ steps:
       **Partition** is subset sum in disguise: two groups with equal sums each make `sum(nums) // 2`, so check that the total is
       even and that half is reachable.
     comparison:
-      csharp: |
-        static long BestValue(int[] weights, int[] values, int capacity)
-        {
-            var dp = new long[capacity + 1];
-            for (int i = 0; i < weights.Length; i++)
-                for (int c = capacity; c >= weights[i]; c--)
-                    dp[c] = Math.Max(dp[c], dp[c - weights[i]] + values[i]);
-            return dp[capacity];
-        }
-      python: |
-        def best_value(weights, values, capacity):
-            dp = [0] * (capacity + 1)
-            for w, v in zip(weights, values):
-                for c in range(capacity, w - 1, -1):
-                    dp[c] = max(dp[c], dp[c - w] + v)
-            return dp[capacity]
+      - label: C#
+        language: csharp
+        code: |
+          static long BestValue(int[] weights, int[] values, int capacity)
+          {
+              var dp = new long[capacity + 1];
+              for (int i = 0; i < weights.Length; i++)
+                  for (int c = capacity; c >= weights[i]; c--)
+                      dp[c] = Math.Max(dp[c], dp[c - weights[i]] + values[i]);
+              return dp[capacity];
+          }
+      - label: Python
+        language: python
+        code: |
+          def best_value(weights, values, capacity):
+              dp = [0] * (capacity + 1)
+              for w, v in zip(weights, values):
+                  for c in range(capacity, w - 1, -1):
+                      dp[c] = max(dp[c], dp[c - w] + v)
+              return dp[capacity]
   - id: step.knapsack.trace-value
     type: trace
     title: Packing the bag

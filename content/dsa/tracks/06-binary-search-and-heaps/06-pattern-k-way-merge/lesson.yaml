@@ -53,36 +53,40 @@ steps:
       Each entry carries where it came from, `(value, i, j)`: the value, which list `i`, and its position `j` in that list,
       so step 3 knows what comes next. The heap never holds more than k entries, one per list still going.
     comparison:
-      csharp: |
-        List<int> MergeK(List<int[]> lists)
-        {
-            var heap = new PriorityQueue<(int List, int Pos), int>();
-            for (int i = 0; i < lists.Count; i++)
-                if (lists[i].Length > 0) heap.Enqueue((i, 0), lists[i][0]);
+      - label: C#
+        language: csharp
+        code: |
+          List<int> MergeK(List<int[]> lists)
+          {
+              var heap = new PriorityQueue<(int List, int Pos), int>();
+              for (int i = 0; i < lists.Count; i++)
+                  if (lists[i].Length > 0) heap.Enqueue((i, 0), lists[i][0]);
 
-            var result = new List<int>();
-            while (heap.TryDequeue(out var at, out var value))
-            {
-                result.Add(value);
-                if (at.Pos + 1 < lists[at.List].Length)
-                    heap.Enqueue((at.List, at.Pos + 1), lists[at.List][at.Pos + 1]);
-            }
-            return result;
-        }
-      python: |
-        import heapq
+              var result = new List<int>();
+              while (heap.TryDequeue(out var at, out var value))
+              {
+                  result.Add(value);
+                  if (at.Pos + 1 < lists[at.List].Length)
+                      heap.Enqueue((at.List, at.Pos + 1), lists[at.List][at.Pos + 1]);
+              }
+              return result;
+          }
+      - label: Python
+        language: python
+        code: |
+          import heapq
 
 
-        def merge_k(lists):
-            heap = [(lst[0], i, 0) for i, lst in enumerate(lists) if lst]
-            heapq.heapify(heap)
-            result = []
-            while heap:
-                value, i, j = heapq.heappop(heap)
-                result.append(value)
-                if j + 1 < len(lists[i]):
-                    heapq.heappush(heap, (lists[i][j + 1], i, j + 1))
-            return result
+          def merge_k(lists):
+              heap = [(lst[0], i, 0) for i, lst in enumerate(lists) if lst]
+              heapq.heapify(heap)
+              result = []
+              while heap:
+                  value, i, j = heapq.heappop(heap)
+                  result.append(value)
+                  if j + 1 < len(lists[i]):
+                      heapq.heappush(heap, (lists[i][j + 1], i, j + 1))
+              return result
   - id: step.k-way.trace-merge
     type: trace
     title: Three lists, one heap
@@ -198,17 +202,21 @@ steps:
 
       The cue: **several sequences, each already sorted**, and you want them in one order, or the first few of that order.
     comparison:
-      csharp: |
-        // No built-in k-way merge: write the PriorityQueue loop,
-        // or, when everything fits in memory, concatenate and sort.
-        int[][] lists = [[1, 5, 9], [2, 3], [4, 10]];
-        var all = lists.SelectMany(x => x).Order().ToList();
-      python: |
-        import heapq
+      - label: C#
+        language: csharp
+        code: |
+          // No built-in k-way merge: write the PriorityQueue loop,
+          // or, when everything fits in memory, concatenate and sort.
+          int[][] lists = [[1, 5, 9], [2, 3], [4, 10]];
+          var all = lists.SelectMany(x => x).Order().ToList();
+      - label: Python
+        language: python
+        code: |
+          import heapq
 
-        lists = [[1, 5, 9], [2, 3], [4, 10]]
-        merged = list(heapq.merge(*lists))
-        # [1, 2, 3, 4, 5, 9, 10]
+          lists = [[1, 5, 9], [2, 3], [4, 10]]
+          merged = list(heapq.merge(*lists))
+          # [1, 2, 3, 4, 5, 9, 10]
   - id: step.k-way.predict-merge
     type: predict-output
     title: Predict the output

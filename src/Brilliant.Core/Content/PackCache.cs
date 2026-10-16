@@ -15,7 +15,7 @@ public sealed class PackCache(string directory)
     public const int Kept = 2;
 
     /// <summary>
-    /// Checks <paramref name="bytes"/> (that it is a loadable pack of format <see cref="ContentPackFormat.CurrentFormatVersion"/> with this ID
+    /// Checks <paramref name="bytes"/> (that it is a loadable pack of a <see cref="ContentPackFormat.SupportsFormatVersion">supported format</see> with this ID
     /// and version) and stores it. Returns the loaded graph; throws <see cref="ContentPackException"/> if the pack is unusable.
     /// </summary>
     public ContentGraph Store(string packId, PackVersion version, byte[] bytes)

@@ -570,6 +570,7 @@ def _tracked(frame, watch):
         if isinstance(value, (list, tuple, collections.deque)):
             found[name] = {
                 "type": type(value).__name__,
+                "drawings": ["array"] if isinstance(value, tuple) else ["array", "stack", "queue"],
                 # A deque can't be sliced, so the cells are taken by iterating, which works for all three.
                 "cells": [_repr(cell, MAX_CELL_REPR) for cell in itertools.islice(value, MAX_CELLS)],
                 "more": max(0, len(value) - MAX_CELLS),

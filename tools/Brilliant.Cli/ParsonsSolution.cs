@@ -11,7 +11,7 @@ internal static class ParsonsSolution
 {
     public const int MinLines = 2;
 
-    public static List<ParsonsLine> Read(string solution, Action<string> error)
+    public static List<ParsonsLine> Read(string solution, Action<string> error, string language = "python")
     {
         var raw = solution.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n')
             .Select((text, i) => (Number: i + 1, Text: text.TrimEnd()))
@@ -44,15 +44,18 @@ internal static class ParsonsSolution
         }
         if (lines[0].Level != 0) error($"'solution' line {numbers[0]} is indented, but the first line must not be.");
 
-        for (var i = 1; i < lines.Count; i++)
+        if (language == "python")
         {
-            var opens = OpensBlock(lines[i - 1].Text);
-            if (opens && lines[i].Level != lines[i - 1].Level + 1)
-                error($"'solution' line {numbers[i - 1]} ends with ':' so line {numbers[i]} must be indented one level deeper.");
-            else if (!opens && lines[i].Level > lines[i - 1].Level)
-                error($"'solution' line {numbers[i]} is indented deeper than the line before it, which doesn't end with ':'.");
+            for (var i = 1; i < lines.Count; i++)
+            {
+                var opens = OpensBlock(lines[i - 1].Text);
+                if (opens && lines[i].Level != lines[i - 1].Level + 1)
+                    error($"'solution' line {numbers[i - 1]} ends with ':' so line {numbers[i]} must be indented one level deeper.");
+                else if (!opens && lines[i].Level > lines[i - 1].Level)
+                    error($"'solution' line {numbers[i]} is indented deeper than the line before it, which doesn't end with ':'.");
+            }
+            if (OpensBlock(lines[^1].Text)) error($"'solution' ends with ':' on line {numbers[^1]} but nothing follows it.");
         }
-        if (OpensBlock(lines[^1].Text)) error($"'solution' ends with ':' on line {numbers[^1]} but nothing follows it.");
         if (lines.Select(l => l.Text).Distinct().Count() < 2) error("'solution' has only one distinct line, so there is nothing to put in order.");
         return lines;
     }

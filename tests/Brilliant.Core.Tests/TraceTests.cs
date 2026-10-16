@@ -37,6 +37,35 @@ public class TraceTests
     // ---- JSON from tracer.py ----
 
     [Fact]
+    public void Runtime_integer_metadata_drives_pointers_without_reading_the_display_type_or_repr()
+    {
+        var result = TraceResultJson.Parse("""
+            {"status":"ok","frames":[{"event":"line","line":1,"function":"Main",
+              "locals":[{"name":"i","type":"System.Int32","repr":"index one","index":1}],
+              "tracked":{"nums":{"type":"int[]","cells":["3","8"],"more":0,"drawings":["array"]}}}],"stdout":""}
+            """);
+        var state = Assert.Single(Build(result, Nums));
+        Assert.Equal(1, Assert.Single(Assert.Single(state.Arrays).Pointers).Index);
+        Assert.Equal("System.Int32", Assert.Single(state.Locals).Type);
+    }
+
+    [Theory]
+    [InlineData("Stack<int>", Visual.Stack)]
+    [InlineData("Queue<string>", Visual.Queue)]
+    [InlineData("CustomSequence", Visual.Array)]
+    public void Runtime_drawing_capabilities_are_independent_of_type_labels(string type, string kind)
+    {
+        var result = TraceResultJson.Parse($$$$"""
+            {"status":"ok","frames":[{"event":"return","line":null,"function":"Main","locals":[],
+              "tracked":{"nums":{"type":"{{{{type}}}}","cells":["1"],"more":0,"drawings":["{{{{kind}}}}"]}}}],"stdout":""}
+            """);
+        var states = Build(result, new Visual("nums", kind, []));
+        Assert.Equal(kind, Assert.Single(states[0].Arrays).Kind);
+        Assert.Equal(type, result.Frames[0].Tracked["nums"].Type);
+        Assert.False(result.Frames[0].Tracked["nums"].Draws(kind == Visual.Stack ? Visual.Queue : Visual.Stack));
+    }
+
+    [Fact]
     public void The_tracer_json_parses_into_a_result()
     {
         var json = """

@@ -59,26 +59,30 @@ steps:
       C# has `PriorityQueue<TElement, TPriority>` (since .NET 6), a heap underneath. Python has the **`heapq`** module: a few
       functions that treat an ordinary list as a min-heap.
     comparison:
-      csharp: |
-        var queue = new PriorityQueue<string, int>();
-        queue.Enqueue("cold", 3);
-        queue.Enqueue("broken arm", 1);
-        queue.Enqueue("cut", 2);
+      - label: C#
+        language: csharp
+        code: |
+          var queue = new PriorityQueue<string, int>();
+          queue.Enqueue("cold", 3);
+          queue.Enqueue("broken arm", 1);
+          queue.Enqueue("cut", 2);
 
-        Console.WriteLine(queue.Peek());     // broken arm
-        Console.WriteLine(queue.Dequeue());  // broken arm
-        Console.WriteLine(queue.Dequeue());  // cut
-      python: |
-        import heapq
+          Console.WriteLine(queue.Peek());     // broken arm
+          Console.WriteLine(queue.Dequeue());  // broken arm
+          Console.WriteLine(queue.Dequeue());  // cut
+      - label: Python
+        language: python
+        code: |
+          import heapq
 
-        queue = []
-        heapq.heappush(queue, (3, "cold"))
-        heapq.heappush(queue, (1, "broken arm"))
-        heapq.heappush(queue, (2, "cut"))
+          queue = []
+          heapq.heappush(queue, (3, "cold"))
+          heapq.heappush(queue, (1, "broken arm"))
+          heapq.heappush(queue, (2, "cut"))
 
-        print(queue[0][1])                 # broken arm
-        print(heapq.heappop(queue)[1])     # broken arm
-        print(heapq.heappop(queue)[1])     # cut
+          print(queue[0][1])                 # broken arm
+          print(heapq.heappop(queue)[1])     # broken arm
+          print(heapq.heappop(queue)[1])     # cut
   - id: step.heaps.trace-push
     type: trace
     title: Push, then sift up
@@ -230,23 +234,27 @@ steps:
         middle, `(priority, n, item)`, so a tie never reaches them. C# keeps the priority apart from the element, so it has
         no such problem.
     comparison:
-      csharp: |
-        int[] nums = [4, 1, 7, 3];
+      - label: C#
+        language: csharp
+        code: |
+          int[] nums = [4, 1, 7, 3];
 
-        var max = new PriorityQueue<int, int>(
-            Comparer<int>.Create((a, b) => b.CompareTo(a)));
-        foreach (var x in nums) max.Enqueue(x, x);
+          var max = new PriorityQueue<int, int>(
+              Comparer<int>.Create((a, b) => b.CompareTo(a)));
+          foreach (var x in nums) max.Enqueue(x, x);
 
-        Console.WriteLine(max.Dequeue());  // 7
-      python: |
-        import heapq
+          Console.WriteLine(max.Dequeue());  // 7
+      - label: Python
+        language: python
+        code: |
+          import heapq
 
-        nums = [4, 1, 7, 3]
+          nums = [4, 1, 7, 3]
 
-        max_heap = [-x for x in nums]
-        heapq.heapify(max_heap)
+          max_heap = [-x for x in nums]
+          heapq.heapify(max_heap)
 
-        print(-heapq.heappop(max_heap))  # 7
+          print(-heapq.heappop(max_heap))  # 7
   - id: step.heaps.trace-heapq
     type: trace
     title: heapify, then pops

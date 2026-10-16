@@ -4,7 +4,8 @@ Each app has an authoring directory, normally `content/<app>/`, containing its
 own `pack.yaml` and `tracks/`. The manifest in `apps/<app>/manifest.yaml` can
 set `contentRoot` to another repository-relative directory. DSA explicitly uses
 `content/dsa/`. Its 77 source files, pack ID, version and all learning IDs are
-unchanged; moving the sources does not change packed bytes or learner progress.
+unchanged by that move; moving the sources does not change packed bytes or learner progress.
+The format-2 migration below changes the comparison wire shape without changing lesson IDs or progress.
 The `flavor-check` installation fixture explicitly shares DSA's sources.
 
 From the repository root:
@@ -45,10 +46,58 @@ publishing, so disabled content cannot be bundled or uploaded through the CLI.
 Existing schema, reference-solution and trace checks still run for enabled types.
 
 The host gets its content root and pack asset name from the selected manifest's
-build metadata. Build inputs include that manifest plus only that app's YAML and
-Markdown; changing the manifest, adding, removing or renaming content triggers
+build metadata. Build inputs include the shared schema/CLI/recorder sources and
+that manifest plus only that app's YAML and Markdown; changing the manifest, adding, removing or renaming content triggers
 repacking. The bundle still contains the original DSA `track-1.pack.zip` asset.
 
 Publishing transport and CLI pairing are unchanged. Server-side app scoping and
 independent pairings belong to #145; this issue adds the authoring gate, not a
 second server namespace.
+
+## Language-neutral authoring (#144)
+
+An explanation's optional `comparison` is an ordered list. DSA keeps its C# then
+Python labels and code; any number of snippets and repeated languages are allowed:
+
+```yaml
+comparison:
+  - label: Before
+    language: csharp
+    code: 'List<int> values = new();'
+  - label: After
+    language: csharp
+    code: 'List<int> values = [];'
+```
+
+Every entry requires `label`, `language` and `code`. Display-only snippets need no
+runtime. New packs use format 2 so older apps do not download an incompatible schema.
+The updated reader accepts formats 1 and 2: cached format-1 packs containing the
+old `{cSharp, python}` comparison object still load; new packs write the list. IDs, storage and progress are unchanged.
+
+Write-code `tests` keep `input` and `expected` as source strings. They inherit the
+exercise's required `language`; they are not JSON values or Python expressions in
+other languages. For example, C# can use `input: 'new[] { 1, 2 }'` and
+`expected: 'new[] { 2, 4 }'`. Equality belongs to the selected runtime: Python keeps
+its existing equality and optional `compare: linked_list`; C# must use structural
+comparison for arrays, records and tuples when its runner is implemented in #149.
+The Python-only `compare` option is rejected for C#. DSA test inputs, expected
+expressions and reference solutions were left unchanged.
+
+Trace steps accept `language` (missing means Python for old content). Walkthroughs
+inherit the parent step's language; their optional `language` must match it. All
+write-code, trace and walkthrough languages must be enabled in the selected app
+manifest's `runtimes`. This applies equally to practice and phone alternatives.
+Fill-blank and Parsons also support C# text; Python colon-based indentation rules
+apply only to Python Parsons solutions.
+
+Reference and trace checks require a checker whose language matches the exercise.
+The shipping CLI currently provides CPython only: C# executable content fails
+validation/packing/publishing with a missing-checker error until #149 supplies the
+C# checker. It is never executed by CPython or silently skipped.
+
+Recorded sequence `type` and local `type` are runtime-owned display labels. A
+sequence supplies `drawings` (`array`, `stack`, `queue`) independently of that
+label; an integer local can supply `index` for sequence/heap pointers. Python now
+emits drawing capabilities. Legacy Python traces without those fields keep their
+list/tuple/deque and integer behavior through an isolated compatibility fallback;
+new runtimes must supply semantic metadata rather than imitate Python type names.

@@ -9,7 +9,7 @@ namespace Brilliant.Core.Apps;
 /// <summary>An app's identity and enabled capabilities. Parse once and share across the host, CLI and server.</summary>
 public sealed partial class AppManifest
 {
-    private static readonly IReadOnlySet<string> KnownRuntimes = new[] { "python" }.ToFrozenSet(StringComparer.Ordinal);
+    private static readonly IReadOnlySet<string> KnownRuntimes = new[] { "python", "csharp" }.ToFrozenSet(StringComparer.Ordinal);
 
     [GeneratedRegex(@"\A[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)+\z", RegexOptions.CultureInvariant)]
     private static partial Regex AppIdPattern();

@@ -50,22 +50,26 @@ steps:
 
       The same in C#: the code is short, and the time is exponential.
     comparison:
-      csharp: |
-        static long Fib(int n)
-        {
-            if (n < 2) return n;
-            return Fib(n - 1) + Fib(n - 2);
-        }
+      - label: C#
+        language: csharp
+        code: |
+          static long Fib(int n)
+          {
+              if (n < 2) return n;
+              return Fib(n - 1) + Fib(n - 2);
+          }
 
-        Console.WriteLine(Fib(30));   // 832040, after 2.6 million calls
-      python: |
-        def fib(n):
-            if n < 2:
-                return n
-            return fib(n - 1) + fib(n - 2)
+          Console.WriteLine(Fib(30));   // 832040, after 2.6 million calls
+      - label: Python
+        language: python
+        code: |
+          def fib(n):
+              if n < 2:
+                  return n
+              return fib(n - 1) + fib(n - 2)
 
 
-        print(fib(30))   # 832040, after 2.6 million calls
+          print(fib(30))   # 832040, after 2.6 million calls
   - id: step.memo.trace-plain
     type: trace
     title: fib(4) without a memo
@@ -151,28 +155,32 @@ steps:
       `2n` calls instead of `1.6ⁿ`: **O(n)**. This is called **memoisation**, or **top-down** DP: you start from the big
       question and recurse down, caching as you go.
     comparison:
-      csharp: |
-        var memo = new Dictionary<int, long>();
+      - label: C#
+        language: csharp
+        code: |
+          var memo = new Dictionary<int, long>();
 
-        long Fib(int n)
-        {
-            if (n < 2) return n;
-            if (memo.TryGetValue(n, out var known)) return known;
-            long result = Fib(n - 1) + Fib(n - 2);
-            memo[n] = result;
-            return result;
-        }
-      python: |
-        def fib(n, memo):
-            if n < 2:
-                return n
-            if n in memo:
-                return memo[n]
-            memo[n] = fib(n - 1, memo) + fib(n - 2, memo)
-            return memo[n]
+          long Fib(int n)
+          {
+              if (n < 2) return n;
+              if (memo.TryGetValue(n, out var known)) return known;
+              long result = Fib(n - 1) + Fib(n - 2);
+              memo[n] = result;
+              return result;
+          }
+      - label: Python
+        language: python
+        code: |
+          def fib(n, memo):
+              if n < 2:
+                  return n
+              if n in memo:
+                  return memo[n]
+              memo[n] = fib(n - 1, memo) + fib(n - 2, memo)
+              return memo[n]
 
 
-        print(fib(30, {}))   # 832040, after 59 calls
+          print(fib(30, {}))   # 832040, after 59 calls
   - id: step.memo.trace-memo
     type: trace
     title: fib(5) with a memo

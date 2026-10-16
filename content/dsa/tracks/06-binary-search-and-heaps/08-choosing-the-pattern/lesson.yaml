@@ -171,30 +171,34 @@ steps:
       The heap never shrinks, so at the end its size is the number of rooms. Sorting costs O(n log n), and each meeting one
       heap operation, O(log n).
     comparison:
-      csharp: |
-        int MinRooms((int Start, int End)[] meetings)
-        {
-            var ends = new PriorityQueue<int, int>();
-            foreach (var (start, end) in meetings.OrderBy(m => m.Start))
-            {
-                if (ends.Count > 0 && ends.Peek() <= start)
-                    ends.Dequeue();
-                ends.Enqueue(end, end);
-            }
-            return ends.Count;
-        }
-      python: |
-        import heapq
+      - label: C#
+        language: csharp
+        code: |
+          int MinRooms((int Start, int End)[] meetings)
+          {
+              var ends = new PriorityQueue<int, int>();
+              foreach (var (start, end) in meetings.OrderBy(m => m.Start))
+              {
+                  if (ends.Count > 0 && ends.Peek() <= start)
+                      ends.Dequeue();
+                  ends.Enqueue(end, end);
+              }
+              return ends.Count;
+          }
+      - label: Python
+        language: python
+        code: |
+          import heapq
 
 
-        def min_rooms(meetings):
-            ends = []
-            for start, end in sorted(meetings):
-                if ends and ends[0] <= start:
-                    heapq.heapreplace(ends, end)
-                else:
-                    heapq.heappush(ends, end)
-            return len(ends)
+          def min_rooms(meetings):
+              ends = []
+              for start, end in sorted(meetings):
+                  if ends and ends[0] <= start:
+                      heapq.heapreplace(ends, end)
+                  else:
+                      heapq.heappush(ends, end)
+              return len(ends)
   - id: step.choose-search-heap.trace-rooms
     type: trace
     title: Rooms as meetings start

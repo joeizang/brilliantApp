@@ -53,40 +53,44 @@ steps:
 
       In C#, `path` is a `List<int>`, unchoose is `path.RemoveAt(path.Count - 1)`, and a saved answer is `new List<int>(path)`.
     comparison:
-      csharp: |
-        static List<List<int>> Subsets(int[] nums)
-        {
-            var result = new List<List<int>>();
-            var path = new List<int>();
+      - label: C#
+        language: csharp
+        code: |
+          static List<List<int>> Subsets(int[] nums)
+          {
+              var result = new List<List<int>>();
+              var path = new List<int>();
 
-            void Explore(int start)
-            {
-                result.Add(new List<int>(path));
-                for (int i = start; i < nums.Length; i++)
-                {
-                    path.Add(nums[i]);
-                    Explore(i + 1);
-                    path.RemoveAt(path.Count - 1);
-                }
-            }
+              void Explore(int start)
+              {
+                  result.Add(new List<int>(path));
+                  for (int i = start; i < nums.Length; i++)
+                  {
+                      path.Add(nums[i]);
+                      Explore(i + 1);
+                      path.RemoveAt(path.Count - 1);
+                  }
+              }
 
-            Explore(0);
-            return result;
-        }
-      python: |
-        def subsets(nums):
-            result = []
-            path = []
+              Explore(0);
+              return result;
+          }
+      - label: Python
+        language: python
+        code: |
+          def subsets(nums):
+              result = []
+              path = []
 
-            def explore(start):
-                result.append(path[:])
-                for i in range(start, len(nums)):
-                    path.append(nums[i])
-                    explore(i + 1)
-                    path.pop()
+              def explore(start):
+                  result.append(path[:])
+                  for i in range(start, len(nums)):
+                      path.append(nums[i])
+                      explore(i + 1)
+                      path.pop()
 
-            explore(0)
-            return result
+              explore(0)
+              return result
   - id: step.backtracking.trace-subsets
     type: trace
     title: Every subset of [1, 2, 3]
@@ -192,42 +196,46 @@ steps:
       Python's `itertools.permutations` and `itertools.combinations` produce these as tuples, in the same order; .NET has no
       built-in equivalent.
     comparison:
-      csharp: |
-        var used = new bool[nums.Length];
+      - label: C#
+        language: csharp
+        code: |
+          var used = new bool[nums.Length];
 
-        void Explore()
-        {
-            if (path.Count == nums.Length)
-            {
-                result.Add(new List<int>(path));
-                return;
-            }
-            for (int i = 0; i < nums.Length; i++)
-            {
-                if (used[i]) continue;
-                used[i] = true;
-                path.Add(nums[i]);
-                Explore();
-                path.RemoveAt(path.Count - 1);
-                used[i] = false;
-            }
-        }
-      python: |
-        used = [False] * len(nums)
+          void Explore()
+          {
+              if (path.Count == nums.Length)
+              {
+                  result.Add(new List<int>(path));
+                  return;
+              }
+              for (int i = 0; i < nums.Length; i++)
+              {
+                  if (used[i]) continue;
+                  used[i] = true;
+                  path.Add(nums[i]);
+                  Explore();
+                  path.RemoveAt(path.Count - 1);
+                  used[i] = false;
+              }
+          }
+      - label: Python
+        language: python
+        code: |
+          used = [False] * len(nums)
 
 
-        def explore():
-            if len(path) == len(nums):
-                result.append(path[:])
-                return
-            for i in range(len(nums)):
-                if used[i]:
-                    continue
-                used[i] = True
-                path.append(nums[i])
-                explore()
-                path.pop()
-                used[i] = False
+          def explore():
+              if len(path) == len(nums):
+                  result.append(path[:])
+                  return
+              for i in range(len(nums)):
+                  if used[i]:
+                      continue
+                  used[i] = True
+                  path.append(nums[i])
+                  explore()
+                  path.pop()
+                  used[i] = False
   - id: step.backtracking.trace-permutations
     type: trace
     title: Every ordering of [1, 2, 3]

@@ -13,7 +13,7 @@
 | `accent` | Six-digit hex `dark`, `light`, `onDark` and `onLight` colors. The latter two are text drawn on the accent. |
 | `contentRoot` | Optional authoring folder relative to the repository, defaulting to `content/<app>/`. DSA explicitly selects `content/dsa/`. |
 | `contentPack` | Relative bundled pack asset name, currently `track-1.pack.zip`. |
-| `runtimes` | Explicit runtime capability keys, currently `[python]`. An empty list is allowed. |
+| `runtimes` | Explicit runtime capability keys, `python` and `csharp` (declaring C# does not supply its implementation). An empty list is allowed. |
 | `stepTypes` | Nonempty list of enabled step-type keys. |
 
 Capability keys use lowercase words separated by hyphens and are compared exactly.

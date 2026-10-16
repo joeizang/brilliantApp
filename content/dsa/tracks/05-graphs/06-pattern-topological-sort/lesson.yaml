@@ -48,33 +48,37 @@ steps:
       edges, which lowers each neighbour's in-degree by 1. A neighbour that reaches `0` has nothing left before it, so it joins
       the queue. It's O(V + E).
     comparison:
-      csharp: |
-        var indeg = g.Keys.ToDictionary(n => n, n => 0);
-        foreach (var n in g.Keys)
-            foreach (var nb in g[n]) indeg[nb]++;
-        var queue = new Queue<string>(g.Keys.Where(n => indeg[n] == 0));
-        var order = new List<string>();
-        while (queue.Count > 0)
-        {
-            var node = queue.Dequeue();
-            order.Add(node);
-            foreach (var nb in g[node])
-                if (--indeg[nb] == 0) queue.Enqueue(nb);
-        }
-      python: |
-        indeg = {n: 0 for n in g}
-        for n in g:
-            for nb in g[n]:
-                indeg[nb] += 1
-        queue = deque(n for n in g if indeg[n] == 0)
-        order = []
-        while queue:
-            node = queue.popleft()
-            order.append(node)
-            for nb in g[node]:
-                indeg[nb] -= 1
-                if indeg[nb] == 0:
-                    queue.append(nb)
+      - label: C#
+        language: csharp
+        code: |
+          var indeg = g.Keys.ToDictionary(n => n, n => 0);
+          foreach (var n in g.Keys)
+              foreach (var nb in g[n]) indeg[nb]++;
+          var queue = new Queue<string>(g.Keys.Where(n => indeg[n] == 0));
+          var order = new List<string>();
+          while (queue.Count > 0)
+          {
+              var node = queue.Dequeue();
+              order.Add(node);
+              foreach (var nb in g[node])
+                  if (--indeg[nb] == 0) queue.Enqueue(nb);
+          }
+      - label: Python
+        language: python
+        code: |
+          indeg = {n: 0 for n in g}
+          for n in g:
+              for nb in g[n]:
+                  indeg[nb] += 1
+          queue = deque(n for n in g if indeg[n] == 0)
+          order = []
+          while queue:
+              node = queue.popleft()
+              order.append(node)
+              for nb in g[node]:
+                  indeg[nb] -= 1
+                  if indeg[nb] == 0:
+                      queue.append(nb)
   - id: step.topo.trace-kahn
     type: trace
     title: Peeling off what's ready

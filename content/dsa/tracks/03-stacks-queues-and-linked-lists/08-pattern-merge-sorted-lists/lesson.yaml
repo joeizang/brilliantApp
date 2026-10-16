@@ -43,30 +43,34 @@ steps:
       `O(n + m)` time, `O(1)` extra memory. It's the same idea as merging two sorted Python lists with an index into each,
       except nothing is copied.
     comparison:
-      csharp: |
-        var dummy = new Node(0);
-        var tail = dummy;
-        while (a != null && b != null)
-        {
-            if (a.Val <= b.Val) { tail.Next = a; a = a.Next; }
-            else                { tail.Next = b; b = b.Next; }
-            tail = tail.Next;
-        }
-        tail.Next = a ?? b;   // the rest is already sorted
-        return dummy.Next;
-      python: |
-        dummy = Node(0)
-        tail = dummy
-        while a and b:
-            if a.val <= b.val:
-                tail.next = a
-                a = a.next
-            else:
-                tail.next = b
-                b = b.next
-            tail = tail.next
-        tail.next = a or b    # the rest is already sorted
-        return dummy.next
+      - label: C#
+        language: csharp
+        code: |
+          var dummy = new Node(0);
+          var tail = dummy;
+          while (a != null && b != null)
+          {
+              if (a.Val <= b.Val) { tail.Next = a; a = a.Next; }
+              else                { tail.Next = b; b = b.Next; }
+              tail = tail.Next;
+          }
+          tail.Next = a ?? b;   // the rest is already sorted
+          return dummy.Next;
+      - label: Python
+        language: python
+        code: |
+          dummy = Node(0)
+          tail = dummy
+          while a and b:
+              if a.val <= b.val:
+                  tail.next = a
+                  a = a.next
+              else:
+                  tail.next = b
+                  b = b.next
+              tail = tail.next
+          tail.next = a or b    # the rest is already sorted
+          return dummy.next
   - id: step.merge.trace
     type: trace
     title: Merging 1 → 4 → 6 and 2 → 3 → 7
@@ -232,28 +236,32 @@ steps:
       the list in two there (`slow.next = None`), sort each half the same way, and merge the two sorted halves. For the cut,
       start `fast` on `head.next`, so `slow` stops on the *first* middle and a two-node list splits into two single nodes.
     comparison:
-      csharp: |
-        Node? SortList(Node? head)
-        {
-            if (head?.Next == null) return head;
-            Node slow = head, fast = head.Next;
-            while (fast?.Next != null) { slow = slow.Next!; fast = fast.Next.Next; }
-            var second = slow.Next;
-            slow.Next = null;                 // cut in two
-            return Merge(SortList(head), SortList(second));
-        }
-      python: |
-        def sort_list(head):
-            if head is None or head.next is None:
-                return head
-            slow = head
-            fast = head.next
-            while fast and fast.next:
-                slow = slow.next
-                fast = fast.next.next
-            second = slow.next
-            slow.next = None                  # cut in two
-            return merge(sort_list(head), sort_list(second))
+      - label: C#
+        language: csharp
+        code: |
+          Node? SortList(Node? head)
+          {
+              if (head?.Next == null) return head;
+              Node slow = head, fast = head.Next;
+              while (fast?.Next != null) { slow = slow.Next!; fast = fast.Next.Next; }
+              var second = slow.Next;
+              slow.Next = null;                 // cut in two
+              return Merge(SortList(head), SortList(second));
+          }
+      - label: Python
+        language: python
+        code: |
+          def sort_list(head):
+              if head is None or head.next is None:
+                  return head
+              slow = head
+              fast = head.next
+              while fast and fast.next:
+                  slow = slow.next
+                  fast = fast.next.next
+              second = slow.next
+              slow.next = None                  # cut in two
+              return merge(sort_list(head), sort_list(second))
   - id: step.merge.check-which-problem
     type: choice
     title: Which problem is a merge?

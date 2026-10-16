@@ -49,30 +49,34 @@ steps:
       Each item is added once and removed once, so the whole pass is `O(n)`, however big `k` is. The two pointers are the window's
       edges: `left` and `right`.
     comparison:
-      csharp: |
-        // Largest sum of any k items in a row
-        int window = 0, best = int.MinValue, left = 0;
-        for (int right = 0; right < nums.Length; right++)
-        {
-            window += nums[right];              // item enters
-            if (right - left + 1 > k)
-            {
-                window -= nums[left];           // item leaves
-                left++;
-            }
-            if (right - left + 1 == k)
-                best = Math.Max(best, window);
-        }
-      python: |
-        # Largest sum of any k items in a row
-        window, best, left = 0, float("-inf"), 0
-        for right in range(len(nums)):
-            window += nums[right]               # item enters
-            if right - left + 1 > k:
-                window -= nums[left]            # item leaves
-                left += 1
-            if right - left + 1 == k:
-                best = max(best, window)
+      - label: C#
+        language: csharp
+        code: |
+          // Largest sum of any k items in a row
+          int window = 0, best = int.MinValue, left = 0;
+          for (int right = 0; right < nums.Length; right++)
+          {
+              window += nums[right];              // item enters
+              if (right - left + 1 > k)
+              {
+                  window -= nums[left];           // item leaves
+                  left++;
+              }
+              if (right - left + 1 == k)
+                  best = Math.Max(best, window);
+          }
+      - label: Python
+        language: python
+        code: |
+          # Largest sum of any k items in a row
+          window, best, left = 0, float("-inf"), 0
+          for right in range(len(nums)):
+              window += nums[right]               # item enters
+              if right - left + 1 > k:
+                  window -= nums[left]            # item leaves
+                  left += 1
+              if right - left + 1 == k:
+                  best = max(best, window)
   - id: step.window.trace-sum
     type: trace
     title: A window of 3 sliding along

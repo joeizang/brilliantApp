@@ -43,25 +43,29 @@ steps:
       Each pass is four lines, always in this order: **save, turn, step, step.** When `cur` falls off the end, `prev` holds the
       new head.
     comparison:
-      csharp: |
-        Node? prev = null, cur = head;
-        while (cur != null)
-        {
-            var nxt = cur.Next;   // save the rest
-            cur.Next = prev;      // turn the arrow round
-            prev = cur;           // step prev on
-            cur = nxt;            // step cur on
-        }
-        return prev;
-      python: |
-        prev = None
-        cur = head
-        while cur:
-            nxt = cur.next        # save the rest
-            cur.next = prev       # turn the arrow round
-            prev = cur            # step prev on
-            cur = nxt             # step cur on
-        return prev
+      - label: C#
+        language: csharp
+        code: |
+          Node? prev = null, cur = head;
+          while (cur != null)
+          {
+              var nxt = cur.Next;   // save the rest
+              cur.Next = prev;      // turn the arrow round
+              prev = cur;           // step prev on
+              cur = nxt;            // step cur on
+          }
+          return prev;
+      - label: Python
+        language: python
+        code: |
+          prev = None
+          cur = head
+          while cur:
+              nxt = cur.next        # save the rest
+              cur.next = prev       # turn the arrow round
+              prev = cur            # step prev on
+              cur = nxt             # step cur on
+          return prev
   - id: step.reverse-list.trace
     type: trace
     title: Reversing 1 → 2 → 3
@@ -194,27 +198,31 @@ steps:
 
       Reversing twice gets the original back, so "reverse, work from the front, reverse again" is a fair way to work from the end.
     comparison:
-      csharp: |
-        Node? prev = null, cur = head;
-        for (int i = 0; i < k; i++)
-        {
-            var nxt = cur!.Next;
-            cur.Next = prev;
-            prev = cur;
-            cur = nxt;
-        }
-        head!.Next = cur;     // the old head is now the tail
-        return prev;
-      python: |
-        prev = None
-        cur = head
-        for _ in range(k):
-            nxt = cur.next
-            cur.next = prev
-            prev = cur
-            cur = nxt
-        head.next = cur       # the old head is now the tail
-        return prev
+      - label: C#
+        language: csharp
+        code: |
+          Node? prev = null, cur = head;
+          for (int i = 0; i < k; i++)
+          {
+              var nxt = cur!.Next;
+              cur.Next = prev;
+              prev = cur;
+              cur = nxt;
+          }
+          head!.Next = cur;     // the old head is now the tail
+          return prev;
+      - label: Python
+        language: python
+        code: |
+          prev = None
+          cur = head
+          for _ in range(k):
+              nxt = cur.next
+              cur.next = prev
+              prev = cur
+              cur = nxt
+          head.next = cur       # the old head is now the tail
+          return prev
   - id: step.reverse-list.trace-first-k
     type: trace
     title: Reversing only the first 3
