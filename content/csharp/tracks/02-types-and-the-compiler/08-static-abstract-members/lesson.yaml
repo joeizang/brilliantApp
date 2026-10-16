@@ -194,8 +194,10 @@ steps:
           mistakes:
             - answers:
                 - '0'
-                - 'default'
               feedback: 'A literal `0` is an `int`, which is not a `T`. The zero of `T` is a static member: `T.Zero`.'
+            - answers:
+                - 'default'
+              feedback: 'With `var`, a bare `default` gives the compiler no type to infer (CS8716). Name the zero of `T` with its static member: `T.Zero`.'
         - id: add
           accepted:
             - '+='
