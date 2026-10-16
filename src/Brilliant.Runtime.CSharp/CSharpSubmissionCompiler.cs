@@ -88,9 +88,9 @@ public static class CSharpSubmissionCompiler
         text.AppendLine("#line default\ndefault: throw new System.ArgumentOutOfRangeException(); } } }");
         if (main.Root is not null) foreach (var member in main.Root.Members.Where(m => m is not GlobalStatementSyntax)) AppendSource(text, member, main.File.Name);
         var harness = CSharpSyntaxTree.ParseText(text.ToString(), options, "reference.cs", Encoding.UTF8, cancellationToken);
-        // The other files are compiled as written.
+        // The other files are compiled as written (already parsed above).
         var trees = new List<SyntaxTree> { harness };
-        trees.AddRange(parsed.Where(p => !ReferenceEquals(p.File, main.File)).Select(p => CSharpSyntaxTree.ParseText(p.File.Content, options, p.File.Name, Encoding.UTF8, cancellationToken)));
+        trees.AddRange(parsed.Where(p => !ReferenceEquals(p.File, main.File)).Select(p => p.Root.SyntaxTree));
         var references = References.Value;
         // The harness's own implicit usings reach the other files as global usings (compilation-wide usings are for scripts only).
         var compiled = multiple ? trees.Append(CSharpSyntaxTree.ParseText(ImplicitUsingsSource, options, "usings.cs", Encoding.UTF8, cancellationToken)) : trees;

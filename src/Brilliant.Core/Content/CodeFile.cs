@@ -18,7 +18,7 @@ public static partial class CodeFiles
     private static partial Regex ValidName();
 
     // Names the compiler gives its own generated sources; a learner file with one would be indistinguishable in a diagnostic.
-    [GeneratedRegex(@"^(reference|test-\d+)\.cs$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^(reference|usings|test-\d+)\.cs$", RegexOptions.IgnoreCase)]
     private static partial Regex ReservedName();
 
     /// <summary>Why <paramref name="name"/> can't name a file, or null if it can.</summary>

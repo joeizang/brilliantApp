@@ -106,7 +106,7 @@ Authoring replaces the step's own `starter` and `solution` with `files`:
 Rules, enforced by `validate`, `pack` and `publish` (and again by the compiler):
 
 - 2–8 files, C# only, write-code steps only; no `walkthrough` (its trace rides on one source), and no `starter`/`solution` beside `files`.
-- Names are plain `Name.cs` files (letters, digits, underscores; at most 32 characters), unique ignoring case. `reference.cs` and `test-N.cs`
+- Names are plain `Name.cs` files (letters, digits, underscores; at most 32 characters), unique ignoring case. `reference.cs`, `usings.cs` and `test-N.cs`
   are the generated harness's own sources, so they are reserved.
 - Exactly one file may hold top-level functions (the entrypoint's); the others hold types. Top-level functions in two files is an error naming both.
 - `System`, `System.Collections.Generic` and `System.Linq` are implicitly imported in every file, as in a single-file exercise.

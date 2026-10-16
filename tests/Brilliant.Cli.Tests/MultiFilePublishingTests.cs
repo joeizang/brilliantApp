@@ -178,6 +178,7 @@ public sealed class MultiFilePublishingTests : IDisposable
     [InlineData("..Square.cs")]
     [InlineData("test-1.cs")]
     [InlineData("reference.cs")]
+    [InlineData("usings.cs")]
     public void Bad_file_names_are_rejected(string name)
     {
         WritePack(Files(Shape, Square.Replace("Square.cs", name), Program));

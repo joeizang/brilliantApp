@@ -34,6 +34,7 @@ public sealed class CodeFilesTests
     [InlineData("Circle .cs")]
     [InlineData("")]
     [InlineData("reference.cs")]
+    [InlineData("usings.cs")]
     [InlineData("Reference.CS")]
     [InlineData("test-12.cs")]
     public void Names_that_are_not_plain_csharp_files_or_belong_to_the_harness_are_refused(string name) =>
