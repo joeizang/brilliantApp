@@ -171,7 +171,8 @@ public static class LearnerStateProjector
         var ofLesson = Distinct(events).Where(e => e.LessonId == lesson.Id).ToList();
         return new LessonProgress(lesson,
             ofLesson.Where(e => e.Type == ProgressEventTypes.StepCompleted).Select(e => e.StepId).ToHashSet(StringComparer.Ordinal),
-            ofLesson.Any(e => e.Type == ProgressEventTypes.LessonCompleted));
+            ofLesson.Any(e => e.Type == ProgressEventTypes.LessonCompleted),
+            ofLesson.Any(e => e.Type == ProgressEventTypes.LessonTestedOut));
     }
 
     /// <summary>
@@ -230,6 +231,12 @@ public static class LearnerStateProjector
         // A problem comes back as a re-solve if it was answered incorrectly or the learner needed help with it.
         var troubled = log.Where(IsFailedAttempt).Select(e => (e.LessonId, e.StepId)).Concat(lessonHints.Keys).ToHashSet();
 
+        // Passing a lesson's test-out (#146) counts as a first, successful recall of each of its declared items at the moment it was passed.
+        // The earliest such event stands (ties broken by event ID), so every device seeds at the same instant.
+        var testedOut = log.Where(e => e.Type == ProgressEventTypes.LessonTestedOut)
+            .GroupBy(e => e.LessonId)
+            .ToDictionary(g => g.Key, g => g.OrderBy(e => e.OccurredAt).ThenBy(e => e.Id, StringComparer.Ordinal).First().OccurredAt);
+
         var reviews = new List<ReviewItemState>();
         foreach (var lesson in tracks.SelectMany(t => t.Lessons))
         {
@@ -249,12 +256,22 @@ public static class LearnerStateProjector
                 DateOnly? lastDay = null;
                 Rating? lastRating = null;
                 var count = 0;
+                // The seed goes in time order with the answers, and only where the item has no schedule yet: it never replaces what
+                // the learner actually did. Answers after it continue from it.
+                DateTimeOffset? seedAt = lesson.Lesson.ReviewItems.Contains(item) && testedOut.TryGetValue(id, out var passedAt) ? passedAt : null;
+                void Seed()
+                {
+                    card ??= FsrsScheduler.Known(seedAt!.Value);
+                    seedAt = null;
+                }
                 foreach (var (at, day, rating, fromPractice) in answers[item.Id])
                 {
+                    if (seedAt is { } due && due <= at) Seed();
                     if (fromPractice && lastDay == day) continue;
                     card = FsrsScheduler.Schedule(card, rating, at);
                     (lastAnswered, lastDay, lastRating, count) = (at, day, rating, count + 1);
                 }
+                if (seedAt is not null) Seed();
                 // Help asked for since the last answer belongs to the attempt in progress; earlier help was already judged.
                 var attemptHints = reviewHints[item.Id].Where(h => lastAnswered is null || h.OccurredAt > lastAnswered).Select(h => h.Level).DefaultIfEmpty(0).Max();
                 lessonHints.TryGetValue((lesson.Lesson.Id, question.Id), out var fromLesson);

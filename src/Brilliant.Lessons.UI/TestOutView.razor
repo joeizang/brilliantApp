@@ -1,0 +1,76 @@
+@* "I know this, test me" (#146): a few of the lesson's own review questions, one at a time. All right on the first try passes the lesson; the first miss ends the test and the lesson starts as normal. A miss records nothing. *@
+@using Brilliant.Core.Code
+@using Brilliant.Core.Content
+@using Brilliant.Core.Progress
+@using Brilliant.Core.Review
+@inject ProgressRecorder Recorder
+@inject ScreenInfo Screen
+
+@if (_missed)
+{
+    <div class="testout-result testout-missed content-column mt-8" role="status">
+        <p class="m-0 text-[1.3rem]">Not this time, and that's fine.</p>
+        <p class="mt-2 text-fg-secondary">Nothing is held against you. Let's go through the lesson.</p>
+        <div class="step-actions pb-6"><button class="primary btn-primary" @onclick="() => OnMissed.InvokeAsync()">Start the lesson</button></div>
+    </div>
+}
+else if (_current is { } item)
+{
+    <div class="testout-progress content-column mt-4 text-[.9rem] text-fg-secondary" role="progressbar" aria-valuemin="0" aria-valuemax="@_asked.Count" aria-valuenow="@_index">
+        <span>Test-out: question @(_index + 1) of @_asked.Count. Get them all right to skip this lesson.</span>
+    </div>
+    <div @key="item.Id">
+        @switch (Screen.Present(StepOf(item)))
+        {
+            case ChoiceStep choice:
+                <ChoiceStepView Step="choice" OnAnswered="r => Answered(r.IsCorrect)" OnContinue="Next" />
+                break;
+            case PredictOutputStep predict:
+                <PredictOutputStepView Step="predict" OnAnswered="a => Answered(a.Result.IsCorrect)" OnContinue="Next" />
+                break;
+            case FillBlankStep fill:
+                <FillBlankStepView Step="fill" OnAnswered="a => Answered(a.Result.IsCorrect)" OnContinue="Next" />
+                break;
+            case ParsonsStep parsons:
+                <ParsonsStepView Step="parsons" OnAnswered="a => Answered(a.Result.IsCorrect)" OnContinue="Next" />
+                break;
+            case WriteCodeStep write:
+                <WriteCodeStepView Step="write" DraftKey="@($"testout.{item.Id}")" OnSubmitted="s => Answered(s.Result.Status == TestRunStatus.Passed)" OnContinue="Next" />
+                break;
+        }
+    </div>
+}
+
+@code {
+    [EditorRequired, Parameter] public Lesson Lesson { get; set; } = default!;
+
+    /// <summary>Every question was right: the pass has been recorded.</summary>
+    [Parameter] public EventCallback OnPassed { get; set; }
+
+    /// <summary>The learner finished reading that they missed one and wants to start the lesson.</summary>
+    [Parameter] public EventCallback OnMissed { get; set; }
+
+    private IReadOnlyList<ReviewItem> _asked = [];
+    private int _index;
+    private bool _missed;
+
+    private ReviewItem? _current => _index < _asked.Count ? _asked[_index] : null;
+
+    protected override void OnInitialized() => _asked = LessonTestOut.Select(Lesson);
+
+    private Step StepOf(ReviewItem item) => Lesson.AllSteps().First(s => s.Id == item.StepId);
+
+    // The first answer to a question is the one that counts; a question answered right moves on, one answered wrong ends the test.
+    private void Answered(bool correct)
+    {
+        if (!correct) _missed = true;
+    }
+
+    private async Task Next()
+    {
+        _index++;
+        if (_index < _asked.Count) return;
+        Recorder.LessonTestedOut(Lesson, _asked);
+        await OnPassed.InvokeAsync();
+    }
+}

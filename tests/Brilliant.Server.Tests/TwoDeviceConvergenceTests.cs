@@ -172,6 +172,28 @@ public sealed class TwoDeviceConvergenceTests(PostgresFixture postgres) : IAsync
     }
 
     [Fact]
+    public async Task A_test_out_on_one_device_syncs_and_replays_to_the_same_seeded_schedule_on_the_other()
+    {
+        // A tests out of lesson one while B, apart from it, plays lesson three; the test-out is lesson-level and carries its asked items.
+        _a.Recorder.LessonTestedOut(SyncFixtures.One, SyncFixtures.One.ReviewItems);
+        _clock.Now = _clock.Now.AddMinutes(1);
+        _b.Recorder.CompleteStep(SyncFixtures.Three, "step.three.intro");
+        Assert.NotEqual(Print(_a), Print(_b));
+
+        await SettleAsync();
+
+        Assert.Equal(Ids(_a), Ids(_b));
+        Assert.Equal(Print(_a), Print(_b));
+        Assert.Equal(1, await _server.WithDbAsync(db => Task.FromResult(db.Events.Count(e => e.Type == ProgressEventTypes.LessonTestedOut))));
+        var onB = LearnerStateProjector.Project(_b.Log.ReadAll(), SyncFixtures.Content, SyncFixtures.T0.AddDays(2));
+        var lesson = onB.Track("track.t")!.Lessons[0];
+        Assert.Equal(LessonStatus.Completed, lesson.Status);
+        Assert.True(lesson.Progress.TestedOut);
+        Assert.All(onB.Reviews.Where(r => r.Lesson.Id == "lesson.one"), r => Assert.True(r.Card!.Due - SyncFixtures.T0 >= TimeSpan.FromDays(21)));
+        Assert.Contains("testedOut=True", Print(_b));
+    }
+
+    [Fact]
     public async Task Events_recorded_between_syncs_flow_both_ways_and_stay_converged()
     {
         await SettleAsync();
