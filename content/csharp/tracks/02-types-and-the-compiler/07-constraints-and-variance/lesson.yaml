@@ -27,7 +27,7 @@ steps:
     type: explain
     title: What T is allowed to do, and what it may be swapped for
     body: |
-      A generic method is compiled once for every `T`, so inside it `T` is known only as `object` until you say more. A **constraint** (`where T : IComparable<T>`)
+      A generic method is written once, for every `T`, so inside it `T` is known only as `object` until you say more. A **constraint** (`where T : IComparable<T>`)
       says more: it is the contract the caller must meet, and the members of the constraint become callable on `T`.
 
       **Variance** is the other half: when `Derived` converts to `Base`, may `Thing<Derived>` convert to `Thing<Base>`? The answer depends on whether `T` is only
