@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Brilliant.Code.CSharp/Brilliant.Code.CSharp.csproj" />
+    <PackageReference Include="Basic.Reference.Assemblies.Net100" Version="1.8.9" />
+    <Compile Include="../../src/Brilliant.App/RoslynSpike.cs" Link="RoslynSpike.cs" />
+  </ItemGroup>
+  <Target Name="EmbedProbeMetadata" BeforeTargets="AssignTargetPaths" DependsOnTargets="ResolveProjectReferences">
+    <ItemGroup>
+      <_ProbeRuntime Include="@(_ResolvedProjectReferencePaths)" Condition="'%(_ResolvedProjectReferencePaths.Filename)' == 'Brilliant.Code.CSharp'" />
+    </ItemGroup>
+    <MakeDir Directories="$(IntermediateOutputPath)spike" />
+    <Copy SourceFiles="@(_ProbeRuntime)" DestinationFiles="$(IntermediateOutputPath)spike/probe-runtime.bin" />
+    <ItemGroup>
+      <EmbeddedResource Include="$(IntermediateOutputPath)spike/probe-runtime.bin" LogicalName="probe-runtime.dll" />
+    </ItemGroup>
+  </Target>
+</Project>
