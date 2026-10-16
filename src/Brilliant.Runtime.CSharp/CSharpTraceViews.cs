@@ -14,6 +14,10 @@ internal sealed class CSharpTraceViews(IReadOnlyList<Visual> visuals)
     public const int MaxRows = 20;        // dictionary entries / set members recorded per frame (the rest are counted in More)
     public const int MaxHeapCells = 31;   // heap cells recorded per frame, five full levels of its tree
     public const int MaxGrid = 15;        // rows of a grid recorded per frame, and cells of each row
+    public const int MaxNodes = 30;       // linked-list nodes recorded per frame (the rest are counted in More)
+    public const int MaxTreeNodes = 31;   // tree nodes recorded per frame, five full levels
+    public const int MaxWalk = 1000;      // nodes walked from a start, the most a cyclic or huge structure costs
+    public const int MaxVisited = 100;    // members of a tree's visited list or set looked at
     public const int MaxMarked = 100;     // members of a grid's highlight looked at (the rest mark nothing)
 
     // One watch per variable, the first given, as the Python tracer's watch list.
@@ -35,6 +39,190 @@ internal sealed class CSharpTraceViews(IReadOnlyList<Visual> visuals)
         foreach (var visual in watched)
             if (record(visual) is { } recorded) (found ??= new(StringComparer.Ordinal))[visual.Variable] = recorded;
         return found;
+    }
+
+    public IReadOnlyDictionary<string, TrackedList>? Lists(IReadOnlyDictionary<string, object?> locals) =>
+        Collect(_watch.Where(v => v.As == Visual.LinkedList), v => List(v, locals));
+
+    public IReadOnlyDictionary<string, TrackedTree>? Trees(IReadOnlyDictionary<string, object?> locals) =>
+        Collect(_watch.Where(v => v.As == Visual.Tree), v => Tree(v, locals));
+
+    // ---- linked lists and trees ----
+    // A node is an instance of a user class that has the link fields; its id is the identity the probe gave the object, the same at every step.
+
+    private IReadOnlyDictionary<int, CapturedObject>? _indexed;
+    private IReadOnlyDictionary<string, object?>? _indexedFor;
+
+    // Every tracked object of one snapshot by identity, so a link back to an object captured further up (a cycle) can be followed.
+    private IReadOnlyDictionary<int, CapturedObject> Index(IReadOnlyDictionary<string, object?> locals)
+    {
+        if (ReferenceEquals(_indexedFor, locals)) return _indexed!;
+        var index = new Dictionary<int, CapturedObject>();
+        void Visit(object? value)
+        {
+            switch (value)
+            {
+                case CapturedObject captured:
+                    if (captured.Identity >= 0 && !index.TryAdd(captured.Identity, captured)) return;
+                    foreach (var field in captured.Fields.Values) Visit(field);
+                    break;
+                case CapturedSequence sequence:
+                    foreach (var item in sequence.Values) Visit(item);
+                    break;
+                case CapturedTable table:
+                    foreach (var row in table.Rows) { Visit(row.Key); Visit(row.Value); }
+                    break;
+            }
+        }
+        foreach (var value in locals.Values) Visit(value);
+        _indexedFor = locals;
+        return _indexed = index;
+    }
+
+    private static object? Resolve(object? value, IReadOnlyDictionary<int, CapturedObject> index) =>
+        value is CapturedReference reference ? index.GetValueOrDefault(reference.Identity) : value;
+
+    private static bool Has(CapturedObject node, string name) => Member(node, name, out _);
+
+    private static bool Member(CapturedObject node, string name, out object? value)
+    {
+        // The name as written first; else the one that differs only in case, so the default 'next' and 'val' find C#'s Next and Val.
+        foreach (var comparison in new[] { StringComparison.Ordinal, StringComparison.OrdinalIgnoreCase })
+            foreach (var (key, held) in node.Fields)
+                if (key != "…" && string.Equals(CSharpTraceRecorder.FieldName(key), name, comparison)) { value = held; return true; }
+        value = null;
+        return false;
+    }
+
+    private static bool IsNode(object? value, params string[] links) => value is CapturedObject { Identity: >= 0 } node && links.All(link => Has(node, link));
+
+    // The node a link holds: null for the end, or for something that isn't a node.
+    private static CapturedObject? Follow(CapturedObject node, string link, IReadOnlyDictionary<int, CapturedObject> index, string[] links, out bool cut)
+    {
+        Member(node, link, out var held);
+        cut = held is UnavailableCapture { Reason: "limit" };
+        return Resolve(held, index) is { } next && IsNode(next, links) ? (CapturedObject)next : null;
+    }
+
+    // The value a node shows: null when it has no such attribute.
+    private static string? ValueOf(CapturedObject node, string attribute, out object? raw) =>
+        Member(node, attribute, out raw) ? CSharpTraceRecorder.Clip(CSharpTraceRecorder.Repr(raw), CSharpTraceRecorder.MaxCellRepr) : null;
+
+    private TrackedList? List(Visual visual, IReadOnlyDictionary<string, object?> locals)
+    {
+        string[] links = [visual.Next];
+        var index = Index(locals);
+        if (!locals.TryGetValue(visual.Variable, out var held)) return null;
+        var head = held as CapturedObject;
+        if (held is not null && !IsNode(head, links)) return null;
+        var starts = new List<CapturedObject>();
+        if (head is not null) starts.Add(head);
+        var pointers = new Dictionary<string, int?>(StringComparer.Ordinal);
+        foreach (var name in visual.Pointers)
+        {
+            if (!locals.TryGetValue(name, out var value)) continue;
+            if (value is null) pointers[name] = null;
+            else if (IsNode(value, links)) { pointers[name] = ((CapturedObject)value).Identity; starts.Add((CapturedObject)value); }
+        }
+
+        var recorded = new List<ListNode>();
+        var seen = new HashSet<int>();
+        var more = 0;
+        foreach (var start in starts)
+        {
+            var node = start;
+            while (node is not null && seen.Add(node.Identity) && seen.Count <= MaxWalk)
+            {
+                var after = Follow(node, visual.Next, index, links, out var cut);
+                if (recorded.Count < MaxNodes) recorded.Add(new(node.Identity, ValueOf(node, visual.Value, out _), after?.Identity));
+                else more++;
+                if (cut) more++;   // the capture stopped here: at least one more node that can't be counted
+                node = after;
+            }
+        }
+        return new(head?.Identity, recorded, more, pointers);
+    }
+
+    private TrackedTree? Tree(Visual visual, IReadOnlyDictionary<string, object?> locals)
+    {
+        string[] links = [visual.Left, visual.Right];
+        var index = Index(locals);
+        if (!locals.TryGetValue(visual.Variable, out var held)) return null;
+        var root = held as CapturedObject;
+        if (held is not null && !IsNode(root, links)) return null;
+        var starts = new List<CapturedObject>();
+        if (root is not null) starts.Add(root);
+        var pointers = new Dictionary<string, int?>(StringComparer.Ordinal);
+        foreach (var name in visual.Pointers)
+        {
+            if (!locals.TryGetValue(name, out var value)) continue;
+            if (value is null) pointers[name] = null;
+            else if (IsNode(value, links)) { pointers[name] = ((CapturedObject)value).Identity; starts.Add((CapturedObject)value); }
+        }
+
+        var kept = new List<(CapturedObject Node, bool HasValue, object? Raw, TreeNode Recorded)>();
+        var seen = new HashSet<int>();
+        var more = 0;
+        foreach (var start in starts)
+        {
+            var level = new Queue<CapturedObject>([start]);
+            while (level.Count > 0 && seen.Count < MaxWalk)
+            {
+                var node = level.Dequeue();
+                if (!seen.Add(node.Identity)) continue;
+                var left = Follow(node, visual.Left, index, links, out var cutLeft);
+                var right = Follow(node, visual.Right, index, links, out var cutRight);
+                foreach (var child in new[] { left, right })
+                    if (child is not null && !seen.Contains(child.Identity)) level.Enqueue(child);
+                if (kept.Count < MaxTreeNodes)
+                {
+                    var text = ValueOf(node, visual.Value, out var raw);
+                    kept.Add((node, text is not null, raw, new(node.Identity, text, left?.Identity, right?.Identity)));
+                }
+                else more++;
+                if (cutLeft) more++;
+                if (cutRight) more++;
+            }
+        }
+
+        TreeVisited? visited = null;
+        if (visual.Visited is { Length: > 0 } visitedName && locals.TryGetValue(visitedName, out var marked)) visited = Visited(marked, kept.Select(k => (k.Node, k.HasValue, k.Raw, k.Recorded)).ToArray());
+        return new(root?.Identity, kept.Select(k => k.Recorded).ToArray(), more, pointers, visited);
+    }
+
+    // Which recorded nodes a visited list or set marks: a member that is a node marks it, and any other marks the nodes whose value equals it
+    // (in a list, the first such node no earlier member marked).
+    private static TreeVisited? Visited(object? value, (CapturedObject Node, bool HasValue, object? Raw, TreeNode Recorded)[] kept)
+    {
+        IReadOnlyList<object?> members;
+        bool ordered;
+        int total;
+        switch (value)
+        {
+            case CapturedSequence { Shape: not CapturedShape.Stack } sequence: ordered = true; members = sequence.Values; total = Length(sequence); break;
+            case CapturedTable { IsSet: true } set: ordered = false; members = set.Rows.Select(row => row.Key).ToArray(); total = set.Total; break;
+            default: return null;
+        }
+        var marks = new Dictionary<int, int?>();
+        var unmatched = 0;
+        var place = 0;
+        foreach (var member in members.Take(MaxVisited))
+        {
+            place++;
+            var found = member is CapturedObject { Identity: >= 0 } node ? kept.Where(k => k.Node.Identity == node.Identity).ToArray() : [];
+            if (found.Length == 0 && Canonical(member) is { } canonical)
+                found = kept.Where(k => k.HasValue && Canonical(k.Raw) == canonical).ToArray();
+            var matches = ordered ? found.Where(k => !marks.ContainsKey(k.Recorded.Id)).Take(1) : found;
+            var any = false;
+            foreach (var match in matches)
+            {
+                any = true;
+                marks.TryAdd(match.Recorded.Id, ordered ? place : null);
+            }
+            if (!any) unmatched++;
+        }
+        var nodes = kept.Where(k => marks.ContainsKey(k.Recorded.Id)).Select(k => new VisitedNode(k.Recorded.Id, marks[k.Recorded.Id])).ToArray();
+        return new(ordered, nodes, unmatched + Math.Max(0, total - MaxVisited));
     }
 
     // ---- dictionaries and sets ----
@@ -92,7 +280,7 @@ internal sealed class CSharpTraceViews(IReadOnlyList<Visual> visuals)
         sbyte or byte or short or ushort or int or uint or long or ulong => "n:" + Convert.ToString(value, CultureInfo.InvariantCulture),
         CapturedSequence sequence => "q:" + sequence.Display + CSharpTraceRecorder.Repr(sequence),
         CapturedObject captured => "o:" + captured.Display + CSharpTraceRecorder.Repr(captured),
-        UnavailableCapture or CapturedTable => null,
+        UnavailableCapture or CapturedTable or CapturedReference => null,
         _ => value.GetType().Name + ":" + CSharpTraceRecorder.Repr(value),
     };
 

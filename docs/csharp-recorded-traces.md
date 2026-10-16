@@ -83,8 +83,26 @@ Dictionary and set rows carry an `Id` for the run, assigned in the order keys ar
 local variables whose value is a key of the table, as for Python. Frozen collections are captured up to 128 items, so a set larger than that
 shows the members met first rather than sorted ones.
 
+## Linked lists and trees: node identity
+
+A node is an instance of one of the learner's own classes (`FullName` not under `System.` or `Microsoft.`) that has the `next` field or
+property (a list), or both `left` and `right` (a tree). `ProbeBudget` is built with `trackObjects: true` by the recorder, and then:
+
+- every instance of a learner class gets an **identity**: a number for the whole run, handed out in the order objects are first captured
+  (`CapturedObject.Identity`). It is the same at every probe whichever variable holds the object, and never comes from an address or a hash code,
+  so re-recording gives the same ids. A node's id in `ListNode`/`TreeNode` is this number.
+- an object reached again on the way to itself (a circular or doubly linked list, a parent pointer) is captured as a `CapturedReference` to that
+  identity instead of the old `<cycle>` placeholder; `CSharpTraceViews` follows it through an index of the snapshot's objects. Locals still read `<cycle>`.
+- the capture goes 256 levels deep and 4000 objects (16 and 1000 otherwise), because a list of nodes is as deep as it is long.
+
+Members are found by name among the object's fields and auto-property backing fields, exactly first and then ignoring case, so the defaults `next`,
+`val`, `left` and `right` find C#'s `Next`, `Val`, `Left` and `Right`; set `next:`/`value:`/`left:`/`right:` for any other name. Properties with
+their own getter are not read (capturing never runs learner code). Walks follow the Python tracer: 30 list nodes, 31 tree nodes (breadth first),
+`More` counts the nodes beyond them, and `pointers` and a tree's `visited` list or set work the same way. Two C#-only limits: `More` can only count
+what was captured, so a structure cut by the capture limit adds 1 for the cut; and a watched variable is drawn only in the frames where it is in
+scope (a local function of top-level code sees it, a static method does not; pass the node as a parameter and watch that name as a pointer).
+
 ## Not yet recorded
 
-Linked lists, binary trees, graphs and the call stack need object identity in the probe's snapshot (so that two snapshots can tell that a
-node is the same node). Until that lands, `validate` refuses those `visuals` for C# with "'X' drawings of C# code are not recorded yet…".
-They are the rest of #196 (linked lists and trees, then graphs and the call stack).
+The graph and the call stack. Until they land, `validate` refuses those `visuals` for C# with "'X' drawings of C# code are not recorded yet…".
+They are the rest of #196.

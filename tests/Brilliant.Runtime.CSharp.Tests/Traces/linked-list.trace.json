@@ -1,0 +1,951 @@
+{
+  "status": "ok",
+  "frames": [
+    {
+      "event": "line",
+      "line": 1,
+      "function": "Main",
+      "locals": [],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 17,
+      "function": "ListNode",
+      "locals": [
+        {
+          "name": "next",
+          "type": "null",
+          "repr": "null"
+        },
+        {
+          "name": "val",
+          "type": "int",
+          "repr": "3",
+          "index": 3
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 17,
+      "function": "ListNode",
+      "locals": [
+        {
+          "name": "next",
+          "type": "null",
+          "repr": "null"
+        },
+        {
+          "name": "val",
+          "type": "int",
+          "repr": "3",
+          "index": 3
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 17,
+      "function": "ListNode",
+      "locals": [
+        {
+          "name": "next",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 3, Next = null }"
+        },
+        {
+          "name": "val",
+          "type": "int",
+          "repr": "2",
+          "index": 2
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 17,
+      "function": "ListNode",
+      "locals": [
+        {
+          "name": "next",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 3, Next = null }"
+        },
+        {
+          "name": "val",
+          "type": "int",
+          "repr": "2",
+          "index": 2
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 17,
+      "function": "ListNode",
+      "locals": [
+        {
+          "name": "next",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 2, Next = ListNode { Val = 3, Next = null …"
+        },
+        {
+          "name": "val",
+          "type": "int",
+          "repr": "1",
+          "index": 1
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 17,
+      "function": "ListNode",
+      "locals": [
+        {
+          "name": "next",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 2, Next = ListNode { Val = 3, Next = null …"
+        },
+        {
+          "name": "val",
+          "type": "int",
+          "repr": "1",
+          "index": 1
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 2,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "head",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 1, Next = ListNode { Val = 2, Next = ListN…"
+        }
+      ],
+      "tracked": {},
+      "lists": {
+        "head": {
+          "head": 2,
+          "nodes": [
+            {
+              "id": 2,
+              "value": "1",
+              "next": 1
+            },
+            {
+              "id": 1,
+              "value": "2",
+              "next": 0
+            },
+            {
+              "id": 0,
+              "value": "3"
+            }
+          ],
+          "more": 0,
+          "pointers": {}
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 3,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "head",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 1, Next = ListNode { Val = 2, Next = ListN…"
+        },
+        {
+          "name": "prev",
+          "type": "null",
+          "repr": "null"
+        }
+      ],
+      "tracked": {},
+      "lists": {
+        "head": {
+          "head": 2,
+          "nodes": [
+            {
+              "id": 2,
+              "value": "1",
+              "next": 1
+            },
+            {
+              "id": 1,
+              "value": "2",
+              "next": 0
+            },
+            {
+              "id": 0,
+              "value": "3"
+            }
+          ],
+          "more": 0,
+          "pointers": {
+            "prev": null
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 4,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "cur",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 1, Next = ListNode { Val = 2, Next = ListN…"
+        },
+        {
+          "name": "head",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 1, Next = ListNode { Val = 2, Next = ListN…"
+        },
+        {
+          "name": "prev",
+          "type": "null",
+          "repr": "null"
+        }
+      ],
+      "tracked": {},
+      "lists": {
+        "head": {
+          "head": 2,
+          "nodes": [
+            {
+              "id": 2,
+              "value": "1",
+              "next": 1
+            },
+            {
+              "id": 1,
+              "value": "2",
+              "next": 0
+            },
+            {
+              "id": 0,
+              "value": "3"
+            }
+          ],
+          "more": 0,
+          "pointers": {
+            "prev": null,
+            "cur": 2
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 6,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "cur",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 1, Next = ListNode { Val = 2, Next = ListN…"
+        },
+        {
+          "name": "head",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 1, Next = ListNode { Val = 2, Next = ListN…"
+        },
+        {
+          "name": "prev",
+          "type": "null",
+          "repr": "null"
+        }
+      ],
+      "tracked": {},
+      "lists": {
+        "head": {
+          "head": 2,
+          "nodes": [
+            {
+              "id": 2,
+              "value": "1",
+              "next": 1
+            },
+            {
+              "id": 1,
+              "value": "2",
+              "next": 0
+            },
+            {
+              "id": 0,
+              "value": "3"
+            }
+          ],
+          "more": 0,
+          "pointers": {
+            "prev": null,
+            "cur": 2
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 7,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "cur",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 1, Next = ListNode { Val = 2, Next = ListN…"
+        },
+        {
+          "name": "head",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 1, Next = ListNode { Val = 2, Next = ListN…"
+        },
+        {
+          "name": "next",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 2, Next = ListNode { Val = 3, Next = null …"
+        },
+        {
+          "name": "prev",
+          "type": "null",
+          "repr": "null"
+        }
+      ],
+      "tracked": {},
+      "lists": {
+        "head": {
+          "head": 2,
+          "nodes": [
+            {
+              "id": 2,
+              "value": "1",
+              "next": 1
+            },
+            {
+              "id": 1,
+              "value": "2",
+              "next": 0
+            },
+            {
+              "id": 0,
+              "value": "3"
+            }
+          ],
+          "more": 0,
+          "pointers": {
+            "prev": null,
+            "cur": 2
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 8,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "cur",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 1, Next = null }"
+        },
+        {
+          "name": "head",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 1, Next = null }"
+        },
+        {
+          "name": "next",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 2, Next = ListNode { Val = 3, Next = null …"
+        },
+        {
+          "name": "prev",
+          "type": "null",
+          "repr": "null"
+        }
+      ],
+      "tracked": {},
+      "lists": {
+        "head": {
+          "head": 2,
+          "nodes": [
+            {
+              "id": 2,
+              "value": "1"
+            }
+          ],
+          "more": 0,
+          "pointers": {
+            "prev": null,
+            "cur": 2
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 9,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "cur",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 1, Next = null }"
+        },
+        {
+          "name": "head",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 1, Next = null }"
+        },
+        {
+          "name": "next",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 2, Next = ListNode { Val = 3, Next = null …"
+        },
+        {
+          "name": "prev",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 1, Next = null }"
+        }
+      ],
+      "tracked": {},
+      "lists": {
+        "head": {
+          "head": 2,
+          "nodes": [
+            {
+              "id": 2,
+              "value": "1"
+            }
+          ],
+          "more": 0,
+          "pointers": {
+            "prev": 2,
+            "cur": 2
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 6,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "cur",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 2, Next = ListNode { Val = 3, Next = null …"
+        },
+        {
+          "name": "head",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 1, Next = null }"
+        },
+        {
+          "name": "prev",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 1, Next = null }"
+        }
+      ],
+      "tracked": {},
+      "lists": {
+        "head": {
+          "head": 2,
+          "nodes": [
+            {
+              "id": 2,
+              "value": "1"
+            },
+            {
+              "id": 1,
+              "value": "2",
+              "next": 0
+            },
+            {
+              "id": 0,
+              "value": "3"
+            }
+          ],
+          "more": 0,
+          "pointers": {
+            "prev": 2,
+            "cur": 1
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 7,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "cur",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 2, Next = ListNode { Val = 3, Next = null …"
+        },
+        {
+          "name": "head",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 1, Next = null }"
+        },
+        {
+          "name": "next",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 3, Next = null }"
+        },
+        {
+          "name": "prev",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 1, Next = null }"
+        }
+      ],
+      "tracked": {},
+      "lists": {
+        "head": {
+          "head": 2,
+          "nodes": [
+            {
+              "id": 2,
+              "value": "1"
+            },
+            {
+              "id": 1,
+              "value": "2",
+              "next": 0
+            },
+            {
+              "id": 0,
+              "value": "3"
+            }
+          ],
+          "more": 0,
+          "pointers": {
+            "prev": 2,
+            "cur": 1
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 8,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "cur",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 2, Next = ListNode { Val = 1, Next = null …"
+        },
+        {
+          "name": "head",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 1, Next = null }"
+        },
+        {
+          "name": "next",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 3, Next = null }"
+        },
+        {
+          "name": "prev",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 1, Next = null }"
+        }
+      ],
+      "tracked": {},
+      "lists": {
+        "head": {
+          "head": 2,
+          "nodes": [
+            {
+              "id": 2,
+              "value": "1"
+            },
+            {
+              "id": 1,
+              "value": "2",
+              "next": 2
+            }
+          ],
+          "more": 0,
+          "pointers": {
+            "prev": 2,
+            "cur": 1
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 9,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "cur",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 2, Next = ListNode { Val = 1, Next = null …"
+        },
+        {
+          "name": "head",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 1, Next = null }"
+        },
+        {
+          "name": "next",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 3, Next = null }"
+        },
+        {
+          "name": "prev",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 2, Next = ListNode { Val = 1, Next = null …"
+        }
+      ],
+      "tracked": {},
+      "lists": {
+        "head": {
+          "head": 2,
+          "nodes": [
+            {
+              "id": 2,
+              "value": "1"
+            },
+            {
+              "id": 1,
+              "value": "2",
+              "next": 2
+            }
+          ],
+          "more": 0,
+          "pointers": {
+            "prev": 1,
+            "cur": 1
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 6,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "cur",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 3, Next = null }"
+        },
+        {
+          "name": "head",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 1, Next = null }"
+        },
+        {
+          "name": "prev",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 2, Next = ListNode { Val = 1, Next = null …"
+        }
+      ],
+      "tracked": {},
+      "lists": {
+        "head": {
+          "head": 2,
+          "nodes": [
+            {
+              "id": 2,
+              "value": "1"
+            },
+            {
+              "id": 1,
+              "value": "2",
+              "next": 2
+            },
+            {
+              "id": 0,
+              "value": "3"
+            }
+          ],
+          "more": 0,
+          "pointers": {
+            "prev": 1,
+            "cur": 0
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 7,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "cur",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 3, Next = null }"
+        },
+        {
+          "name": "head",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 1, Next = null }"
+        },
+        {
+          "name": "next",
+          "type": "null",
+          "repr": "null"
+        },
+        {
+          "name": "prev",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 2, Next = ListNode { Val = 1, Next = null …"
+        }
+      ],
+      "tracked": {},
+      "lists": {
+        "head": {
+          "head": 2,
+          "nodes": [
+            {
+              "id": 2,
+              "value": "1"
+            },
+            {
+              "id": 1,
+              "value": "2",
+              "next": 2
+            },
+            {
+              "id": 0,
+              "value": "3"
+            }
+          ],
+          "more": 0,
+          "pointers": {
+            "prev": 1,
+            "cur": 0
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 8,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "cur",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 3, Next = ListNode { Val = 2, Next = ListN…"
+        },
+        {
+          "name": "head",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 1, Next = null }"
+        },
+        {
+          "name": "next",
+          "type": "null",
+          "repr": "null"
+        },
+        {
+          "name": "prev",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 2, Next = ListNode { Val = 1, Next = null …"
+        }
+      ],
+      "tracked": {},
+      "lists": {
+        "head": {
+          "head": 2,
+          "nodes": [
+            {
+              "id": 2,
+              "value": "1"
+            },
+            {
+              "id": 1,
+              "value": "2",
+              "next": 2
+            },
+            {
+              "id": 0,
+              "value": "3",
+              "next": 1
+            }
+          ],
+          "more": 0,
+          "pointers": {
+            "prev": 1,
+            "cur": 0
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 9,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "cur",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 3, Next = ListNode { Val = 2, Next = ListN…"
+        },
+        {
+          "name": "head",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 1, Next = null }"
+        },
+        {
+          "name": "next",
+          "type": "null",
+          "repr": "null"
+        },
+        {
+          "name": "prev",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 3, Next = ListNode { Val = 2, Next = ListN…"
+        }
+      ],
+      "tracked": {},
+      "lists": {
+        "head": {
+          "head": 2,
+          "nodes": [
+            {
+              "id": 2,
+              "value": "1"
+            },
+            {
+              "id": 0,
+              "value": "3",
+              "next": 1
+            },
+            {
+              "id": 1,
+              "value": "2",
+              "next": 2
+            }
+          ],
+          "more": 0,
+          "pointers": {
+            "prev": 0,
+            "cur": 0
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 11,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "cur",
+          "type": "null",
+          "repr": "null"
+        },
+        {
+          "name": "head",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 1, Next = null }"
+        },
+        {
+          "name": "prev",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 3, Next = ListNode { Val = 2, Next = ListN…"
+        }
+      ],
+      "tracked": {},
+      "lists": {
+        "head": {
+          "head": 2,
+          "nodes": [
+            {
+              "id": 2,
+              "value": "1"
+            },
+            {
+              "id": 0,
+              "value": "3",
+              "next": 1
+            },
+            {
+              "id": 1,
+              "value": "2",
+              "next": 2
+            }
+          ],
+          "more": 0,
+          "pointers": {
+            "prev": 0,
+            "cur": null
+          }
+        }
+      }
+    },
+    {
+      "event": "return",
+      "function": "Main",
+      "locals": [
+        {
+          "name": "cur",
+          "type": "null",
+          "repr": "null"
+        },
+        {
+          "name": "head",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 3, Next = ListNode { Val = 2, Next = ListN…"
+        },
+        {
+          "name": "prev",
+          "type": "ListNode",
+          "repr": "ListNode { Val = 3, Next = ListNode { Val = 2, Next = ListN…"
+        }
+      ],
+      "tracked": {},
+      "lists": {
+        "head": {
+          "head": 0,
+          "nodes": [
+            {
+              "id": 0,
+              "value": "3",
+              "next": 1
+            },
+            {
+              "id": 1,
+              "value": "2",
+              "next": 2
+            },
+            {
+              "id": 2,
+              "value": "1"
+            }
+          ],
+          "more": 0,
+          "pointers": {
+            "prev": 0,
+            "cur": null
+          }
+        }
+      }
+    }
+  ],
+  "stdout": ""
+}

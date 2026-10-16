@@ -1,0 +1,827 @@
+{
+  "status": "ok",
+  "frames": [
+    {
+      "event": "line",
+      "line": 1,
+      "function": "Main",
+      "locals": [],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 20,
+      "function": "Tree",
+      "locals": [
+        {
+          "name": "key",
+          "type": "int",
+          "repr": "4",
+          "index": 4
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 2,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "root",
+          "type": "Tree",
+          "repr": "Tree { Key = 4, Left = null, Right = null }"
+        }
+      ],
+      "tracked": {},
+      "trees": {
+        "root": {
+          "root": 0,
+          "nodes": [
+            {
+              "id": 0,
+              "value": "4"
+            }
+          ],
+          "more": 0,
+          "pointers": {}
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 20,
+      "function": "Tree",
+      "locals": [
+        {
+          "name": "key",
+          "type": "int",
+          "repr": "2",
+          "index": 2
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 20,
+      "function": "Tree",
+      "locals": [
+        {
+          "name": "key",
+          "type": "int",
+          "repr": "1",
+          "index": 1
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 20,
+      "function": "Tree",
+      "locals": [
+        {
+          "name": "key",
+          "type": "int",
+          "repr": "3",
+          "index": 3
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 3,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "root",
+          "type": "Tree",
+          "repr": "Tree { Key = 4, Left = Tree { Key = 2, Left = Tree { Key = …"
+        }
+      ],
+      "tracked": {},
+      "trees": {
+        "root": {
+          "root": 0,
+          "nodes": [
+            {
+              "id": 0,
+              "value": "4",
+              "left": 3
+            },
+            {
+              "id": 3,
+              "value": "2",
+              "left": 1,
+              "right": 2
+            },
+            {
+              "id": 1,
+              "value": "1"
+            },
+            {
+              "id": 2,
+              "value": "3"
+            }
+          ],
+          "more": 0,
+          "pointers": {}
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 20,
+      "function": "Tree",
+      "locals": [
+        {
+          "name": "key",
+          "type": "int",
+          "repr": "6",
+          "index": 6
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 4,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "root",
+          "type": "Tree",
+          "repr": "Tree { Key = 4, Left = Tree { Key = 2, Left = Tree { Key = …"
+        }
+      ],
+      "tracked": {},
+      "trees": {
+        "root": {
+          "root": 0,
+          "nodes": [
+            {
+              "id": 0,
+              "value": "4",
+              "left": 3,
+              "right": 4
+            },
+            {
+              "id": 3,
+              "value": "2",
+              "left": 1,
+              "right": 2
+            },
+            {
+              "id": 4,
+              "value": "6"
+            },
+            {
+              "id": 1,
+              "value": "1"
+            },
+            {
+              "id": 2,
+              "value": "3"
+            }
+          ],
+          "more": 0,
+          "pointers": {}
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 5,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "root",
+          "type": "Tree",
+          "repr": "Tree { Key = 4, Left = Tree { Key = 2, Left = Tree { Key = …"
+        },
+        {
+          "name": "seen",
+          "type": "List<int>",
+          "repr": "[]"
+        }
+      ],
+      "tracked": {},
+      "trees": {
+        "root": {
+          "root": 0,
+          "nodes": [
+            {
+              "id": 0,
+              "value": "4",
+              "left": 3,
+              "right": 4
+            },
+            {
+              "id": 3,
+              "value": "2",
+              "left": 1,
+              "right": 2
+            },
+            {
+              "id": 4,
+              "value": "6"
+            },
+            {
+              "id": 1,
+              "value": "1"
+            },
+            {
+              "id": 2,
+              "value": "3"
+            }
+          ],
+          "more": 0,
+          "pointers": {},
+          "visited": {
+            "ordered": true,
+            "nodes": [],
+            "unmatched": 0
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 10,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "Tree",
+          "repr": "Tree { Key = 4, Left = Tree { Key = 2, Left = Tree { Key = …"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 11,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "Tree",
+          "repr": "Tree { Key = 4, Left = Tree { Key = 2, Left = Tree { Key = …"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 10,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "Tree",
+          "repr": "Tree { Key = 2, Left = Tree { Key = 1, Left = null, Right =…"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 11,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "Tree",
+          "repr": "Tree { Key = 2, Left = Tree { Key = 1, Left = null, Right =…"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 10,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "Tree",
+          "repr": "Tree { Key = 1, Left = null, Right = null }"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 11,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "Tree",
+          "repr": "Tree { Key = 1, Left = null, Right = null }"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 10,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "null",
+          "repr": "null"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 10,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "null",
+          "repr": "null"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 12,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "Tree",
+          "repr": "Tree { Key = 1, Left = null, Right = null }"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 13,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "Tree",
+          "repr": "Tree { Key = 1, Left = null, Right = null }"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 10,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "null",
+          "repr": "null"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 10,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "null",
+          "repr": "null"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 12,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "Tree",
+          "repr": "Tree { Key = 2, Left = Tree { Key = 1, Left = null, Right =…"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 13,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "Tree",
+          "repr": "Tree { Key = 2, Left = Tree { Key = 1, Left = null, Right =…"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 10,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "Tree",
+          "repr": "Tree { Key = 3, Left = null, Right = null }"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 11,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "Tree",
+          "repr": "Tree { Key = 3, Left = null, Right = null }"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 10,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "null",
+          "repr": "null"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 10,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "null",
+          "repr": "null"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 12,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "Tree",
+          "repr": "Tree { Key = 3, Left = null, Right = null }"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 13,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "Tree",
+          "repr": "Tree { Key = 3, Left = null, Right = null }"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 10,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "null",
+          "repr": "null"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 10,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "null",
+          "repr": "null"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 12,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "Tree",
+          "repr": "Tree { Key = 4, Left = Tree { Key = 2, Left = Tree { Key = …"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 13,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "Tree",
+          "repr": "Tree { Key = 4, Left = Tree { Key = 2, Left = Tree { Key = …"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 10,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "Tree",
+          "repr": "Tree { Key = 6, Left = null, Right = null }"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 11,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "Tree",
+          "repr": "Tree { Key = 6, Left = null, Right = null }"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 10,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "null",
+          "repr": "null"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 10,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "null",
+          "repr": "null"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 12,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "Tree",
+          "repr": "Tree { Key = 6, Left = null, Right = null }"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 13,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "Tree",
+          "repr": "Tree { Key = 6, Left = null, Right = null }"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 10,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "null",
+          "repr": "null"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 10,
+      "function": "Walk",
+      "locals": [
+        {
+          "name": "node",
+          "type": "null",
+          "repr": "null"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 6,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "root",
+          "type": "Tree",
+          "repr": "Tree { Key = 4, Left = Tree { Key = 2, Left = Tree { Key = …"
+        },
+        {
+          "name": "seen",
+          "type": "List<int>",
+          "repr": "[1, 2, 3, 4, 6]"
+        }
+      ],
+      "tracked": {},
+      "trees": {
+        "root": {
+          "root": 0,
+          "nodes": [
+            {
+              "id": 0,
+              "value": "4",
+              "left": 3,
+              "right": 4
+            },
+            {
+              "id": 3,
+              "value": "2",
+              "left": 1,
+              "right": 2
+            },
+            {
+              "id": 4,
+              "value": "6"
+            },
+            {
+              "id": 1,
+              "value": "1"
+            },
+            {
+              "id": 2,
+              "value": "3"
+            }
+          ],
+          "more": 0,
+          "pointers": {},
+          "visited": {
+            "ordered": true,
+            "nodes": [
+              {
+                "id": 0,
+                "order": 4
+              },
+              {
+                "id": 3,
+                "order": 2
+              },
+              {
+                "id": 4,
+                "order": 5
+              },
+              {
+                "id": 1,
+                "order": 1
+              },
+              {
+                "id": 2,
+                "order": 3
+              }
+            ],
+            "unmatched": 0
+          }
+        }
+      }
+    },
+    {
+      "event": "return",
+      "function": "Main",
+      "locals": [
+        {
+          "name": "done",
+          "type": "int",
+          "repr": "5",
+          "index": 5
+        },
+        {
+          "name": "root",
+          "type": "Tree",
+          "repr": "Tree { Key = 4, Left = Tree { Key = 2, Left = Tree { Key = …"
+        },
+        {
+          "name": "seen",
+          "type": "List<int>",
+          "repr": "[1, 2, 3, 4, 6]"
+        }
+      ],
+      "tracked": {},
+      "trees": {
+        "root": {
+          "root": 0,
+          "nodes": [
+            {
+              "id": 0,
+              "value": "4",
+              "left": 3,
+              "right": 4
+            },
+            {
+              "id": 3,
+              "value": "2",
+              "left": 1,
+              "right": 2
+            },
+            {
+              "id": 4,
+              "value": "6"
+            },
+            {
+              "id": 1,
+              "value": "1"
+            },
+            {
+              "id": 2,
+              "value": "3"
+            }
+          ],
+          "more": 0,
+          "pointers": {},
+          "visited": {
+            "ordered": true,
+            "nodes": [
+              {
+                "id": 0,
+                "order": 4
+              },
+              {
+                "id": 3,
+                "order": 2
+              },
+              {
+                "id": 4,
+                "order": 5
+              },
+              {
+                "id": 1,
+                "order": 1
+              },
+              {
+                "id": 2,
+                "order": 3
+              }
+            ],
+            "unmatched": 0
+          }
+        }
+      }
+    }
+  ],
+  "stdout": ""
+}

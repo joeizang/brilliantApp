@@ -22,14 +22,28 @@ public sealed record CapturedSequence(string Type, IReadOnlyList<object?> Values
 /// (hashed types). <see cref="Total"/> is how many entries the collection held.
 /// </summary>
 public sealed record CapturedTable(string Type, string Display, bool IsSet, bool Ordered, IReadOnlyList<KeyValuePair<object?, object?>> Rows, int Total);
-public sealed record CapturedObject(string Type, IReadOnlyDictionary<string, object?> Fields, string Display = "");
+
+/// <summary>
+/// An object frozen at a probe. <see cref="Identity"/> is its number for the whole run when the budget tracks objects (see
+/// <see cref="ProbeBudget"/>): the same object has the same number at every probe, whichever variable holds it, and the numbers are
+/// handed out in the order objects are first captured, so they never come from an address or a hash code. -1: not tracked.
+/// </summary>
+public sealed record CapturedObject(string Type, IReadOnlyDictionary<string, object?> Fields, string Display = "", int Identity = -1);
+
+/// <summary>An object reached again on the way to itself (a cycle): the <see cref="CapturedObject.Identity"/> of the object it is, which is captured further up.</summary>
+public sealed record CapturedReference(int Identity);
+
 public sealed record UnavailableCapture(string Reason);
 
 /// <summary><see cref="Function"/> is the method, local function or lambda the probe sits in (null when the rewriter wasn't told).</summary>
 public sealed record ProbeSnapshot(int Line, IReadOnlyDictionary<string, object?> Locals, string? Function = null);
 
-/// <summary>One synchronous run's limits, installed on the dedicated execution thread before invoking learner code.</summary>
-public sealed class ProbeBudget(int maxSteps = 100_000, TimeSpan? timeout = null, int maxDepth = 128, int maxSnapshots = 1_000)
+/// <summary>
+/// One synchronous run's limits, installed on the dedicated execution thread before invoking learner code. With <c>trackObjects</c> the
+/// snapshots also give every instance of a user class a run-wide identity (so a recording can tell that two snapshots hold the same linked-list
+/// or tree node) and capture deeper, since a list of nodes is as deep as it is long.
+/// </summary>
+public sealed class ProbeBudget(int maxSteps = 100_000, TimeSpan? timeout = null, int maxDepth = 128, int maxSnapshots = 1_000, bool trackObjects = false)
 {
     public const int DefaultStackSize = 4 * 1024 * 1024;
     [ThreadStatic] private static ProbeBudget? _current;
@@ -39,6 +53,8 @@ public sealed class ProbeBudget(int maxSteps = 100_000, TimeSpan? timeout = null
     private readonly TimeSpan _timeout = (timeout ?? TimeSpan.FromSeconds(2)) > TimeSpan.Zero ? timeout ?? TimeSpan.FromSeconds(2) : throw new ArgumentOutOfRangeException(nameof(timeout));
     private readonly int _maxSnapshots = maxSnapshots >= 0 ? maxSnapshots : throw new ArgumentOutOfRangeException(nameof(maxSnapshots));
     private readonly List<ProbeSnapshot> _snapshots = [];
+    private readonly Dictionary<object, int> _identities = new(ReferenceEqualityComparer.Instance);
+    private int CaptureDepth => trackObjects ? 256 : 16;
     private long? _started;
     private volatile string? _exhausted;
     public int Depth { get; private set; }
@@ -94,20 +110,29 @@ public sealed class ProbeBudget(int maxSteps = 100_000, TimeSpan? timeout = null
         if (_snapshots.Count >= _maxSnapshots) { SnapshotsDropped = true; return; }
         var locals = new Dictionary<string, object?>(StringComparer.Ordinal);
         for (var i = 0; i < Math.Min(names.Length, values.Length); i++)
-            locals[names[i]] = Freeze(values[i], new HashSet<object>(ReferenceEqualityComparer.Instance), 0, new CaptureLimit());
+            locals[names[i]] = Freeze(values[i], new HashSet<object>(ReferenceEqualityComparer.Instance), 0, new CaptureLimit { Remaining = trackObjects ? 4_000 : 1_000 });
         _snapshots.Add(new(line, locals, function));
     }
 
-    private sealed class CaptureLimit { public int Remaining = 1_000; }
+    private sealed class CaptureLimit { public int Remaining; }
+
+    // Only instances of the learner's own classes are numbered: framework types and value types have no identity that matters here.
+    private bool Tracks(Type type) => trackObjects && type.IsClass && type.FullName is { } name && !name.StartsWith("System.", StringComparison.Ordinal) && !name.StartsWith("Microsoft.", StringComparison.Ordinal);
+
+    private int IdentityOf(object value)
+    {
+        if (!_identities.TryGetValue(value, out var id)) _identities[value] = id = _identities.Count;
+        return id;
+    }
 
     // Read instance fields instead of properties: capturing a local must not invoke learner getters.
-    private static object? Freeze(object? value, HashSet<object> path, int depth, CaptureLimit limit)
+    private object? Freeze(object? value, HashSet<object> path, int depth, CaptureLimit limit)
     {
         if (value is null) return null;
         var type = value.GetType();
         if (type.IsPrimitive || type.IsEnum || value is string or decimal or DateTime or DateTimeOffset or TimeSpan or Guid) return value;
-        if (depth >= 16 || --limit.Remaining < 0) return new UnavailableCapture("limit");
-        if (!path.Add(value)) return new UnavailableCapture("cycle");
+        if (depth >= CaptureDepth || --limit.Remaining < 0) return new UnavailableCapture("limit");
+        if (!path.Add(value)) return Tracks(type) ? new CapturedReference(IdentityOf(value)) : new UnavailableCapture("cycle");
         try
         {
             if (value is Array { Rank: 2 } grid)
@@ -170,7 +195,7 @@ public sealed class ProbeBudget(int maxSteps = 100_000, TimeSpan? timeout = null
                     if (limit.Remaining-- <= 0) { fields["…"] = new UnavailableCapture("limit"); break; }
                     fields[current.Name + "." + field.Name] = Freeze(field.GetValue(value), path, depth + 1, limit);
                 }
-            return new CapturedObject(type.FullName ?? type.Name, fields, TypeNames.Of(type));
+            return new CapturedObject(type.FullName ?? type.Name, fields, TypeNames.Of(type), Tracks(type) ? IdentityOf(value) : -1);
         }
         finally { path.Remove(value); }
     }

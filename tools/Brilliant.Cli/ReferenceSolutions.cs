@@ -217,9 +217,9 @@ internal static class ReferenceSolutionChecker
 
         foreach (var visual in visuals)
         {
-            if (language == "csharp" && visual.As is Visual.LinkedList or Visual.Tree or Visual.Graph or Visual.CallStack)
+            if (language == "csharp" && visual.As is Visual.Graph or Visual.CallStack)
             {
-                yield return $"'{visual.As}' drawings of C# code are not recorded yet; a C# trace can draw an array, a List<T>, a Stack<T>, a Queue<T>, a Dictionary<,>, a HashSet<T>, a heap or a grid.";
+                yield return $"'{visual.As}' drawings of C# code are not recorded yet; a C# trace can draw an array, a List<T>, a Stack<T>, a Queue<T>, a Dictionary<,>, a HashSet<T>, a heap, a grid, a linked list or a tree.";
                 continue;
             }
             if (!result.Frames.Any(f => Draws(f, visual)))
@@ -233,6 +233,8 @@ internal static class ReferenceSolutionChecker
                         Visual.Dict => $"variable '{visual.Variable}' is never a Dictionary<,>, SortedDictionary<,> or SortedList<,> in the trace, so there is nothing to draw.",
                         Visual.Set => $"variable '{visual.Variable}' is never a HashSet<T> or SortedSet<T> in the trace, so there is nothing to draw.",
                         Visual.Heap => $"variable '{visual.Variable}' is never an array or List<T> in the trace, so there is no heap to draw.",
+                        Visual.LinkedList => $"variable '{visual.Variable}' never holds a node (an object with a '{visual.Next}' field or property) in the trace, so there is no list to draw.",
+                        Visual.Tree => $"variable '{visual.Variable}' never holds a tree node (an object with '{visual.Left}' and '{visual.Right}' fields or properties) in the trace, so there is no tree to draw.",
                         Visual.Grid => $"variable '{visual.Variable}' is never a non-empty array of arrays, a List<List<T>>, a rectangular array or an array of strings in the trace, so there is no grid to draw.",
                         _ => $"variable '{visual.Variable}' is never an array, List<T>, Stack<T> or Queue<T> in the trace, so there is nothing to draw.",
                     };

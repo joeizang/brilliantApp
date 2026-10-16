@@ -165,12 +165,12 @@ public sealed class CSharpRecordedTraceTests : IDisposable
     [Fact]
     public void A_drawing_not_recorded_for_csharp_yet_is_refused_rather_than_drawn_empty()
     {
-        WritePack("var seen = new HashSet<int> { 1 };", "[{variable: seen, as: tree}]");
+        WritePack("var seen = new HashSet<int> { 1 };", "[{variable: seen, as: graph}]");
 
-        var report = ContentPacker.Pack(Root, Path.Combine(_repository, "tree.zip"));
+        var report = ContentPacker.Pack(Root, Path.Combine(_repository, "graph.zip"));
 
         var error = Assert.Single(report.Errors);
-        Assert.Contains("'tree' drawings of C# code are not recorded yet", error.Message);
+        Assert.Contains("'graph' drawings of C# code are not recorded yet", error.Message);
     }
 
     [Fact]
@@ -186,6 +186,29 @@ public sealed class CSharpRecordedTraceTests : IDisposable
         Assert.Equal("3", last.Tables["ages"].Rows.Single().Value);
         Assert.Equal(["1", "5", "2"], last.Heaps!["heap"].Cells);
         Assert.Equal(2, last.Grids!["grid"].Rows.Count);
+    }
+
+    [Fact]
+    public void A_linked_list_and_a_tree_are_recorded_into_the_pack()
+    {
+        WritePack("var head = new Node { Val = 1, Next = new Node { Val = 2 } };\nvar root = new Node { Val = 5, Left = new Node { Val = 3 } };\nvar done = true;\n\nclass Node\n{\n    public int Val;\n    public Node? Next, Left, Right;\n}",
+            "[{variable: head, as: linked_list}, {variable: root, as: tree}]");
+
+        var step = Assert.IsType<TraceStep>(PackAndLoad().Lessons.Single().Steps[0]);
+
+        var last = step.Recorded!.Frames[^1];
+        Assert.Equal(["1", "2"], last.Lists!["head"].Nodes.Select(n => n.Value));
+        Assert.Equal(["5", "3"], last.Trees!["root"].Nodes.Select(n => n.Value));
+    }
+
+    [Fact]
+    public void A_node_that_lacks_the_value_field_is_reported()
+    {
+        WritePack("var head = new Node { Next = new Node() };\n\nclass Node\n{\n    public Node? Next;\n}", "[{variable: head, as: linked_list}]");
+
+        var report = ContentPacker.Pack(Root, Path.Combine(_repository, "novalue.zip"));
+
+        Assert.Contains("have no attribute 'val'", Assert.Single(report.Errors).Message);
     }
 
     [Fact]
