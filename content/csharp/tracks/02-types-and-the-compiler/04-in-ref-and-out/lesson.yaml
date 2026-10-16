@@ -143,7 +143,7 @@ steps:
 
       The catch: if the struct is **not** `readonly`, one of its methods might change it. The compiler cannot prove that `v.Sum()` leaves `v` alone,
       and an `in` parameter must never change, so it first copies the struct to a hidden local and calls the method on the copy. You paid for the copy
-      you wanted to avoid. Marking the struct `readonly` tells the compiler no method can change it, and the copy goes away.
+      you wanted to avoid. Marking the struct `readonly` (or just the members you call) tells the compiler they cannot change it, and the copy goes away. Auto-property getters are already implicitly `readonly`, and reading a field never copies.
   - id: step.csharp.refs.lowered-in
     type: lowered
     title: The copy behind in
@@ -176,7 +176,7 @@ steps:
     type: write-code
     title: Dot product with in
     prompt: |
-      Make `Vec` a `readonly` struct, and finish `Dot` so it returns `a.X * b.X + a.Y * b.Y`. Both parameters are `in`, so they are passed without a copy.
+      Finish `Dot` so it returns `a.X * b.X + a.Y * b.Y`, and make `Vec` a `readonly` struct. Both parameters are `in`, so they are passed without a copy. Here the auto-property getters already avoid a defensive copy, so `readonly` states and enforces the intent: no member of `Vec` can ever change it, which keeps `in` copy-free if a method is added later.
     language: csharp
     largeScreenPreferred: true
     entrypoint: Dot
@@ -251,7 +251,7 @@ steps:
     body: |
       - `ref`: an alias; both sides read and write. A `ref` reference parameter replaces the caller's *arrow*, not just the object.
       - `out`: an alias the method must assign; the caller need not have.
-      - `in`: a read-only alias. It avoids a copy only if the compiler can prove the struct is not changed, which means `readonly struct`.
+      - `in`: a read-only alias. It avoids a copy only if the compiler can prove the struct is not changed, which means a `readonly struct`, or `readonly` on the members you call.
       - `ref` locals and returns alias a variable, field or array element, so a write through the alias is a write to the original.
 
       An alias is cheaper than a copy and also riskier: two names for one variable means a change through one is seen through the other. That is the same

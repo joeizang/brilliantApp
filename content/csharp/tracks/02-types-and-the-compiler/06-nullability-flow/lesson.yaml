@@ -108,7 +108,7 @@ steps:
     options:
       - text: Nothing. Both are `System.String` references, and either can hold `null` at run time
         correct: true
-        feedback: Right. The `?` is recorded in metadata for the compiler to read and has no runtime effect. Lowering the code removes it, which is why the lowered view in this course shows no `?`.
+        feedback: Right. The `?` is recorded in metadata for the compiler to read and has no runtime effect. The course's lowered view is compiled with nullable annotations off, so it shows no `?`.
       - text: A `string` parameter throws if `null` is passed
         correct: false
         feedback: No check is generated. `Foo(null!)` runs fine and fails later, on the first dereference.

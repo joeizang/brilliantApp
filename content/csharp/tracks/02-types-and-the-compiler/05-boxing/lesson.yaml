@@ -200,4 +200,4 @@ steps:
       - Converting a struct to `object`, to an interface it implements, or to `ValueType`/`Enum` boxes it. `int?` and tuples do not box by themselves.
       - Each box is a 24-byte allocation for an `int` on 64-bit .NET, and an unbox is only a copy.
       - Generics avoid boxing because `List<int>` really stores `int`s. A generic method constrained to an interface (`where T : IComparable<T>`) calls the
-        struct's own method with no box, which is the next track's subject.
+        struct's own method with no box, which is a later lesson in this track.
