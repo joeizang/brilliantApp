@@ -1,4 +1,5 @@
-@* Records one run of some code (offline, by the Python runtime) and shows it in the Trace Player: a trace step's example, or a solution's walkthrough. *@
+@* Shows one run of some code in the Trace Player: a trace step's example, or a solution's walkthrough. A run recorded when the pack was built
+   (C#) is played as it is, with no runtime on the device; otherwise it is recorded here, offline, by the language's runtime (Python). *@
 @using Brilliant.Core.Code
 @inject CodeRuntimeRegistry Runtimes
 @implements IDisposable
@@ -27,17 +28,21 @@ else
 
     [Parameter, EditorRequired] public IReadOnlyList<Visual> Visuals { get; set; } = [];
 
+    /// <summary>The run the pack carries, if it does. When set, no runtime is asked to run the code.</summary>
+    [Parameter] public TraceResult? Recorded { get; set; }
+
     private readonly CancellationTokenSource _cancel = new();
     private TraceResult? _result;
     private IReadOnlyList<TraceState> _states = [];
     private string? _failure;
 
-    // The example is recorded when it is first shown (the Python runtime is offline and quick once warm), not stored in the content.
+    // Python is recorded when the example is first shown (its runtime is offline and quick once warm). A pack built for a language that
+    // can't trace on every device carries the recording, so the device only plays it.
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            _result = await Runtimes.Resolve(Language).TraceAsync(Code, Visuals, _cancel.Token);
+            _result = Recorded ?? await Runtimes.Resolve(Language).TraceAsync(Code, Visuals, _cancel.Token);
             _states = TraceModel.Build(_result, Visuals);
         }
         catch (OperationCanceledException) when (_cancel.IsCancellationRequested) { }

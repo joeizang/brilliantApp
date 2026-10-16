@@ -1,0 +1,8 @@
+int[] nums = { 4, 1, 7 };
+int best = nums[0];
+int i = 1;
+while (i < nums.Length)
+{
+    if (nums[i] > best) best = nums[i];
+    i++;
+}

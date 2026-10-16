@@ -10,8 +10,9 @@ Explanation, choice and predict-output steps work through the existing lesson an
 review views. The manifest also enables write-code and declares `csharp`;
 it enables no Python runtime. The starter now includes AddTwo, whose reference
 solution is compiled and tested by the CLI gate (#149). Native execution still
-requires #150, so that exercise cannot yet be completed in the app. Recorded
-traces follow separately in #153.
+requires #150, so that exercise cannot yet be completed in the app. Trace steps
+are recorded when the pack is built and played on every device; see
+[csharp-recorded-traces.md](csharp-recorded-traces.md) (#153).
 
 ```sh
 dotnet run --project tools/Brilliant.Cli -- validate --app apps/csharp/manifest.yaml

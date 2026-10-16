@@ -169,6 +169,16 @@ public static class TraceResultJson
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
     };
 
+    private static readonly JsonSerializerOptions WriteOptions = new(Options)
+    {
+        WriteIndented = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,   // readable text; it is JSON data, never HTML
+    };
+
+    /// <summary>The recording as JSON, indented and without nulls, in the form <see cref="Parse"/> reads: the same recording is the same text.</summary>
+    public static string Serialize(TraceResult result) => JsonSerializer.Serialize(result, WriteOptions);
+
     public static TraceResult Parse(string json) =>
         JsonSerializer.Deserialize<TraceResult>(json, Options)
         ?? throw new InvalidOperationException("The code runtime returned an empty trace.");

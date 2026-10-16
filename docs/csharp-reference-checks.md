@@ -72,6 +72,6 @@ These limits avoid silently accepting constructs without the required budget rul
 The gate executes trusted authored content; the worker is execution containment, not
 an OS security sandbox. It does not restrict filesystem or network access.
 
-#150 will connect native Mac execution. #153 will turn the probe snapshots into
-recorded trace packs. This issue deliberately does not register a C# runtime in the
+#150 will connect native Mac execution. #153 turns the probe snapshots into
+recorded trace packs ([csharp-recorded-traces.md](csharp-recorded-traces.md)). This issue deliberately does not register a C# runtime in the
 native app; native Run/trace and physical device interaction are not verified here.

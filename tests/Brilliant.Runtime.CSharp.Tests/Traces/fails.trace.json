@@ -1,0 +1,66 @@
+{
+  "status": "error",
+  "frames": [
+    {
+      "event": "line",
+      "line": 1,
+      "function": "Main",
+      "locals": [],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 2,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "nums",
+          "type": "int[]",
+          "repr": "[1, 2]"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 3,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "5",
+          "index": 5
+        },
+        {
+          "name": "nums",
+          "type": "int[]",
+          "repr": "[1, 2]"
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 4,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "5",
+          "index": 5
+        },
+        {
+          "name": "nums",
+          "type": "int[]",
+          "repr": "[1, 2]"
+        }
+      ],
+      "tracked": {}
+    }
+  ],
+  "stdout": "before\n",
+  "message": "IndexOutOfRangeException: Index was outside the bounds of the array.",
+  "errorLine": 4
+}

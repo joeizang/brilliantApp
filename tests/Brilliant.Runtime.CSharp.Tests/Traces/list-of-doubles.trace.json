@@ -1,0 +1,100 @@
+{
+  "status": "ok",
+  "frames": [
+    {
+      "event": "line",
+      "line": 1,
+      "function": "Main",
+      "locals": [],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 2,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "values",
+          "type": "List<double>",
+          "repr": "[1.5, 2.25]"
+        }
+      ],
+      "tracked": {
+        "values": {
+          "type": "List<double>",
+          "cells": [
+            "1.5",
+            "2.25"
+          ],
+          "more": 0,
+          "drawings": [
+            "array",
+            "stack",
+            "queue"
+          ]
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 3,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "values",
+          "type": "List<double>",
+          "repr": "[1.5, 2.25, 3]"
+        }
+      ],
+      "tracked": {
+        "values": {
+          "type": "List<double>",
+          "cells": [
+            "1.5",
+            "2.25",
+            "3"
+          ],
+          "more": 0,
+          "drawings": [
+            "array",
+            "stack",
+            "queue"
+          ]
+        }
+      }
+    },
+    {
+      "event": "return",
+      "function": "Main",
+      "locals": [
+        {
+          "name": "text",
+          "type": "string",
+          "repr": "\"hi\""
+        },
+        {
+          "name": "values",
+          "type": "List<double>",
+          "repr": "[1.5, 2.25, 3]"
+        }
+      ],
+      "tracked": {
+        "values": {
+          "type": "List<double>",
+          "cells": [
+            "1.5",
+            "2.25",
+            "3"
+          ],
+          "more": 0,
+          "drawings": [
+            "array",
+            "stack",
+            "queue"
+          ]
+        }
+      }
+    }
+  ],
+  "stdout": ""
+}

@@ -1,0 +1,110 @@
+{
+  "status": "ok",
+  "frames": [
+    {
+      "event": "line",
+      "line": 6,
+      "function": "Main",
+      "locals": [],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 3,
+      "function": "Fact",
+      "locals": [
+        {
+          "name": "n",
+          "type": "int",
+          "repr": "3",
+          "index": 3
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 4,
+      "function": "Fact",
+      "locals": [
+        {
+          "name": "n",
+          "type": "int",
+          "repr": "3",
+          "index": 3
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 3,
+      "function": "Fact",
+      "locals": [
+        {
+          "name": "n",
+          "type": "int",
+          "repr": "2",
+          "index": 2
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 4,
+      "function": "Fact",
+      "locals": [
+        {
+          "name": "n",
+          "type": "int",
+          "repr": "2",
+          "index": 2
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 3,
+      "function": "Fact",
+      "locals": [
+        {
+          "name": "n",
+          "type": "int",
+          "repr": "1",
+          "index": 1
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 3,
+      "function": "Fact",
+      "locals": [
+        {
+          "name": "n",
+          "type": "int",
+          "repr": "1",
+          "index": 1
+        }
+      ],
+      "tracked": {}
+    },
+    {
+      "event": "return",
+      "function": "Main",
+      "locals": [
+        {
+          "name": "answer",
+          "type": "int",
+          "repr": "6",
+          "index": 6
+        }
+      ],
+      "tracked": {}
+    }
+  ],
+  "stdout": ""
+}

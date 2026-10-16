@@ -1,0 +1,294 @@
+{
+  "status": "ok",
+  "frames": [
+    {
+      "event": "line",
+      "line": 1,
+      "function": "Main",
+      "locals": [],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 2,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "stack",
+          "type": "Stack<int>",
+          "repr": "[]"
+        }
+      ],
+      "tracked": {
+        "stack": {
+          "type": "Stack<int>",
+          "cells": [],
+          "more": 0,
+          "drawings": [
+            "stack",
+            "array"
+          ]
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 3,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "stack",
+          "type": "Stack<int>",
+          "repr": "[1]"
+        }
+      ],
+      "tracked": {
+        "stack": {
+          "type": "Stack<int>",
+          "cells": [
+            "1"
+          ],
+          "more": 0,
+          "drawings": [
+            "stack",
+            "array"
+          ]
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 4,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "stack",
+          "type": "Stack<int>",
+          "repr": "[1, 2]"
+        }
+      ],
+      "tracked": {
+        "stack": {
+          "type": "Stack<int>",
+          "cells": [
+            "1",
+            "2"
+          ],
+          "more": 0,
+          "drawings": [
+            "stack",
+            "array"
+          ]
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 5,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "queue",
+          "type": "Queue<string>",
+          "repr": "[]"
+        },
+        {
+          "name": "stack",
+          "type": "Stack<int>",
+          "repr": "[1, 2]"
+        }
+      ],
+      "tracked": {
+        "queue": {
+          "type": "Queue<string>",
+          "cells": [],
+          "more": 0,
+          "drawings": [
+            "queue",
+            "array"
+          ]
+        },
+        "stack": {
+          "type": "Stack<int>",
+          "cells": [
+            "1",
+            "2"
+          ],
+          "more": 0,
+          "drawings": [
+            "stack",
+            "array"
+          ]
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 6,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "queue",
+          "type": "Queue<string>",
+          "repr": "[\"a\"]"
+        },
+        {
+          "name": "stack",
+          "type": "Stack<int>",
+          "repr": "[1, 2]"
+        }
+      ],
+      "tracked": {
+        "queue": {
+          "type": "Queue<string>",
+          "cells": [
+            "\"a\""
+          ],
+          "more": 0,
+          "drawings": [
+            "queue",
+            "array"
+          ]
+        },
+        "stack": {
+          "type": "Stack<int>",
+          "cells": [
+            "1",
+            "2"
+          ],
+          "more": 0,
+          "drawings": [
+            "stack",
+            "array"
+          ]
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 7,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "queue",
+          "type": "Queue<string>",
+          "repr": "[\"a\", \"b\"]"
+        },
+        {
+          "name": "stack",
+          "type": "Stack<int>",
+          "repr": "[1, 2]"
+        }
+      ],
+      "tracked": {
+        "queue": {
+          "type": "Queue<string>",
+          "cells": [
+            "\"a\"",
+            "\"b\""
+          ],
+          "more": 0,
+          "drawings": [
+            "queue",
+            "array"
+          ]
+        },
+        "stack": {
+          "type": "Stack<int>",
+          "cells": [
+            "1",
+            "2"
+          ],
+          "more": 0,
+          "drawings": [
+            "stack",
+            "array"
+          ]
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 8,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "queue",
+          "type": "Queue<string>",
+          "repr": "[\"a\", \"b\"]"
+        },
+        {
+          "name": "stack",
+          "type": "Stack<int>",
+          "repr": "[1]"
+        }
+      ],
+      "tracked": {
+        "queue": {
+          "type": "Queue<string>",
+          "cells": [
+            "\"a\"",
+            "\"b\""
+          ],
+          "more": 0,
+          "drawings": [
+            "queue",
+            "array"
+          ]
+        },
+        "stack": {
+          "type": "Stack<int>",
+          "cells": [
+            "1"
+          ],
+          "more": 0,
+          "drawings": [
+            "stack",
+            "array"
+          ]
+        }
+      }
+    },
+    {
+      "event": "return",
+      "function": "Main",
+      "locals": [
+        {
+          "name": "queue",
+          "type": "Queue<string>",
+          "repr": "[\"b\"]"
+        },
+        {
+          "name": "stack",
+          "type": "Stack<int>",
+          "repr": "[1]"
+        }
+      ],
+      "tracked": {
+        "queue": {
+          "type": "Queue<string>",
+          "cells": [
+            "\"b\""
+          ],
+          "more": 0,
+          "drawings": [
+            "queue",
+            "array"
+          ]
+        },
+        "stack": {
+          "type": "Stack<int>",
+          "cells": [
+            "1"
+          ],
+          "more": 0,
+          "drawings": [
+            "stack",
+            "array"
+          ]
+        }
+      }
+    }
+  ],
+  "stdout": ""
+}

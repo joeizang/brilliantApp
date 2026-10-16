@@ -10,7 +10,9 @@ namespace Brilliant.Cli;
 internal sealed record ReferenceCheck(string File, string Label, string StepId, string Entrypoint, string Solution, IReadOnlyList<CodeTest> Tests, string Language = "python", IReadOnlyList<CodeFile>? Files = null);
 
 /// <summary>A trace step's code, waiting to be run to prove it works and draws the variables the lesson says it does.</summary>
-internal sealed record TraceCheck(string File, string Label, string Code, IReadOnlyList<Visual> Visuals, string Language = "python");
+/// <summary>One example to run before the content ships. <see cref="StepId"/> is the step it belongs to (<see cref="IsWalkthrough"/>: its walkthrough rather than the step's own example).</summary>
+internal sealed record TraceCheck(string File, string Label, string Code, IReadOnlyList<Visual> Visuals, string Language = "python",
+    string StepId = "", bool IsWalkthrough = false);
 
 /// <summary>Runs source in one language against an exercise's tests. Production adapters use CPython or the C# compiler gate; tests may substitute a fake.</summary>
 public interface IReferenceSolutionRunner
@@ -182,12 +184,16 @@ internal static class ReferenceSolutionChecker
                 return;
             }
 
-            foreach (var problem in DescribeTrace(result, check.Visuals))
+            var problems = DescribeTrace(result, check.Visuals, check.Language).ToList();
+            foreach (var problem in problems)
                 report.Add(check.File, $"{check.Label}: {problem}");
+            // A language the device can't run everywhere (C#) is played from this recording; Python is recorded on the device.
+            if (problems.Count == 0 && check.Language == "csharp" && check.StepId.Length > 0)
+                report.Recordings[(check.StepId, check.IsWalkthrough)] = result;
         }
     }
 
-    private static IEnumerable<string> DescribeTrace(TraceResult result, IReadOnlyList<Visual> visuals)
+    private static IEnumerable<string> DescribeTrace(TraceResult result, IReadOnlyList<Visual> visuals, string language = "python")
     {
         if (result.Status == TraceStatus.Error)
         {
@@ -211,8 +217,23 @@ internal static class ReferenceSolutionChecker
 
         foreach (var visual in visuals)
         {
+            if (language == "csharp" && visual.As is not (Visual.Array or Visual.Stack or Visual.Queue))
+            {
+                yield return $"'{visual.As}' drawings of C# code are not recorded yet; a C# trace can draw an array, a List<T>, a Stack<T> or a Queue<T>.";
+                continue;
+            }
             if (!result.Frames.Any(f => Draws(f, visual)))
             {
+                if (language == "csharp")
+                {
+                    yield return visual.As switch
+                    {
+                        Visual.Stack => $"variable '{visual.Variable}' is never a Stack<T> or List<T> in the trace, so there is no stack to draw.",
+                        Visual.Queue => $"variable '{visual.Variable}' is never a Queue<T> or List<T> in the trace, so there is no queue to draw.",
+                        _ => $"variable '{visual.Variable}' is never an array, List<T>, Stack<T> or Queue<T> in the trace, so there is nothing to draw.",
+                    };
+                    continue;
+                }
                 yield return visual.As switch
                 {
                     Visual.Dict => $"variable '{visual.Variable}' is never a dict in the trace, so there is nothing to draw.",

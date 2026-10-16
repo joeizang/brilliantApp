@@ -63,7 +63,7 @@ The rewritten source the compiler actually saw is in [rewritten.cs](https://gith
 
 **Plays in the existing player.** `RecordedTraceSpikeTests` parses the JSON with `TraceResultJson.Parse`, builds states with `TraceModel.Build(result, [Visual("a", Array, pointers ["i","j"])])` and renders the unmodified `TracePlayer`, exactly as `TraceRun.razor` does after a live run. It asserts "Step 1 of 25", steps to "Step 25 of 25" and reads the final cells `1 2 4 5`. It passes. The pointer names come from the pack's `Visual` declaration, not from the recording, so authors declare them as they do for Python traces.
 
-**Not demonstrated: pasting into a pack.** `TraceStep` has no field for a recorded trace yet, and `CSharpRuntime.TraceAsync` returns "C# traces use recorded content; live tracing is not available". The spike therefore feeds the JSON to the player directly. Storing the recording in the pack and routing C# trace steps to it is #153.
+**Not demonstrated: pasting into a pack.** `TraceStep` has no field for a recorded trace yet, and `CSharpRuntime.TraceAsync` returns "C# traces use recorded content; live tracing is not available". The spike therefore feeds the JSON to the player directly. Storing the recording in the pack and routing C# trace steps to it was done in #153; see [../csharp-recorded-traces.md](../csharp-recorded-traces.md).
 
 ## 2. Lowered C# and IL
 

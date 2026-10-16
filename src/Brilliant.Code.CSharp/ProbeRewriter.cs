@@ -54,8 +54,22 @@ public static class ProbeRewriter
             var line = statement.GetLocation().GetMappedLineSpan().StartLinePosition.Line + 1;
             var names = string.Join(",", symbols.Select(symbol => SymbolDisplay.FormatLiteral(symbol.Name, true)));
             var values = string.Join(",", symbols.Select(symbol => "@" + symbol.Name));
-            return SyntaxFactory.ParseStatement($"{Budget}.Snapshot({line}, new string[] {{{names}}}, new object?[] {{{values}}});");
+            var function = FunctionName(statement) is { } name ? SymbolDisplay.FormatLiteral(name, true) : "null";
+            return SyntaxFactory.ParseStatement($"{Budget}.Snapshot({line}, {function}, new string[] {{{names}}}, new object?[] {{{values}}});");
         }
+
+        /// <summary>The method, local function, constructor or accessor the node sits in; a lambda is part of the member around it.</summary>
+        private static string? FunctionName(SyntaxNode node) => node.Ancestors().Select(ancestor => ancestor switch
+        {
+            MethodDeclarationSyntax method => method.Identifier.ValueText,
+            LocalFunctionStatementSyntax local => local.Identifier.ValueText,
+            ConstructorDeclarationSyntax constructor => constructor.Identifier.ValueText,
+            OperatorDeclarationSyntax @operator => "operator " + @operator.OperatorToken.ValueText,
+            AccessorDeclarationSyntax { Parent.Parent: PropertyDeclarationSyntax property } accessor => property.Identifier.ValueText + "." + accessor.Keyword.ValueText,
+            AccessorDeclarationSyntax { Parent.Parent: IndexerDeclarationSyntax } accessor => "this[]." + accessor.Keyword.ValueText,
+            PropertyDeclarationSyntax property => property.Identifier.ValueText,
+            _ => null,
+        }).FirstOrDefault(name => name is not null);
 
         private IEnumerable<StatementSyntax> Statements(IEnumerable<StatementSyntax> originals)
         {

@@ -1,0 +1,336 @@
+{
+  "status": "ok",
+  "frames": [
+    {
+      "event": "line",
+      "line": 1,
+      "function": "Main",
+      "locals": [],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 2,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "nums",
+          "type": "int[]",
+          "repr": "[4, 1, 7]"
+        }
+      ],
+      "tracked": {
+        "nums": {
+          "type": "int[]",
+          "cells": [
+            "4",
+            "1",
+            "7"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 3,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "best",
+          "type": "int",
+          "repr": "4",
+          "index": 4
+        },
+        {
+          "name": "nums",
+          "type": "int[]",
+          "repr": "[4, 1, 7]"
+        }
+      ],
+      "tracked": {
+        "nums": {
+          "type": "int[]",
+          "cells": [
+            "4",
+            "1",
+            "7"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 4,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "best",
+          "type": "int",
+          "repr": "4",
+          "index": 4
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "1",
+          "index": 1
+        },
+        {
+          "name": "nums",
+          "type": "int[]",
+          "repr": "[4, 1, 7]"
+        }
+      ],
+      "tracked": {
+        "nums": {
+          "type": "int[]",
+          "cells": [
+            "4",
+            "1",
+            "7"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 6,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "best",
+          "type": "int",
+          "repr": "4",
+          "index": 4
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "1",
+          "index": 1
+        },
+        {
+          "name": "nums",
+          "type": "int[]",
+          "repr": "[4, 1, 7]"
+        }
+      ],
+      "tracked": {
+        "nums": {
+          "type": "int[]",
+          "cells": [
+            "4",
+            "1",
+            "7"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 7,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "best",
+          "type": "int",
+          "repr": "4",
+          "index": 4
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "1",
+          "index": 1
+        },
+        {
+          "name": "nums",
+          "type": "int[]",
+          "repr": "[4, 1, 7]"
+        }
+      ],
+      "tracked": {
+        "nums": {
+          "type": "int[]",
+          "cells": [
+            "4",
+            "1",
+            "7"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 6,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "best",
+          "type": "int",
+          "repr": "4",
+          "index": 4
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "2",
+          "index": 2
+        },
+        {
+          "name": "nums",
+          "type": "int[]",
+          "repr": "[4, 1, 7]"
+        }
+      ],
+      "tracked": {
+        "nums": {
+          "type": "int[]",
+          "cells": [
+            "4",
+            "1",
+            "7"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 6,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "best",
+          "type": "int",
+          "repr": "4",
+          "index": 4
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "2",
+          "index": 2
+        },
+        {
+          "name": "nums",
+          "type": "int[]",
+          "repr": "[4, 1, 7]"
+        }
+      ],
+      "tracked": {
+        "nums": {
+          "type": "int[]",
+          "cells": [
+            "4",
+            "1",
+            "7"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 7,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "best",
+          "type": "int",
+          "repr": "7",
+          "index": 7
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "2",
+          "index": 2
+        },
+        {
+          "name": "nums",
+          "type": "int[]",
+          "repr": "[4, 1, 7]"
+        }
+      ],
+      "tracked": {
+        "nums": {
+          "type": "int[]",
+          "cells": [
+            "4",
+            "1",
+            "7"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      }
+    },
+    {
+      "event": "return",
+      "function": "Main",
+      "locals": [
+        {
+          "name": "best",
+          "type": "int",
+          "repr": "7",
+          "index": 7
+        },
+        {
+          "name": "i",
+          "type": "int",
+          "repr": "3",
+          "index": 3
+        },
+        {
+          "name": "nums",
+          "type": "int[]",
+          "repr": "[4, 1, 7]"
+        }
+      ],
+      "tracked": {
+        "nums": {
+          "type": "int[]",
+          "cells": [
+            "4",
+            "1",
+            "7"
+          ],
+          "more": 0,
+          "drawings": [
+            "array"
+          ]
+        }
+      }
+    }
+  ],
+  "stdout": ""
+}
