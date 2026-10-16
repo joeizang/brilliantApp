@@ -3,7 +3,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 
-namespace Brilliant.Cli;
+namespace Brilliant.Runtime.CSharp;
 
 /// <summary>Value comparisons and diagnostics for C# exercise results without serializing away their CLR types.</summary>
 public static class CSharpValues

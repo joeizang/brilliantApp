@@ -8,7 +8,7 @@ import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { setDiagnostics, lintGutter } from '@codemirror/lint';
 import { highlightSelectionMatches, selectNextOccurrence, selectSelectionMatches } from '@codemirror/search';
 import { tagHighlighter, tags as t } from '@lezer/highlight';
-import { python } from '@codemirror/lang-python';
+import { languageSupport } from './editor-languages.js';
 
 const editors = new Map();
 const pending = new Map();      // id -> { timer, notify } for a change the app hasn't been told about yet
@@ -76,7 +76,7 @@ const theme = EditorView.theme({
  * onChanged: optional DotNetObjectReference whose OnJsChanged(code) is called, debounced, after the learner edits.
  * readOnly: show the code without letting it be edited or focused (the Trace Player's view of the example).
  */
-export function create(element, code, onChanged, readOnly) {
+export function create(element, code, onChanged, readOnly, language = 'python') {
     let id;
     const view = new EditorView({
         parent: element,
@@ -92,7 +92,7 @@ export function create(element, code, onChanged, readOnly) {
                 rectangularSelection({ eventFilter: e => e.altKey && e.shiftKey && e.button === 0 }),
                 crosshairCursor({ key: 'Alt' }),
                 keymap.of([...closeBracketsKeymap, ...vscodeKeymap, ...editorKeymap, ...historyKeymap, indentWithTab]),
-                python(), syntaxHighlighting(highlighter),
+                languageSupport(language), syntaxHighlighting(highlighter),
                 EditorView.contentAttributes.of({ 'aria-label': 'Code editor', spellcheck: 'false', autocapitalize: 'off', autocorrect: 'off' }),
                 highlightField, theme,
                 ...(readOnly ? [EditorState.readOnly.of(true), EditorView.editable.of(false)] : []),

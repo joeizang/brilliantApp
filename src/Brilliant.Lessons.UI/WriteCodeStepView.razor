@@ -3,13 +3,20 @@
 @inject CodeRuntimeRegistry Runtimes
 @inject ICodeDraftStore Drafts
 @inject StepShortcuts Shortcuts
+@inject ScreenInfo Screen
 @implements IDisposable
 
 <article class="write-step lesson-step">
     <h2>@(Title ?? Step.Title)</h2>
     <p class="prompt">@Step.Prompt</p>
 
-    <CodeEditor @ref="_editor" InitialCode="@_initialCode" OnChanged="SaveDraft" />
+    @if (Screen.RequiresPhoneAlternative(Step))
+    {
+        <p role="note">Open this lesson on your Mac to write and run C#.</p>
+    }
+    else
+    {
+    <CodeEditor @ref="_editor" InitialCode="@_initialCode" OnChanged="SaveDraft" Language="@Step.Language" />
 
     <div class="run-row mb-4 flex flex-wrap items-center gap-4">
         <button class="primary btn-primary" disabled="@_running" @onclick="Submit">@(_running ? "Running…" : "Run tests")</button>
@@ -80,6 +87,7 @@
             }
         }
     </div>
+    }
 </article>
 
 @code {
@@ -182,6 +190,7 @@
 
     private async Task Submit()
     {
+        if (Screen.RequiresPhoneAlternative(Step)) return;
         _running = true;
         _result = null;
         _runtimeFailure = null;

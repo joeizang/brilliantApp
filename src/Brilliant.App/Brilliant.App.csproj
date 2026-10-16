@@ -70,11 +70,20 @@
     </PropertyGroup>
     <Exec Command="dotnet run --no-launch-profile --project &quot;$(ContentCliProject)&quot; -- app-runtimes &quot;$(AppManifestPath)&quot; &quot;$(RuntimeSelectionPath)&quot;" />
     <XmlPeek XmlInputPath="$(RuntimeSelectionPath)" Query="/Runtimes/PythonEnabled/text()"><Output TaskParameter="Result" PropertyName="AppPythonEnabled" /></XmlPeek>
+    <XmlPeek XmlInputPath="$(RuntimeSelectionPath)" Query="/Runtimes/CSharpEnabled/text()"><Output TaskParameter="Result" PropertyName="AppCSharpEnabled" /></XmlPeek>
     <PropertyGroup Condition="'$(AppPythonEnabled)' == 'true'">
       <DefineConstants>$(DefineConstants);BRILLIANT_PYTHON</DefineConstants>
     </PropertyGroup>
     <ItemGroup Condition="'$(AppPythonEnabled)' == 'true'">
       <ProjectReference Include="../Brilliant.Runtime.Python/Brilliant.Runtime.Python.csproj" />
+    </ItemGroup>
+    <!-- The phone uses authored alternatives. It must not carry Roslyn or reference assemblies. -->
+    <PropertyGroup Condition="'$(AppCSharpEnabled)' == 'true' And $(TargetFramework.Contains('maccatalyst'))">
+      <DefineConstants>$(DefineConstants);BRILLIANT_CSHARP</DefineConstants>
+    </PropertyGroup>
+    <ItemGroup Condition="'$(AppCSharpEnabled)' == 'true' And $(TargetFramework.Contains('maccatalyst'))">
+      <ProjectReference Include="../Brilliant.Runtime.CSharp/Brilliant.Runtime.CSharp.csproj" />
+      <TrimmerRootAssembly Include="Brilliant.Runtime.CSharp;Brilliant.Code.CSharp;Microsoft.CodeAnalysis;Microsoft.CodeAnalysis.CSharp;Basic.Reference.Assemblies.Net100" RootMode="All" />
     </ItemGroup>
   </Target>
 
@@ -105,7 +114,7 @@
     <ItemGroup>
       <ContentPackInput Include="$(ContentRoot)/**/*.yaml;$(ContentRoot)/**/*.md" />
       <!-- Schema/validator/runtime recorder changes must invalidate an already generated pack too. -->
-      <ContentPackInput Include="$(AppRepositoryRoot)tools/Brilliant.Cli/**/*.cs;$(AppRepositoryRoot)tools/Brilliant.Cli/*.csproj;$(AppRepositoryRoot)src/Brilliant.Core/**/*.cs;$(AppRepositoryRoot)src/Brilliant.Core/*.csproj;$(AppRepositoryRoot)src/Brilliant.Runtime.Python/wwwroot/python/*.py;$(AppRepositoryRoot)src/Brilliant.Code.CSharp/**/*.cs;$(AppRepositoryRoot)src/Brilliant.Code.CSharp/*.csproj"
+      <ContentPackInput Include="$(AppRepositoryRoot)tools/Brilliant.Cli/**/*.cs;$(AppRepositoryRoot)tools/Brilliant.Cli/*.csproj;$(AppRepositoryRoot)src/Brilliant.Core/**/*.cs;$(AppRepositoryRoot)src/Brilliant.Core/*.csproj;$(AppRepositoryRoot)src/Brilliant.Runtime.Python/wwwroot/python/*.py;$(AppRepositoryRoot)src/Brilliant.Code.CSharp/**/*.cs;$(AppRepositoryRoot)src/Brilliant.Code.CSharp/*.csproj;$(AppRepositoryRoot)src/Brilliant.Runtime.CSharp/**/*.cs;$(AppRepositoryRoot)src/Brilliant.Runtime.CSharp/*.csproj"
                         Exclude="$(AppRepositoryRoot)**/bin/**;$(AppRepositoryRoot)**/obj/**;$(AppRepositoryRoot)**/__pycache__/**" />
       <Content Include="$(FlavorGeneratedDir)index.html" Link="wwwroot/index.html" CopyToOutputDirectory="PreserveNewest" />
       <MauiIcon Include="$(FlavorIconPath)" Condition="'$(FlavorIconPath)' != ''" />

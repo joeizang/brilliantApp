@@ -55,7 +55,7 @@ public static class AppBuildInputs
     {
         var app = AppManifest.Parse(File.ReadAllText(manifestPath));
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outputPath))!);
-        WriteIfChanged(outputPath, new XElement("Runtimes", new XElement("PythonEnabled", app.SupportsRuntime("python"))).ToString());
+        WriteIfChanged(outputPath, new XElement("Runtimes", new XElement("PythonEnabled", app.SupportsRuntime("python")), new XElement("CSharpEnabled", app.SupportsRuntime("csharp"))).ToString());
     }
 
     private static string Dot(string hex, string alpha)

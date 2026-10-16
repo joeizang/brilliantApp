@@ -69,6 +69,41 @@ public class PhoneLayoutTests : ShortcutContext
         cut.Find("button.primary").Click();
     }
 
+    [Theory]
+    [InlineData(ScreenClass.Phone)]
+    [InlineData(ScreenClass.Tablet)]
+    [InlineData(ScreenClass.Desktop)]
+    public void Csharp_uses_its_alternative_on_android_at_every_window_size(ScreenClass size)
+    {
+        var screen = new ScreenInfo(csharpWriteCodeAvailable: false);
+        screen.Set(size);
+        Services.AddSingleton(screen);
+        var alternative = new FillBlankStep("step.csharp.fill", "Double", "Complete the return expression", "csharp",
+            "static int Double(int n) => n * {{factor}};", [new Blank("factor", ["2"], [])]);
+        var original = new WriteCodeStep("step.csharp.write", "Double", "Return twice n", "csharp", "static int Double(int n) => 0;", "Double", [new CodeTest("4", "8")])
+            { LargeScreenPreferred = true, PhoneAlternative = alternative };
+        var lesson = new Lesson("lesson.csharp", "C#", "track.t", [original]);
+        var cut = OpenLesson(lesson);
+        Assert.Empty(cut.FindAll(".code-editor"));
+        Assert.Single(cut.FindAll("input.blank"));
+        Assert.DoesNotContain("Switch back", cut.Markup);
+        cut.Find("input.blank").Input("2");
+        cut.Find("button.primary").Click();
+        Assert.Equal(original.Id, Assert.Single(Of(ProgressEventTypes.StepAnswered)).StepId);
+        cut.Find("button.primary").Click();
+        Assert.Equal(original.Id, Assert.Single(Of(ProgressEventTypes.StepCompleted)).StepId);
+        Assert.DoesNotContain(_log.Items, item => item.StepId == alternative.Id);
+    }
+
+    [Fact]
+    public void Csharp_platform_policy_keeps_python_and_mac_presentation_unchanged()
+    {
+        var python = new WriteCodeStep("step.python", "Python", "P", "python", "", "f", []);
+        var csharp = python with { Id = "step.csharp", Language = "csharp", PhoneAlternative = Arrange("step.alt") };
+        Assert.Same(python, new ScreenInfo(csharpWriteCodeAvailable: false).Present(python));
+        Assert.Same(csharp, new ScreenInfo().Present(csharp));
+    }
+
     // ---- lesson steps
 
     [Fact]

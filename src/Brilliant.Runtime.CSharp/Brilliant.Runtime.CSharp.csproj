@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><LangVersion>14</LangVersion></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Brilliant.Core/Brilliant.Core.csproj" />
+    <ProjectReference Include="../Brilliant.Code.CSharp/Brilliant.Code.CSharp.csproj" />
+    <PackageReference Include="Basic.Reference.Assemblies.Net100" Version="1.8.9" />
+  </ItemGroup>
+  <!-- A separate item path avoids Apple's packaging pipeline treating the runtime DLL as a resource. -->
+  <Target Name="EmbedProbeMetadata" BeforeTargets="AssignTargetPaths" DependsOnTargets="ResolveProjectReferences">
+    <PropertyGroup><ProbeMetadataPath>$(IntermediateOutputPath)metadata/probe-runtime.bin</ProbeMetadataPath></PropertyGroup>
+    <Copy SourceFiles="../Brilliant.Code.CSharp/bin/$(Configuration)/net10.0/Brilliant.Code.CSharp.dll" DestinationFiles="$(ProbeMetadataPath)" />
+    <ItemGroup><EmbeddedResource Include="$(ProbeMetadataPath)" LogicalName="probe-runtime.dll" /></ItemGroup>
+  </Target>
+</Project>

@@ -200,10 +200,46 @@ public class WriteCodeStepViewTests : ShortcutContext
     }
 
     [Fact]
+    public void The_editor_uses_the_exercises_language_and_keeps_python_as_the_default()
+    {
+        var (_, module) = Open(step: Step with { Language = "csharp" });
+        Assert.Equal("csharp", module.Invocations["create"].Single().Arguments[4]);
+    }
+
+    [Fact]
+    public void Csharp_drafts_autosave_and_compiler_errors_mark_the_source_line()
+    {
+        Services.AddSingleton<ICodeRuntime>(new FakeRuntime(new TestRunResult(TestRunStatus.Error, "", "C# compilation failed.",
+            "solution.cs(2,5): error CS0103: missing does not exist", 2, [])) { Language = "csharp" });
+        var step = Step with { Language = "csharp", Starter = "static int F(int n) => 0;" };
+        _drafts.Saved[step.Id] = "static int F(int n) => n;";
+        var (cut, module) = Open(step: step);
+        Assert.Equal(_drafts.Saved[step.Id], module.Invocations["create"].Single().Arguments[1]);
+        Type(module, "static int F(int n) => missing;");
+        Assert.Equal("static int F(int n) => missing;", _drafts.Saved[step.Id]);
+        cut.Find("button.primary").Click();
+        cut.WaitForAssertion(() => Assert.Contains("CS0103", cut.Find("[aria-label='C# error']").TextContent));
+        Assert.Contains(module.Invocations["highlightLine"], call => Equals(call.Arguments[1], 2));
+        Assert.Single(module.Invocations["setErrorMarkers"]);
+    }
+
+    [Fact]
+    public void A_platform_without_csharp_execution_does_not_offer_a_nonfunctional_editor()
+    {
+        Services.AddSingleton(new ScreenInfo(csharpWriteCodeAvailable: false));
+        Services.AddSingleton<ICodeDraftStore>(_drafts);
+        var cut = Render<WriteCodeStepView>(p => p.Add(c => c.Step, Step with { Language = "csharp" }));
+        Assert.Contains("Mac", cut.Markup);
+        Assert.Empty(cut.FindAll(".code-editor"));
+        Assert.Empty(cut.FindAll("button.primary"));
+    }
+
+    [Fact]
     public void A_new_step_opens_with_the_starter_code()
     {
         var (_, module) = Open();
         Assert.Equal(Step.Starter, module.Invocations["create"].Single().Arguments[1]);
+        Assert.Equal("python", module.Invocations["create"].Single().Arguments[4]);
     }
 
     [Fact]
