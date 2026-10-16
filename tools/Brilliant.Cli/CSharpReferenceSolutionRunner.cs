@@ -33,8 +33,8 @@ public sealed class CSharpReferenceSolutionRunner(TimeSpan? timeout = null) : IR
     /// </summary>
     public TraceResult Trace(string code, IReadOnlyList<Visual> visuals)
     {
-        var request = new TraceRequest(code, visuals.Select(v => new WatchedVariable(v.Variable, v.As)).ToArray());
-        var worked = RunInWorker("--csharp-trace-worker", "trace", JsonSerializer.Serialize(request, Json));
+        var request = new TraceRequest(code, visuals);
+        var worked = RunInWorker("--csharp-trace-worker", "trace", JsonSerializer.Serialize(request, ContentPackFormat.JsonOptions));
         if (worked.Failure is { } failure) return new(worked.TimedOut ? TraceStatus.Truncated : TraceStatus.Error, [], "", failure, null, null);
         try { return TraceResultJson.Parse(worked.Output!); }
         catch (JsonException) { return new(TraceStatus.Error, [], "", "C# trace worker returned an invalid result.", null, null); }
@@ -74,17 +74,17 @@ public sealed class CSharpReferenceSolutionRunner(TimeSpan? timeout = null) : IR
         }
     }
 
-    private sealed record TraceRequest(string Code, IReadOnlyList<WatchedVariable> Watched);
-    private sealed record WatchedVariable(string Variable, string As);
+    // The visuals are sent whole (pointers, labels, highlights): the recording draws what they name.
+    private sealed record TraceRequest(string Code, IReadOnlyList<Visual> Visuals);
 
     public static int RunTraceWorker(TextReader input, TextWriter output)
     {
         TraceResult result;
         try
         {
-            var request = JsonSerializer.Deserialize<TraceRequest>(input.ReadToEnd(), Json)
+            var request = JsonSerializer.Deserialize<TraceRequest>(input.ReadToEnd(), ContentPackFormat.JsonOptions)
                 ?? throw new InvalidOperationException("Missing C# trace request.");
-            result = CSharpTraceRecorder.Record(request.Code, request.Watched.Select(w => new Visual(w.Variable, w.As, [])).ToArray());
+            result = CSharpTraceRecorder.Record(request.Code, request.Visuals);
         }
         catch (Exception ex) { result = new(TraceStatus.Error, [], "", ex.Message, null, null); }
         output.Write(TraceResultJson.Serialize(result));

@@ -1,0 +1,12 @@
+var heap = new List<int>();
+var i = 0;
+foreach (var x in new[] { 5, 3, 8, 1 })
+{
+    heap.Add(x);
+    i = heap.Count - 1;
+    while (i > 0 && heap[(i - 1) / 2] > heap[i])
+    {
+        (heap[(i - 1) / 2], heap[i]) = (heap[i], heap[(i - 1) / 2]);
+        i = (i - 1) / 2;
+    }
+}

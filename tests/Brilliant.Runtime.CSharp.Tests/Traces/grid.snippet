@@ -1,0 +1,15 @@
+var grid = new[]
+{
+    new[] { 1, 0, 1 },
+    new[] { 0, 1, 0 },
+};
+var square = new int[2, 2];
+var row = 0;
+var col = 0;
+var path = new List<(int, int)>();
+for (row = 0; row < 2; row++)
+    for (col = 0; col < 3; col++)
+        if (grid[row][col] == 1) path.Add((row, col));
+square[1, 1] = 4;
+var names = new[] { "r0", "r1" };
+var rows = new List<List<char>> { new() { 'a', 'b' } };

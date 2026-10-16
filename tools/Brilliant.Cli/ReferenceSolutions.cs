@@ -217,9 +217,9 @@ internal static class ReferenceSolutionChecker
 
         foreach (var visual in visuals)
         {
-            if (language == "csharp" && visual.As is not (Visual.Array or Visual.Stack or Visual.Queue))
+            if (language == "csharp" && visual.As is Visual.LinkedList or Visual.Tree or Visual.Graph or Visual.CallStack)
             {
-                yield return $"'{visual.As}' drawings of C# code are not recorded yet; a C# trace can draw an array, a List<T>, a Stack<T> or a Queue<T>.";
+                yield return $"'{visual.As}' drawings of C# code are not recorded yet; a C# trace can draw an array, a List<T>, a Stack<T>, a Queue<T>, a Dictionary<,>, a HashSet<T>, a heap or a grid.";
                 continue;
             }
             if (!result.Frames.Any(f => Draws(f, visual)))
@@ -230,6 +230,10 @@ internal static class ReferenceSolutionChecker
                     {
                         Visual.Stack => $"variable '{visual.Variable}' is never a Stack<T> or List<T> in the trace, so there is no stack to draw.",
                         Visual.Queue => $"variable '{visual.Variable}' is never a Queue<T> or List<T> in the trace, so there is no queue to draw.",
+                        Visual.Dict => $"variable '{visual.Variable}' is never a Dictionary<,>, SortedDictionary<,> or SortedList<,> in the trace, so there is nothing to draw.",
+                        Visual.Set => $"variable '{visual.Variable}' is never a HashSet<T> or SortedSet<T> in the trace, so there is nothing to draw.",
+                        Visual.Heap => $"variable '{visual.Variable}' is never an array or List<T> in the trace, so there is no heap to draw.",
+                        Visual.Grid => $"variable '{visual.Variable}' is never a non-empty array of arrays, a List<List<T>>, a rectangular array or an array of strings in the trace, so there is no grid to draw.",
                         _ => $"variable '{visual.Variable}' is never an array, List<T>, Stack<T> or Queue<T> in the trace, so there is nothing to draw.",
                     };
                     continue;
@@ -269,7 +273,7 @@ internal static class ReferenceSolutionChecker
             }
             if (visual.As == Visual.Grid)
             {
-                foreach (var problem in DescribeGrid(result, visual)) yield return problem;
+                foreach (var problem in DescribeGrid(result, visual, language)) yield return problem;
                 continue;
             }
             if (visual.As == Visual.Graph)
@@ -334,11 +338,12 @@ internal static class ReferenceSolutionChecker
     /// Each grid pointer and pair must land on a cell at some step, each label variable must be a string, list or tuple at some step, and
     /// the highlight must be a list, tuple or set of pairs (or a grid of flags) at some step and mark a cell at some step.
     /// </summary>
-    private static IEnumerable<string> DescribeGrid(TraceResult result, Visual visual)
+    private static IEnumerable<string> DescribeGrid(TraceResult result, Visual visual, string language)
     {
         var grids = result.Frames.Select(f => f.Grids?.GetValueOrDefault(visual.Variable)).OfType<TrackedGrid>().ToList();
         bool OnACell(TrackedGrid g, string name) => g.Pointers.TryGetValue(name, out var at) && at is [var r, var c]
             && r >= 0 && r < g.Rows.Count && c >= 0 && c < g.Rows[r].Count;
+        var labels = language == "csharp" ? "array or List<T>" : "list or tuple";
         foreach (var pair in visual.Cells)
             if (!grids.Any(g => OnACell(g, pair.Name)))
                 yield return $"cells pair [{pair.Row}, {pair.Col}] (of '{visual.Variable}') never indexes a cell of the grid in the trace.";
@@ -346,13 +351,15 @@ internal static class ReferenceSolutionChecker
             if (!grids.Any(g => OnACell(g, pointer)))
                 yield return $"pointer '{pointer}' (of '{visual.Variable}') never holds a (row, col) pair of a cell of the grid in the trace.";
         if (visual.RowLabels is { } rows && !grids.Any(g => g.RowLabels is not null))
-            yield return $"rowLabels '{rows}' (of '{visual.Variable}') is never a string, list or tuple in the trace, so it labels no row.";
+            yield return $"rowLabels '{rows}' (of '{visual.Variable}') is never a string, {labels} in the trace, so it labels no row.";
         if (visual.ColLabels is { } cols && !grids.Any(g => g.ColLabels is not null))
-            yield return $"colLabels '{cols}' (of '{visual.Variable}') is never a string, list or tuple in the trace, so it labels no column.";
+            yield return $"colLabels '{cols}' (of '{visual.Variable}') is never a string, {labels} in the trace, so it labels no column.";
         if (visual.Highlight is { } highlight)
         {
             if (!grids.Any(g => g.Highlight is not null))
-                yield return $"highlight '{highlight}' (of '{visual.Variable}') is never a list, tuple or set of (row, col) pairs, or a grid of True/False, in the trace.";
+                yield return language != "csharp"
+                    ? $"highlight '{highlight}' (of '{visual.Variable}') is never a list, tuple or set of (row, col) pairs, or a grid of True/False, in the trace."
+                    : $"highlight '{highlight}' (of '{visual.Variable}') is never an array, List<T> or HashSet<T> of (row, col) pairs, or a grid of true/false, in the trace.";
             else if (!grids.Any(g => g.Highlight is { Cells.Count: > 0 }))
                 yield return $"highlight '{highlight}' (of '{visual.Variable}') never marks a cell of the grid in the trace.";
         }

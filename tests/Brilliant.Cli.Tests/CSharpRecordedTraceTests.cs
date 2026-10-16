@@ -165,11 +165,36 @@ public sealed class CSharpRecordedTraceTests : IDisposable
     [Fact]
     public void A_drawing_not_recorded_for_csharp_yet_is_refused_rather_than_drawn_empty()
     {
-        WritePack("var seen = new HashSet<int> { 1 };", "[{variable: seen, as: set}]");
+        WritePack("var seen = new HashSet<int> { 1 };", "[{variable: seen, as: tree}]");
 
-        var report = ContentPacker.Pack(Root, Path.Combine(_repository, "set.zip"));
+        var report = ContentPacker.Pack(Root, Path.Combine(_repository, "tree.zip"));
 
         var error = Assert.Single(report.Errors);
-        Assert.Contains("'set' drawings of C# code are not recorded yet", error.Message);
+        Assert.Contains("'tree' drawings of C# code are not recorded yet", error.Message);
+    }
+
+    [Fact]
+    public void A_set_dictionary_heap_and_grid_are_recorded_into_the_pack()
+    {
+        WritePack("var seen = new HashSet<int> { 1, 2 };\nvar ages = new Dictionary<string, int> { [\"a\"] = 3 };\nvar heap = new List<int> { 1, 5, 2 };\nvar grid = new[] { new[] { 1, 2 }, new[] { 3, 4 } };",
+            "[{variable: seen, as: set}, {variable: ages, as: dict}, {variable: heap, as: heap}, {variable: grid, as: grid}]");
+
+        var step = Assert.IsType<TraceStep>(PackAndLoad().Lessons.Single().Steps[0]);
+
+        var last = step.Recorded!.Frames[^1];
+        Assert.Equal(2, last.Tables!["seen"].Rows.Count);
+        Assert.Equal("3", last.Tables["ages"].Rows.Single().Value);
+        Assert.Equal(["1", "5", "2"], last.Heaps!["heap"].Cells);
+        Assert.Equal(2, last.Grids!["grid"].Rows.Count);
+    }
+
+    [Fact]
+    public void A_dictionary_that_is_never_one_is_reported_in_csharp_terms()
+    {
+        WritePack("int total = 0;\ntotal += 1;", "[{variable: nums, as: dict}]");
+
+        var report = ContentPacker.Pack(Root, Path.Combine(_repository, "nodict.zip"));
+
+        Assert.Contains("'nums' is never a Dictionary<,>", Assert.Single(report.Errors).Message);
     }
 }

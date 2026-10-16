@@ -1,0 +1,838 @@
+{
+  "status": "ok",
+  "frames": [
+    {
+      "event": "line",
+      "line": 1,
+      "function": "Main",
+      "locals": [],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 2,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "counts",
+          "type": "Dictionary<string, int>",
+          "repr": "{}"
+        }
+      ],
+      "tracked": {},
+      "tables": {
+        "counts": {
+          "kind": "dict",
+          "type": "Dictionary<string, int>",
+          "rows": [],
+          "more": 0,
+          "hits": {}
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 3,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "counts",
+          "type": "Dictionary<string, int>",
+          "repr": "{}"
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<int>",
+          "repr": "{}"
+        }
+      ],
+      "tracked": {},
+      "tables": {
+        "counts": {
+          "kind": "dict",
+          "type": "Dictionary<string, int>",
+          "rows": [],
+          "more": 0,
+          "hits": {}
+        },
+        "seen": {
+          "kind": "set",
+          "type": "HashSet<int>",
+          "rows": [],
+          "more": 0,
+          "hits": {}
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 4,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "counts",
+          "type": "Dictionary<string, int>",
+          "repr": "{}"
+        },
+        {
+          "name": "key",
+          "type": "string",
+          "repr": "\"b\""
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<int>",
+          "repr": "{}"
+        }
+      ],
+      "tracked": {},
+      "tables": {
+        "counts": {
+          "kind": "dict",
+          "type": "Dictionary<string, int>",
+          "rows": [],
+          "more": 0,
+          "hits": {}
+        },
+        "seen": {
+          "kind": "set",
+          "type": "HashSet<int>",
+          "rows": [],
+          "more": 0,
+          "hits": {}
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 6,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "counts",
+          "type": "Dictionary<string, int>",
+          "repr": "{}"
+        },
+        {
+          "name": "key",
+          "type": "string",
+          "repr": "\"b\""
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<int>",
+          "repr": "{}"
+        },
+        {
+          "name": "word",
+          "type": "string",
+          "repr": "\"b\""
+        }
+      ],
+      "tracked": {},
+      "tables": {
+        "counts": {
+          "kind": "dict",
+          "type": "Dictionary<string, int>",
+          "rows": [],
+          "more": 0,
+          "hits": {}
+        },
+        "seen": {
+          "kind": "set",
+          "type": "HashSet<int>",
+          "rows": [],
+          "more": 0,
+          "hits": {}
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 7,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "counts",
+          "type": "Dictionary<string, int>",
+          "repr": "{\"b\": 1}"
+        },
+        {
+          "name": "key",
+          "type": "string",
+          "repr": "\"b\""
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<int>",
+          "repr": "{}"
+        },
+        {
+          "name": "word",
+          "type": "string",
+          "repr": "\"b\""
+        }
+      ],
+      "tracked": {},
+      "tables": {
+        "counts": {
+          "kind": "dict",
+          "type": "Dictionary<string, int>",
+          "rows": [
+            {
+              "key": "\"b\"",
+              "value": "1",
+              "id": 0
+            }
+          ],
+          "more": 0,
+          "hits": {
+            "key": 0,
+            "word": 0
+          }
+        },
+        "seen": {
+          "kind": "set",
+          "type": "HashSet<int>",
+          "rows": [],
+          "more": 0,
+          "hits": {}
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 6,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "counts",
+          "type": "Dictionary<string, int>",
+          "repr": "{\"b\": 1}"
+        },
+        {
+          "name": "key",
+          "type": "string",
+          "repr": "\"b\""
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<int>",
+          "repr": "{0}"
+        },
+        {
+          "name": "word",
+          "type": "string",
+          "repr": "\"a\""
+        }
+      ],
+      "tracked": {},
+      "tables": {
+        "counts": {
+          "kind": "dict",
+          "type": "Dictionary<string, int>",
+          "rows": [
+            {
+              "key": "\"b\"",
+              "value": "1",
+              "id": 0
+            }
+          ],
+          "more": 0,
+          "hits": {
+            "key": 0
+          }
+        },
+        "seen": {
+          "kind": "set",
+          "type": "HashSet<int>",
+          "rows": [
+            {
+              "key": "0",
+              "id": 1
+            }
+          ],
+          "more": 0,
+          "hits": {}
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 7,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "counts",
+          "type": "Dictionary<string, int>",
+          "repr": "{\"b\": 1, \"a\": 1}"
+        },
+        {
+          "name": "key",
+          "type": "string",
+          "repr": "\"b\""
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<int>",
+          "repr": "{0}"
+        },
+        {
+          "name": "word",
+          "type": "string",
+          "repr": "\"a\""
+        }
+      ],
+      "tracked": {},
+      "tables": {
+        "counts": {
+          "kind": "dict",
+          "type": "Dictionary<string, int>",
+          "rows": [
+            {
+              "key": "\"b\"",
+              "value": "1",
+              "id": 0
+            },
+            {
+              "key": "\"a\"",
+              "value": "1",
+              "id": 2
+            }
+          ],
+          "more": 0,
+          "hits": {
+            "key": 0,
+            "word": 2
+          }
+        },
+        "seen": {
+          "kind": "set",
+          "type": "HashSet<int>",
+          "rows": [
+            {
+              "key": "0",
+              "id": 1
+            }
+          ],
+          "more": 0,
+          "hits": {}
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 6,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "counts",
+          "type": "Dictionary<string, int>",
+          "repr": "{\"b\": 1, \"a\": 1}"
+        },
+        {
+          "name": "key",
+          "type": "string",
+          "repr": "\"b\""
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<int>",
+          "repr": "{0}"
+        },
+        {
+          "name": "word",
+          "type": "string",
+          "repr": "\"b\""
+        }
+      ],
+      "tracked": {},
+      "tables": {
+        "counts": {
+          "kind": "dict",
+          "type": "Dictionary<string, int>",
+          "rows": [
+            {
+              "key": "\"b\"",
+              "value": "1",
+              "id": 0
+            },
+            {
+              "key": "\"a\"",
+              "value": "1",
+              "id": 2
+            }
+          ],
+          "more": 0,
+          "hits": {
+            "key": 0,
+            "word": 0
+          }
+        },
+        "seen": {
+          "kind": "set",
+          "type": "HashSet<int>",
+          "rows": [
+            {
+              "key": "0",
+              "id": 1
+            }
+          ],
+          "more": 0,
+          "hits": {}
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 7,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "counts",
+          "type": "Dictionary<string, int>",
+          "repr": "{\"b\": 2, \"a\": 1}"
+        },
+        {
+          "name": "key",
+          "type": "string",
+          "repr": "\"b\""
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<int>",
+          "repr": "{0}"
+        },
+        {
+          "name": "word",
+          "type": "string",
+          "repr": "\"b\""
+        }
+      ],
+      "tracked": {},
+      "tables": {
+        "counts": {
+          "kind": "dict",
+          "type": "Dictionary<string, int>",
+          "rows": [
+            {
+              "key": "\"b\"",
+              "value": "2",
+              "id": 0
+            },
+            {
+              "key": "\"a\"",
+              "value": "1",
+              "id": 2
+            }
+          ],
+          "more": 0,
+          "hits": {
+            "key": 0,
+            "word": 0
+          }
+        },
+        "seen": {
+          "kind": "set",
+          "type": "HashSet<int>",
+          "rows": [
+            {
+              "key": "0",
+              "id": 1
+            }
+          ],
+          "more": 0,
+          "hits": {}
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 6,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "counts",
+          "type": "Dictionary<string, int>",
+          "repr": "{\"b\": 2, \"a\": 1}"
+        },
+        {
+          "name": "key",
+          "type": "string",
+          "repr": "\"b\""
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<int>",
+          "repr": "{0}"
+        },
+        {
+          "name": "word",
+          "type": "string",
+          "repr": "\"c\""
+        }
+      ],
+      "tracked": {},
+      "tables": {
+        "counts": {
+          "kind": "dict",
+          "type": "Dictionary<string, int>",
+          "rows": [
+            {
+              "key": "\"b\"",
+              "value": "2",
+              "id": 0
+            },
+            {
+              "key": "\"a\"",
+              "value": "1",
+              "id": 2
+            }
+          ],
+          "more": 0,
+          "hits": {
+            "key": 0
+          }
+        },
+        "seen": {
+          "kind": "set",
+          "type": "HashSet<int>",
+          "rows": [
+            {
+              "key": "0",
+              "id": 1
+            }
+          ],
+          "more": 0,
+          "hits": {}
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 7,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "counts",
+          "type": "Dictionary<string, int>",
+          "repr": "{\"b\": 2, \"a\": 1, \"c\": 1}"
+        },
+        {
+          "name": "key",
+          "type": "string",
+          "repr": "\"b\""
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<int>",
+          "repr": "{0}"
+        },
+        {
+          "name": "word",
+          "type": "string",
+          "repr": "\"c\""
+        }
+      ],
+      "tracked": {},
+      "tables": {
+        "counts": {
+          "kind": "dict",
+          "type": "Dictionary<string, int>",
+          "rows": [
+            {
+              "key": "\"b\"",
+              "value": "2",
+              "id": 0
+            },
+            {
+              "key": "\"a\"",
+              "value": "1",
+              "id": 2
+            },
+            {
+              "key": "\"c\"",
+              "value": "1",
+              "id": 3
+            }
+          ],
+          "more": 0,
+          "hits": {
+            "key": 0,
+            "word": 3
+          }
+        },
+        "seen": {
+          "kind": "set",
+          "type": "HashSet<int>",
+          "rows": [
+            {
+              "key": "0",
+              "id": 1
+            }
+          ],
+          "more": 0,
+          "hits": {}
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 9,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "counts",
+          "type": "Dictionary<string, int>",
+          "repr": "{\"b\": 2, \"a\": 1, \"c\": 1}"
+        },
+        {
+          "name": "key",
+          "type": "string",
+          "repr": "\"b\""
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<int>",
+          "repr": "{0}"
+        }
+      ],
+      "tracked": {},
+      "tables": {
+        "counts": {
+          "kind": "dict",
+          "type": "Dictionary<string, int>",
+          "rows": [
+            {
+              "key": "\"b\"",
+              "value": "2",
+              "id": 0
+            },
+            {
+              "key": "\"a\"",
+              "value": "1",
+              "id": 2
+            },
+            {
+              "key": "\"c\"",
+              "value": "1",
+              "id": 3
+            }
+          ],
+          "more": 0,
+          "hits": {
+            "key": 0
+          }
+        },
+        "seen": {
+          "kind": "set",
+          "type": "HashSet<int>",
+          "rows": [
+            {
+              "key": "0",
+              "id": 1
+            }
+          ],
+          "more": 0,
+          "hits": {}
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 10,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "counts",
+          "type": "Dictionary<string, int>",
+          "repr": "{\"b\": 2, \"a\": 1, \"c\": 1}"
+        },
+        {
+          "name": "key",
+          "type": "string",
+          "repr": "\"b\""
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<int>",
+          "repr": "{0, 7}"
+        }
+      ],
+      "tracked": {},
+      "tables": {
+        "counts": {
+          "kind": "dict",
+          "type": "Dictionary<string, int>",
+          "rows": [
+            {
+              "key": "\"b\"",
+              "value": "2",
+              "id": 0
+            },
+            {
+              "key": "\"a\"",
+              "value": "1",
+              "id": 2
+            },
+            {
+              "key": "\"c\"",
+              "value": "1",
+              "id": 3
+            }
+          ],
+          "more": 0,
+          "hits": {
+            "key": 0
+          }
+        },
+        "seen": {
+          "kind": "set",
+          "type": "HashSet<int>",
+          "rows": [
+            {
+              "key": "0",
+              "id": 1
+            },
+            {
+              "key": "7",
+              "id": 4
+            }
+          ],
+          "more": 0,
+          "hits": {}
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 11,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "counts",
+          "type": "Dictionary<string, int>",
+          "repr": "{\"b\": 2, \"a\": 1, \"c\": 1}"
+        },
+        {
+          "name": "key",
+          "type": "string",
+          "repr": "\"b\""
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<int>",
+          "repr": "{7}"
+        }
+      ],
+      "tracked": {},
+      "tables": {
+        "counts": {
+          "kind": "dict",
+          "type": "Dictionary<string, int>",
+          "rows": [
+            {
+              "key": "\"b\"",
+              "value": "2",
+              "id": 0
+            },
+            {
+              "key": "\"a\"",
+              "value": "1",
+              "id": 2
+            },
+            {
+              "key": "\"c\"",
+              "value": "1",
+              "id": 3
+            }
+          ],
+          "more": 0,
+          "hits": {
+            "key": 0
+          }
+        },
+        "seen": {
+          "kind": "set",
+          "type": "HashSet<int>",
+          "rows": [
+            {
+              "key": "7",
+              "id": 4
+            }
+          ],
+          "more": 0,
+          "hits": {}
+        }
+      }
+    },
+    {
+      "event": "return",
+      "function": "Main",
+      "locals": [
+        {
+          "name": "counts",
+          "type": "Dictionary<string, int>",
+          "repr": "{\"b\": 2, \"a\": 1, \"c\": 1}"
+        },
+        {
+          "name": "found",
+          "type": "int",
+          "repr": "2",
+          "index": 2
+        },
+        {
+          "name": "key",
+          "type": "string",
+          "repr": "\"b\""
+        },
+        {
+          "name": "seen",
+          "type": "HashSet<int>",
+          "repr": "{7}"
+        }
+      ],
+      "tracked": {},
+      "tables": {
+        "counts": {
+          "kind": "dict",
+          "type": "Dictionary<string, int>",
+          "rows": [
+            {
+              "key": "\"b\"",
+              "value": "2",
+              "id": 0
+            },
+            {
+              "key": "\"a\"",
+              "value": "1",
+              "id": 2
+            },
+            {
+              "key": "\"c\"",
+              "value": "1",
+              "id": 3
+            }
+          ],
+          "more": 0,
+          "hits": {
+            "key": 0
+          }
+        },
+        "seen": {
+          "kind": "set",
+          "type": "HashSet<int>",
+          "rows": [
+            {
+              "key": "7",
+              "id": 4
+            }
+          ],
+          "more": 0,
+          "hits": {}
+        }
+      }
+    }
+  ],
+  "stdout": ""
+}

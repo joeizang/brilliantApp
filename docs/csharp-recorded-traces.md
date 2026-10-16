@@ -31,6 +31,7 @@ statement, runs it on a dedicated thread under the usual `ProbeBudget`, and turn
 | `Function` | the method, local function or lambda the probe is in; top-level code is `Main` |
 | `Locals` | the variables in scope, sorted by name (ordinal) so the order never depends on declaration order |
 | `Tracked` | each variable a `visuals` entry names: `array`, `stack` or `queue` drawings |
+| `Tables`, `Heaps`, `Grids` | the `dict`, `set`, `heap` and `grid` drawings, see below |
 | `Stdout` | everything `Console.Write*` printed, with `\n` line endings |
 
 Collections map onto the existing views by shape: an array or `List<T>` is a row of cells front to back, a `Stack<T>` is drawn bottom
@@ -64,9 +65,26 @@ Recording runs in a child process (`dotnet Brilliant.Cli.dll --csharp-trace-work
 as the reference-solution gate ([csharp-reference-checks.md](csharp-reference-checks.md)); it only runs on content that is already
 structurally valid. A trace that fails to record fails validation with the reason.
 
+## Tables, heaps and grids
+
+Issue [#196](https://github.com/joeizang/brilliantApp/issues/196) adds the views that need no node identity. The CLI now sends the worker
+the whole `visuals` list (pointers, labels, highlight and all), and `CSharpTraceViews` builds each view from the frozen variables of one
+probe, following the Python tracer's rules and limits:
+
+| `as` | C# types drawn | Notes |
+| --- | --- | --- |
+| `dict` | `Dictionary<,>`, `SortedDictionary<,>`, `SortedList<,>` | 20 rows, the rest in `More`; rows keep the collection's own order |
+| `set` | `HashSet<T>`, `SortedSet<T>` | 20 rows; a `HashSet<T>` captured whole is sorted so rows don't jump as members are added |
+| `heap` | an array or `List<T>` | 31 cells (five levels); pointers are int variables as for arrays. `PriorityQueue<,>` is not drawn: its heap order is internal |
+| `grid` | `T[][]`, `List<List<T>>`, `T[,]`, `string[]` | 15 rows and 15 cells a row, with `Lengths` holding the real sizes; `cells`, `pointers`, `rowLabels`, `colLabels` and `highlight` work as in Python, with `(int, int)` tuples or two-item arrays/lists as pairs |
+
+Dictionary and set rows carry an `Id` for the run, assigned in the order keys are first met and found again by value (so an `int` key and the
+`long` equal to it are the same row). It never comes from a hash code or an address, so re-recording gives the same ids. `Hits` names the
+local variables whose value is a key of the table, as for Python. Frozen collections are captured up to 128 items, so a set larger than that
+shows the members met first rather than sorted ones.
+
 ## Not yet recorded
 
-Only variables, arrays, `List<T>`, `Stack<T>` and `Queue<T>` are recorded. Dictionary/set tables, linked lists, binary trees, heaps,
-grids, graphs and the call stack need object identity in the probe's snapshot (so that two snapshots can tell that a node is the same
-node). Until that lands, `validate` refuses those `visuals` for C# with "'X' drawings of C# code are not recorded yet…". That work is the
-remaining part of #153 and is tracked in its own issue.
+Linked lists, binary trees, graphs and the call stack need object identity in the probe's snapshot (so that two snapshots can tell that a
+node is the same node). Until that lands, `validate` refuses those `visuals` for C# with "'X' drawings of C# code are not recorded yet…".
+They are the rest of #196 (linked lists and trees, then graphs and the call stack).
