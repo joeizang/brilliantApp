@@ -55,28 +55,32 @@ steps:
       It feels backwards at first: a **min**-heap for the **largest**. The heap isn't there to find the best; it's there to
       find the worst of the ones you're keeping, quickly.
     comparison:
-      csharp: |
-        int KthLargest(int[] nums, int k)
-        {
-            var heap = new PriorityQueue<int, int>();
-            foreach (var x in nums)
-            {
-                heap.Enqueue(x, x);
-                if (heap.Count > k) heap.Dequeue();
-            }
-            return heap.Peek();
-        }
-      python: |
-        import heapq
+      - label: C#
+        language: csharp
+        code: |
+          int KthLargest(int[] nums, int k)
+          {
+              var heap = new PriorityQueue<int, int>();
+              foreach (var x in nums)
+              {
+                  heap.Enqueue(x, x);
+                  if (heap.Count > k) heap.Dequeue();
+              }
+              return heap.Peek();
+          }
+      - label: Python
+        language: python
+        code: |
+          import heapq
 
 
-        def kth_largest(nums, k):
-            heap = []
-            for x in nums:
-                heapq.heappush(heap, x)
-                if len(heap) > k:
-                    heapq.heappop(heap)
-            return heap[0]
+          def kth_largest(nums, k):
+              heap = []
+              for x in nums:
+                  heapq.heappush(heap, x)
+                  if len(heap) > k:
+                      heapq.heappop(heap)
+              return heap[0]
   - id: step.top-k.trace-largest
     type: trace
     title: Keeping the three largest
@@ -197,24 +201,28 @@ steps:
       In C#, `nums.OrderByDescending(x => x).Take(k)` sorts everything first, O(n log n). The size-`k` `PriorityQueue` is the
       equivalent of `nlargest`.
     comparison:
-      csharp: |
-        string[] words = ["kiwi", "fig", "banana", "apple", "plum"];
+      - label: C#
+        language: csharp
+        code: |
+          string[] words = ["kiwi", "fig", "banana", "apple", "plum"];
 
-        var longest = words.OrderByDescending(w => w.Length).Take(2);
-        // banana, apple
+          var longest = words.OrderByDescending(w => w.Length).Take(2);
+          // banana, apple
 
-        var counts = "mississippi".GroupBy(c => c)
-            .OrderByDescending(g => g.Count()).Take(2);
-      python: |
-        import heapq
-        from collections import Counter
+          var counts = "mississippi".GroupBy(c => c)
+              .OrderByDescending(g => g.Count()).Take(2);
+      - label: Python
+        language: python
+        code: |
+          import heapq
+          from collections import Counter
 
-        words = ["kiwi", "fig", "banana", "apple", "plum"]
+          words = ["kiwi", "fig", "banana", "apple", "plum"]
 
-        longest = heapq.nlargest(2, words, key=len)
-        # ['banana', 'apple']
+          longest = heapq.nlargest(2, words, key=len)
+          # ['banana', 'apple']
 
-        counts = Counter("mississippi").most_common(2)
+          counts = Counter("mississippi").most_common(2)
   - id: step.top-k.predict-key
     type: predict-output
     title: Predict the output

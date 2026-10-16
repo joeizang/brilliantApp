@@ -51,36 +51,40 @@ steps:
 
       At the start every node is its own group: `parent = list(range(n))`.
     comparison:
-      csharp: |
-        int[] parent = Enumerable.Range(0, n).ToArray();
+      - label: C#
+        language: csharp
+        code: |
+          int[] parent = Enumerable.Range(0, n).ToArray();
 
-        int Find(int x)
-        {
-            while (parent[x] != x) x = parent[x];
-            return x;
-        }
+          int Find(int x)
+          {
+              while (parent[x] != x) x = parent[x];
+              return x;
+          }
 
-        bool Union(int a, int b)
-        {
-            int ra = Find(a), rb = Find(b);
-            if (ra == rb) return false;   // already together
-            parent[rb] = ra;
-            return true;
-        }
-      python: |
-        parent = list(range(n))
+          bool Union(int a, int b)
+          {
+              int ra = Find(a), rb = Find(b);
+              if (ra == rb) return false;   // already together
+              parent[rb] = ra;
+              return true;
+          }
+      - label: Python
+        language: python
+        code: |
+          parent = list(range(n))
 
-        def find(x):
-            while parent[x] != x:
-                x = parent[x]
-            return x
+          def find(x):
+              while parent[x] != x:
+                  x = parent[x]
+              return x
 
-        def union(a, b):
-            ra, rb = find(a), find(b)
-            if ra == rb:
-                return False   # already together
-            parent[rb] = ra
-            return True
+          def union(a, b):
+              ra, rb = find(a), find(b)
+              if ra == rb:
+                  return False   # already together
+              parent[rb] = ra
+              return True
   - id: step.union-find.trace-union
     type: trace
     title: Groups merging

@@ -65,16 +65,20 @@ steps:
       C#'s `Array.BinarySearch` returns the index if it finds `x`, and if not, `~i` (the bitwise complement, a negative number)
       where `i` is the insert position. With repeats it returns *some* match, not the first.
     comparison:
-      csharp: |
-        int i = Array.BinarySearch(nums, x);
-        if (i < 0) i = ~i;   // not found: ~i is where x would go
-        // with repeats, i is some match, not the first
-      python: |
-        import bisect
+      - label: C#
+        language: csharp
+        code: |
+          int i = Array.BinarySearch(nums, x);
+          if (i < 0) i = ~i;   // not found: ~i is where x would go
+          // with repeats, i is some match, not the first
+      - label: Python
+        language: python
+        code: |
+          import bisect
 
-        i = bisect.bisect_left(nums, x)
-        # the first index with nums[i] >= x,
-        # or len(nums) when there's none
+          i = bisect.bisect_left(nums, x)
+          # the first index with nums[i] >= x,
+          # or len(nums) when there's none
   - id: step.boundary.trace-lower
     type: trace
     title: Closing in on the switch

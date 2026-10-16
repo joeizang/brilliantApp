@@ -51,30 +51,34 @@ steps:
 
       `dp[i]` is the best of those. That's O(n²): each item looks back at all the earlier ones.
     comparison:
-      csharp: |
-        static int LongestIncreasing(int[] nums)
-        {
-            if (nums.Length == 0) return 0;
-            var dp = new int[nums.Length];
-            for (int i = 0; i < nums.Length; i++)
-            {
-                dp[i] = 1;
-                for (int j = 0; j < i; j++)
-                    if (nums[j] < nums[i])
-                        dp[i] = Math.Max(dp[i], dp[j] + 1);
-            }
-            return dp.Max();
-        }
-      python: |
-        def longest_increasing(nums):
-            if not nums:
-                return 0
-            dp = [1] * len(nums)
-            for i in range(len(nums)):
-                for j in range(i):
-                    if nums[j] < nums[i]:
-                        dp[i] = max(dp[i], dp[j] + 1)
-            return max(dp)
+      - label: C#
+        language: csharp
+        code: |
+          static int LongestIncreasing(int[] nums)
+          {
+              if (nums.Length == 0) return 0;
+              var dp = new int[nums.Length];
+              for (int i = 0; i < nums.Length; i++)
+              {
+                  dp[i] = 1;
+                  for (int j = 0; j < i; j++)
+                      if (nums[j] < nums[i])
+                          dp[i] = Math.Max(dp[i], dp[j] + 1);
+              }
+              return dp.Max();
+          }
+      - label: Python
+        language: python
+        code: |
+          def longest_increasing(nums):
+              if not nums:
+                  return 0
+              dp = [1] * len(nums)
+              for i in range(len(nums)):
+                  for j in range(i):
+                      if nums[j] < nums[i]:
+                          dp[i] = max(dp[i], dp[j] + 1)
+              return max(dp)
   - id: step.lis.trace-dp
     type: trace
     title: Looking back
@@ -177,31 +181,35 @@ steps:
 
       The answer is `len(tails)`. But `tails` itself is **not** a subsequence of the input, just the best ending for each length.
     comparison:
-      csharp: |
-        static int LongestIncreasing(int[] nums)
-        {
-            var tails = new List<int>();
-            foreach (var x in nums)
-            {
-                int k = tails.BinarySearch(x);
-                if (k < 0) k = ~k;
-                if (k == tails.Count) tails.Add(x);
-                else tails[k] = x;
-            }
-            return tails.Count;
-        }
-      python: |
-        from bisect import bisect_left
+      - label: C#
+        language: csharp
+        code: |
+          static int LongestIncreasing(int[] nums)
+          {
+              var tails = new List<int>();
+              foreach (var x in nums)
+              {
+                  int k = tails.BinarySearch(x);
+                  if (k < 0) k = ~k;
+                  if (k == tails.Count) tails.Add(x);
+                  else tails[k] = x;
+              }
+              return tails.Count;
+          }
+      - label: Python
+        language: python
+        code: |
+          from bisect import bisect_left
 
-        def longest_increasing(nums):
-            tails = []
-            for x in nums:
-                k = bisect_left(tails, x)
-                if k == len(tails):
-                    tails.append(x)
-                else:
-                    tails[k] = x
-            return len(tails)
+          def longest_increasing(nums):
+              tails = []
+              for x in nums:
+                  k = bisect_left(tails, x)
+                  if k == len(tails):
+                      tails.append(x)
+                  else:
+                      tails[k] = x
+              return len(tails)
   - id: step.lis.trace-tails
     type: trace
     title: Replacing tails

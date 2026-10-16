@@ -40,12 +40,16 @@ steps:
           name = "Ada"
           print(f"Hello, {name}!")
     comparison:
-      csharp: |
-        string name = "Ada";
-        Console.WriteLine($"Hello, {name}!");
-      python: |
-        name = "Ada"
-        print(f"Hello, {name}!")
+      - label: C#
+        language: csharp
+        code: |
+          string name = "Ada";
+          Console.WriteLine($"Hello, {name}!");
+      - label: Python
+        language: python
+        code: |
+          name = "Ada"
+          print(f"Hello, {name}!")
   - id: step.hello-python.check-main
     type: choice
     title: Entry point
@@ -72,16 +76,20 @@ steps:
 
       Use four spaces per level, and be consistent. Mixing levels is an error, not a style choice.
     comparison:
-      csharp: |
-        if (x > 0)
-        {
-            Console.WriteLine("positive");
-        }
-        Console.WriteLine("always");
-      python: |
-        if x > 0:
-            print("positive")
-        print("always")
+      - label: C#
+        language: csharp
+        code: |
+          if (x > 0)
+          {
+              Console.WriteLine("positive");
+          }
+          Console.WriteLine("always");
+      - label: Python
+        language: python
+        code: |
+          if x > 0:
+              print("positive")
+          print("always")
   - id: step.hello-python.predict-indent
     type: predict-output
     title: Predict the output
@@ -117,12 +125,16 @@ steps:
 
       Type hints exist (`x: int = 5`) but are only documentation for tools; Python does not enforce them.
     comparison:
-      csharp: |
-        var x = 5;
-        x = "five";   // compile error
-      python: |
-        x = 5
-        x = "five"    # fine: x now labels a str
+      - label: C#
+        language: csharp
+        code: |
+          var x = 5;
+          x = "five";   // compile error
+      - label: Python
+        language: python
+        code: |
+          x = 5
+          x = "five"    # fine: x now labels a str
   - id: step.hello-python.predict-type
     type: predict-output
     title: Predict the output
@@ -179,14 +191,18 @@ steps:
       `print` writes its arguments separated by a space and ends with a newline.
       Single and double quotes are interchangeable.
     comparison:
-      csharp: |
-        var price = 4.5;
-        Console.WriteLine($"Total: {price * 3:F2}");
-        Console.WriteLine("a" + " " + "b");
-      python: |
-        price = 4.5
-        print(f"Total: {price * 3:.2f}")
-        print("a", "b")
+      - label: C#
+        language: csharp
+        code: |
+          var price = 4.5;
+          Console.WriteLine($"Total: {price * 3:F2}");
+          Console.WriteLine("a" + " " + "b");
+      - label: Python
+        language: python
+        code: |
+          price = 4.5
+          print(f"Total: {price * 3:.2f}")
+          print("a", "b")
   - id: step.hello-python.predict-fstring
     type: predict-output
     title: Predict the output
@@ -242,13 +258,17 @@ steps:
 
       The word `null` doesn't exist in Python at all.
     comparison:
-      csharp: |
-        string? s = null;
-        if (s == null) { Console.WriteLine("nothing"); }
-      python: |
-        s = None
-        if s is None:
-            print("nothing")
+      - label: C#
+        language: csharp
+        code: |
+          string? s = null;
+          if (s == null) { Console.WriteLine("nothing"); }
+      - label: Python
+        language: python
+        code: |
+          s = None
+          if s is None:
+              print("nothing")
   - id: step.hello-python.predict-print-none
     type: predict-output
     title: Predict the output

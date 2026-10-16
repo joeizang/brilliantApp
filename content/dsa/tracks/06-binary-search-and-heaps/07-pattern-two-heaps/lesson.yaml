@@ -57,44 +57,48 @@ steps:
       Then with an odd count the median is `lower`'s root; with an even count, the average of the two roots. Adding a number
       costs O(log n), and reading the median O(1).
     comparison:
-      csharp: |
-        var lower = new PriorityQueue<int, int>(
-            Comparer<int>.Create((a, b) => b.CompareTo(a)));
-        var upper = new PriorityQueue<int, int>();
+      - label: C#
+        language: csharp
+        code: |
+          var lower = new PriorityQueue<int, int>(
+              Comparer<int>.Create((a, b) => b.CompareTo(a)));
+          var upper = new PriorityQueue<int, int>();
 
-        void Add(int x)
-        {
-            lower.Enqueue(x, x);
-            int top = lower.Dequeue();
-            upper.Enqueue(top, top);
-            if (upper.Count > lower.Count)
-            {
-                int low = upper.Dequeue();
-                lower.Enqueue(low, low);
-            }
-        }
+          void Add(int x)
+          {
+              lower.Enqueue(x, x);
+              int top = lower.Dequeue();
+              upper.Enqueue(top, top);
+              if (upper.Count > lower.Count)
+              {
+                  int low = upper.Dequeue();
+                  lower.Enqueue(low, low);
+              }
+          }
 
-        double Median() => lower.Count > upper.Count
-            ? lower.Peek()
-            : ((double)lower.Peek() + upper.Peek()) / 2.0;
-      python: |
-        import heapq
+          double Median() => lower.Count > upper.Count
+              ? lower.Peek()
+              : ((double)lower.Peek() + upper.Peek()) / 2.0;
+      - label: Python
+        language: python
+        code: |
+          import heapq
 
-        lower = []  # max-heap, values negated
-        upper = []  # min-heap
-
-
-        def add(x):
-            heapq.heappush(lower, -x)
-            heapq.heappush(upper, -heapq.heappop(lower))
-            if len(upper) > len(lower):
-                heapq.heappush(lower, -heapq.heappop(upper))
+          lower = []  # max-heap, values negated
+          upper = []  # min-heap
 
 
-        def median():
-            if len(lower) > len(upper):
-                return -lower[0]
-            return (-lower[0] + upper[0]) / 2
+          def add(x):
+              heapq.heappush(lower, -x)
+              heapq.heappush(upper, -heapq.heappop(lower))
+              if len(upper) > len(lower):
+                  heapq.heappush(lower, -heapq.heappop(upper))
+
+
+          def median():
+              if len(lower) > len(upper):
+                  return -lower[0]
+              return (-lower[0] + upper[0]) / 2
   - id: step.two-heaps.add
     type: explain
     title: Pass it through

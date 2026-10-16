@@ -64,7 +64,7 @@ class Frames(unittest.TestCase):
 class TrackedArrays(unittest.TestCase):
     def test_a_watched_list_is_recorded_cell_by_cell(self):
         r = trace("nums = [3, 8, 2]\n", watch=["nums"])
-        self.assertEqual(r["frames"][-1]["tracked"]["nums"], {"type": "list", "cells": ["3", "8", "2"], "more": 0})
+        self.assertEqual(r["frames"][-1]["tracked"]["nums"], {"type": "list", "drawings": ["array", "stack", "queue"], "cells": ["3", "8", "2"], "more": 0})
 
     def test_it_is_absent_until_it_exists_and_when_it_is_not_a_list(self):
         r = trace("x = 5\nx = [1]\n", watch=["x"])
@@ -80,7 +80,7 @@ class TrackedArrays(unittest.TestCase):
 
     def test_tuples_count_and_cells_use_repr(self):
         r = trace("t = ('a', 2)\n", watch=["t"])
-        self.assertEqual(r["frames"][-1]["tracked"]["t"], {"type": "tuple", "cells": ["'a'", "2"], "more": 0})
+        self.assertEqual(r["frames"][-1]["tracked"]["t"], {"type": "tuple", "drawings": ["array"], "cells": ["'a'", "2"], "more": 0})
 
     def test_a_list_passed_into_a_function_is_found_by_its_parameter_name(self):
         r = trace("def total(xs):\n    return sum(xs)\ntotal([1, 2])\n", watch=["xs"])

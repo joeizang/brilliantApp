@@ -41,18 +41,22 @@ steps:
 
       The end value is always **excluded**.
     comparison:
-      csharp: |
-        for (int i = 0; i < 3; i++)
-            Console.WriteLine(i);
+      - label: C#
+        language: csharp
+        code: |
+          for (int i = 0; i < 3; i++)
+              Console.WriteLine(i);
 
-        foreach (var name in names)
-            Console.WriteLine(name);
-      python: |
-        for i in range(3):
-            print(i)
+          foreach (var name in names)
+              Console.WriteLine(name);
+      - label: Python
+        language: python
+        code: |
+          for i in range(3):
+              print(i)
 
-        for name in names:
-            print(name)
+          for name in names:
+              print(name)
   - id: step.control-flow.predict-range
     type: predict-output
     title: Predict the output
@@ -166,16 +170,20 @@ steps:
 
       `break` leaves the loop and `continue` skips to the next check, exactly as in C#.
     comparison:
-      csharp: |
-        int n = 1;
-        while (n < 20)
-        {
-            n *= 3;
-        }
-      python: |
-        n = 1
-        while n < 20:
-            n *= 3
+      - label: C#
+        language: csharp
+        code: |
+          int n = 1;
+          while (n < 20)
+          {
+              n *= 3;
+          }
+      - label: Python
+        language: python
+        code: |
+          n = 1
+          while n < 20:
+              n *= 3
   - id: step.control-flow.predict-while
     type: predict-output
     title: Predict the output
@@ -242,17 +250,21 @@ steps:
 
       Without a `return`, the function gives back `None`.
     comparison:
-      csharp: |
-        static string Greet(string name, string punctuation = "!")
-        {
-            return "Hi " + name + punctuation;
-        }
-        Greet("Ada", punctuation: "?");
-      python: |
-        def greet(name, punctuation="!"):
-            return "Hi " + name + punctuation
+      - label: C#
+        language: csharp
+        code: |
+          static string Greet(string name, string punctuation = "!")
+          {
+              return "Hi " + name + punctuation;
+          }
+          Greet("Ada", punctuation: "?");
+      - label: Python
+        language: python
+        code: |
+          def greet(name, punctuation="!"):
+              return "Hi " + name + punctuation
 
-        greet("Ada", punctuation="?")
+          greet("Ada", punctuation="?")
   - id: step.control-flow.predict-default-args
     type: predict-output
     title: Predict the output
@@ -380,14 +392,18 @@ steps:
       It's the commas that make a tuple, not the parentheses, so `1, 2` is also a tuple, and `(1,)` is a one-element tuple.
       Tuples compare by value, and a function that "returns several values" is really returning one tuple.
     comparison:
-      csharp: |
-        (int Min, int Max) MinMax(int[] xs) => (xs.Min(), xs.Max());
-        var pair = (1, 2);
-      python: |
-        def min_max(xs):
-            return min(xs), max(xs)
+      - label: C#
+        language: csharp
+        code: |
+          (int Min, int Max) MinMax(int[] xs) => (xs.Min(), xs.Max());
+          var pair = (1, 2);
+      - label: Python
+        language: python
+        code: |
+          def min_max(xs):
+              return min(xs), max(xs)
 
-        pair = (1, 2)
+          pair = (1, 2)
   - id: step.control-flow.check-tuples
     type: choice
     title: Check your understanding
@@ -420,12 +436,16 @@ steps:
       - `enumerate(items)` yields `(index, item)` pairs, so you can write `for i, x in enumerate(items):`.
       - Use `_` for a part you don't need, and `first, *rest = items` to collect the leftovers.
     comparison:
-      csharp: |
-        var (lo, hi) = MinMax(xs);
-        (a, b) = (b, a);
-      python: |
-        lo, hi = min_max(xs)
-        a, b = b, a
+      - label: C#
+        language: csharp
+        code: |
+          var (lo, hi) = MinMax(xs);
+          (a, b) = (b, a);
+      - label: Python
+        language: python
+        code: |
+          lo, hi = min_max(xs)
+          a, b = b, a
   - id: step.control-flow.predict-swap
     type: predict-output
     title: Predict the output

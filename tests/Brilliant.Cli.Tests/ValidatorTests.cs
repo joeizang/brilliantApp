@@ -34,8 +34,12 @@ public sealed class ValidatorTests : IDisposable
             title: Intro
             body: Hello
             comparison:
-              csharp: var x = 1;
-              python: x = 1
+              - label: C#
+                language: csharp
+                code: var x = 1;
+              - label: Python
+                language: python
+                code: x = 1
         """;
 
     [Fact]
@@ -58,6 +62,33 @@ public sealed class ValidatorTests : IDisposable
     {
         var report = ContentValidator.Validate(Path.Combine(_root, "nope"));
         Assert.Contains(report.Errors, e => e.Message.Contains("does not exist"));
+    }
+
+    [Fact]
+    public void Comparisons_preserve_same_language_labels_and_non_executable_languages()
+    {
+        WriteValidPack(ValidLesson.Replace("label: C#", "label: Before")
+            .Replace("label: Python", "label: After")
+            .Replace("language: python", "language: sql"));
+        var output = Path.Combine(_root, "out.zip");
+
+        var report = ContentPacker.Pack(_root, output);
+
+        Assert.True(report.IsValid, string.Join("\n", report.Errors));
+        var comparison = Assert.IsType<ExplainStep>(ContentPackFormat.Load(output).Get<Step>("step.one.intro")).Comparison!;
+        Assert.Equal(["Before", "After"], comparison.Select(s => s.Label));
+        Assert.Equal(["csharp", "sql"], comparison.Select(s => s.Language));
+    }
+
+    [Theory]
+    [InlineData("label: C#", "label:", "comparison[0] needs a 'label'")]
+    [InlineData("language: csharp", "language:", "comparison[0] needs a 'language'")]
+    [InlineData("code: var x = 1;", "code:", "comparison[0] needs 'code'")]
+    public void Comparison_entries_require_labels_languages_and_code(string before, string after, string expected)
+    {
+        WriteValidPack(ValidLesson.Replace(before, after));
+
+        Assert.Contains(ContentValidator.Validate(_root).Errors, e => e.Message.Contains(expected));
     }
 
     [Fact]
@@ -94,13 +125,14 @@ public sealed class ValidatorTests : IDisposable
                 type: explain
                 title: Intro
                 comparison:
-                  csharp: var x = 1;
+                  - label: C#
             """);
 
         var messages = ContentValidator.Validate(_root).Errors.Select(e => e.Message).ToList();
 
         Assert.Contains(messages, m => m.Contains("'body' is required"));
-        Assert.Contains(messages, m => m.Contains("comparison needs 'python'"));
+        Assert.Contains(messages, m => m.Contains("comparison[0] needs a 'language'"));
+        Assert.Contains(messages, m => m.Contains("comparison[0] needs 'code'"));
     }
 
     [Fact]
@@ -446,7 +478,7 @@ public sealed class ValidatorTests : IDisposable
         var m = LessonErrors(LessonHeader + "steps:\n" + WriteCodeHead
             + "    language: java\n    entrypoint: 2fast\n    tests:\n      - input: '1'\n        expected: '1'\n");
         Assert.Contains(m, x => x.Contains("unsupported language 'java'"));
-        Assert.Contains(m, x => x.Contains("'2fast' is not a valid Python function name"));
+        Assert.Contains(m, x => x.Contains("'2fast' is not a valid function name"));
     }
 
     [Fact]

@@ -8,7 +8,10 @@ namespace Brilliant.Core.Content;
 /// </summary>
 public static class ContentPackFormat
 {
-    public const int CurrentFormatVersion = 1;
+    public const int CurrentFormatVersion = 2;
+
+    /// <summary>Format 2 writes labelled comparison lists; format 1 remains readable for bundled and cached DSA packs.</summary>
+    public static bool SupportsFormatVersion(int version) => version is 1 or 2;
     public const string ManifestEntry = "manifest.json";
     public const string ContentEntry = "content.json";
 
@@ -32,9 +35,9 @@ public static class ContentPackFormat
         {
             using var zip = new ZipArchive(source, ZipArchiveMode.Read, leaveOpen: true);
             var manifest = ReadEntry<PackManifest>(zip, ManifestEntry);
-            if (manifest.FormatVersion != CurrentFormatVersion)
+            if (!SupportsFormatVersion(manifest.FormatVersion))
                 throw new ContentPackException(
-                    $"Unsupported content pack format {manifest.FormatVersion} (expected {CurrentFormatVersion}).");
+                    $"Unsupported content pack format {manifest.FormatVersion} (supported: 1, {CurrentFormatVersion}).");
             var content = ReadEntry<ContentDocument>(zip, ContentEntry);
             var missing = RequiredFields.Missing(content);
             if (missing.Count > 0)

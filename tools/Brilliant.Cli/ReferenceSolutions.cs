@@ -7,14 +7,17 @@ using Brilliant.Core.Code;
 namespace Brilliant.Cli;
 
 /// <summary>A write-code exercise's reference solution, waiting to be proved against the step's own hidden tests.</summary>
-internal sealed record ReferenceCheck(string File, string Label, string StepId, string Entrypoint, string Solution, IReadOnlyList<CodeTest> Tests);
+internal sealed record ReferenceCheck(string File, string Label, string StepId, string Entrypoint, string Solution, IReadOnlyList<CodeTest> Tests, string Language = "python");
 
 /// <summary>A trace step's code, waiting to be run to prove it works and draws the variables the lesson says it does.</summary>
-internal sealed record TraceCheck(string File, string Label, string Code, IReadOnlyList<Visual> Visuals);
+internal sealed record TraceCheck(string File, string Label, string Code, IReadOnlyList<Visual> Visuals, string Language = "python");
 
-/// <summary>Runs Python source against an exercise's tests. The real implementation uses CPython; tests substitute a fake.</summary>
+/// <summary>Runs source in one language against an exercise's tests. The real implementation uses CPython; tests substitute a fake.</summary>
 public interface IReferenceSolutionRunner
 {
+    /// <summary>The language accepted by this runner. Existing CPython adapters default to Python.</summary>
+    string Language => "python";
+
     /// <exception cref="ReferenceRunnerUnavailableException">Python couldn't be started at all.</exception>
     TestRunResult Run(string code, string entrypoint, IReadOnlyList<CodeTest> tests);
 
@@ -153,6 +156,7 @@ internal static class ReferenceSolutionChecker
     {
         foreach (var check in checks)
         {
+            if (!CheckLanguage(check.Language, runner, check.File, check.Label, report)) continue;
             TraceResult result;
             try { result = runner.Trace(check.Code, check.Visuals); }
             catch (ReferenceRunnerUnavailableException ex)
@@ -246,7 +250,7 @@ internal static class ReferenceSolutionChecker
             {
                 // A sequence's or heap's pointers index cells, so they must be ints; a dict's or set's hold a key, which can be anything.
                 var isArray = Visual.Sequences.Contains(visual.As) || visual.As == Visual.Heap;
-                if (!result.Frames.Any(f => f.Locals.Any(l => l.Name == pointer && (!isArray || l.Type == "int"))))
+                if (!result.Frames.Any(f => f.Locals.Any(l => l.Name == pointer && (!isArray || l.IntegerValue() is not null))))
                     yield return isArray
                         ? $"pointer '{pointer}' (of '{visual.Variable}') is never an int variable in the trace."
                         : $"pointer '{pointer}' (of '{visual.Variable}') is never a variable in the trace.";
@@ -352,7 +356,7 @@ internal static class ReferenceSolutionChecker
         Visual.Tree => frame.Trees is not null && frame.Trees.TryGetValue(visual.Variable, out var tree) && tree.Root is not null,
         Visual.LinkedList => frame.Lists is not null && frame.Lists.TryGetValue(visual.Variable, out var list) && list.Head is not null,
         Visual.CallStack => frame.Calls is { Frames.Count: > 0 },
-        _ when Visual.Sequences.Contains(visual.As) => frame.Tracked.TryGetValue(visual.Variable, out var tracked) && visual.Draws(tracked.Type),
+        _ when Visual.Sequences.Contains(visual.As) => frame.Tracked.TryGetValue(visual.Variable, out var tracked) && tracked.Draws(visual.As),
         _ => frame.Tables is not null && frame.Tables.TryGetValue(visual.Variable, out var table) && table.Kind == visual.As,
     };
 
@@ -361,6 +365,7 @@ internal static class ReferenceSolutionChecker
     {
         foreach (var check in checks)
         {
+            if (!CheckLanguage(check.Language, runner, check.File, check.Label, report)) continue;
             TestRunResult result;
             try { result = runner.Run(check.Solution, check.Entrypoint, check.Tests); }
             catch (ReferenceRunnerUnavailableException ex)
@@ -373,6 +378,13 @@ internal static class ReferenceSolutionChecker
             if (problem is not null) report.Add(check.File, $"{check.Label}: reference solution is wrong. {problem}");
         }
         return true;
+    }
+
+    private static bool CheckLanguage(string language, IReferenceSolutionRunner runner, string file, string label, ValidationReport report)
+    {
+        if (runner.Language == language) return true;
+        report.Add(file, $"{label}: no reference/trace checker is available for '{language}' (selected checker: '{runner.Language}'). Publishing requires a checker for the exercise language; C# support follows in #149.");
+        return false;
     }
 
     private static string? Describe(TestRunResult result, int testCount)

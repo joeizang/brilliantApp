@@ -451,12 +451,20 @@ public static partial class ContentValidator
             snippets.Add(new CodeSnippet(s.Language ?? "", s.Code ?? ""));
         }
 
-        Comparison? comparison = null;
-        if (dto.Comparison is { } c)
+        List<LabelledSnippet>? comparison = null;
+        if (dto.Comparison is { } entries)
         {
-            if (string.IsNullOrWhiteSpace(c.Csharp)) report.Add(file, $"{label}: comparison needs 'csharp'.");
-            if (string.IsNullOrWhiteSpace(c.Python)) report.Add(file, $"{label}: comparison needs 'python'.");
-            comparison = new Comparison(c.Csharp ?? "", c.Python ?? "");
+            comparison = [];
+            if (entries.Count == 0) report.Add(file, $"{label}: comparison needs at least one labelled snippet.");
+            for (var i = 0; i < entries.Count; i++)
+            {
+                var c = entries[i];
+                if (IsEmptyEntry(c, $"{label}: comparison[{i}]", file, report)) continue;
+                if (string.IsNullOrWhiteSpace(c.Label)) report.Add(file, $"{label}: comparison[{i}] needs a 'label'.");
+                if (string.IsNullOrWhiteSpace(c.Language)) report.Add(file, $"{label}: comparison[{i}] needs a 'language'.");
+                if (string.IsNullOrWhiteSpace(c.Code)) report.Add(file, $"{label}: comparison[{i}] needs 'code'.");
+                comparison.Add(new LabelledSnippet(c.Label ?? "", c.Language ?? "", c.Code ?? ""));
+            }
         }
 
         return report.Errors.Count == before
@@ -504,12 +512,21 @@ public static partial class ContentValidator
             PredictOutputStep predict => predict.Code.Code,
             _ => "",
         };
-        if (step is PredictOutputStep { Code.Language: not "python" })
-            report.Add(file, $"{where}: only python code can be walked through.");
+        var language = step switch
+        {
+            WriteCodeStep write => write.Language,
+            ParsonsStep parsons => parsons.Language,
+            FillBlankStep fill => fill.Language,
+            PredictOutputStep predict => predict.Code.Language,
+            _ => "python",
+        };
+        if (w.Language is not null && w.Language != language)
+            report.Add(file, $"{where}: language '{w.Language}' must match the step's language '{language}'.");
+        CheckRuntimeLanguage(language, where, file, report);
 
         var code = reference.TrimEnd() + "\n" + (call.Length > 0 ? "\n" + call + "\n" : "");
-        report.TraceChecks.Add(new TraceCheck(file, where, code, visuals));
-        return step with { Walkthrough = new Walkthrough(code, visuals, w.Explanation ?? "") };
+        report.TraceChecks.Add(new TraceCheck(file, where, code, visuals, language));
+        return step with { Walkthrough = new Walkthrough(code, visuals, w.Explanation ?? "") { Language = w.Language ?? (language == "python" ? null : language) } };
     }
 
     private static Step? WithHints(Step? step, List<string> hints) =>
@@ -620,7 +637,7 @@ public static partial class ContentValidator
         Require(dto.Prompt, "prompt", file, report, label);
         Require(dto.Template, "template", file, report, label);
         var language = dto.Language ?? "python";
-        if (language != "python") report.Add(file, $"{label}: unsupported language '{language}' (supported: python).");
+        CheckLanguage(language, label, file, report);
 
         var blanks = new List<Blank>();
         var declared = new HashSet<string>(StringComparer.Ordinal);
@@ -681,11 +698,11 @@ public static partial class ContentValidator
         Require(dto.Prompt, "prompt", file, report, label);
         Require(dto.Solution, "solution", file, report, label);
         var language = dto.Language ?? "python";
-        if (language != "python") report.Add(file, $"{label}: unsupported language '{language}' (supported: python).");
+        CheckLanguage(language, label, file, report);
 
         var lines = string.IsNullOrWhiteSpace(dto.Solution)
             ? []
-            : ParsonsSolution.Read(dto.Solution, msg => report.Add(file, $"{label}: {msg}"));
+            : ParsonsSolution.Read(dto.Solution, msg => report.Add(file, $"{label}: {msg}"), language);
 
         return report.Errors.Count == errorsBefore
             ? new ParsonsStep(dto.Id!, dto.Title!, dto.Prompt!, language, lines)
@@ -701,8 +718,10 @@ public static partial class ContentValidator
             missing: $"{label}: a trace step needs at least one entry in 'visualise' (which variable to draw, and how).");
 
         if (report.Errors.Count != errorsBefore) return null;
-        report.TraceChecks.Add(new TraceCheck(file, label, dto.Code!, visuals));
-        return new TraceStep(dto.Id!, dto.Title!, dto.Body!, dto.Code!, visuals);
+        var language = dto.Language ?? "python";
+        CheckRuntimeLanguage(language, label, file, report);
+        report.TraceChecks.Add(new TraceCheck(file, label, dto.Code!, visuals, language));
+        return new TraceStep(dto.Id!, dto.Title!, dto.Body!, dto.Code!, visuals) { Language = dto.Language };
     }
 
     /// <summary>Reads a <c>visualise</c> list. <paramref name="missing"/> is the error to report when the list is empty, or null when drawing nothing is fine.</summary>
@@ -736,7 +755,7 @@ public static partial class ContentValidator
                 else
                 {
                     Require(v.Variable, "variable", file, report, where);
-                    if (!string.IsNullOrWhiteSpace(v.Variable) && !PythonIdentifier.IsMatch(v.Variable))
+                    if (!string.IsNullOrWhiteSpace(v.Variable) && !EntrypointIdentifier.IsMatch(v.Variable))
                         report.Add(file, $"{where}: variable '{v.Variable}' is not a valid Python name.");
                     if (v.Variable is not null && visuals.FindIndex(x => x.Variable == v.Variable) is var first and >= 0)
                         report.Add(file, $"{where}: '{v.Variable}' is already drawn by visualise[{first}].");
@@ -750,7 +769,7 @@ public static partial class ContentValidator
                         report.Add(file, $"{where}: 'functions' is an option of a {Visual.CallStack} only, not of '{v.As}'.");
                         break;
                     }
-                    if (string.IsNullOrWhiteSpace(function) || !PythonIdentifier.IsMatch(function))
+                    if (string.IsNullOrWhiteSpace(function) || !EntrypointIdentifier.IsMatch(function))
                         report.Add(file, $"{where}: function '{function}' is not a valid Python name.");
                     else if (functions.Contains(function))
                         report.Add(file, $"{where}: function '{function}' is listed twice.");
@@ -770,7 +789,7 @@ public static partial class ContentValidator
                     if (value is null) continue;
                     if (!owners.Contains(v.As))
                         report.Add(file, $"{where}: '{option}' is an option of a {string.Join(" or ", owners)} only, not of '{v.As}'.");
-                    else if (!PythonIdentifier.IsMatch(value))
+                    else if (!EntrypointIdentifier.IsMatch(value))
                         report.Add(file, $"{where}: {option} '{value}' is not a valid Python attribute name.");
                 }
                 if (isTree && (v.Left ?? Visual.DefaultLeft) == (v.Right ?? Visual.DefaultRight))
@@ -781,7 +800,7 @@ public static partial class ContentValidator
                 {
                     if (!isTree && !isGraph)
                         report.Add(file, $"{where}: 'visited' is an option of a {Visual.Tree} or {Visual.Graph} only, not of '{v.As}'.");
-                    else if (!PythonIdentifier.IsMatch(v.Visited))
+                    else if (!EntrypointIdentifier.IsMatch(v.Visited))
                         report.Add(file, $"{where}: visited '{v.Visited}' is not a valid Python name.");
                     else if (v.Visited == v.Variable)
                         report.Add(file, $"{where}: visited '{v.Visited}' is the {v.As}'s own variable; name the list or set of the nodes visited.");
@@ -794,7 +813,7 @@ public static partial class ContentValidator
                 {
                     if (v.Edge is not { Count: 2 })
                         report.Add(file, $"{where}: 'edge' is a pair of variables, the node an edge leaves and the node it reaches: [node, neighbour].");
-                    else if (v.Edge.Any(n => string.IsNullOrWhiteSpace(n) || !PythonIdentifier.IsMatch(n)))
+                    else if (v.Edge.Any(n => string.IsNullOrWhiteSpace(n) || !EntrypointIdentifier.IsMatch(n)))
                         report.Add(file, $"{where}: edge [{string.Join(", ", v.Edge)}] has a name that is not a valid Python name.");
                     else if (v.Edge.Contains(v.Variable))
                         report.Add(file, $"{where}: edge [{string.Join(", ", v.Edge)}] names the graph's own variable; name the variables holding its two nodes.");
@@ -805,7 +824,7 @@ public static partial class ContentValidator
                 }
                 if (isGraph && v.Frontier is not null)
                 {
-                    if (!PythonIdentifier.IsMatch(v.Frontier))
+                    if (!EntrypointIdentifier.IsMatch(v.Frontier))
                         report.Add(file, $"{where}: frontier '{v.Frontier}' is not a valid Python name.");
                     else if (v.Frontier == v.Variable)
                         report.Add(file, $"{where}: frontier '{v.Frontier}' is the graph's own variable; name the queue or stack of nodes waiting.");
@@ -829,7 +848,7 @@ public static partial class ContentValidator
                     }
                     if (pair is not { Count: 2 })
                         report.Add(file, $"{where}: a 'cells' entry is a pair of int variables, the row's and the column's: [i, j].");
-                    else if (pair.Any(n => string.IsNullOrWhiteSpace(n) || !PythonIdentifier.IsMatch(n)))
+                    else if (pair.Any(n => string.IsNullOrWhiteSpace(n) || !EntrypointIdentifier.IsMatch(n)))
                         report.Add(file, $"{where}: cells pair [{string.Join(", ", pair)}] has a name that is not a valid Python name.");
                     else if (pair.Contains(v.Variable))
                         report.Add(file, $"{where}: cells pair [{string.Join(", ", pair)}] names the grid's own variable; name the int variables indexing it.");
@@ -843,7 +862,7 @@ public static partial class ContentValidator
                     if (value is null) continue;
                     if (!isGrid)
                         report.Add(file, $"{where}: '{option}' is an option of a {Visual.Grid} only, not of '{v.As}'.");
-                    else if (!PythonIdentifier.IsMatch(value))
+                    else if (!EntrypointIdentifier.IsMatch(value))
                         report.Add(file, $"{where}: {option} '{value}' is not a valid Python name.");
                     else if (value == v.Variable)
                         report.Add(file, $"{where}: {option} '{value}' is the grid's own variable; name another.");
@@ -861,7 +880,7 @@ public static partial class ContentValidator
                 var pointers = new List<string>();
                 foreach (var pointer in v.Pointers ?? [])
                 {
-                    if (string.IsNullOrWhiteSpace(pointer) || !PythonIdentifier.IsMatch(pointer))
+                    if (string.IsNullOrWhiteSpace(pointer) || !EntrypointIdentifier.IsMatch(pointer))
                         report.Add(file, $"{where}: pointer '{pointer}' is not a valid Python name.");
                     else if (pointers.Contains(pointer))
                         report.Add(file, $"{where}: pointer '{pointer}' is listed twice.");
@@ -891,18 +910,33 @@ public static partial class ContentValidator
         return visuals;
     }
 
-    private static readonly Regex PythonIdentifier = new("^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.Compiled);
+    private static void CheckLanguage(string language, string label, string file, ValidationReport report)
+    {
+        if (language is not ("python" or "csharp"))
+            report.Add(file, $"{label}: unsupported language '{language}' (supported: python, csharp).");
+    }
+
+    private static void CheckRuntimeLanguage(string language, string label, string file, ValidationReport report)
+    {
+        CheckLanguage(language, label, file, report);
+        if (report.App is { } app && !app.SupportsRuntime(language))
+            report.Add(file, $"{label}: runtime '{language}' is not enabled by app '{app.AppId}'.");
+    }
+
+    private static readonly Regex EntrypointIdentifier = new("^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.Compiled);
 
     private static Step? LoadWriteCode(StepDto dto, string label, string file, ValidationReport report, int errorsBefore)
     {
         Require(dto.Prompt, "prompt", file, report, label);
         Require(dto.Entrypoint, "entrypoint", file, report, label);
         Require(dto.Solution, "solution", file, report, label); // proved against the tests; packed only as part of a 'walkthrough', if the step has one
-        if (dto.Language is null) report.Add(file, $"{label}: 'language' is required (supported: python).");
-        else if (dto.Language != "python") report.Add(file, $"{label}: unsupported language '{dto.Language}' (supported: python).");
-        if (!string.IsNullOrWhiteSpace(dto.Entrypoint) && !PythonIdentifier.IsMatch(dto.Entrypoint))
-            report.Add(file, $"{label}: entrypoint '{dto.Entrypoint}' is not a valid Python function name.");
+        if (dto.Language is null) report.Add(file, $"{label}: 'language' is required (supported: python, csharp).");
+        else CheckRuntimeLanguage(dto.Language, label, file, report);
+        if (!string.IsNullOrWhiteSpace(dto.Entrypoint) && !EntrypointIdentifier.IsMatch(dto.Entrypoint))
+            report.Add(file, $"{label}: entrypoint '{dto.Entrypoint}' is not a valid function name (use letters, digits and underscores; start with a letter or underscore).");
 
+        if (dto.Compare is not null && dto.Language != "python")
+            report.Add(file, $"{label}: 'compare' is a Python harness option; other languages use their runtime's equality.");
         if (dto.Compare is not null && dto.Compare != CodeTest.CompareLinkedList)
             report.Add(file, $"{label}: unknown 'compare' '{dto.Compare}' (supported: {CodeTest.CompareLinkedList}, for a function that returns the head of a linked list).");
         var compare = dto.Compare == CodeTest.CompareLinkedList ? dto.Compare : null;
@@ -916,13 +950,13 @@ public static partial class ContentValidator
                 var t = dto.Tests[i];
                 if (IsEmptyEntry(t, $"{label}: tests[{i}]", file, report)) continue;
                 // 'input' may be empty (a function with no arguments); 'expected' never is.
-                if (t.Input is null) report.Add(file, $"{label}: tests[{i}] needs 'input' (the call's arguments as Python source; \"\" for none).");
-                if (string.IsNullOrWhiteSpace(t.Expected)) report.Add(file, $"{label}: tests[{i}] needs 'expected' (a Python expression).");
+                if (t.Input is null) report.Add(file, $"{label}: tests[{i}] needs 'input' (the call's arguments as source in the exercise language; \"\" for none).");
+                if (string.IsNullOrWhiteSpace(t.Expected)) report.Add(file, $"{label}: tests[{i}] needs 'expected' (an expression in the exercise language).");
                 tests.Add(new CodeTest(t.Input ?? "", t.Expected ?? "", compare));
             }
 
         if (report.Errors.Count != errorsBefore) return null;
-        report.ReferenceChecks.Add(new ReferenceCheck(file, label, dto.Id!, dto.Entrypoint!, dto.Solution!, tests));
+        report.ReferenceChecks.Add(new ReferenceCheck(file, label, dto.Id!, dto.Entrypoint!, dto.Solution!, tests, dto.Language!));
         return new WriteCodeStep(dto.Id!, dto.Title!, dto.Prompt!, dto.Language!, dto.Starter ?? "", dto.Entrypoint!, tests);
     }
 
@@ -993,7 +1027,7 @@ public static partial class ContentValidator
     private sealed class ConceptDto { public string? Id { get; set; } public string? Title { get; set; } }
     private sealed class ReviewItemDto { public string? Id { get; set; } public string? Concept { get; set; } public string? Step { get; set; } public string? Kind { get; set; } }
     private sealed class SnippetDto { public string? Language { get; set; } public string? Code { get; set; } }
-    private sealed class ComparisonDto { public string? Csharp { get; set; } public string? Python { get; set; } }
+    private sealed class ComparisonDto { public string? Label { get; set; } public string? Language { get; set; } public string? Code { get; set; } }
     private sealed class StepDto
     {
         public string? Id { get; set; }
@@ -1001,7 +1035,7 @@ public static partial class ContentValidator
         public string? Title { get; set; }
         public string? Body { get; set; }
         public List<SnippetDto>? Snippets { get; set; }
-        public ComparisonDto? Comparison { get; set; }
+        public List<ComparisonDto>? Comparison { get; set; }
         public string? Prompt { get; set; }
         public bool? MultiSelect { get; set; }
         public List<OptionDto>? Options { get; set; }
@@ -1025,7 +1059,7 @@ public static partial class ContentValidator
         public string? PatternCue { get; set; }
         public string? Difficulty { get; set; }
     }
-    private sealed class WalkthroughDto { public string? Call { get; set; } public List<VisualDto>? Visualise { get; set; } public string? Explanation { get; set; } }
+    private sealed class WalkthroughDto { public string? Language { get; set; } public string? Call { get; set; } public List<VisualDto>? Visualise { get; set; } public string? Explanation { get; set; } }
     private sealed class VisualDto
     {
         public string? Variable { get; set; }

@@ -48,27 +48,31 @@ steps:
 
       The cue to remember is *"sorted, or symmetrical, and I'm looking at pairs or ends"*.
     comparison:
-      csharp: |
-        int left = 0, right = nums.Length - 1;
-        while (left < right)
-        {
-            int total = nums[left] + nums[right];
-            if (total == target) return new[] { left, right };
-            if (total < target) left++;
-            else right--;
-        }
-        return Array.Empty<int>();
-      python: |
-        left, right = 0, len(nums) - 1
-        while left < right:
-            total = nums[left] + nums[right]
-            if total == target:
-                return [left, right]
-            if total < target:
-                left += 1
-            else:
-                right -= 1
-        return []
+      - label: C#
+        language: csharp
+        code: |
+          int left = 0, right = nums.Length - 1;
+          while (left < right)
+          {
+              int total = nums[left] + nums[right];
+              if (total == target) return new[] { left, right };
+              if (total < target) left++;
+              else right--;
+          }
+          return Array.Empty<int>();
+      - label: Python
+        language: python
+        code: |
+          left, right = 0, len(nums) - 1
+          while left < right:
+              total = nums[left] + nums[right]
+              if total == target:
+                  return [left, right]
+              if total < target:
+                  left += 1
+              else:
+                  right -= 1
+          return []
   - id: step.converging.trace-pair
     type: trace
     title: Closing in on a pair

@@ -51,30 +51,34 @@ steps:
       The only thing that changes between problems is the rule, and what you keep in the window to check it (a set, a count, a
       total).
     comparison:
-      csharp: |
-        // Longest stretch with no repeated character
-        var seen = new HashSet<char>();
-        int left = 0, best = 0;
-        for (int right = 0; right < s.Length; right++)
-        {
-            while (seen.Contains(s[right]))   // rule broken
-            {
-                seen.Remove(s[left]);
-                left++;
-            }
-            seen.Add(s[right]);
-            best = Math.Max(best, right - left + 1);
-        }
-      python: |
-        # Longest stretch with no repeated character
-        seen = set()
-        left = best = 0
-        for right in range(len(s)):
-            while s[right] in seen:           # rule broken
-                seen.remove(s[left])
-                left += 1
-            seen.add(s[right])
-            best = max(best, right - left + 1)
+      - label: C#
+        language: csharp
+        code: |
+          // Longest stretch with no repeated character
+          var seen = new HashSet<char>();
+          int left = 0, best = 0;
+          for (int right = 0; right < s.Length; right++)
+          {
+              while (seen.Contains(s[right]))   // rule broken
+              {
+                  seen.Remove(s[left]);
+                  left++;
+              }
+              seen.Add(s[right]);
+              best = Math.Max(best, right - left + 1);
+          }
+      - label: Python
+        language: python
+        code: |
+          # Longest stretch with no repeated character
+          seen = set()
+          left = best = 0
+          for right in range(len(s)):
+              while s[right] in seen:           # rule broken
+                  seen.remove(s[left])
+                  left += 1
+              seen.add(s[right])
+              best = max(best, right - left + 1)
   - id: step.varwindow.trace-unique
     type: trace
     title: Shrinking when a letter repeats

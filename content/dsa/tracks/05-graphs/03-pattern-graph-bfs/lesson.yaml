@@ -48,31 +48,35 @@ steps:
 
       In C# it's a `Queue<T>` and a `Dictionary<T, int>`; in Python a `deque` and a dict.
     comparison:
-      csharp: |
-        var dist = new Dictionary<string, int> { [start] = 0 };
-        var queue = new Queue<string>();
-        queue.Enqueue(start);
-        while (queue.Count > 0)
-        {
-            var node = queue.Dequeue();
-            foreach (var nb in g[node])
-                if (!dist.ContainsKey(nb))
-                {
-                    dist[nb] = dist[node] + 1;
-                    queue.Enqueue(nb);
-                }
-        }
-      python: |
-        from collections import deque
+      - label: C#
+        language: csharp
+        code: |
+          var dist = new Dictionary<string, int> { [start] = 0 };
+          var queue = new Queue<string>();
+          queue.Enqueue(start);
+          while (queue.Count > 0)
+          {
+              var node = queue.Dequeue();
+              foreach (var nb in g[node])
+                  if (!dist.ContainsKey(nb))
+                  {
+                      dist[nb] = dist[node] + 1;
+                      queue.Enqueue(nb);
+                  }
+          }
+      - label: Python
+        language: python
+        code: |
+          from collections import deque
 
-        dist = {start: 0}
-        queue = deque([start])
-        while queue:
-            node = queue.popleft()
-            for nb in g[node]:
-                if nb not in dist:
-                    dist[nb] = dist[node] + 1
-                    queue.append(nb)
+          dist = {start: 0}
+          queue = deque([start])
+          while queue:
+              node = queue.popleft()
+              for nb in g[node]:
+                  if nb not in dist:
+                      dist[nb] = dist[node] + 1
+                      queue.append(nb)
   - id: step.graph-bfs.trace-dist
     type: trace
     title: One ring at a time

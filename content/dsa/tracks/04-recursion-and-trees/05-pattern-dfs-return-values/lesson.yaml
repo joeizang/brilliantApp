@@ -43,14 +43,18 @@ steps:
       them. That is post-order: both children answer before the node does. The same shape gives the number of nodes
       (`1 + left + right`), the sum of the values, the largest value, whether a value is anywhere in the tree, and much more.
     comparison:
-      csharp: |
-        static int Height(Node? node) =>
-            node == null ? 0 : 1 + Math.Max(Height(node.Left), Height(node.Right));
-      python: |
-        def height(node):
-            if node is None:
-                return 0
-            return 1 + max(height(node.left), height(node.right))
+      - label: C#
+        language: csharp
+        code: |
+          static int Height(Node? node) =>
+              node == null ? 0 : 1 + Math.Max(Height(node.Left), Height(node.Right));
+      - label: Python
+        language: python
+        code: |
+          def height(node):
+              if node is None:
+                  return 0
+              return 1 + max(height(node.left), height(node.right))
   - id: step.dfs-values.trace-height
     type: trace
     title: Heights come back up
@@ -160,34 +164,38 @@ steps:
       Without it, `best = …` makes a new local variable, and reading `best` first raises `UnboundLocalError`. C# lambdas and
       local functions can assign captured variables freely.
     comparison:
-      csharp: |
-        static int Diameter(Node? root)
-        {
-            int best = 0;
-            int Height(Node? node)
-            {
-                if (node == null) return 0;
-                int l = Height(node.Left), r = Height(node.Right);
-                best = Math.Max(best, l + r);   // captured: no keyword needed
-                return 1 + Math.Max(l, r);
-            }
-            Height(root);
-            return best;
-        }
-      python: |
-        def diameter(root):
-            best = 0
+      - label: C#
+        language: csharp
+        code: |
+          static int Diameter(Node? root)
+          {
+              int best = 0;
+              int Height(Node? node)
+              {
+                  if (node == null) return 0;
+                  int l = Height(node.Left), r = Height(node.Right);
+                  best = Math.Max(best, l + r);   // captured: no keyword needed
+                  return 1 + Math.Max(l, r);
+              }
+              Height(root);
+              return best;
+          }
+      - label: Python
+        language: python
+        code: |
+          def diameter(root):
+              best = 0
 
-            def height(node):
-                nonlocal best                   # needed to assign best
-                if node is None:
-                    return 0
-                l, r = height(node.left), height(node.right)
-                best = max(best, l + r)
-                return 1 + max(l, r)
+              def height(node):
+                  nonlocal best                   # needed to assign best
+                  if node is None:
+                      return 0
+                  l, r = height(node.left), height(node.right)
+                  best = max(best, l + r)
+                  return 1 + max(l, r)
 
-            height(root)
-            return best
+              height(root)
+              return best
   - id: step.dfs-values.trace-diameter
     type: trace
     title: The best path, on the side

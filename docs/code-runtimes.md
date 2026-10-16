@@ -9,10 +9,10 @@ back to another language's runtime.
 
 Write-code views use `WriteCodeStep.Language`. Trace steps and walkthroughs accept
 optional language metadata; missing metadata in existing packs means Python.
-Null metadata is omitted when writing packs, preserving existing DSA pack bytes.
+Null metadata stays omitted. The format-2 comparison migration is documented in
+[App content](app-content.md); cached format-1 packs remain readable.
 The trace player receives the language so loading and error text name the exercise
-language. The paired C#/Python comparison labels describe their actual snippets;
-comparison generalization remains #144.
+language. Comparisons are ordered labelled snippets; each label and language comes from the content.
 
 `Brilliant.Runtime.Python` is a separate Razor class library. It owns
 `PyodideRuntime`, the JS bridge, module worker, test harness, tracer and the bundled

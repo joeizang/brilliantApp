@@ -126,43 +126,47 @@ steps:
 
       On a balanced BST that visits about `log n + k` nodes, not all `n`.
     comparison:
-      csharp: |
-        static int KthSmallest(Node root, int k)
-        {
-            int count = 0, answer = 0;
+      - label: C#
+        language: csharp
+        code: |
+          static int KthSmallest(Node root, int k)
+          {
+              int count = 0, answer = 0;
 
-            void Walk(Node? node)
-            {
-                if (node == null || count >= k) return;
-                Walk(node.Left);
-                if (count >= k) return;
-                count++;
-                if (count == k) answer = node.Val;
-                Walk(node.Right);
-            }
+              void Walk(Node? node)
+              {
+                  if (node == null || count >= k) return;
+                  Walk(node.Left);
+                  if (count >= k) return;
+                  count++;
+                  if (count == k) answer = node.Val;
+                  Walk(node.Right);
+              }
 
-            Walk(root);
-            return answer;
-        }
-      python: |
-        def kth_smallest(root, k):
-            count = 0
-            answer = None
+              Walk(root);
+              return answer;
+          }
+      - label: Python
+        language: python
+        code: |
+          def kth_smallest(root, k):
+              count = 0
+              answer = None
 
-            def walk(node):
-                nonlocal count, answer
-                if node is None or count >= k:
-                    return
-                walk(node.left)
-                if count >= k:
-                    return
-                count += 1
-                if count == k:
-                    answer = node.val
-                walk(node.right)
+              def walk(node):
+                  nonlocal count, answer
+                  if node is None or count >= k:
+                      return
+                  walk(node.left)
+                  if count >= k:
+                      return
+                  count += 1
+                  if count == k:
+                      answer = node.val
+                  walk(node.right)
 
-            walk(root)
-            return answer
+              walk(root)
+              return answer
   - id: step.choose-trees.trace-kth
     type: trace
     title: The 3rd smallest

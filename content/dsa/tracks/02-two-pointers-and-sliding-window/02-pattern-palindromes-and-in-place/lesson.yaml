@@ -41,33 +41,37 @@ steps:
       The same walk edits a list **in place**. Swap the items under the two pointers, move both inwards, and the list ends up
       reversed with no second list.
     comparison:
-      csharp: |
-        // One line, but it builds a reversed copy
-        bool IsPalindrome(string s) =>
-            s == new string(s.Reverse().ToArray());
+      - label: C#
+        language: csharp
+        code: |
+          // One line, but it builds a reversed copy
+          bool IsPalindrome(string s) =>
+              s == new string(s.Reverse().ToArray());
 
-        // Two pointers: no copy, and it stops at the first mismatch
-        int left = 0, right = s.Length - 1;
-        while (left < right)
-        {
-            if (s[left] != s[right]) return false;
-            left++;
-            right--;
-        }
-        return true;
-      python: |
-        # One line, but it builds a reversed copy
-        def is_palindrome(s):
-            return s == s[::-1]
+          // Two pointers: no copy, and it stops at the first mismatch
+          int left = 0, right = s.Length - 1;
+          while (left < right)
+          {
+              if (s[left] != s[right]) return false;
+              left++;
+              right--;
+          }
+          return true;
+      - label: Python
+        language: python
+        code: |
+          # One line, but it builds a reversed copy
+          def is_palindrome(s):
+              return s == s[::-1]
 
-        # Two pointers: no copy, and it stops at the first mismatch
-        left, right = 0, len(s) - 1
-        while left < right:
-            if s[left] != s[right]:
-                return False
-            left += 1
-            right -= 1
-        return True
+          # Two pointers: no copy, and it stops at the first mismatch
+          left, right = 0, len(s) - 1
+          while left < right:
+              if s[left] != s[right]:
+                  return False
+              left += 1
+              right -= 1
+          return True
   - id: step.palindrome.trace-mismatch
     type: trace
     title: Stopping at the first mismatch

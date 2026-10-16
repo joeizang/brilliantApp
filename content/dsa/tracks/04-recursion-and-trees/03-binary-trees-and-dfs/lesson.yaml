@@ -47,33 +47,37 @@ steps:
       Python has no tree class built in, so you write a small one, as you did for linked lists. A `__repr__` makes a node print
       as `Node(4)` instead of `<Node object at 0x…>`.
     comparison:
-      csharp: |
-        class Node(int val, Node? left = null, Node? right = null)
-        {
-            public int Val = val;
-            public Node? Left = left;
-            public Node? Right = right;
-        }
+      - label: C#
+        language: csharp
+        code: |
+          class Node(int val, Node? left = null, Node? right = null)
+          {
+              public int Val = val;
+              public Node? Left = left;
+              public Node? Right = right;
+          }
 
-        //       1
-        //      / \
-        //     2   3
-        var root = new Node(1, new Node(2), new Node(3));
-      python: |
-        class Node:
-            def __init__(self, val, left=None, right=None):
-                self.val = val
-                self.left = left
-                self.right = right
+          //       1
+          //      / \
+          //     2   3
+          var root = new Node(1, new Node(2), new Node(3));
+      - label: Python
+        language: python
+        code: |
+          class Node:
+              def __init__(self, val, left=None, right=None):
+                  self.val = val
+                  self.left = left
+                  self.right = right
 
-            def __repr__(self):
-                return f"Node({self.val})"
+              def __repr__(self):
+                  return f"Node({self.val})"
 
 
-        #       1
-        #      / \
-        #     2   3
-        root = Node(1, Node(2), Node(3))
+          #       1
+          #      / \
+          #     2   3
+          root = Node(1, Node(2), Node(3))
   - id: step.tree-dfs.check-leaves
     type: choice
     title: Find the leaves

@@ -60,7 +60,8 @@ public sealed record Lesson(string Id, string Title, string TrackId, IReadOnlyLi
 
 public sealed record CodeSnippet(string Language, string Code);
 
-public sealed record Comparison(string CSharp, string Python);
+/// <summary>One labelled code snippet in a comparison, in any language.</summary>
+public sealed record LabelledSnippet(string Label, string Language, string Code);
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 [JsonDerivedType(typeof(ExplainStep), "explain")]
@@ -136,13 +137,14 @@ public sealed record Walkthrough(string Code, IReadOnlyList<Visual> Visuals, str
     public string? Language { get; init; }
 }
 
-/// <summary>Text (markdown), optional code snippets and an optional side-by-side C#↔Python comparison.</summary>
+/// <summary>Text (markdown), optional code snippets and an optional comparison of labelled snippets.</summary>
 public sealed record ExplainStep(
     string Id,
     string Title,
     string Body,
     IReadOnlyList<CodeSnippet> Snippets,
-    Comparison? Comparison) : Step(Id, Title);
+    [property: JsonConverter(typeof(ComparisonJsonConverter))]
+    IReadOnlyList<LabelledSnippet>? Comparison) : Step(Id, Title);
 
 /// <summary>One answer option. <see cref="Feedback"/> explains why it is right or wrong.</summary>
 public sealed record ChoiceOption(string Text, bool Correct, string? Feedback);
@@ -179,7 +181,7 @@ public sealed record PredictOutputStep(
 
 /// <summary>
 /// One hidden test of a write-code step: the learner's function is called as <c>entrypoint(<see cref="Input"/>)</c> and the
-/// result must equal the Python expression <see cref="Expected"/>. Both are Python source text, e.g. <c>[3, 1, 2], 2</c> and <c>(1, 3)</c>.
+/// result must equal the expression <see cref="Expected"/>. Both are source text in the owning exercise's language, compared using that runtime's equality (structural for C# arrays, records and tuples). Python examples: <c>[3, 1, 2], 2</c> and <c>(1, 3)</c>.
 /// <see cref="Compare"/> is null to compare the result itself, or <see cref="CompareLinkedList"/> when the function returns the head of
 /// a linked list: the harness then follows <c>.next</c> from it, collects each node's <c>.val</c> into a list, and compares that list
 /// (<c>None</c> is the empty list).
@@ -195,7 +197,7 @@ public sealed record CodeTest(
 
 /// <summary>
 /// "Write the function." The learner edits <see cref="Starter"/> code; on submit it is run against the hidden
-/// <see cref="Tests"/> by calling <see cref="Entrypoint"/>. <see cref="Language"/> is declared per exercise ("python" for now).
+/// <see cref="Tests"/> by calling <see cref="Entrypoint"/>. <see cref="Language"/> is declared per exercise; every test uses that language.
 /// </summary>
 public sealed record WriteCodeStep(
     string Id,
@@ -309,20 +311,6 @@ public sealed record Visual(string Variable, string As, IReadOnlyList<string> Po
 
     /// <summary>The drawings of a sequence as cells, whose pointers are indexes.</summary>
     public static readonly IReadOnlyList<string> Sequences = [Array, Stack, Queue];
-
-    /// <summary>
-    /// The Python types a sequence drawing shows, as the recorder names them: an array anything it records as cells, a stack or a
-    /// queue a list or a <c>collections.deque</c>. Empty for a dict or set.
-    /// </summary>
-    public static IReadOnlyList<string> SequenceTypes(string kind) => kind switch
-    {
-        Array => ["list", "tuple", "deque"],
-        Stack or Queue => ["list", "deque"],
-        _ => [],
-    };
-
-    /// <summary>Whether this drawing shows a value the recorder tracked as cells of <paramref name="type"/>.</summary>
-    public bool Draws(string type) => As == Array || SequenceTypes(As).Contains(type);
 }
 
 /// <summary>A grid pointer made of two int variables, the row's and the column's. <see cref="Name"/> is how the trace names it: <c>i,j</c>.</summary>

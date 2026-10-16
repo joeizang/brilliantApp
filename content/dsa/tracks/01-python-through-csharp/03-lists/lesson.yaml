@@ -48,14 +48,18 @@ steps:
 
       Reading past the end raises an **`IndexError`**, just as C# throws `ArgumentOutOfRangeException`.
     comparison:
-      csharp: |
-        var nums = new List<int> { 10, 20, 30 };
-        int first = nums[0];
-        int count = nums.Count;
-      python: |
-        nums = [10, 20, 30]
-        first = nums[0]
-        count = len(nums)
+      - label: C#
+        language: csharp
+        code: |
+          var nums = new List<int> { 10, 20, 30 };
+          int first = nums[0];
+          int count = nums.Count;
+      - label: Python
+        language: python
+        code: |
+          nums = [10, 20, 30]
+          first = nums[0]
+          count = len(nums)
   - id: step.lists.trace-walk
     type: trace
     title: Watch an index walk a list
@@ -105,12 +109,16 @@ steps:
       `-1` is the last item because `-0` would just be `0`. A negative index is valid as long as
       its size is no bigger than the length of the list.
     comparison:
-      csharp: |
-        int last = nums[^1];
-        int secondLast = nums[^2];
-      python: |
-        last = nums[-1]
-        second_last = nums[-2]
+      - label: C#
+        language: csharp
+        code: |
+          int last = nums[^1];
+          int secondLast = nums[^2];
+      - label: Python
+        language: python
+        code: |
+          last = nums[-1]
+          second_last = nums[-2]
   - id: step.lists.predict-negative
     type: predict-output
     title: Predict the output
@@ -147,14 +155,18 @@ steps:
 
       In C# you'd reach for `GetRange`, `Skip`/`Take`, or the `nums[1..3]` range syntax on arrays.
     comparison:
-      csharp: |
-        var middle = nums.Skip(1).Take(2).ToList();
-        var lastTwo = nums.TakeLast(2).ToList();
-        var backwards = Enumerable.Reverse(nums).ToList();
-      python: |
-        middle = nums[1:3]
-        last_two = nums[-2:]
-        backwards = nums[::-1]
+      - label: C#
+        language: csharp
+        code: |
+          var middle = nums.Skip(1).Take(2).ToList();
+          var lastTwo = nums.TakeLast(2).ToList();
+          var backwards = Enumerable.Reverse(nums).ToList();
+      - label: Python
+        language: python
+        code: |
+          middle = nums[1:3]
+          last_two = nums[-2:]
+          backwards = nums[::-1]
   - id: step.lists.predict-slice
     type: predict-output
     title: Predict the output
@@ -264,13 +276,17 @@ steps:
       One thing to watch: `b = a` doesn't copy the list. Both names point at the **same** list, so a change
       through one shows up through the other. Use `a.copy()` or a slice `a[:]` for a real copy.
     comparison:
-      csharp: |
-        nums.Add(4);
-        int last = nums[^1];
-        nums.RemoveAt(nums.Count - 1);
-      python: |
-        nums.append(4)
-        last = nums.pop()
+      - label: C#
+        language: csharp
+        code: |
+          nums.Add(4);
+          int last = nums[^1];
+          nums.RemoveAt(nums.Count - 1);
+      - label: Python
+        language: python
+        code: |
+          nums.append(4)
+          last = nums.pop()
   - id: step.lists.predict-append-pop
     type: predict-output
     title: Predict the output
@@ -376,13 +392,17 @@ steps:
       Read it as "give me *expression* for each *item* in *source* where *condition* holds". The `if` part is optional.
       Compare it with the C# you would write.
     comparison:
-      csharp: |
-        var result = nums
-            .Where(n => n % 2 == 0)
-            .Select(n => n * n)
-            .ToList();
-      python: |
-        result = [n * n for n in nums if n % 2 == 0]
+      - label: C#
+        language: csharp
+        code: |
+          var result = nums
+              .Where(n => n % 2 == 0)
+              .Select(n => n * n)
+              .ToList();
+      - label: Python
+        language: python
+        code: |
+          result = [n * n for n in nums if n % 2 == 0]
   - id: step.lists.predict-comprehension
     type: predict-output
     title: Predict the output

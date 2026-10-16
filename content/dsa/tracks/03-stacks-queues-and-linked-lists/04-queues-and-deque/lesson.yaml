@@ -49,23 +49,27 @@ steps:
       A deque is not a list, though. Indexing the middle (`q[i]`) is `O(n)`, and it has no slicing. Use it when you work at the
       ends; use a list when you index.
     comparison:
-      csharp: |
-        var q = new Queue<int>();
-        q.Enqueue(1);
-        q.Enqueue(2);
-        int front = q.Peek();      // 1
-        int x = q.Dequeue();       // 1, and the queue is [2]
-        if (q.Count == 0) { }
-      python: |
-        from collections import deque
+      - label: C#
+        language: csharp
+        code: |
+          var q = new Queue<int>();
+          q.Enqueue(1);
+          q.Enqueue(2);
+          int front = q.Peek();      // 1
+          int x = q.Dequeue();       // 1, and the queue is [2]
+          if (q.Count == 0) { }
+      - label: Python
+        language: python
+        code: |
+          from collections import deque
 
-        q = deque()
-        q.append(1)
-        q.append(2)
-        front = q[0]               # 1
-        x = q.popleft()            # 1, and the queue is [2]
-        if not q:
-            pass
+          q = deque()
+          q.append(1)
+          q.append(2)
+          front = q[0]               # 1
+          x = q.popleft()            # 1, and the queue is [2]
+          if not q:
+              pass
   - id: step.deque.why-not-list
     type: explain
     title: Why not just use a list?
@@ -79,18 +83,22 @@ steps:
 
       The rule: if you take from the **front**, use a `deque`. If you only touch the **back**, a list is a fine stack.
     comparison:
-      csharp: |
-        var list = new List<int> { 1, 2, 3 };
-        list.RemoveAt(0);          // O(n): shifts 2 and 3 down
+      - label: C#
+        language: csharp
+        code: |
+          var list = new List<int> { 1, 2, 3 };
+          list.RemoveAt(0);          // O(n): shifts 2 and 3 down
 
-        var q = new Queue<int>(new[] { 1, 2, 3 });
-        q.Dequeue();               // O(1)
-      python: |
-        items = [1, 2, 3]
-        items.pop(0)               # O(n): shifts 2 and 3 down
+          var q = new Queue<int>(new[] { 1, 2, 3 });
+          q.Dequeue();               // O(1)
+      - label: Python
+        language: python
+        code: |
+          items = [1, 2, 3]
+          items.pop(0)               # O(n): shifts 2 and 3 down
 
-        q = deque([1, 2, 3])
-        q.popleft()                # O(1)
+          q = deque([1, 2, 3])
+          q.popleft()                # O(1)
   - id: step.deque.trace-ops
     type: trace
     title: Both ends of a deque
@@ -206,27 +214,31 @@ steps:
 
       Each index enters once and leaves once, so the whole thing is `O(n)`.
     comparison:
-      csharp: |
-        // C# has no deque; LinkedList<int> works at both ends.
-        var window = new LinkedList<int>();       // indices
-        for (int i = 0; i < nums.Length; i++)
-        {
-            while (window.Count > 0 && nums[window.Last!.Value] <= nums[i])
-                window.RemoveLast();
-            window.AddLast(i);
-            if (window.First!.Value <= i - k) window.RemoveFirst();
-            if (i >= k - 1) result.Add(nums[window.First!.Value]);
-        }
-      python: |
-        window = deque()                          # indices
-        for i, x in enumerate(nums):
-            while window and nums[window[-1]] <= x:
-                window.pop()
-            window.append(i)
-            if window[0] <= i - k:
-                window.popleft()
-            if i >= k - 1:
-                result.append(nums[window[0]])
+      - label: C#
+        language: csharp
+        code: |
+          // C# has no deque; LinkedList<int> works at both ends.
+          var window = new LinkedList<int>();       // indices
+          for (int i = 0; i < nums.Length; i++)
+          {
+              while (window.Count > 0 && nums[window.Last!.Value] <= nums[i])
+                  window.RemoveLast();
+              window.AddLast(i);
+              if (window.First!.Value <= i - k) window.RemoveFirst();
+              if (i >= k - 1) result.Add(nums[window.First!.Value]);
+          }
+      - label: Python
+        language: python
+        code: |
+          window = deque()                          # indices
+          for i, x in enumerate(nums):
+              while window and nums[window[-1]] <= x:
+                  window.pop()
+              window.append(i)
+              if window[0] <= i - k:
+                  window.popleft()
+              if i >= k - 1:
+                  result.append(nums[window[0]])
   - id: step.deque.trace-recent
     type: trace
     title: Only the last 3000 milliseconds

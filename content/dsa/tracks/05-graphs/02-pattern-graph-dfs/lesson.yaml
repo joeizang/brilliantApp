@@ -49,29 +49,33 @@ steps:
 
       The recursive form is the tree DFS plus the set. In C# it's a `HashSet<T>` and a recursive local function.
     comparison:
-      csharp: |
-        var seen = new HashSet<string>();
-        var order = new List<string>();
-        void Dfs(string node)
-        {
-            seen.Add(node);
-            order.Add(node);
-            foreach (var nb in g[node])
-                if (!seen.Contains(nb)) Dfs(nb);
-        }
-        Dfs("A");
-      python: |
-        seen = set()
-        order = []
+      - label: C#
+        language: csharp
+        code: |
+          var seen = new HashSet<string>();
+          var order = new List<string>();
+          void Dfs(string node)
+          {
+              seen.Add(node);
+              order.Add(node);
+              foreach (var nb in g[node])
+                  if (!seen.Contains(nb)) Dfs(nb);
+          }
+          Dfs("A");
+      - label: Python
+        language: python
+        code: |
+          seen = set()
+          order = []
 
-        def dfs(node):
-            seen.add(node)
-            order.append(node)
-            for nb in g[node]:
-                if nb not in seen:
-                    dfs(nb)
+          def dfs(node):
+              seen.add(node)
+              order.append(node)
+              for nb in g[node]:
+                  if nb not in seen:
+                      dfs(nb)
 
-        dfs("A")
+          dfs("A")
   - id: step.graph-dfs.trace-recursive
     type: trace
     title: The dive, and the way back

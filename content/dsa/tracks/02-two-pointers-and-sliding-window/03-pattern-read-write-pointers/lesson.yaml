@@ -47,26 +47,30 @@ steps:
 
       The writer can never get ahead of the reader, so a write never destroys an item that hasn't been read yet.
     comparison:
-      csharp: |
-        // Keep only the values that are not `val`, in place
-        int write = 0;
-        for (int read = 0; read < nums.Length; read++)
-        {
-            if (nums[read] != val)
-            {
-                nums[write] = nums[read];
-                write++;
-            }
-        }
-        return write; // the new length
-      python: |
-        # Keep only the values that are not `val`, in place
-        write = 0
-        for read in range(len(nums)):
-            if nums[read] != val:
-                nums[write] = nums[read]
-                write += 1
-        return write  # the new length
+      - label: C#
+        language: csharp
+        code: |
+          // Keep only the values that are not `val`, in place
+          int write = 0;
+          for (int read = 0; read < nums.Length; read++)
+          {
+              if (nums[read] != val)
+              {
+                  nums[write] = nums[read];
+                  write++;
+              }
+          }
+          return write; // the new length
+      - label: Python
+        language: python
+        code: |
+          # Keep only the values that are not `val`, in place
+          write = 0
+          for read in range(len(nums)):
+              if nums[read] != val:
+                  nums[write] = nums[read]
+                  write += 1
+          return write  # the new length
   - id: step.readwrite.trace-dedupe
     type: trace
     title: Removing duplicates from a sorted list

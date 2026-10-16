@@ -43,29 +43,33 @@ steps:
       In Python the queue is a `collections.deque`, as in Track 3: `append` to the back and `popleft` from the front, both
       O(1). C# has `Queue<T>` with `Enqueue` and `Dequeue`.
     comparison:
-      csharp: |
-        var order = new List<int>();
-        var queue = new Queue<Node>();
-        if (root != null) queue.Enqueue(root);
-        while (queue.Count > 0)
-        {
-            var node = queue.Dequeue();
-            order.Add(node.Val);
-            if (node.Left != null) queue.Enqueue(node.Left);
-            if (node.Right != null) queue.Enqueue(node.Right);
-        }
-      python: |
-        from collections import deque
+      - label: C#
+        language: csharp
+        code: |
+          var order = new List<int>();
+          var queue = new Queue<Node>();
+          if (root != null) queue.Enqueue(root);
+          while (queue.Count > 0)
+          {
+              var node = queue.Dequeue();
+              order.Add(node.Val);
+              if (node.Left != null) queue.Enqueue(node.Left);
+              if (node.Right != null) queue.Enqueue(node.Right);
+          }
+      - label: Python
+        language: python
+        code: |
+          from collections import deque
 
-        order = []
-        queue = deque([root] if root else [])
-        while queue:
-            node = queue.popleft()
-            order.append(node.val)
-            if node.left:
-                queue.append(node.left)
-            if node.right:
-                queue.append(node.right)
+          order = []
+          queue = deque([root] if root else [])
+          while queue:
+              node = queue.popleft()
+              order.append(node.val)
+              if node.left:
+                  queue.append(node.left)
+              if node.right:
+                  queue.append(node.right)
   - id: step.bfs.trace-order
     type: trace
     title: The queue runs the walk

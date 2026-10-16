@@ -49,28 +49,32 @@ steps:
       The stack is *monotonic* because of that rule: for "next greater", the values on it only ever go **down** from bottom to
       top. Anything smaller than a newcomer has already been answered and popped.
     comparison:
-      csharp: |
-        int[] NextGreater(int[] nums)
-        {
-            var result = Enumerable.Repeat(-1, nums.Length).ToArray();
-            var stack = new Stack<int>();          // indices
-            for (int i = 0; i < nums.Length; i++)
-            {
-                while (stack.Count > 0 && nums[stack.Peek()] < nums[i])
-                    result[stack.Pop()] = nums[i];
-                stack.Push(i);
-            }
-            return result;
-        }
-      python: |
-        def next_greater(nums):
-            result = [-1] * len(nums)
-            stack = []                              # indices
-            for i in range(len(nums)):
-                while stack and nums[stack[-1]] < nums[i]:
-                    result[stack.pop()] = nums[i]
-                stack.append(i)
-            return result
+      - label: C#
+        language: csharp
+        code: |
+          int[] NextGreater(int[] nums)
+          {
+              var result = Enumerable.Repeat(-1, nums.Length).ToArray();
+              var stack = new Stack<int>();          // indices
+              for (int i = 0; i < nums.Length; i++)
+              {
+                  while (stack.Count > 0 && nums[stack.Peek()] < nums[i])
+                      result[stack.Pop()] = nums[i];
+                  stack.Push(i);
+              }
+              return result;
+          }
+      - label: Python
+        language: python
+        code: |
+          def next_greater(nums):
+              result = [-1] * len(nums)
+              stack = []                              # indices
+              for i in range(len(nums)):
+                  while stack and nums[stack[-1]] < nums[i]:
+                      result[stack.pop()] = nums[i]
+                  stack.append(i)
+              return result
   - id: step.monotonic.trace-next-greater
     type: trace
     title: Watch the waiting list
@@ -157,18 +161,22 @@ steps:
       *Daily temperatures*: for each day, how many days until a warmer one? The waiting stack is the same; the only change is
       what gets recorded. When day `i` pops day `j`, the answer for `j` is `i - j`.
     comparison:
-      csharp: |
-        while (stack.Count > 0 && temps[stack.Peek()] < temps[i])
-        {
-            int j = stack.Pop();
-            answer[j] = i - j;
-        }
-        stack.Push(i);
-      python: |
-        while stack and temps[stack[-1]] < temps[i]:
-            j = stack.pop()
-            answer[j] = i - j
-        stack.append(i)
+      - label: C#
+        language: csharp
+        code: |
+          while (stack.Count > 0 && temps[stack.Peek()] < temps[i])
+          {
+              int j = stack.Pop();
+              answer[j] = i - j;
+          }
+          stack.Push(i);
+      - label: Python
+        language: python
+        code: |
+          while stack and temps[stack[-1]] < temps[i]:
+              j = stack.pop()
+              answer[j] = i - j
+          stack.append(i)
   - id: step.monotonic.predict-temperatures
     type: predict-output
     title: Predict the output

@@ -48,14 +48,18 @@ steps:
       that `rev("bc")` gives `"cb"`. Then the whole is `"cb" + "a"`. That's all: if the base case is right and each step is
       right, every input is right.
     comparison:
-      csharp: |
-        static string Rev(string s) =>
-            s.Length == 0 ? "" : Rev(s[1..]) + s[0];
-      python: |
-        def rev(s):
-            if s == "":
-                return ""
-            return rev(s[1:]) + s[0]
+      - label: C#
+        language: csharp
+        code: |
+          static string Rev(string s) =>
+              s.Length == 0 ? "" : Rev(s[1..]) + s[0];
+      - label: Python
+        language: python
+        code: |
+          def rev(s):
+              if s == "":
+                  return ""
+              return rev(s[1:]) + s[0]
   - id: step.thinking.trace-rev
     type: trace
     title: Reversing a string
@@ -144,18 +148,22 @@ steps:
       C# has a cheaper way to slice: a `Span<T>` or `ReadOnlySpan<T>` is a view onto the same memory, so `span[1..]` copies
       nothing. Python's lists have no such view, so pass the index.
     comparison:
-      csharp: |
-        static int Total(ReadOnlySpan<int> nums) =>
-            nums.IsEmpty ? 0 : nums[0] + Total(nums[1..]);
+      - label: C#
+        language: csharp
+        code: |
+          static int Total(ReadOnlySpan<int> nums) =>
+              nums.IsEmpty ? 0 : nums[0] + Total(nums[1..]);
 
-        // nums[1..] on a span is a view: nothing is copied.
-      python: |
-        def total(nums, i=0):
-            if i == len(nums):
-                return 0
-            return nums[i] + total(nums, i + 1)
+          // nums[1..] on a span is a view: nothing is copied.
+      - label: Python
+        language: python
+        code: |
+          def total(nums, i=0):
+              if i == len(nums):
+                  return 0
+              return nums[i] + total(nums, i + 1)
 
-        # One list for every call; only i changes.
+          # One list for every call; only i changes.
   - id: step.thinking.check-slicing
     type: choice
     title: What does the slice cost?

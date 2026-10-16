@@ -53,20 +53,24 @@ steps:
 
       `collections.Counter` does exactly that in one call. The cue to remember is *"counts matter, order doesn't"*.
     comparison:
-      csharp: |
-        var counts = new Dictionary<char, int>();
-        foreach (char ch in text)
-            counts[ch] = counts.GetValueOrDefault(ch) + 1;
+      - label: C#
+        language: csharp
+        code: |
+          var counts = new Dictionary<char, int>();
+          foreach (char ch in text)
+              counts[ch] = counts.GetValueOrDefault(ch) + 1;
 
-        // or with LINQ, which also builds a table behind the scenes
-        var top = text.GroupBy(c => c)
-                      .OrderByDescending(g => g.Count())
-                      .First().Key;
-      python: |
-        from collections import Counter
+          // or with LINQ, which also builds a table behind the scenes
+          var top = text.GroupBy(c => c)
+                        .OrderByDescending(g => g.Count())
+                        .First().Key;
+      - label: Python
+        language: python
+        code: |
+          from collections import Counter
 
-        counts = Counter(text)           # {'l': 2, 'i': 1, ...}
-        top = counts.most_common(1)[0][0]
+          counts = Counter(text)           # {'l': 2, 'i': 1, ...}
+          top = counts.most_common(1)[0][0]
   - id: step.frequency.trace-anagram
     type: trace
     title: Are these the same letters?
@@ -110,16 +114,20 @@ steps:
 
       It is still a dict underneath, so `.items()`, `.values()` and `in` all work.
     comparison:
-      csharp: |
-        // A missing key throws on a Dictionary indexer...
-        int n = counts['z'];                    // KeyNotFoundException
+      - label: C#
+        language: csharp
+        code: |
+          // A missing key throws on a Dictionary indexer...
+          int n = counts['z'];                    // KeyNotFoundException
 
-        // ...so you ask first
-        int n2 = counts.GetValueOrDefault('z'); // 0
-      python: |
-        # A Counter answers 0 for anything it hasn't seen
-        n = counts["z"]            # 0
-        n2 = counts.get("z", 0)    # a plain dict needs the default
+          // ...so you ask first
+          int n2 = counts.GetValueOrDefault('z'); // 0
+      - label: Python
+        language: python
+        code: |
+          # A Counter answers 0 for anything it hasn't seen
+          n = counts["z"]            # 0
+          n2 = counts.get("z", 0)    # a plain dict needs the default
   - id: step.frequency.predict-most-common
     type: predict-output
     title: Predict the output

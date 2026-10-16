@@ -200,14 +200,18 @@ steps:
       number, string or tuple is fine, but a **list** is not, because it can change and its hash would go stale.
       That is the single most useful trick in this track: *to make repeated lookups quick, put the data in a set or dict.*
     comparison:
-      csharp: |
-        bool slow = list.Contains(x);      // scans, O(n)
-        var seen = new HashSet<int>(list);
-        bool fast = seen.Contains(x);      // hashes, O(1)
-      python: |
-        slow = x in nums       # scans, O(n)
-        seen = set(nums)
-        fast = x in seen       # hashes, O(1)
+      - label: C#
+        language: csharp
+        code: |
+          bool slow = list.Contains(x);      // scans, O(n)
+          var seen = new HashSet<int>(list);
+          bool fast = seen.Contains(x);      // hashes, O(1)
+      - label: Python
+        language: python
+        code: |
+          slow = x in nums       # scans, O(n)
+          seen = set(nums)
+          fast = x in seen       # hashes, O(1)
   - id: step.bigo.trace-set
     type: trace
     title: Watch a set lookup

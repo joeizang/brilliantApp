@@ -52,28 +52,32 @@ steps:
       It looks like the stairs from lesson 2, with coins as step sizes. The difference is the question: the fewest, not the
       number of ways.
     comparison:
-      csharp: |
-        static int FewestCoins(int[] coins, int amount)
-        {
-            const int Impossible = int.MaxValue;
-            var dp = new int[amount + 1];
-            Array.Fill(dp, Impossible);
-            dp[0] = 0;
-            for (int a = 1; a <= amount; a++)
-                foreach (var c in coins)
-                    if (c <= a && dp[a - c] != Impossible)
-                        dp[a] = Math.Min(dp[a], dp[a - c] + 1);
-            return dp[amount] == Impossible ? -1 : dp[amount];
-        }
-      python: |
-        def fewest_coins(coins, amount):
-            dp = [float("inf")] * (amount + 1)
-            dp[0] = 0
-            for a in range(1, amount + 1):
-                for c in coins:
-                    if c <= a:
-                        dp[a] = min(dp[a], dp[a - c] + 1)
-            return -1 if dp[amount] == float("inf") else dp[amount]
+      - label: C#
+        language: csharp
+        code: |
+          static int FewestCoins(int[] coins, int amount)
+          {
+              const int Impossible = int.MaxValue;
+              var dp = new int[amount + 1];
+              Array.Fill(dp, Impossible);
+              dp[0] = 0;
+              for (int a = 1; a <= amount; a++)
+                  foreach (var c in coins)
+                      if (c <= a && dp[a - c] != Impossible)
+                          dp[a] = Math.Min(dp[a], dp[a - c] + 1);
+              return dp[amount] == Impossible ? -1 : dp[amount];
+          }
+      - label: Python
+        language: python
+        code: |
+          def fewest_coins(coins, amount):
+              dp = [float("inf")] * (amount + 1)
+              dp[0] = 0
+              for a in range(1, amount + 1):
+                  for c in coins:
+                      if c <= a:
+                          dp[a] = min(dp[a], dp[a - c] + 1)
+              return -1 if dp[amount] == float("inf") else dp[amount]
   - id: step.unbounded.trace-fewest
     type: trace
     title: Filling the coin table
@@ -183,24 +187,28 @@ steps:
       - **Amounts outside**, coins inside: every amount tries every coin last, so `1 + 2` and `2 + 1` are both counted.
         Orderings, exactly lesson 2's `count_ways`.
     comparison:
-      csharp: |
-        static long Combinations(int[] coins, int amount)
-        {
-            var dp = new long[amount + 1];
-            dp[0] = 1;
-            foreach (var c in coins)
-                for (int a = c; a <= amount; a++)
-                    dp[a] += dp[a - c];
-            return dp[amount];
-        }
-      python: |
-        def combinations(coins, amount):
-            dp = [0] * (amount + 1)
-            dp[0] = 1
-            for c in coins:
-                for a in range(c, amount + 1):
-                    dp[a] += dp[a - c]
-            return dp[amount]
+      - label: C#
+        language: csharp
+        code: |
+          static long Combinations(int[] coins, int amount)
+          {
+              var dp = new long[amount + 1];
+              dp[0] = 1;
+              foreach (var c in coins)
+                  for (int a = c; a <= amount; a++)
+                      dp[a] += dp[a - c];
+              return dp[amount];
+          }
+      - label: Python
+        language: python
+        code: |
+          def combinations(coins, amount):
+              dp = [0] * (amount + 1)
+              dp[0] = 1
+              for c in coins:
+                  for a in range(c, amount + 1):
+                      dp[a] += dp[a - c]
+              return dp[amount]
   - id: step.unbounded.trace-ways
     type: trace
     title: One coin at a time

@@ -51,25 +51,29 @@ steps:
       C# has `LinkedList<T>`, and Python's `deque` is built from linked blocks. You'll rarely write a linked list in
       production code, but interviews love them: the code is short, and every line moves a reference.
     comparison:
-      csharp: |
-        class Node
-        {
-            public int Val;
-            public Node? Next;
-            public Node(int val, Node? next = null)
-                => (Val, Next) = (val, next);
-        }
+      - label: C#
+        language: csharp
+        code: |
+          class Node
+          {
+              public int Val;
+              public Node? Next;
+              public Node(int val, Node? next = null)
+                  => (Val, Next) = (val, next);
+          }
 
-        var head = new Node(1, new Node(2, new Node(3)));
-        head = new Node(0, head);      // O(1): add at the front
-      python: |
-        class Node:
-            def __init__(self, val, next=None):
-                self.val = val
-                self.next = next
+          var head = new Node(1, new Node(2, new Node(3)));
+          head = new Node(0, head);      // O(1): add at the front
+      - label: Python
+        language: python
+        code: |
+          class Node:
+              def __init__(self, val, next=None):
+                  self.val = val
+                  self.next = next
 
-        head = Node(1, Node(2, Node(3)))
-        head = Node(0, head)           # O(1): add at the front
+          head = Node(1, Node(2, Node(3)))
+          head = Node(0, head)           # O(1): add at the front
   - id: step.linked-lists.check-costs
     type: choice
     title: Which is faster on a linked list?
@@ -104,16 +108,20 @@ steps:
 
       Never move `head` itself while walking: it's the only way back to the start of the list.
     comparison:
-      csharp: |
-        int total = 0;
-        for (var cur = head; cur != null; cur = cur.Next)
-            total += cur.Val;
-      python: |
-        total = 0
-        cur = head
-        while cur:
-            total += cur.val
-            cur = cur.next
+      - label: C#
+        language: csharp
+        code: |
+          int total = 0;
+          for (var cur = head; cur != null; cur = cur.Next)
+              total += cur.Val;
+      - label: Python
+        language: python
+        code: |
+          total = 0
+          cur = head
+          while cur:
+              total += cur.val
+              cur = cur.next
   - id: step.linked-lists.trace-walk
     type: trace
     title: A finger moving down the list
@@ -197,22 +205,26 @@ steps:
       Notice that both need the node **before** the spot. A singly linked list can't step backwards, so you walk with a finger
       one node behind where the change happens.
     comparison:
-      csharp: |
-        // insert after node
-        var added = new Node(x);
-        added.Next = node.Next;
-        node.Next = added;
+      - label: C#
+        language: csharp
+        code: |
+          // insert after node
+          var added = new Node(x);
+          added.Next = node.Next;
+          node.Next = added;
 
-        // delete the node after prev
-        prev.Next = prev.Next!.Next;
-      python: |
-        # insert after node
-        new = Node(x)
-        new.next = node.next
-        node.next = new
+          // delete the node after prev
+          prev.Next = prev.Next!.Next;
+      - label: Python
+        language: python
+        code: |
+          # insert after node
+          new = Node(x)
+          new.next = node.next
+          node.next = new
 
-        # delete the node after prev
-        prev.next = prev.next.next
+          # delete the node after prev
+          prev.next = prev.next.next
   - id: step.linked-lists.trace-relink
     type: trace
     title: Insert a 3, then delete the 2
@@ -282,24 +294,28 @@ steps:
       *insert at position `i`*, *build a new list* (append to a tail that starts at the dummy). The dummy's value is never
       read, so any value will do.
     comparison:
-      csharp: |
-        var dummy = new Node(0, head);
-        var prev = dummy;
-        while (prev.Next != null)
-        {
-            if (prev.Next.Val == target) prev.Next = prev.Next.Next;
-            else prev = prev.Next;
-        }
-        return dummy.Next;
-      python: |
-        dummy = Node(0, head)
-        prev = dummy
-        while prev.next:
-            if prev.next.val == target:
-                prev.next = prev.next.next
-            else:
-                prev = prev.next
-        return dummy.next
+      - label: C#
+        language: csharp
+        code: |
+          var dummy = new Node(0, head);
+          var prev = dummy;
+          while (prev.Next != null)
+          {
+              if (prev.Next.Val == target) prev.Next = prev.Next.Next;
+              else prev = prev.Next;
+          }
+          return dummy.Next;
+      - label: Python
+        language: python
+        code: |
+          dummy = Node(0, head)
+          prev = dummy
+          while prev.next:
+              if prev.next.val == target:
+                  prev.next = prev.next.next
+              else:
+                  prev = prev.next
+          return dummy.next
   - id: step.linked-lists.trace-dummy
     type: trace
     title: Removing every 6

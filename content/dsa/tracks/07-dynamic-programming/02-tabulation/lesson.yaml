@@ -54,22 +54,26 @@ steps:
       This is **tabulation**, or **bottom-up** DP. The same O(n) as the memo, with no recursion: no recursion limit, and no
       cost per call.
     comparison:
-      csharp: |
-        static long Ways(int n)
-        {
-            var dp = new long[n + 1];
-            dp[0] = 1;
-            for (int i = 1; i <= n; i++)
-                dp[i] = dp[i - 1] + (i >= 2 ? dp[i - 2] : 0);
-            return dp[n];
-        }
-      python: |
-        def ways(n):
-            dp = [0] * (n + 1)
-            dp[0] = 1
-            for i in range(1, n + 1):
-                dp[i] = dp[i - 1] + (dp[i - 2] if i >= 2 else 0)
-            return dp[n]
+      - label: C#
+        language: csharp
+        code: |
+          static long Ways(int n)
+          {
+              var dp = new long[n + 1];
+              dp[0] = 1;
+              for (int i = 1; i <= n; i++)
+                  dp[i] = dp[i - 1] + (i >= 2 ? dp[i - 2] : 0);
+              return dp[n];
+          }
+      - label: Python
+        language: python
+        code: |
+          def ways(n):
+              dp = [0] * (n + 1)
+              dp[0] = 1
+              for i in range(1, n + 1):
+                  dp[i] = dp[i - 1] + (dp[i - 2] if i >= 2 else 0)
+              return dp[n]
   - id: step.tab.trace-table
     type: trace
     title: Filling the table
@@ -190,20 +194,24 @@ steps:
       Do the full table first; shrink it only once it works. And you can't shrink it if you need the table afterwards, for
       instance to rebuild which choices led to the answer.
     comparison:
-      csharp: |
-        static long Ways(int n)
-        {
-            long prev = 1, cur = 1;
-            for (int i = 0; i < n - 1; i++)
-                (prev, cur) = (cur, prev + cur);
-            return cur;
-        }
-      python: |
-        def ways(n):
-            prev, cur = 1, 1
-            for _ in range(n - 1):
-                prev, cur = cur, prev + cur
-            return cur
+      - label: C#
+        language: csharp
+        code: |
+          static long Ways(int n)
+          {
+              long prev = 1, cur = 1;
+              for (int i = 0; i < n - 1; i++)
+                  (prev, cur) = (cur, prev + cur);
+              return cur;
+          }
+      - label: Python
+        language: python
+        code: |
+          def ways(n):
+              prev, cur = 1, 1
+              for _ in range(n - 1):
+                  prev, cur = cur, prev + cur
+              return cur
   - id: step.tab.predict-bug
     type: predict-output
     title: Predict the output

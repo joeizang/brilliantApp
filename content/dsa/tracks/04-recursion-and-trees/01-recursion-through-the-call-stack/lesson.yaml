@@ -38,22 +38,26 @@ steps:
       `n` sits in its **frame** on the call stack. The calls pile up until one reaches the base case, then the values come back
       down the stack, one return at a time.
     comparison:
-      csharp: |
-        static long Fact(int n)
-        {
-            if (n <= 1) return 1;          // base case
-            return n * Fact(n - 1);        // recursive case
-        }
+      - label: C#
+        language: csharp
+        code: |
+          static long Fact(int n)
+          {
+              if (n <= 1) return 1;          // base case
+              return n * Fact(n - 1);        // recursive case
+          }
 
-        Console.WriteLine(Fact(4));        // 24
-      python: |
-        def fact(n):
-            if n <= 1:
-                return 1                   # base case
-            return n * fact(n - 1)         # recursive case
+          Console.WriteLine(Fact(4));        // 24
+      - label: Python
+        language: python
+        code: |
+          def fact(n):
+              if n <= 1:
+                  return 1                   # base case
+              return n * fact(n - 1)         # recursive case
 
 
-        print(fact(4))                     # 24
+          print(fact(4))                     # 24
   - id: step.recursion.trace-fact
     type: trace
     title: Calls waiting on calls
@@ -219,24 +223,28 @@ steps:
       - **Loop instead:** depth that grows with the input. Walking a linked list of 50,000 nodes one call per node is 50,000
         frames deep. `sys.setrecursionlimit` can raise the limit, but a loop is the real fix.
     comparison:
-      csharp: |
-        static int Length(Node? node) =>
-            node == null ? 0 : 1 + Length(node.Next);
+      - label: C#
+        language: csharp
+        code: |
+          static int Length(Node? node) =>
+              node == null ? 0 : 1 + Length(node.Next);
 
-        // A list of a million nodes: StackOverflowException,
-        // and the process ends. Use a loop.
-        int length = 0;
-        for (var cur = head; cur != null; cur = cur.Next) length++;
-      python: |
-        def length(node):
-            return 0 if node is None else 1 + length(node.next)
+          // A list of a million nodes: StackOverflowException,
+          // and the process ends. Use a loop.
+          int length = 0;
+          for (var cur = head; cur != null; cur = cur.Next) length++;
+      - label: Python
+        language: python
+        code: |
+          def length(node):
+              return 0 if node is None else 1 + length(node.next)
 
-        # A list of a million nodes: RecursionError. Use a loop.
-        length = 0
-        cur = head
-        while cur:
-            length += 1
-            cur = cur.next
+          # A list of a million nodes: RecursionError. Use a loop.
+          length = 0
+          cur = head
+          while cur:
+              length += 1
+              cur = cur.next
   - id: step.recursion.check-too-deep
     type: choice
     title: Which one is too deep?

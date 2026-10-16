@@ -49,22 +49,26 @@ steps:
       can be **undirected** (a friendship: `A`–`B` works both ways) or **directed** (a follow: `A` → `B` doesn't mean
       `B` → `A`).
     comparison:
-      csharp: |
-        var g = new Dictionary<string, List<string>>();
-        foreach (var (a, b) in edges)
-        {
-            if (!g.ContainsKey(a)) g[a] = new List<string>();
-            if (!g.ContainsKey(b)) g[b] = new List<string>();
-            g[a].Add(b);
-            g[b].Add(a);
-        }
-      python: |
-        from collections import defaultdict
+      - label: C#
+        language: csharp
+        code: |
+          var g = new Dictionary<string, List<string>>();
+          foreach (var (a, b) in edges)
+          {
+              if (!g.ContainsKey(a)) g[a] = new List<string>();
+              if (!g.ContainsKey(b)) g[b] = new List<string>();
+              g[a].Add(b);
+              g[b].Add(a);
+          }
+      - label: Python
+        language: python
+        code: |
+          from collections import defaultdict
 
-        g = defaultdict(list)
-        for a, b in edges:
-            g[a].append(b)
-            g[b].append(a)
+          g = defaultdict(list)
+          for a, b in edges:
+              g[a].append(b)
+              g[b].append(a)
   - id: step.graphs.trace-build
     type: trace
     title: From an edge list to a graph

@@ -44,34 +44,38 @@ steps:
       The dict turns "search everything I've seen" into one quick lookup, which is what you learned in the last lesson.
       The cue to remember is: *a loop whose inner loop only searches for a match is a lookup in disguise.*
     comparison:
-      csharp: |
-        // Try every pair: O(n²)
-        for (int i = 0; i < nums.Length; i++)
-            for (int j = i + 1; j < nums.Length; j++)
-                if (nums[i] + nums[j] == target) return new[] { i, j };
+      - label: C#
+        language: csharp
+        code: |
+          // Try every pair: O(n²)
+          for (int i = 0; i < nums.Length; i++)
+              for (int j = i + 1; j < nums.Length; j++)
+                  if (nums[i] + nums[j] == target) return new[] { i, j };
 
-        // Remember what you've seen: O(n)
-        var seen = new Dictionary<int, int>();
-        for (int i = 0; i < nums.Length; i++)
-        {
-            int need = target - nums[i];
-            if (seen.TryGetValue(need, out int j)) return new[] { j, i };
-            seen[nums[i]] = i;
-        }
-      python: |
-        # Try every pair: O(n²)
-        for i in range(len(nums)):
-            for j in range(i + 1, len(nums)):
-                if nums[i] + nums[j] == target:
-                    return [i, j]
+          // Remember what you've seen: O(n)
+          var seen = new Dictionary<int, int>();
+          for (int i = 0; i < nums.Length; i++)
+          {
+              int need = target - nums[i];
+              if (seen.TryGetValue(need, out int j)) return new[] { j, i };
+              seen[nums[i]] = i;
+          }
+      - label: Python
+        language: python
+        code: |
+          # Try every pair: O(n²)
+          for i in range(len(nums)):
+              for j in range(i + 1, len(nums)):
+                  if nums[i] + nums[j] == target:
+                      return [i, j]
 
-        # Remember what you've seen: O(n)
-        seen = {}
-        for i, n in enumerate(nums):
-            need = target - n
-            if need in seen:
-                return [seen[need], i]
-            seen[n] = i
+          # Remember what you've seen: O(n)
+          seen = {}
+          for i, n in enumerate(nums):
+              need = target - n
+              if need in seen:
+                  return [seen[need], i]
+              seen[n] = i
   - id: step.hashlookup.trace-brute
     type: trace
     title: First, the slow way
