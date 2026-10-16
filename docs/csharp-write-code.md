@@ -58,8 +58,10 @@ Which runtime measured matters (#138): CoreCLR and Mono agree on zero, and on a 
 | Learner's Mac app | Mono interpreter | Advice only: the run still passes and the feedback says that the sizes differ between runtimes |
 
 CoreCLR pack-time measurements are authoritative; every report names its runtime (`AllocationReport.Runtime`) and says whether it was enforced.
-A call too slow to repeat (more than five seconds at publishing) is a publishing error. On the Mac the measurement is skipped when it won't fit in
-the test's remaining time budget. Android doesn't run C# (see above).
+A call too slow to repeat is never run past the time limit: before each call the meter checks that the elapsed time plus the slowest call so far
+still fits, and otherwise stops. At publishing (limit five seconds) that is a publishing error. On the Mac the limit is half the test's remaining time
+budget, so a correct answer can't become a time-out; the outcome carries an `AllocationReport` with no bytes, and the feedback says that the allocation
+wasn't checked, so a budget is never skipped silently. Android doesn't run C# (see above).
 
 ## Editor and drafts
 

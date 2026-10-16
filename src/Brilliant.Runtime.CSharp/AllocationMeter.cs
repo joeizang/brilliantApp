@@ -26,18 +26,27 @@ public static class AllocationMeter
     public static bool IsAuthoritative => RuntimeName == "CoreCLR";
 
     /// <summary>
-    /// Measures <c>run(test, 1)</c>, which the generated harness runs as one call of the entrypoint. Returns null when
-    /// <paramref name="limit"/> elapses before a complete sample.
+    /// Measures <c>run(test, 1)</c>, which the generated harness runs as one call of the entrypoint. <paramref name="firstCall"/> is how long
+    /// the already-checked call took. Returns null, having started no call that could end after <paramref name="limit"/>, when a complete
+    /// sample can't fit: a slow call must never turn a passing run into a timeout.
     /// </summary>
-    public static long? Measure(Func<int, int, object?[]> run, int test, ProbeBudget budget, TimeSpan? limit = null)
+    public static long? Measure(Func<int, int, object?[]> run, int test, ProbeBudget budget, TimeSpan firstCall, TimeSpan? limit = null)
     {
         var started = Stopwatch.GetTimestamp();
-        bool Expired() => limit is { } l && Stopwatch.GetElapsedTime(started) > l;
-        for (var i = 0; i < WarmUpCalls; i++)
+        var slowest = firstCall;
+        bool Fits() => limit is not { } l || Stopwatch.GetElapsedTime(started) + slowest <= l;
+        void Call()
         {
             budget.ResetCounts();
+            var begun = Stopwatch.GetTimestamp();
             run(test, 1);
-            if (i > 0 && Expired()) return null;
+            var took = Stopwatch.GetElapsedTime(begun);
+            if (took > slowest) slowest = took;
+        }
+        for (var i = 0; i < WarmUpCalls; i++)
+        {
+            if (!Fits()) return null;
+            Call();
         }
         // Collect now so a pending collection doesn't land inside a sample.
         GC.Collect();
@@ -45,16 +54,13 @@ public static class AllocationMeter
         for (var sample = 0; sample < Samples; sample++)
         {
             var before = GC.GetAllocatedBytesForCurrentThread();
-            var complete = true;
             for (var i = 0; i < CallsPerSample; i++)
             {
-                budget.ResetCounts();
-                run(test, 1);
-                if (Expired()) { complete = false; break; }
+                // Abandon an unfinished sample, but keep any complete one.
+                if (!Fits()) return best;
+                Call();
             }
-            var used = GC.GetAllocatedBytesForCurrentThread() - before;
-            if (!complete) break;
-            var perCall = used / CallsPerSample;
+            var perCall = (GC.GetAllocatedBytesForCurrentThread() - before) / CallsPerSample;
             if (best is null || perCall < best) best = perCall;
         }
         return best;

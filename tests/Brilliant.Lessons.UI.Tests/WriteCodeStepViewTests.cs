@@ -138,6 +138,15 @@ public class WriteCodeStepViewTests : ShortcutContext
     }
 
     [Fact]
+    public void A_budget_that_could_not_be_checked_says_so()
+    {
+        var cut = Run(new TestRunResult(TestRunStatus.Passed, "", null, null, null,
+            [new TestOutcome("Sum(4)", "4", "4", true, "", null, null, new AllocationReport(null, 0, "CoreCLR", true))]));
+
+        Assert.Contains("Allocation not checked", cut.Find(".allocation-advice").TextContent);
+    }
+
+    [Fact]
     public void A_measurement_within_the_budget_shows_no_advice()
     {
         var cut = Run(new TestRunResult(TestRunStatus.Passed, "", null, null, null,

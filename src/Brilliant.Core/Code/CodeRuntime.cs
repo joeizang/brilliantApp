@@ -26,10 +26,12 @@ public sealed record TestOutcome(
 /// <summary>
 /// The allocation measurement of one test that declared a byte budget. <see cref="Runtime"/> names the runtime that measured it;
 /// only CoreCLR measurements are authoritative, so a measurement from another runtime has <see cref="Enforced"/> false: it is shown
-/// to the learner as advice and never fails the test.
+/// to the learner as advice and never fails the test. <see cref="Bytes"/> is null when the budget could not be checked.
 /// </summary>
-public sealed record AllocationReport(long Bytes, long Budget, string Runtime, bool Enforced)
+public sealed record AllocationReport(long? Bytes, long Budget, string Runtime, bool Enforced)
 {
+    /// <summary>False when the call was too slow to repeat, so the budget was not checked.</summary>
+    public bool Measured => Bytes is not null;
     public bool Exceeded => Bytes > Budget;
 }
 

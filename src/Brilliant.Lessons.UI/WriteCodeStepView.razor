@@ -49,9 +49,16 @@
             {
                 case TestRunStatus.Passed:
                     <p class="verdict correct font-semibold text-success" role="status">All @result.Tests.Count tests passed! 🎉</p>
-                    @foreach (var advice in result.Tests.Select(t => t.Allocation).OfType<AllocationReport>().Where(a => !a.Enforced && a.Exceeded).Take(1))
+                    @foreach (var advice in result.Tests.Select(t => t.Allocation).OfType<AllocationReport>().Where(a => !a.Measured || (!a.Enforced && a.Exceeded)).Take(1))
                     {
-                        <p class="allocation-advice text-fg-secondary" role="note">Allocation advice: a call allocated @advice.Bytes.ToString("N0") bytes on this device's @advice.Runtime runtime, over the @advice.Budget.ToString("N0")-byte budget. Allocation sizes differ between runtimes, so this doesn't fail the test; the lesson's budget is checked on CoreCLR when the lesson is published.</p>
+                        if (!advice.Measured)
+                        {
+                            <p class="allocation-advice text-fg-secondary" role="note">Allocation not checked: your code is too slow to repeat enough times to measure its allocations here. The tests passed.</p>
+                        }
+                        else
+                        {
+                            <p class="allocation-advice text-fg-secondary" role="note">Allocation advice: a call allocated @advice.Bytes!.Value.ToString("N0") bytes on this device's @advice.Runtime runtime, over the @advice.Budget.ToString("N0")-byte budget. Allocation sizes differ between runtimes, so this doesn't fail the test; the lesson's budget is checked on CoreCLR when the lesson is published.</p>
+                        }
                     }
                     break;
 
@@ -74,7 +81,7 @@
                             @if (failure.Allocation is { Exceeded: true } allocation)
                             {
                                 <dt class="text-fg-secondary">Allocation budget</dt><dd class="m-0">at most <code class="text-[.9rem]">@allocation.Budget.ToString("N0")</code> bytes per call</dd>
-                                <dt class="text-fg-secondary">Your code allocated</dt><dd class="m-0"><code class="text-[.9rem]">@allocation.Bytes.ToString("N0")</code> bytes per call (@allocation.Runtime)</dd>
+                                <dt class="text-fg-secondary">Your code allocated</dt><dd class="m-0"><code class="text-[.9rem]">@allocation.Bytes!.Value.ToString("N0")</code> bytes per call (@allocation.Runtime)</dd>
                             }
                             else
                             {

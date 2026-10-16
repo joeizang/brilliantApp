@@ -218,14 +218,14 @@ public sealed class RuntimeTests
         var allocation = failure.Allocation!;
         Assert.True(allocation.Enforced);
         Assert.Equal("CoreCLR", allocation.Runtime);
-        Assert.InRange(allocation.Bytes, 64, 128); // an int[16] is 88 bytes on CoreCLR
+        Assert.InRange(allocation.Bytes!.Value, 64, 128); // an int[16] is 88 bytes on CoreCLR
     }
 
     [Fact]
     public async Task A_budget_at_the_measured_bytes_passes()
     {
         var runtime = new CSharpRuntime();
-        var measured = (await runtime.RunTestsAsync(Allocates, "Sum", [new CodeTest("4", "4", null, 0)])).FirstFailure!.Allocation!.Bytes;
+        var measured = (await runtime.RunTestsAsync(Allocates, "Sum", [new CodeTest("4", "4", null, 0)])).FirstFailure!.Allocation!.Bytes!.Value;
 
         var result = await runtime.RunTestsAsync(Allocates, "Sum", [new CodeTest("4", "4", null, (int)measured)]);
 
@@ -291,5 +291,21 @@ public sealed class RuntimeTests
 
         Assert.True(result.Status == TestRunStatus.Passed, result.Message + result.Traceback);
         Assert.Equal("hello\n", Assert.Single(result.Tests).Stdout.Replace("\r\n", "\n"));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task A_call_too_slow_to_repeat_is_reported_as_not_measured_and_never_times_out_a_passing_run(bool enforce)
+    {
+        // The checked call takes about 40% of the test timeout; repeating it would overrun the watchdog.
+        var runtime = new CSharpRuntime(TimeSpan.FromSeconds(1)) { AllowBlockingCalls = true, EnforceAllocationBudgets = enforce, AllocationRuntime = "Mono interpreter" };
+        var result = await runtime.RunTestsAsync("static int F() { System.Threading.Thread.Sleep(400); return 1; }", "F", [new CodeTest("", "1", null, 1_000_000)]);
+
+        Assert.True(result.Status == TestRunStatus.Passed, result.Message + result.Traceback);
+        var allocation = Assert.Single(result.Tests).Allocation!;
+        Assert.False(allocation.Measured);
+        Assert.Null(allocation.Bytes);
+        Assert.False(runtime.Diagnostics.RequiresRestart);
     }
 }

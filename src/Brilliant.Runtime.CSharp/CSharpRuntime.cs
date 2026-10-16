@@ -144,6 +144,7 @@ public sealed class CSharpRuntime(TimeSpan? testTimeout = null) : ICodeRuntime
             {
                 var started = Stopwatch.GetTimestamp();
                 var pair = method(index, 0);
+                var firstCall = Stopwatch.GetElapsedTime(started);
                 budget.Tick();
                 var passed = CSharpValues.Equal(pair[0], pair[1]);
                 var actual = CSharpValues.Format(pair[0]);
@@ -156,11 +157,9 @@ public sealed class CSharpRuntime(TimeSpan? testTimeout = null) : ICodeRuntime
                     // Printing during the measurement is discarded; one run's output is enough.
                     ProbeConsole.Writer = TextWriter.Null;
                     var remaining = _testTimeout - Stopwatch.GetElapsedTime(started);
-                    if (AllocationMeter.Measure(method, index, budget, remaining / 2) is { } bytes)
-                    {
-                        allocation = new(bytes, allowed, AllocationRuntime, EnforceAllocationBudgets);
-                        passed = !(allocation.Enforced && allocation.Exceeded);
-                    }
+                    var bytes = AllocationMeter.Measure(method, index, budget, firstCall, remaining / 2);
+                    allocation = new(bytes, allowed, AllocationRuntime, EnforceAllocationBudgets);
+                    passed = !(allocation.Enforced && allocation.Exceeded);
                 }
                 done.SetResult(new(new($"{entrypoint}({test.Input})", expected, actual, passed, output, null, null, allocation)));
             }

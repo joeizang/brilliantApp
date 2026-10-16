@@ -102,7 +102,9 @@ public sealed class CSharpReferenceSolutionRunner(TimeSpan? timeout = null) : IR
                     ProbeBudget.Current = budget;
                     try
                     {
+                        var started = Stopwatch.GetTimestamp();
                         pair = method(index, 0);
+                        var firstCall = Stopwatch.GetElapsedTime(started);
                         budget.Tick();
                         passed = CSharpValues.Equal(pair[0], pair[1]);
                         actual = CSharpValues.Format(pair[0]);
@@ -111,7 +113,7 @@ public sealed class CSharpReferenceSolutionRunner(TimeSpan? timeout = null) : IR
                         {
                             // Printing while measuring is discarded; the checked run above already captured the output.
                             Console.SetOut(TextWriter.Null);
-                            if (AllocationMeter.Measure(method, index, budget, MeasureLimit) is { } bytes)
+                            if (AllocationMeter.Measure(method, index, budget, firstCall, MeasureLimit) is { } bytes)
                             {
                                 allocation = new(bytes, allowed, AllocationMeter.RuntimeName, Enforced: AllocationMeter.IsAuthoritative);
                                 passed = !(allocation.Enforced && allocation.Exceeded);
