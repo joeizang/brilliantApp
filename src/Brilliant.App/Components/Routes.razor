@@ -3,4 +3,19 @@
 @inject Brilliant.Core.Apps.AppManifest Manifest
 
 <AppAppearance Manifest="Manifest" />
-<CourseShell Content="Content" />
+@if (IsSpike)
+{
+    <Spike />
+}
+else
+{
+    <CourseShell Content="Content" />
+}
+
+@code {
+#if BRILLIANT_ROSLYN_SPIKE
+    private const bool IsSpike = true;
+#else
+    private const bool IsSpike = false;
+#endif
+}

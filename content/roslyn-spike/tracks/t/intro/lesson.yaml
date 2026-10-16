@@ -1,0 +1,7 @@
+id: lesson.roslyn-spike
+title: Native Release spike
+steps:
+  - id: step.roslyn-spike
+    type: explain
+    title: Native Release compilation probe
+    body: This isolated installation runs the native Roslyn verification harness automatically.

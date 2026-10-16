@@ -30,6 +30,39 @@
     <UseInterpreter>true</UseInterpreter>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(BrilliantApp)' == 'roslyn-spike' And '$(RoslynSpikeEnabled)' != 'false'">
+    <DefineConstants>$(DefineConstants);BRILLIANT_ROSLYN_SPIKE</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(BrilliantApp)' == 'roslyn-spike' And '$(RoslynSpikeEnabled)' != 'false'">
+    <ProjectReference Include="../Brilliant.Code.CSharp/Brilliant.Code.CSharp.csproj" />
+    <PackageReference Include="Basic.Reference.Assemblies.Net100" Version="1.8.9" />
+    <!-- Keep the compiler and embedded reference set intact under native Release trimming. -->
+    <TrimmerRootAssembly Include="Brilliant.Code.CSharp" RootMode="All" />
+    <TrimmerRootAssembly Include="Microsoft.CodeAnalysis" RootMode="All" />
+    <TrimmerRootAssembly Include="Microsoft.CodeAnalysis.CSharp" RootMode="All" />
+    <TrimmerRootAssembly Include="Basic.Reference.Assemblies.Net100" RootMode="All" />
+    <TrimmerRootAssembly Include="System.Reflection.Metadata" RootMode="All" />
+    <TrimmerRootAssembly Include="System.Collections.Immutable" RootMode="All" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(BrilliantApp)' != 'roslyn-spike' Or '$(RoslynSpikeEnabled)' == 'false'">
+    <Compile Remove="RoslynSpike.cs" />
+  </ItemGroup>
+
+  <!-- Embed the original dependency bytes, rather than relying on Assembly.Location in a native bundle. -->
+  <Target Name="EmbedSpikeProbeRuntime" BeforeTargets="AssignTargetPaths" DependsOnTargets="ResolveProjectReferences"
+          Condition="'$(BrilliantApp)' == 'roslyn-spike' And '$(RoslynSpikeEnabled)' != 'false' And '$(TargetFramework)' != ''">
+    <ItemGroup>
+      <_SpikeProbeRuntime Include="@(_ResolvedProjectReferencePaths)" Condition="'%(_ResolvedProjectReferencePaths.Filename)' == 'Brilliant.Code.CSharp'" />
+    </ItemGroup>
+    <MakeDir Directories="$(IntermediateOutputPath)spike" />
+    <Copy SourceFiles="@(_SpikeProbeRuntime)" DestinationFiles="$(IntermediateOutputPath)spike/probe-runtime.bin" />
+    <ItemGroup>
+      <EmbeddedResource Include="$(IntermediateOutputPath)spike/probe-runtime.bin" LogicalName="probe-runtime.dll" />
+    </ItemGroup>
+  </Target>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="$(MauiVersion)" />

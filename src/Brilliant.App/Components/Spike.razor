@@ -1,0 +1,62 @@
+@using System.Text.Json
+
+<main style="padding: 24px; color: #eeeeee; background: #161c26; min-height: 100vh; font-family: monospace;">
+    <h1>Native Roslyn Release spike</h1>
+    <p>@_status</p>
+    @foreach (var path in _paths)
+    {
+        <p>Result file: @path</p>
+    }
+    <pre style="white-space: pre-wrap; overflow-wrap: anywhere;">@_json</pre>
+</main>
+
+@code {
+    private string _status = "Waiting for first render…";
+    private string _json = "";
+    private readonly List<string> _paths = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+#if BRILLIANT_ROSLYN_SPIKE
+        _status = "Running native compilation and execution checks…";
+        try
+        {
+            _json = await Task.Run(() => Brilliant.App.RoslynSpike.Run());
+            _status = "Harness finished. Inspect the results below for each check's outcome.";
+        }
+        catch (Exception ex)
+        {
+            _json = JsonSerializer.Serialize(new { succeeded = false, exception = ex.ToString() });
+            _status = "Harness failed; exception recorded below.";
+        }
+
+        await WriteResultAsync(Path.Combine(FileSystem.AppDataDirectory, "roslyn-spike.json"));
+#if ANDROID
+        var externalCache = Android.App.Application.Context.ExternalCacheDir?.AbsolutePath;
+        if (externalCache is not null)
+            await WriteResultAsync(Path.Combine(externalCache, "roslyn-spike.json"));
+        // adb logcat remains available even if Android refuses external cache access.
+        for (var offset = 0; offset < _json.Length; offset += 2000)
+            Android.Util.Log.Info("BrilliantRoslynSpike", _json.Substring(offset, Math.Min(2000, _json.Length - offset)));
+#endif
+#if MACCATALYST
+        await WriteResultAsync("/tmp/brilliant-138-mac.json");
+#endif
+#else
+        _status = "This flavor does not enable the native Roslyn spike.";
+#endif
+    }
+
+    private async Task WriteResultAsync(string path)
+    {
+        try
+        {
+            await File.WriteAllTextAsync(path, _json);
+            _paths.Add(path);
+        }
+        catch (Exception ex)
+        {
+            _paths.Add($"Could not write {path}: {ex.Message}");
+        }
+    }
+}
