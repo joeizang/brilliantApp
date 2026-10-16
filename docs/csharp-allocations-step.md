@@ -50,6 +50,9 @@ existing step records, so the engine, the review queue, test-out and the views n
   Mono); the lesson goes by CoreCLR and says so.
 - The snippet must be repeatable (the probe compares the call with itself), compile under the app's pinned C# and not exceed 1,000,000
   bytes per call.
+- The entrypoint must return a value that compares equal across calls: a number, string, array or record. A `void` method does not compile
+  in the probe, and a plain class (`new StringBuilder()`, a non-record class) compares by reference, so the step reports it as not
+  measurable. To ask about such an object, return something derived from it (its `Length`, say) and let the allocation happen inside.
 
 ## `variant: rewrite`
 

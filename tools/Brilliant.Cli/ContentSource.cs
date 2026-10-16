@@ -422,6 +422,10 @@ public static partial class ContentValidator
             report.Add(file, $"{label}: 'files' only applies to write-code steps.");
         if (authoredType != "allocations" && (dto.Variant is not null || dto.Input is not null))
             report.Add(file, $"{label}: 'variant' and 'input' only apply to allocations steps.");
+        if (authoredType == "allocations" && dto.Variant == AllocationsRewrite && dto.Input is not null)
+            report.Add(file, $"{label}: 'input' only applies to variant: {AllocationsPredict}; a rewrite's tests carry their own inputs.");
+        if (authoredType != "allocations" && dto.Options?.Any(o => o?.Bytes is not null) == true)
+            report.Add(file, $"{label}: an option's 'bytes' only applies to allocations steps.");
         if (dto.Type != "benchmark-predict" && (dto.Measure is not null || dto.Setup is not null || dto.Candidates is not null))
             report.Add(file, $"{label}: 'measure', 'setup' and 'candidates' only apply to benchmark-predict steps.");
         if (isAlternative && preferred)
