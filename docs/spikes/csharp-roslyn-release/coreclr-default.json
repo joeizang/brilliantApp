@@ -1,0 +1,195 @@
+{
+  "utc": "2026-10-16T10:53:17.737137+00:00",
+  "framework": ".NET 10.0.10",
+  "os": "macOS 26.6.2",
+  "architecture": "Arm64",
+  "mono": false,
+  "dynamicCodeSupported": true,
+  "dynamicCodeCompiled": true,
+  "configuration": "Release",
+  "stackBytes": 4194304,
+  "maxDepth": 128,
+  "referenceFramework": "net10.0",
+  "languageVersion": "14",
+  "roslyn": "5.0.0",
+  "coldCompileMs": 445.5812,
+  "firstLoadAndRun": {
+    "loadMs": 0.2567,
+    "execution": {
+      "runMs": 0.5586,
+      "value": 49995000,
+      "error": null,
+      "steps": 10002,
+      "finalDepth": 0
+    }
+  },
+  "warmCompileMs": [
+    7.9484,
+    2.5431,
+    2.2087,
+    4.3949,
+    2.5482
+  ],
+  "warmLoopRuns": {
+    "milliseconds": [
+      0.4975,
+      0.1984,
+      0.2089,
+      0.1939,
+      0.2182
+    ],
+    "values": [
+      49995000,
+      49995000,
+      49995000,
+      49995000,
+      49995000
+    ]
+  },
+  "runaway": {
+    "loadMs": 0.0678,
+    "execution": {
+      "runMs": 2.3303,
+      "value": null,
+      "error": "Brilliant.Code.CSharp.BudgetExceededException: The code exceeded its step budget (100000 probes).",
+      "steps": 100001,
+      "finalDepth": 0
+    }
+  },
+  "recursion": {
+    "loadMs": 0.0825,
+    "execution": {
+      "runMs": 1.5223,
+      "value": null,
+      "error": "Brilliant.Code.CSharp.BudgetExceededException: The code exceeded its call-depth limit (128).",
+      "steps": 129,
+      "finalDepth": 0
+    }
+  },
+  "allocations": {
+    "zero": {
+      "callsPerSample": 1000,
+      "bytesPerSample": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytesPerCall": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "checksum": 252000
+    },
+    "boxing": {
+      "callsPerSample": 1000,
+      "bytesPerSample": [
+        24000,
+        24000,
+        24000,
+        24000,
+        30192
+      ],
+      "bytesPerCall": [
+        24,
+        24,
+        24,
+        24,
+        30.192
+      ],
+      "checksum": 252000
+    },
+    "array16": {
+      "callsPerSample": 1000,
+      "bytesPerSample": [
+        88000,
+        88000,
+        88000,
+        88000,
+        88000
+      ],
+      "bytesPerCall": [
+        88,
+        88,
+        88,
+        88,
+        88
+      ],
+      "checksum": 96000
+    },
+    "closure": {
+      "callsPerSample": 1000,
+      "bytesPerSample": [
+        88000,
+        88000,
+        88000,
+        88000,
+        88000
+      ],
+      "bytesPerCall": [
+        88,
+        88,
+        88,
+        88,
+        88
+      ],
+      "checksum": 252000
+    }
+  },
+  "allocationBoundary": "dedicated thread; 1000 warmup calls; full GC; five samples of 1000 direct Func\u003Clong\u003E calls; delta GC.GetAllocatedBytesForCurrentThread; compile/load/delegate/thread creation excluded; probes included; static Sink keeps allocations observable",
+  "cycles": {
+    "count": 100,
+    "elapsedMs": 353.3065,
+    "baselineManagedBytes": 21956144,
+    "aliveContexts": 0,
+    "checkpoints": [
+      {
+        "cycles": 1,
+        "aliveContexts": 0,
+        "managedBytes": 21501976,
+        "retainedBytes": -454168,
+        "workingSetBytes": 119422976
+      },
+      {
+        "cycles": 10,
+        "aliveContexts": 0,
+        "managedBytes": 21517528,
+        "retainedBytes": -438616,
+        "workingSetBytes": 119472128
+      },
+      {
+        "cycles": 25,
+        "aliveContexts": 0,
+        "managedBytes": 22883472,
+        "retainedBytes": 927328,
+        "workingSetBytes": 121061376
+      },
+      {
+        "cycles": 50,
+        "aliveContexts": 0,
+        "managedBytes": 21515544,
+        "retainedBytes": -440600,
+        "workingSetBytes": 121503744
+      },
+      {
+        "cycles": 75,
+        "aliveContexts": 0,
+        "managedBytes": 21516248,
+        "retainedBytes": -439896,
+        "workingSetBytes": 121503744
+      },
+      {
+        "cycles": 100,
+        "aliveContexts": 0,
+        "managedBytes": 21518936,
+        "retainedBytes": -437208,
+        "workingSetBytes": 121552896
+      }
+    ]
+  },
+  "status": "complete"
+}
