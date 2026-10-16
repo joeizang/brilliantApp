@@ -7,7 +7,7 @@ paths, credential key, pack and progress. There is no in-app subject switcher.
 The C# pack lives in `content/csharp/`. Its starter lesson covers target framework
 versus language version, inferred types, and following assignments to predict output.
 Explanation, choice and predict-output steps work through the existing lesson and
-review views. The manifest also enables write-code and declares `csharp`;
+review views, and the first track after it, "Types and the compiler", is described in [csharp-track-1.md](csharp-track-1.md). The manifest also enables write-code and declares `csharp`;
 it enables no Python runtime. The starter now includes AddTwo, whose reference
 solution is compiled and tested by the CLI gate (#149). Native execution still
 requires #150, so that exercise cannot yet be completed in the app. Trace steps
@@ -30,7 +30,7 @@ uses `adb install -r dist/brilliant-csharp.apk` (or the APK helper's `--install`
 
 ```yaml
 id: pack.csharp.starter
-version: 0.1.1
+version: 0.2.0
 targetFramework: net10.0
 langVersion: '14'
 ```
