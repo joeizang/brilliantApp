@@ -20,7 +20,18 @@ public sealed record TestOutcome(
     bool Passed,
     string Stdout,
     string? Traceback,
-    int? ErrorLine);
+    int? ErrorLine,
+    AllocationReport? Allocation = null);
+
+/// <summary>
+/// The allocation measurement of one test that declared a byte budget. <see cref="Runtime"/> names the runtime that measured it;
+/// only CoreCLR measurements are authoritative, so a measurement from another runtime has <see cref="Enforced"/> false: it is shown
+/// to the learner as advice and never fails the test.
+/// </summary>
+public sealed record AllocationReport(long Bytes, long Budget, string Runtime, bool Enforced)
+{
+    public bool Exceeded => Bytes > Budget;
+}
 
 /// <summary>A labelled chunk of text the learner's code printed.</summary>
 public sealed record OutputSection(string Label, string Text);

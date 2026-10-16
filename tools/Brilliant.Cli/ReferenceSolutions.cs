@@ -417,6 +417,11 @@ internal static class ReferenceSolutionChecker
         foreach (var (test, number) in failed)
         {
             lines.Append($"\n  test {number}: {test.Call}");
+            if (test.Allocation is { Exceeded: true, Enforced: true } allocation)
+            {
+                lines.Append($"\n    allocated {allocation.Bytes:N0} bytes per call; the budget is {allocation.Budget:N0} ({allocation.Runtime})");
+                continue;
+            }
             lines.Append($"\n    expected: {test.Expected}");
             lines.Append(test.Actual is null ? "\n    actual:   (raised an error)" : $"\n    actual:   {test.Actual}");
             if (!string.IsNullOrEmpty(test.Traceback)) lines.Append('\n').Append(Indent(test.Traceback, "    "));

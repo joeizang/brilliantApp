@@ -190,4 +190,106 @@ public sealed class RuntimeTests
         Assert.Equal(3, result.ErrorLine);
         Assert.Equal("C# compilation failed.", result.Message);
     }
+
+    private const string Allocates = "static int Sum(int n) { var scratch = new int[16]; scratch[0] = n; return scratch[0]; }";
+
+    [Fact]
+    public async Task A_zero_allocation_method_passes_a_zero_byte_budget()
+    {
+        var runtime = new CSharpRuntime();
+        var result = await runtime.RunTestsAsync("static int Double(int n) => n * 2;", "Double", [new CodeTest("4", "8", null, 0)]);
+
+        Assert.True(result.Status == TestRunStatus.Passed, result.Message + result.Traceback);
+        var allocation = Assert.IsType<AllocationReport>(Assert.Single(result.Tests).Allocation);
+        Assert.Equal(0, allocation.Bytes);
+        Assert.False(allocation.Exceeded);
+    }
+
+    [Fact]
+    public async Task An_allocating_method_fails_a_zero_byte_budget_and_reports_the_measured_bytes()
+    {
+        var runtime = new CSharpRuntime();
+        var result = await runtime.RunTestsAsync(Allocates, "Sum", [new CodeTest("4", "4", null, 0)]);
+
+        Assert.Equal(TestRunStatus.Failed, result.Status);
+        var failure = result.FirstFailure!;
+        Assert.False(failure.Passed);
+        Assert.Equal("4", failure.Actual); // the answer was right; the allocation is what failed
+        var allocation = failure.Allocation!;
+        Assert.True(allocation.Enforced);
+        Assert.Equal("CoreCLR", allocation.Runtime);
+        Assert.InRange(allocation.Bytes, 64, 128); // an int[16] is 88 bytes on CoreCLR
+    }
+
+    [Fact]
+    public async Task A_budget_at_the_measured_bytes_passes()
+    {
+        var runtime = new CSharpRuntime();
+        var measured = (await runtime.RunTestsAsync(Allocates, "Sum", [new CodeTest("4", "4", null, 0)])).FirstFailure!.Allocation!.Bytes;
+
+        var result = await runtime.RunTestsAsync(Allocates, "Sum", [new CodeTest("4", "4", null, (int)measured)]);
+
+        Assert.Equal(TestRunStatus.Passed, result.Status);
+    }
+
+    [Fact]
+    public async Task A_one_off_allocation_in_the_first_call_is_not_counted()
+    {
+        // The first call builds a lookup table; every later call allocates nothing.
+        var runtime = new CSharpRuntime();
+        var result = await runtime.RunTestsAsync("static int Lookup(int n) { Cache.Table ??= new int[64]; return Cache.Table.Length + n; }\nstatic class Cache { public static int[]? Table; }", "Lookup",
+            [new CodeTest("1", "65", null, 0)]);
+
+        Assert.True(result.Status == TestRunStatus.Passed, result.Message + result.Traceback);
+    }
+
+    [Fact]
+    public async Task A_measurement_from_a_non_authoritative_runtime_is_advice_and_never_fails_the_test()
+    {
+        var runtime = new CSharpRuntime { EnforceAllocationBudgets = false, AllocationRuntime = "Mono interpreter" };
+        var result = await runtime.RunTestsAsync(Allocates, "Sum", [new CodeTest("4", "4", null, 0)]);
+
+        Assert.Equal(TestRunStatus.Passed, result.Status);
+        var allocation = Assert.Single(result.Tests).Allocation!;
+        Assert.False(allocation.Enforced);
+        Assert.True(allocation.Exceeded);
+        Assert.Equal("Mono interpreter", allocation.Runtime);
+    }
+
+    [Fact]
+    public async Task A_test_without_a_budget_is_not_measured()
+    {
+        var result = await new CSharpRuntime().RunTestsAsync(Allocates, "Sum", [new CodeTest("4", "4")]);
+
+        Assert.Equal(TestRunStatus.Passed, result.Status);
+        Assert.Null(Assert.Single(result.Tests).Allocation);
+    }
+
+    [Fact]
+    public async Task A_wrong_answer_is_reported_as_a_wrong_answer_and_not_measured()
+    {
+        var result = await new CSharpRuntime().RunTestsAsync(Allocates, "Sum", [new CodeTest("4", "5", null, 0)]);
+
+        Assert.Equal(TestRunStatus.Failed, result.Status);
+        Assert.Null(result.FirstFailure!.Allocation);
+        Assert.Equal("4", result.FirstFailure.Actual);
+    }
+
+    [Fact]
+    public async Task A_negative_budget_is_an_error()
+    {
+        var result = await new CSharpRuntime().RunTestsAsync("static int F() => 1;", "F", [new CodeTest("", "1", null, -1)]);
+
+        Assert.Equal(TestRunStatus.Error, result.Status);
+        Assert.Contains("negative", result.Message);
+    }
+
+    [Fact]
+    public async Task Printing_while_measuring_does_not_hit_the_output_limit()
+    {
+        var result = await new CSharpRuntime().RunTestsAsync("static int F() { Console.WriteLine(\"hello\"); return 1; }", "F", [new CodeTest("", "1", null, 100_000)]);
+
+        Assert.True(result.Status == TestRunStatus.Passed, result.Message + result.Traceback);
+        Assert.Equal("hello\n", Assert.Single(result.Tests).Stdout.Replace("\r\n", "\n"));
+    }
 }

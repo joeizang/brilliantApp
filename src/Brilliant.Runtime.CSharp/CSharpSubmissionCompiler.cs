@@ -32,6 +32,7 @@ public static class CSharpSubmissionCompiler
             return Error("C# exercises support up to 64 tests, 64 KiB of source and 4 KiB per test expression.");
         cancellationToken.ThrowIfCancellationRequested();
         if (tests.Any(t => t.Compare is not null)) return Error("C# tests use structural equality; Python compare options are unsupported.");
+        if (tests.Any(t => t.MaxAllocatedBytes is < 0)) return Error("An allocation budget can't be negative.");
         if (!SyntaxFacts.IsValidIdentifier(entrypoint)) return Error("C# entrypoint must be an unqualified function identifier.");
         if (!LanguageVersionFacts.TryParse(CSharpPins.LanguageVersion, out var languageVersion)) return Error("Unsupported pinned C# language version.");
         var options = new CSharpParseOptions(languageVersion);
@@ -51,14 +52,16 @@ public static class CSharpSubmissionCompiler
 
         var text = new StringBuilder("using System;\nusing System.Collections.Generic;\nusing System.Linq;\n");
         foreach (var directive in root.Usings) text.AppendLine(directive.ToFullString());
-        text.AppendLine("public static class __BrilliantReference { public static object?[] Run(int __test) {");
+        text.AppendLine("public static class __BrilliantReference { public static object?[] Run(int __test, int __measure) {");
         foreach (var member in root.Members.OfType<GlobalStatementSyntax>()) AppendSource(text, member);
         text.AppendLine("switch (__test) {");
         for (var i = 0; i < tests.Count; i++)
         {
             var test = tests[i];
             text.AppendLine($"#line 1 \"test-{i + 1}.cs\"");
-            text.AppendLine($"case {i}: return new object?[] {{ (object?)({entrypoint}({test.Input})), (object?)({test.Expected}) }};");
+            // Mode 1 makes one bare call so the runtime can count the bytes a call allocates; the result is discarded, not boxed.
+            var measure = test.MaxAllocatedBytes is null ? "" : $"if (__measure != 0) {{ _ = {entrypoint}({test.Input}); return System.Array.Empty<object?>(); }} ";
+            text.AppendLine($"case {i}: {measure}return new object?[] {{ (object?)({entrypoint}({test.Input})), (object?)({test.Expected}) }};");
         }
         text.AppendLine("#line default\ndefault: throw new System.ArgumentOutOfRangeException(); } } }");
         foreach (var member in root.Members.Where(m => m is not GlobalStatementSyntax)) AppendSource(text, member);

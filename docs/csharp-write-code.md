@@ -31,6 +31,36 @@ watchdog and the run reports a time-out immediately (exercised in tests through 
 to quit and reopen the app (the draft is already saved). The session also stops after 50 assembly loads, as collectible
 contexts are not guaranteed to be reclaimed by the runtime. Printing is capped at 16 KiB per test and is reported as an error, not a time-out.
 
+## Allocation budgets (#151)
+
+A C# test may declare `maxAllocatedBytes`, the most heap memory one call of the entrypoint may allocate (0 to 1,000,000):
+
+```yaml
+tests:
+  - input: '4'
+    expected: '8'
+    maxAllocatedBytes: 0
+```
+
+After a test returns the right answer, `AllocationMeter` calls the entrypoint 50 times to warm up (static initialisation and cached lambdas
+are not counted), then takes five samples of 50 calls with `GC.GetAllocatedBytesForCurrentThread()` on the test's own thread. The result is the
+smallest sample's bytes per call, so a stray runtime allocation in one sample can't fail a method that allocates nothing. The call expression
+`Entry(input)` is what is measured, so allocations made building the `input` arguments count too; use allocation-free inputs for a zero-byte
+budget. Printing is discarded while measuring, and each call gets a fresh probe budget. Measurement uses the unoptimised test build, so
+the numbers are stable, but they are not the numbers an optimised build would give.
+
+Which runtime measured matters (#138): CoreCLR and Mono agree on zero, and on a boxed int (24 bytes), but differ on an `int[16]`
+(88 against 96) and on a captured closure (88 against 152).
+
+| Where | Runtime | Over budget |
+|---|---|---|
+| `validate`, `pack`, `publish` (reference solution) | CoreCLR | Fails the gate; the message shows the measured bytes, the budget and the runtime |
+| Learner's Mac app | Mono interpreter | Advice only: the run still passes and the feedback says that the sizes differ between runtimes |
+
+CoreCLR pack-time measurements are authoritative; every report names its runtime (`AllocationReport.Runtime`) and says whether it was enforced.
+A call too slow to repeat (more than five seconds at publishing) is a publishing error. On the Mac the measurement is skipped when it won't fit in
+the test's remaining time budget. Android doesn't run C# (see above).
+
 ## Editor and drafts
 
 `CodeEditor` takes a `Language` (default `python`); `csharp` selects the CodeMirror clike C# mode.

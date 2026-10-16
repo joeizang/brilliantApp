@@ -49,6 +49,10 @@
             {
                 case TestRunStatus.Passed:
                     <p class="verdict correct font-semibold text-success" role="status">All @result.Tests.Count tests passed! 🎉</p>
+                    @foreach (var advice in result.Tests.Select(t => t.Allocation).OfType<AllocationReport>().Where(a => !a.Enforced && a.Exceeded).Take(1))
+                    {
+                        <p class="allocation-advice text-fg-secondary" role="note">Allocation advice: a call allocated @advice.Bytes.ToString("N0") bytes on this device's @advice.Runtime runtime, over the @advice.Budget.ToString("N0")-byte budget. Allocation sizes differ between runtimes, so this doesn't fail the test; the lesson's budget is checked on CoreCLR when the lesson is published.</p>
+                    }
                     break;
 
                 case TestRunStatus.TimedOut:
@@ -67,8 +71,16 @@
                         <h3 class="my-[.4rem] text-[1.05rem]">First failing test</h3>
                         <dl class="mx-0 mt-0 mb-2 grid grid-cols-[max-content_1fr] gap-x-4 gap-y-[.3rem]">
                             <dt class="text-fg-secondary">Call</dt><dd class="m-0 overflow-x-auto"><code class="text-[.9rem] whitespace-pre-wrap">@failure.Call</code></dd>
-                            <dt class="text-fg-secondary">Expected</dt><dd class="m-0 overflow-x-auto"><code class="text-[.9rem] whitespace-pre-wrap">@failure.Expected</code></dd>
-                            <dt class="text-fg-secondary">Your code returned</dt><dd class="m-0 overflow-x-auto">@if (failure.Actual is null) { <em>nothing, it raised an error</em> } else { <code class="text-[.9rem] whitespace-pre-wrap">@failure.Actual</code> }</dd>
+                            @if (failure.Allocation is { Exceeded: true } allocation)
+                            {
+                                <dt class="text-fg-secondary">Allocation budget</dt><dd class="m-0">at most <code class="text-[.9rem]">@allocation.Budget.ToString("N0")</code> bytes per call</dd>
+                                <dt class="text-fg-secondary">Your code allocated</dt><dd class="m-0"><code class="text-[.9rem]">@allocation.Bytes.ToString("N0")</code> bytes per call (@allocation.Runtime)</dd>
+                            }
+                            else
+                            {
+                                <dt class="text-fg-secondary">Expected</dt><dd class="m-0 overflow-x-auto"><code class="text-[.9rem] whitespace-pre-wrap">@failure.Expected</code></dd>
+                                <dt class="text-fg-secondary">Your code returned</dt><dd class="m-0 overflow-x-auto">@if (failure.Actual is null) { <em>nothing, it raised an error</em> } else { <code class="text-[.9rem] whitespace-pre-wrap">@failure.Actual</code> }</dd>
+                            }
                         </dl>
                         @TracebackBlock(failure.Traceback)
                     </section>

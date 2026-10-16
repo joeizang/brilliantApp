@@ -18,6 +18,12 @@ public sealed class CSharpRuntime(TimeSpan? testTimeout = null) : ICodeRuntime
     public const int AssemblyLoadLimit = 50;
     /// <summary>Test seam: lets a submission block so the watchdog can be exercised. Learner code never runs with this set.</summary>
     internal bool AllowBlockingCalls { get; init; }
+    /// <summary>
+    /// Whether an exceeded allocation budget fails a test. Only CoreCLR measurements are authoritative (#138); on Mono the measurement is
+    /// advisory and named as such. The default follows the running runtime.
+    /// </summary>
+    public bool EnforceAllocationBudgets { get; init; } = AllocationMeter.IsAuthoritative;
+    public string AllocationRuntime { get; init; } = AllocationMeter.RuntimeName;
     private readonly TimeSpan _testTimeout = testTimeout is { } t && t <= TimeSpan.Zero ? throw new ArgumentOutOfRangeException(nameof(testTimeout)) : testTimeout ?? TimeSpan.FromSeconds(2);
     private readonly SemaphoreSlim _runs = new(1);
     private readonly object _state = new();
@@ -91,7 +97,7 @@ public sealed class CSharpRuntime(TimeSpan? testTimeout = null) : ICodeRuntime
         try
         {
             using var pe = new MemoryStream(image);
-            var method = context.LoadFromStream(pe).GetType("__BrilliantReference")!.GetMethod("Run")!;
+            var method = context.LoadFromStream(pe).GetType("__BrilliantReference")!.GetMethod("Run")!.CreateDelegate<Func<int, int, object?[]>>();
             var outcomes = new List<TestOutcome>();
             for (var i = 0; i < tests.Count; i++)
             {
@@ -126,7 +132,7 @@ public sealed class CSharpRuntime(TimeSpan? testTimeout = null) : ICodeRuntime
 
     private sealed record TestExecution(TestOutcome? Outcome, string? Timeout = null);
 
-    private static Task<TestExecution> Execute(MethodInfo method, int index, CodeTest test, string entrypoint, ProbeBudget budget)
+    private Task<TestExecution> Execute(Func<int, int, object?[]> method, int index, CodeTest test, string entrypoint, ProbeBudget budget)
     {
         var done = new TaskCompletionSource<TestExecution>(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
@@ -136,13 +142,27 @@ public sealed class CSharpRuntime(TimeSpan? testTimeout = null) : ICodeRuntime
             ProbeConsole.Writer = printed;
             try
             {
-                var pair = (object?[])method.Invoke(null, [index])!;
+                var started = Stopwatch.GetTimestamp();
+                var pair = method(index, 0);
                 budget.Tick();
                 var passed = CSharpValues.Equal(pair[0], pair[1]);
                 var actual = CSharpValues.Format(pair[0]);
                 var expected = CSharpValues.Format(pair[1]);
                 budget.Tick();
-                done.SetResult(new(new($"{entrypoint}({test.Input})", expected, actual, passed, printed.ToString(), null, null)));
+                var output = printed.ToString();
+                AllocationReport? allocation = null;
+                if (passed && test.MaxAllocatedBytes is { } allowed)
+                {
+                    // Printing during the measurement is discarded; one run's output is enough.
+                    ProbeConsole.Writer = TextWriter.Null;
+                    var remaining = _testTimeout - Stopwatch.GetElapsedTime(started);
+                    if (AllocationMeter.Measure(method, index, budget, remaining / 2) is { } bytes)
+                    {
+                        allocation = new(bytes, allowed, AllocationRuntime, EnforceAllocationBudgets);
+                        passed = !(allocation.Enforced && allocation.Exceeded);
+                    }
+                }
+                done.SetResult(new(new($"{entrypoint}({test.Input})", expected, actual, passed, output, null, null, allocation)));
             }
             catch (Exception ex)
             {
