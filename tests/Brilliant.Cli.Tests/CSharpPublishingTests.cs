@@ -22,7 +22,7 @@ public sealed class CSharpPublishingTests : IDisposable
               onLight: '#000000'
             contentPack: sample.pack.zip
             runtimes: [{{(includePython ? "python, csharp" : "csharp")}}]
-            stepTypes: [write-code]
+            stepTypes: [write-code, fill-blank]
             """);
         Write("content/sample/pack.yaml", "id: pack.csharp.sample\nversion: 1.0.0\ntargetFramework: net10.0\nlangVersion: '14'\n");
         Write("content/sample/tracks/one/track.yaml", "id: track.csharp.sample\ntitle: C# samples\n");
@@ -36,6 +36,7 @@ public sealed class CSharpPublishingTests : IDisposable
                 title: Double
                 prompt: Return twice the argument.
                 language: csharp
+                largeScreenPreferred: true
                 entrypoint: Double
                 starter: 'static int Double(int n) => 0;'
                 solution: |
@@ -45,6 +46,16 @@ public sealed class CSharpPublishingTests : IDisposable
                     expected: '8'
                   - input: '-3'
                     expected: '-6'
+                phoneAlternative:
+                  id: step.csharp.double.fill
+                  type: fill-blank
+                  title: Complete Double
+                  prompt: Finish Double.
+                  language: csharp
+                  template: 'static int Double(int n) => n * {{factor}};'
+                  blanks:
+                    - id: factor
+                      accepted: ['2']
             """ + "\n";
         if (includePython)
             lesson += """
@@ -75,6 +86,21 @@ public sealed class CSharpPublishingTests : IDisposable
         Assert.Equal("net10.0", content.Manifest.TargetFramework);
         Assert.Equal("14", content.Manifest.LangVersion);
         Assert.Equal("csharp", Assert.IsType<WriteCodeStep>(Assert.Single(content.Lessons[0].Steps)).Language);
+    }
+
+    [Fact]
+    public void A_csharp_write_code_step_without_a_phone_alternative_is_rejected_because_android_cannot_run_it()
+    {
+        WritePack();
+        var file = Path.Combine(Root, LessonFile);
+        var text = File.ReadAllText(file);
+        File.WriteAllText(file, text[..text.IndexOf("    phoneAlternative:", StringComparison.Ordinal)]);
+
+        var report = ContentValidator.Load(Root, out _);
+
+        var error = Assert.Single(report.Errors);
+        Assert.Contains("phoneAlternative", error.Message);
+        Assert.Contains("Android", error.Message);
     }
 
     [Fact]

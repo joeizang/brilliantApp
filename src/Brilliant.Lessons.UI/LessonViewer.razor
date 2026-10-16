@@ -30,13 +30,16 @@
 {
     var shown = Shown(step);
     <div @key="step.Id">
-        @if (step.LargeScreenPreferred && Screen.IsPhone)
+        @if ((step.LargeScreenPreferred && Screen.IsPhone) || Screen.RequiresPhoneAlternative(step))
         {
             <div class="large-screen-note content-column mt-4 rounded-lg border border-hairline bg-surface-raised px-4 py-3 text-[.95rem]" role="note">
                 @if (shown != step)
                 {
                     <span>This is the tap-friendly version of the step.</span>
-                    <button class="link btn-link ml-2" @onclick="() => _useAlternative = false">Switch back</button>
+                    @if (!Screen.RequiresPhoneAlternative(step))
+                    {
+                        <button class="link btn-link ml-2" @onclick="() => _useAlternative = false">Switch back</button>
+                    }
                 }
                 else
                 {
@@ -125,7 +128,7 @@ else
     /// What the learner is looking at for <paramref name="step"/>: the step itself, or on a phone, if they chose it, its tap-friendly alternative.
     /// Either way the work counts for <paramref name="step"/> (events, hints, flags, completion), so nothing about progress depends on the device.
     /// </summary>
-    private Step Shown(Step step) => _useAlternative && Screen.IsPhone && step.PhoneAlternative is { } alt ? alt : step;
+    private Step Shown(Step step) => Screen.RequiresPhoneAlternative(step) ? Screen.Present(step) : _useAlternative && Screen.IsPhone && step.PhoneAlternative is { } alt ? alt : step;
 
     private Step? CurrentStep =>
         Review ? Lesson.Steps.ElementAtOrDefault(_reviewIndex) : LearnerStateProjector.ProjectLesson(Lesson, Recorder.Log.ReadAll()).NextStep;

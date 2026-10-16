@@ -25,10 +25,13 @@ public sealed class ProbeBudget(int maxSteps = 100_000, TimeSpan? timeout = null
     private readonly int _maxSnapshots = maxSnapshots >= 0 ? maxSnapshots : throw new ArgumentOutOfRangeException(nameof(maxSnapshots));
     private readonly List<ProbeSnapshot> _snapshots = [];
     private long? _started;
-    private string? _exhausted;
+    private volatile string? _exhausted;
     public int Depth { get; private set; }
     public int Steps { get; private set; }
     public IReadOnlyList<ProbeSnapshot> Snapshots => _snapshots;
+
+    /// <summary>Request cooperative stopping from a watchdog; the next probe throws.</summary>
+    public void Cancel() => Interlocked.CompareExchange(ref _exhausted, "The code exceeded its time budget.", null);
 
     public void Tick()
     {

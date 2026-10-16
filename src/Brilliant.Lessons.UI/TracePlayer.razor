@@ -10,7 +10,7 @@
   @* Room for it (a tablet, a wide window): the code and its controls on the left, what they show on the right, so neither scrolls away from the other. *@
   <div class="trace-layout grid gap-x-6 @@3xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] @@3xl:items-start">
    <div class="trace-code @@3xl:sticky @@3xl:top-4 min-w-0">
-    <CodeEditor @ref="_editor" InitialCode="@ShownCode" ReadOnly="true" />
+    <CodeEditor @ref="_editor" InitialCode="@ShownCode" ReadOnly="true" Language="@Language" />
 
     <div class="controls mt-4 mb-2 flex items-center justify-between gap-4">
         <button class="secondary prev @NavButton" disabled="@(_index == 0)" @onclick="() => Step(_index - 1)">← Previous</button>

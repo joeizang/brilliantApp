@@ -137,18 +137,18 @@ else
         }
         else if (pick is null)
         {
-            <ProblemPrompt Step="step.For(Screen.Class)" />
+            <ProblemPrompt Step="Screen.Present(step)" />
             <PatternPick Choices="ChoicesOf(problem)" Right="PatternOf(problem)" Name="@($"interview.{_run.Id}.{_active}")" Blind="true" OnPicked="p => Picked(problem, p.Picked)" />
         }
         else if (solve is not null)
         {
-            <ProblemPrompt Step="step.For(Screen.Class)" />
+            <ProblemPrompt Step="Screen.Present(step)" />
             <p class="pick-locked content-column mt-4">Your pick: <strong>@PatternTitle(pick.Picked)</strong></p>
             <p class="solve-submitted content-column mt-1 font-semibold">Solution submitted.</p>
         }
         else
         {
-            var presented = step.For(Screen.Class);
+            var presented = Screen.Present(step);
             @if (presented.LargeScreenPreferred && Screen.IsPhone)
             {
                 <div class="content-column"><p class="large-screen-note mt-4 rounded-lg border border-hairline bg-surface-raised px-4 py-3 text-[.95rem]" role="note">This problem is best on a larger screen, where you can type the code. You can still solve it here.</p></div>

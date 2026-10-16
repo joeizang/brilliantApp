@@ -130,7 +130,7 @@ else
         _counts = Enum.GetValues<Difficulty>().ToDictionary(l => l, l => PracticeSelector.Count(state, l));
         _problem = PracticeSelector.Next(state, _random, previousStepId, _level);
         if (_problem is null) return;
-        _presented = _problem.Step.For(Screen.Class);
+        _presented = Screen.Present(_problem.Step);
         (_phase, _picked, _solved, _hintsUsed, _comesBack, _shownAt) = (Phase.Pick, null, null, 0, [], Recorder.Now);
         _count++;
     }

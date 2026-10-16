@@ -9,8 +9,16 @@ namespace Brilliant.Lessons.UI;
 /// question, the form Review queues. Layout alone is left to the stylesheet's media queries.
 /// Starts as <see cref="ScreenClass.Desktop"/> until the page reports its width (screen.js), and follows the window as it is resized or turned.
 /// </summary>
-public sealed class ScreenInfo
+public sealed class ScreenInfo(bool csharpWriteCodeAvailable = true)
 {
+    /// <summary>Native host capability, independent of window width: C# execution is available on the Mac.</summary>
+    public bool CSharpWriteCodeAvailable { get; } = csharpWriteCodeAvailable;
+
+    public bool RequiresPhoneAlternative(Step step) => !CSharpWriteCodeAvailable && step is WriteCodeStep { Language: "csharp" };
+
+    /// <summary>Uses a tap-friendly form on a phone or whenever the native host cannot execute this C# step.</summary>
+    public Step Present(Step step) => RequiresPhoneAlternative(step) ? step.PhoneAlternative ?? step : step.For(Class);
+
     public ScreenClass Class { get; private set; } = ScreenClass.Desktop;
 
     public bool IsPhone => Class == ScreenClass.Phone;

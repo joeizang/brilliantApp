@@ -6,6 +6,9 @@
 <div @ref="_host" class="code-editor my-4"></div>
 
 @code {
+    /// <summary>The exercise language used for highlighting and indentation; existing lessons default to Python.</summary>
+    [Parameter] public string Language { get; set; } = "python";
+
     /// <summary>The code the editor starts with. Later changes go through <see cref="SetCodeAsync"/>.</summary>
     [Parameter] public string InitialCode { get; set; } = "";
 
@@ -32,7 +35,7 @@
         {
             _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/Brilliant.Lessons.UI/code-editor.js");
             _self = DotNetObjectReference.Create(this);
-            _id = await _module.InvokeAsync<int>("create", _host, InitialCode, _self, ReadOnly);
+            _id = await _module.InvokeAsync<int>("create", _host, InitialCode, _self, ReadOnly, Language);
             _ready.SetResult();
         }
         catch (Exception ex)

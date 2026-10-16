@@ -365,6 +365,10 @@ public static partial class ContentValidator
             alternative = LoadStep(altDto, altWhere, file, report, seenIds, isAlternative: true);
         }
 
+        // Android cannot run C#; without a tap-friendly alternative a C# write-code step is a dead end on the phone.
+        if (!isAlternative && dto.Type == "write-code" && dto.Language == "csharp" && dto.PhoneAlternative is null)
+            report.Add(file, $"{label}: a C# write-code step needs 'largeScreenPreferred: true' and a 'phoneAlternative' (parsons or fill-blank), because Android can't run C#.");
+
         var pattern = LoadPatternTag(dto, label, file, report, isAlternative);
         var cue = LoadPatternCue(dto, label, file, report, isAlternative);
         var difficulty = LoadDifficulty(dto, label, file, report, isAlternative);

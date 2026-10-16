@@ -110,6 +110,7 @@ steps:
       Finish AddTwo so it returns the input count plus two. The return value is an int.
       Keep the function's name and parameter so the tests can call it.
     language: csharp
+    largeScreenPreferred: true
     entrypoint: AddTwo
     starter: |
       static int AddTwo(int count)
@@ -128,6 +129,26 @@ steps:
         expected: '2'
       - input: '-2'
         expected: '0'
+    phoneAlternative:
+      id: step.csharp.add-count.fill
+      type: fill-blank
+      title: Complete the return statement
+      prompt: |
+        Finish AddTwo so it returns the input count plus two. The return value is an int.
+      language: csharp
+      template: |
+        static int AddTwo(int count)
+        {
+            return count + {{amount}};
+        }
+      blanks:
+        - id: amount
+          accepted:
+            - "2"
+          mistakes:
+            - answers:
+                - "1"
+              feedback: "`1` would add one. AddTwo adds two."
     hints:
       - The function must return an int. Use the count parameter in the expression after return.
       - Add two to count before returning it.

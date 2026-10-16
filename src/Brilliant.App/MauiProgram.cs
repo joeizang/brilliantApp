@@ -7,6 +7,9 @@ using Brilliant.Core.Sync;
 #if BRILLIANT_PYTHON
 using Brilliant.Runtime.Python;
 #endif
+#if BRILLIANT_CSHARP
+using Brilliant.Runtime.CSharp;
+#endif
 using Brilliant.Data;
 using Brilliant.Lessons.UI;
 
@@ -62,7 +65,7 @@ public static class MauiProgram
 
         // Shortcuts and menu commands reach whichever step is on screen through one bus, shared by the webview's key listener and the native menu.
         builder.Services.AddSingleton<StepShortcuts>();
-        builder.Services.AddSingleton<ScreenInfo>();
+        builder.Services.AddSingleton(new ScreenInfo(csharpWriteCodeAvailable: !OperatingSystem.IsAndroid()));
         builder.Services.AddSingleton(TimeProvider.System);   // the Trace Player's playback timer
 
         // Pairing with the household server over plain HTTP on the LAN; the token it returns goes in the platform's secure storage.
@@ -93,6 +96,10 @@ public static class MauiProgram
         // The Python runtime talks to the webview it lives in, so it is scoped to the BlazorWebView.
 #if BRILLIANT_PYTHON
         builder.Services.AddScoped<ICodeRuntime, PyodideRuntime>();
+#endif
+#if BRILLIANT_CSHARP
+        // The native compilation lifetime is process-wide, including reopened Blazor scopes.
+        builder.Services.AddSingleton<ICodeRuntime, CSharpRuntime>(_ => new CSharpRuntime());
 #endif
         builder.Services.AddScoped(sp => new CodeRuntimeRegistry(sp.GetServices<ICodeRuntime>()));
 
