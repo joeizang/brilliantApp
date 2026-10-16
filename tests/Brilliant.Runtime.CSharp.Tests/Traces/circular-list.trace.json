@@ -1,0 +1,274 @@
+{
+  "status": "ok",
+  "frames": [
+    {
+      "event": "line",
+      "line": 1,
+      "function": "Main",
+      "locals": [],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 2,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "a",
+          "type": "Link",
+          "repr": "Link { Item = \"a\", After = null }"
+        }
+      ],
+      "tracked": {},
+      "lists": {
+        "a": {
+          "head": 0,
+          "nodes": [
+            {
+              "id": 0,
+              "value": "\"a\""
+            }
+          ],
+          "more": 0,
+          "pointers": {}
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 3,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "a",
+          "type": "Link",
+          "repr": "Link { Item = \"a\", After = null }"
+        },
+        {
+          "name": "b",
+          "type": "Link",
+          "repr": "Link { Item = \"b\", After = null }"
+        }
+      ],
+      "tracked": {},
+      "lists": {
+        "a": {
+          "head": 0,
+          "nodes": [
+            {
+              "id": 0,
+              "value": "\"a\""
+            }
+          ],
+          "more": 0,
+          "pointers": {}
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 4,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "a",
+          "type": "Link",
+          "repr": "Link { Item = \"a\", After = Link { Item = \"b\", After = null …"
+        },
+        {
+          "name": "b",
+          "type": "Link",
+          "repr": "Link { Item = \"b\", After = null }"
+        }
+      ],
+      "tracked": {},
+      "lists": {
+        "a": {
+          "head": 0,
+          "nodes": [
+            {
+              "id": 0,
+              "value": "\"a\"",
+              "next": 1
+            },
+            {
+              "id": 1,
+              "value": "\"b\""
+            }
+          ],
+          "more": 0,
+          "pointers": {}
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 5,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "a",
+          "type": "Link",
+          "repr": "Link { Item = \"a\", After = Link { Item = \"b\", After = <cycl…"
+        },
+        {
+          "name": "b",
+          "type": "Link",
+          "repr": "Link { Item = \"b\", After = Link { Item = \"a\", After = <cycl…"
+        }
+      ],
+      "tracked": {},
+      "lists": {
+        "a": {
+          "head": 0,
+          "nodes": [
+            {
+              "id": 0,
+              "value": "\"a\"",
+              "next": 1
+            },
+            {
+              "id": 1,
+              "value": "\"b\"",
+              "next": 0
+            }
+          ],
+          "more": 0,
+          "pointers": {}
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 6,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "a",
+          "type": "Link",
+          "repr": "Link { Item = \"a\", After = Link { Item = \"b\", After = <cycl…"
+        },
+        {
+          "name": "b",
+          "type": "Link",
+          "repr": "Link { Item = \"b\", After = Link { Item = \"a\", After = <cycl…"
+        },
+        {
+          "name": "walker",
+          "type": "Link",
+          "repr": "Link { Item = \"a\", After = Link { Item = \"b\", After = <cycl…"
+        }
+      ],
+      "tracked": {},
+      "lists": {
+        "a": {
+          "head": 0,
+          "nodes": [
+            {
+              "id": 0,
+              "value": "\"a\"",
+              "next": 1
+            },
+            {
+              "id": 1,
+              "value": "\"b\"",
+              "next": 0
+            }
+          ],
+          "more": 0,
+          "pointers": {
+            "walker": 0
+          }
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 7,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "a",
+          "type": "Link",
+          "repr": "Link { Item = \"a\", After = Link { Item = \"b\", After = <cycl…"
+        },
+        {
+          "name": "b",
+          "type": "Link",
+          "repr": "Link { Item = \"b\", After = Link { Item = \"a\", After = <cycl…"
+        },
+        {
+          "name": "walker",
+          "type": "Link",
+          "repr": "Link { Item = \"b\", After = Link { Item = \"a\", After = <cycl…"
+        }
+      ],
+      "tracked": {},
+      "lists": {
+        "a": {
+          "head": 0,
+          "nodes": [
+            {
+              "id": 0,
+              "value": "\"a\"",
+              "next": 1
+            },
+            {
+              "id": 1,
+              "value": "\"b\"",
+              "next": 0
+            }
+          ],
+          "more": 0,
+          "pointers": {
+            "walker": 1
+          }
+        }
+      }
+    },
+    {
+      "event": "return",
+      "function": "Main",
+      "locals": [
+        {
+          "name": "a",
+          "type": "Link",
+          "repr": "Link { Item = \"a\", After = Link { Item = \"b\", After = <cycl…"
+        },
+        {
+          "name": "b",
+          "type": "Link",
+          "repr": "Link { Item = \"b\", After = Link { Item = \"a\", After = <cycl…"
+        },
+        {
+          "name": "walker",
+          "type": "Link",
+          "repr": "Link { Item = \"a\", After = Link { Item = \"b\", After = <cycl…"
+        }
+      ],
+      "tracked": {},
+      "lists": {
+        "a": {
+          "head": 0,
+          "nodes": [
+            {
+              "id": 0,
+              "value": "\"a\"",
+              "next": 1
+            },
+            {
+              "id": 1,
+              "value": "\"b\"",
+              "next": 0
+            }
+          ],
+          "more": 0,
+          "pointers": {
+            "walker": 0
+          }
+        }
+      }
+    }
+  ],
+  "stdout": ""
+}

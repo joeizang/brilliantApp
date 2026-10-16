@@ -15,6 +15,9 @@ public sealed class TraceRecorderTests
         ["stack-and-queue"] = [new("stack", Visual.Stack, []), new("queue", Visual.Queue, [])],
         ["list-of-doubles"] = [new("values", Visual.Array, [])],
         ["dict-and-set"] = [new("counts", Visual.Dict, ["key"]), new("seen", Visual.Set, [])],
+        ["linked-list"] = [new("head", Visual.LinkedList, ["prev", "cur"])],
+        ["circular-list"] = [new("a", Visual.LinkedList, ["walker"], Next: "After", Value: "Item")],
+        ["tree"] = [new("root", Visual.Tree, [], Value: "Key", Visited: "seen")],
         ["heap"] = [new("heap", Visual.Heap, ["i"])],
         ["grid"] = [new("grid", Visual.Grid, []) { Cells = [new("row", "col")], RowLabels = "names", Highlight = "path" }, new("square", Visual.Grid, []), new("rows", Visual.Grid, [])],
     };
@@ -271,5 +274,52 @@ public sealed class TraceRecorderTests
         Assert.Equal("path", back.Highlight);
         Assert.Equal("names", back.RowLabels);
         Assert.Equal("r,c", back.Cells.Single().Name);
+    }
+
+    [Fact]
+    public void A_node_keeps_its_id_at_every_step_and_a_cycle_ends_at_the_node_it_returns_to()
+    {
+        var frames = Record("circular-list").Frames;
+        var ids = frames.Select(f => f.Lists?.GetValueOrDefault("a")).OfType<TrackedList>().Select(l => l.Head).Distinct().ToArray();
+        Assert.Equal([0], ids);
+        var last = frames[^1].Lists!["a"];
+        Assert.Equal(2, last.Nodes.Count);
+        Assert.Equal(last.Head, last.Nodes[1].Next);
+        Assert.Equal(0, last.More);
+    }
+
+    [Fact]
+    public void A_list_reversed_in_place_changes_its_links_but_not_its_ids()
+    {
+        var lists = Record("linked-list").Frames.Select(f => f.Lists?.GetValueOrDefault("head")).OfType<TrackedList>().ToArray();
+        Assert.Equal(lists[0].Nodes.Select(n => n.Id).Order(), lists[^1].Nodes.Select(n => n.Id).Order());
+        Assert.NotEqual(lists[0].Nodes.First().Next, lists[^1].Nodes.First(n => n.Id == lists[0].Nodes[0].Id).Next);
+    }
+
+    [Fact]
+    public void A_list_longer_than_thirty_nodes_records_thirty_and_counts_the_rest()
+    {
+        var result = CSharpTraceRecorder.Record("var head = new Node(0);\nvar tail = head;\nfor (var i = 1; i < 50; i++) { tail.Next = new Node(i); tail = tail.Next; }\nvar done = 1;\nclass Node { public int Val; public Node? Next; public Node(int v) { Val = v; } }",
+            [new("head", Visual.LinkedList, ["tail"])]);
+        var list = result.Frames[^1].Lists!["head"];
+        Assert.Equal(30, list.Nodes.Count);
+        Assert.Equal(20, list.More);
+    }
+
+    [Fact]
+    public void A_tree_marks_the_nodes_its_visited_list_holds_in_order()
+    {
+        var tree = Record("tree").Frames[^1].Trees!["root"];
+        Assert.True(tree.Visited!.Ordered);
+        Assert.Equal([1, 2, 3, 4, 5], tree.Visited.Nodes.Select(n => n.Order!.Value).Order());
+        Assert.Equal(0, tree.Visited.Unmatched);
+        var byValue = tree.Nodes.ToDictionary(n => n.Value!, n => n.Id);
+        Assert.Equal(1, tree.Visited.Nodes.Single(n => n.Id == byValue["1"]).Order);
+    }
+
+    [Fact]
+    public void A_cycle_still_reads_as_a_cycle_in_the_locals()
+    {
+        Assert.StartsWith("Link { Item = \"a\", After = Link { Item = \"b\", After = <cycl", Record("circular-list").Frames[^1].Locals.First(l => l.Name == "a").Repr);
     }
 }

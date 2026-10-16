@@ -1,0 +1,21 @@
+var root = new Tree(4);
+root.Left = new Tree(2) { Left = new Tree(1), Right = new Tree(3) };
+root.Right = new Tree(6);
+var seen = new List<int>();
+Walk(root);
+var done = seen.Count;
+
+void Walk(Tree? node)
+{
+    if (node == null) return;
+    Walk(node.Left);
+    seen.Add(node.Key);
+    Walk(node.Right);
+}
+
+class Tree
+{
+    public int Key;
+    public Tree? Left, Right;
+    public Tree(int key) { Key = key; }
+}

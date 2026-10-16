@@ -1,0 +1,13 @@
+var a = new Link { Item = "a" };
+var b = new Link { Item = "b" };
+a.After = b;
+b.After = a;
+var walker = a;
+walker = walker.After;
+walker = walker.After;
+
+class Link
+{
+    public string Item { get; set; } = "";
+    public Link? After { get; set; }
+}

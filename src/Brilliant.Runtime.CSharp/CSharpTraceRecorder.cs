@@ -80,7 +80,7 @@ public static class CSharpTraceRecorder
     private static TraceResult Run(MemoryStream pe, IReadOnlyList<Visual> visuals)
     {
         var context = new AssemblyLoadContext("C# trace", isCollectible: true);
-        var budget = new ProbeBudget(maxSteps: 100_000, timeout: TimeSpan.FromSeconds(2), maxSnapshots: MaxFrames);
+        var budget = new ProbeBudget(maxSteps: 100_000, timeout: TimeSpan.FromSeconds(2), maxSnapshots: MaxFrames, trackObjects: true);
         Exception? failure = null;
         using var printed = new StringWriter(CultureInfo.InvariantCulture);
         var finished = false;
@@ -133,7 +133,7 @@ public static class CSharpTraceRecorder
                 .ToDictionary(pair => pair.Key, pair => Tracked((CapturedSequence)pair.Value!), StringComparer.Ordinal);
             var function = snapshot.Function is null or Wrapper ? Module : snapshot.Function;
             frames.Add(new(closing ? "return" : "line", closing ? null : snapshot.Line, function, locals, tracked,
-                Tables: views.Tables(snapshot.Locals, shown), Grids: views.Grids(snapshot.Locals), Heaps: views.Heaps(snapshot.Locals)));
+                Tables: views.Tables(snapshot.Locals, shown), Lists: views.Lists(snapshot.Locals), Trees: views.Trees(snapshot.Locals), Grids: views.Grids(snapshot.Locals), Heaps: views.Heaps(snapshot.Locals)));
         }
         return frames;
     }
@@ -145,6 +145,7 @@ public static class CSharpTraceRecorder
         CapturedObject captured => new(name, captured.Display, Clip(Repr(captured), MaxRepr)),
         CapturedTable table => new(name, table.Display, Clip(Repr(table), MaxRepr)),
         UnavailableCapture unavailable => new(name, "object", $"<{unavailable.Reason}>"),
+        CapturedReference => new(name, "object", "<cycle>"),
         _ => new(name, TypeNames.Of(value.GetType()), Clip(Repr(value), MaxRepr), Integer(value)),
     };
 
@@ -182,6 +183,7 @@ public static class CSharpTraceRecorder
         double d => d.ToString("R", CultureInfo.InvariantCulture),
         float f => f.ToString("R", CultureInfo.InvariantCulture),
         UnavailableCapture unavailable => $"<{unavailable.Reason}>",
+        CapturedReference => "<cycle>",
         CapturedSequence sequence => "[" + string.Join(", ", sequence.Values.Take(MaxCells).Select(Repr))
             + ((sequence.Total >= 0 ? sequence.Total : sequence.Values.Count) > MaxCells ? ", …" : "") + "]",
         CapturedObject captured => Repr(captured),
@@ -209,7 +211,7 @@ public static class CSharpTraceRecorder
         return captured.Display + " { " + string.Join(", ", fields.Select(f => $"{f.Name} = {Repr(f.Value)}")) + " }";
     }
 
-    private static string FieldName(string key)
+    internal static string FieldName(string key)
     {
         var name = key[(key.LastIndexOf('.') + 1)..];
         return name.StartsWith('<') && name.IndexOf('>') is var end and > 0 ? name[1..end] : name;

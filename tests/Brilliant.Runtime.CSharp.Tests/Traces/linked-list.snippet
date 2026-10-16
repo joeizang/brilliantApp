@@ -1,0 +1,18 @@
+var head = new ListNode(1, new ListNode(2, new ListNode(3, null)));
+ListNode? prev = null;
+var cur = head;
+while (cur != null)
+{
+    var next = cur.Next;
+    cur.Next = prev;
+    prev = cur;
+    cur = next;
+}
+head = prev;
+
+class ListNode
+{
+    public int Val;
+    public ListNode? Next;
+    public ListNode(int val, ListNode? next) { Val = val; Next = next; }
+}
