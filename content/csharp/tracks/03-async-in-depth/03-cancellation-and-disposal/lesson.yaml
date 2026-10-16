@@ -75,7 +75,7 @@ steps:
     prompt: |
       A resource implements `IAsyncDisposable` because flushing it requires asynchronous I/O. Which form guarantees the method waits for cleanup before leaving the scope?
     options:
-      - text: '`await using var resource = OpenAsync();`'
+      - text: '`await using var resource = await OpenAsync();`'
         correct: true
         feedback: Right. At scope exit the compiler awaits `DisposeAsync`, including when the body throws. This is async's counterpart to `using` and `Dispose`.
       - text: '`using var resource = await OpenAsync();`'

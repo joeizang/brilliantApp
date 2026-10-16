@@ -144,7 +144,7 @@ steps:
         feedback: More time does not make the UI thread available. The continuation is waiting for exactly the thread Result is blocking.
     hints:
       - The blocked thread needs to return to its message loop before it can run the queued continuation.
-    
+
   - id: step.csharp.contexts.recap
     type: explain
     title: Make the whole path async
