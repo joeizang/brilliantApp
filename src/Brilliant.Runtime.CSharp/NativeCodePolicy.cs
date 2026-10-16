@@ -1,3 +1,4 @@
+using Brilliant.Core.Content;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -25,8 +26,16 @@ internal static class NativeCodePolicy
             if (SymbolEqualityComparer.Default.Equals(symbol.ContainingAssembly, model.Compilation.Assembly)) continue;
             var type = symbol as INamedTypeSymbol ?? symbol.ContainingType;
             if (type is null || Allowed(type, symbol, allowBlockingCalls)) continue;
-            throw new NotSupportedException($"{symbol.ToDisplayString()} is not available in synchronous C# exercises (line {node.GetLocation().GetMappedLineSpan().StartLinePosition.Line + 1}).");
+            throw new NotSupportedException($"{symbol.ToDisplayString()} is not available in synchronous C# exercises ({Where(node)}).");
         }
+    }
+
+    // A single file is just "line N"; a multi-file exercise says which file.
+    private static string Where(SyntaxNode node)
+    {
+        var span = node.GetLocation().GetMappedLineSpan();
+        var line = span.StartLinePosition.Line + 1;
+        return span.Path is CodeFiles.SingleFileName or "" ? $"line {line}" : $"{span.Path}, line {line}";
     }
 
     private static bool Allowed(INamedTypeSymbol type, ISymbol member, bool allowBlockingCalls)

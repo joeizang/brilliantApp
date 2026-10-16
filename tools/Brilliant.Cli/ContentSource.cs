@@ -350,6 +350,8 @@ public static partial class ContentValidator
             report.Add(file, $"{label}: 'largeScreenPreferred' only applies to questions (choice, predict-output, write-code, fill-blank or parsons).");
         if (dto.Compare is not null && dto.Type != "write-code")
             report.Add(file, $"{label}: 'compare' only applies to write-code steps.");
+        if (dto.Files is not null && dto.Type != "write-code")
+            report.Add(file, $"{label}: 'files' only applies to write-code steps.");
         if (isAlternative && preferred)
             report.Add(file, $"{label}: a phone alternative is for phones; it can't be 'largeScreenPreferred' itself.");
 
@@ -523,6 +525,7 @@ public static partial class ContentValidator
     private static Step? WithWalkthrough(Step? step, StepDto dto, string label, string file, ValidationReport report)
     {
         if (dto.Walkthrough is not { } w || step is null) return step;
+        if (dto.Files is not null) return step;   // refused, with its reason, where the files are read
         var where = $"{label}: walkthrough";
 
         Require(w.Explanation, "explanation", file, report, where);
@@ -957,7 +960,8 @@ public static partial class ContentValidator
     {
         Require(dto.Prompt, "prompt", file, report, label);
         Require(dto.Entrypoint, "entrypoint", file, report, label);
-        Require(dto.Solution, "solution", file, report, label); // proved against the tests; packed only as part of a 'walkthrough', if the step has one
+        var files = dto.Files is null ? null : LoadFiles(dto, label, file, report);
+        if (dto.Files is null) Require(dto.Solution, "solution", file, report, label); // proved against the tests; packed only as part of a 'walkthrough', if the step has one
         if (dto.Language is null) report.Add(file, $"{label}: 'language' is required (supported: python, csharp).");
         else CheckRuntimeLanguage(dto.Language, label, file, report);
         if (!string.IsNullOrWhiteSpace(dto.Entrypoint) && !EntrypointIdentifier.IsMatch(dto.Entrypoint))
@@ -991,9 +995,58 @@ public static partial class ContentValidator
             }
 
         if (report.Errors.Count != errorsBefore) return null;
+        if (files is not null)
+        {
+            report.ReferenceChecks.Add(new ReferenceCheck(file, label, dto.Id!, dto.Entrypoint!, "", tests, dto.Language!, files.Select(f => new CodeFile(f.Name, f.Solution)).ToList()));
+            var starters = files.Select(f => new CodeFile(f.Name, f.Starter)).ToList();
+            return new WriteCodeStep(dto.Id!, dto.Title!, dto.Prompt!, dto.Language!, starters[0].Content, dto.Entrypoint!, tests) { Files = starters };
+        }
         report.ReferenceChecks.Add(new ReferenceCheck(file, label, dto.Id!, dto.Entrypoint!, dto.Solution!, tests, dto.Language!));
         return new WriteCodeStep(dto.Id!, dto.Title!, dto.Prompt!, dto.Language!, dto.Starter ?? "", dto.Entrypoint!, tests);
     }
+
+    private sealed record AuthoredFile(string Name, string Starter, string Solution);
+
+    /// <summary>
+    /// A multi-file exercise's <c>files</c>: each has a <c>name</c>, the <c>starter</c> the learner begins with and the <c>solution</c> the
+    /// reference check compiles together with the others'. Only C# has them, and they replace the step's own <c>starter</c> and <c>solution</c>.
+    /// </summary>
+    private static List<AuthoredFile>? LoadFiles(StepDto dto, string label, string file, ValidationReport report)
+    {
+        var where = $"{label}: files";
+        if (dto.Language is not null && dto.Language != "csharp")
+            report.Add(file, $"{where}: only C# exercises can have several files ({dto.Language} exercises are a single 'starter' and 'solution').");
+        if (dto.Starter is not null || dto.Solution is not null)
+            report.Add(file, $"{where}: a multi-file exercise keeps its code in 'files'; remove the step's own 'starter' and 'solution'.");
+        if (dto.Walkthrough is not null)
+            report.Add(file, $"{label}: a multi-file exercise can't have a 'walkthrough' (it shows one file of code).");
+        var entries = dto.Files!;
+        if (entries.Count is < 2 or > CodeFiles.MaxFiles)
+        {
+            report.Add(file, $"{where}: list between 2 and {CodeFiles.MaxFiles} files (use 'starter' and 'solution' for one).");
+            return null;
+        }
+        var result = new List<AuthoredFile>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < entries.Count; i++)
+        {
+            var entry = entries[i];
+            var at = $"{where}[{i}]";
+            if (IsEmptyEntry(entry, at, file, report)) continue;
+            if (CodeFiles.NameProblem(entry.Name) is { } why) report.Add(file, $"{at}: {why}");
+            else if (!seen.Add(entry.Name!)) report.Add(file, $"{at}: file name '{entry.Name}' is used twice (names are compared ignoring case).");
+            if (string.IsNullOrWhiteSpace(entry.Solution)) report.Add(file, $"{at}: needs a 'solution' (the file's code in the reference solution).");
+            result.Add(new AuthoredFile(entry.Name ?? "", entry.Starter ?? "", entry.Solution ?? ""));
+        }
+        // Drafts are kept under "<step>/<name>"; one that the server would refuse could never sync.
+        var longest = result.Select(f => f.Name.Length).DefaultIfEmpty().Max();
+        if ((dto.Id?.Length ?? 0) + 1 + longest > MaxFileDraftKey)
+            report.Add(file, $"{where}: the step id plus a file name is too long for a draft to sync (at most {MaxFileDraftKey} characters including the '/').");
+        return result;
+    }
+
+    // The server limits a draft's key to 100 characters; Practice, Review and Interview put a prefix of their own in front of the step's.
+    private const int MaxFileDraftKey = 64;
 
     private static void CheckId(string? id, string kind, string file, ValidationReport report,
         Dictionary<string, string> seenIds, string? label = null)
@@ -1083,6 +1136,7 @@ public static partial class ContentValidator
         public string? Entrypoint { get; set; }
         public string? Compare { get; set; }
         public string? Solution { get; set; }
+        public List<FileDto>? Files { get; set; }
         public string? Template { get; set; }
         public List<BlankDto>? Blanks { get; set; }
         public List<TestDto>? Tests { get; set; }
@@ -1094,6 +1148,7 @@ public static partial class ContentValidator
         public string? PatternCue { get; set; }
         public string? Difficulty { get; set; }
     }
+    private sealed class FileDto { public string? Name { get; set; } public string? Starter { get; set; } public string? Solution { get; set; } }
     private sealed class WalkthroughDto { public string? Language { get; set; } public string? Call { get; set; } public List<VisualDto>? Visualise { get; set; } public string? Explanation { get; set; } }
     private sealed class VisualDto
     {

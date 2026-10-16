@@ -68,6 +68,60 @@ wasn't checked, so a budget is never skipped silently. Android doesn't run C# (s
 `CodeEditor` takes a `Language` (default `python`); `csharp` selects the CodeMirror clike C# mode.
 Drafts use the existing `ICodeDraftStore` autosave and sync path.
 
+## Multi-file exercises (#152)
+
+A C# write-code step can have 2–8 files, for exercises about types: an interface in one file, its implementations in others, and the function the
+tests call in a third. Each file is compiled under its own name, so a compile error reads `C# compilation failed in Square.cs, line 3.`
+A single-file step is unchanged and still reads `C# compilation failed.`
+
+Authoring replaces the step's own `starter` and `solution` with `files`:
+
+```yaml
+- id: step.csharp.area
+  type: write-code
+  language: csharp
+  entrypoint: TotalArea
+  largeScreenPreferred: true
+  files:
+    - name: IShape.cs
+      starter: |
+        public interface IShape { int Area(); }
+      solution: |
+        public interface IShape { int Area(); }
+    - name: Square.cs
+      starter: |
+        public record Square(int Side) : IShape { public int Area() => 0; }
+      solution: |
+        public record Square(int Side) : IShape { public int Area() => Side * Side; }
+    - name: Program.cs
+      starter: |
+        int TotalArea(int n) => 0;
+      solution: |
+        int TotalArea(int n) => Enumerable.Range(1, n).Sum(i => new Square(i).Area());
+  tests:
+    - { input: '3', expected: '14' }
+  phoneAlternative: { ... }
+```
+
+Rules, enforced by `validate`, `pack` and `publish` (and again by the compiler):
+
+- 2–8 files, C# only, write-code steps only; no `walkthrough` (its trace rides on one source), and no `starter`/`solution` beside `files`.
+- Names are plain `Name.cs` files (letters, digits, underscores; at most 32 characters), unique ignoring case. `reference.cs` and `test-N.cs`
+  are the generated harness's own sources, so they are reserved.
+- Exactly one file may hold top-level functions (the entrypoint's); the others hold types. Top-level functions in two files is an error naming both.
+- `System`, `System.Collections.Generic` and `System.Linq` are implicitly imported in every file, as in a single-file exercise.
+- Every file has a `solution`; the reference solution is compiled from all of them and run against the tests, as for one file. All other checks
+  (denied APIs, the 64 KiB limit — now over all files together — probes, printing, allocation budgets) apply across the files, and policy errors name
+  the file: `Reader.cs, line 3`.
+- The step id plus the longest file name has to fit in 64 characters, so every file's draft key can sync.
+
+In the app, a tab per file sits above the editor (`role="tablist"`). Each file autosaves as its own draft under `{stepKey}/{fileName}`, through the
+same `ICodeDraftStore` and sync as any other step, so there is no server or sync change; a file equal to its starter is stored as no draft, and
+"Reset to starter" restores every file. Run sends all files to `ICodeRuntime.RunTestsAsync(IReadOnlyList<CodeFile>, …)`. A runtime that doesn't
+override it (Python) refuses more than one file. When the error is in a file that isn't open, its tab opens, the line is marked and highlighted, and a
+dot on the tab says which file it is until the next run. Progress events record the files joined as `// ===== Name =====` sections. The editor's
+JavaScript is unchanged: tabs switch by `GetCodeAsync` and `SetCodeAsync`.
+
 ## Verification
 
 ```sh

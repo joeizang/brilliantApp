@@ -42,7 +42,10 @@ public sealed class CSharpRuntime(TimeSpan? testTimeout = null) : ICodeRuntime
         }
     }
 
-    public async Task<TestRunResult> RunTestsAsync(string code, string entrypoint, IReadOnlyList<CodeTest> tests, CancellationToken cancellationToken = default)
+    public Task<TestRunResult> RunTestsAsync(string code, string entrypoint, IReadOnlyList<CodeTest> tests, CancellationToken cancellationToken = default) =>
+        RunTestsAsync([new CodeFile(CodeFiles.SingleFileName, code)], entrypoint, tests, cancellationToken);
+
+    public async Task<TestRunResult> RunTestsAsync(IReadOnlyList<CodeFile> files, string entrypoint, IReadOnlyList<CodeTest> tests, CancellationToken cancellationToken = default)
     {
         await _runs.WaitAsync(cancellationToken);
         try
@@ -50,16 +53,17 @@ public sealed class CSharpRuntime(TimeSpan? testTimeout = null) : ICodeRuntime
             if (Diagnostics.RequiresRestart) return Error("This C# session needs a restart before another run. Your draft is saved; quit and reopen the app.");
             // Copy caller-owned lists before asynchronous work and bound input before constructing a cache key.
             var copy = tests.ToArray();
-            if (code.Length > 65_536 || copy.Length is < 1 or > 64 || copy.Any(t => t.Input.Length > 4_096 || t.Expected.Length > 4_096))
+            var source = files.ToArray();
+            if (source.Sum(f => f.Content.Length) > 65_536 || copy.Length is < 1 or > 64 || copy.Any(t => t.Input.Length > 4_096 || t.Expected.Length > 4_096))
                 return Error("C# exercises support up to 64 tests, 64 KiB of source and 4 KiB per test expression.");
-            var key = JsonSerializer.Serialize(new { code, entrypoint, tests = copy });
+            var key = JsonSerializer.Serialize(new { files = source, entrypoint, tests = copy });
             byte[]? image;
             lock (_state) _cache.TryGetValue(key, out image);
             if (image is null)
             {
                 using var compilationStop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 compilationStop.CancelAfter(TimeSpan.FromSeconds(15));
-                var compilation = Task.Run(() => CSharpSubmissionCompiler.Compile(code, entrypoint, copy, captureConsole: true, AllowBlockingCalls, compilationStop.Token), compilationStop.Token);
+                var compilation = Task.Run(() => CSharpSubmissionCompiler.Compile(source, entrypoint, copy, captureConsole: true, AllowBlockingCalls, compilationStop.Token), compilationStop.Token);
                 CSharpSubmissionCompiler.Compilation compiled;
                 try { compiled = await compilation.WaitAsync(TimeSpan.FromSeconds(15), cancellationToken); }
                 catch (Exception ex) when (ex is TimeoutException or OperationCanceledException)

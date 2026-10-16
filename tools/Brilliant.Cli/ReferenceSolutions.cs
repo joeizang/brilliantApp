@@ -7,7 +7,7 @@ using Brilliant.Core.Code;
 namespace Brilliant.Cli;
 
 /// <summary>A write-code exercise's reference solution, waiting to be proved against the step's own hidden tests.</summary>
-internal sealed record ReferenceCheck(string File, string Label, string StepId, string Entrypoint, string Solution, IReadOnlyList<CodeTest> Tests, string Language = "python");
+internal sealed record ReferenceCheck(string File, string Label, string StepId, string Entrypoint, string Solution, IReadOnlyList<CodeTest> Tests, string Language = "python", IReadOnlyList<CodeFile>? Files = null);
 
 /// <summary>A trace step's code, waiting to be run to prove it works and draws the variables the lesson says it does.</summary>
 internal sealed record TraceCheck(string File, string Label, string Code, IReadOnlyList<Visual> Visuals, string Language = "python");
@@ -20,6 +20,15 @@ public interface IReferenceSolutionRunner
 
     /// <exception cref="ReferenceRunnerUnavailableException">Python couldn't be started at all.</exception>
     TestRunResult Run(string code, string entrypoint, IReadOnlyList<CodeTest> tests);
+
+    /// <summary>
+    /// The same for a multi-file exercise, whose files are compiled together. A runner with no notion of files answers a single file as
+    /// <see cref="Run(string, string, IReadOnlyList{CodeTest})"/> and refuses more.
+    /// </summary>
+    TestRunResult Run(IReadOnlyList<CodeFile> files, string entrypoint, IReadOnlyList<CodeTest> tests) =>
+        files.Count == 1
+            ? Run(files[0].Content, entrypoint, tests)
+            : new TestRunResult(TestRunStatus.Error, "", $"The {Language} checker runs a single file.", null, null, []);
 
     /// <summary>Records the execution of a trace step's code, as the app does.</summary>
     /// <exception cref="ReferenceRunnerUnavailableException">Python couldn't be started at all.</exception>
@@ -376,7 +385,7 @@ internal static class ReferenceSolutionChecker
             var runner = select(check.Language);
             if (!CheckLanguage(check.Language, runner, check.File, check.Label, report)) continue;
             TestRunResult result;
-            try { result = runner.Run(check.Solution, check.Entrypoint, check.Tests); }
+            try { result = check.Files is { } files ? runner.Run(files, check.Entrypoint, check.Tests) : runner.Run(check.Solution, check.Entrypoint, check.Tests); }
             catch (ReferenceRunnerUnavailableException ex)
             {
                 report.Add(check.File, $"{check.Label}: {ex.Message}");
