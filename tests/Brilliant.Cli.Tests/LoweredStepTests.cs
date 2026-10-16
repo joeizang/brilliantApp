@@ -186,7 +186,7 @@ public sealed class LoweredStepTests : IDisposable
 
         var report = ContentPacker.Pack(Root, Path.Combine(_repository, "pins.zip"));
 
-        Assert.False(report.IsValid);
+        Assert.Contains(report.Errors, e => e.Message.Contains("lowered steps require targetFramework"));
     }
 
     [Fact]

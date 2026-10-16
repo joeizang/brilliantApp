@@ -52,7 +52,8 @@ internal static class CSharpLowering
         if (!emitted.Success)
         {
             var error = emitted.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)
-                .OrderBy(d => d.Location.IsInSource ? d.Location.SourceSpan.Start : -1).First();
+                // The snippet's own errors first, in source order; a problem in the implicit usings or elsewhere must not hide the line the author needs.
+                .OrderBy(d => d.Location.SourceTree == tree ? 0 : 1).ThenBy(d => d.Location.IsInSource ? d.Location.SourceSpan.Start : 0).First();
             var line = error.Location.IsInSource && error.Location.SourceTree == tree ? $"line {error.Location.GetLineSpan().StartLinePosition.Line + 1}: " : "";
             return (null, $"the code does not compile ({line}{error.Id} {error.GetMessage(System.Globalization.CultureInfo.InvariantCulture)}).");
         }
