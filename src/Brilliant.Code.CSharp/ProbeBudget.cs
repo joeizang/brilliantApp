@@ -47,14 +47,17 @@ public sealed record CapturedReturn(int CallId, string Function, object? Value, 
 /// returning (the state it returns in) rather than a statement about to run.
 /// </summary>
 public sealed record ProbeSnapshot(int Line, IReadOnlyDictionary<string, object?> Locals, string? Function = null,
-    IReadOnlyList<CapturedCall>? Calls = null, CapturedReturn? Return = null);
+    IReadOnlyList<CapturedCall>? Calls = null, CapturedReturn? Return = null, CapturedMemory? Memory = null);
 
 /// <summary>
 /// One synchronous run's limits, installed on the dedicated execution thread before invoking learner code. With <c>trackObjects</c> the
 /// snapshots also give every instance of a user class a run-wide identity (so a recording can tell that two snapshots hold the same linked-list
-/// or tree node) and capture deeper, since a list of nodes is as deep as it is long.
+/// or tree node) and capture deeper, since a list of nodes is as deep as it is long. With <c>trackMemory</c> (it needs a rewriter that marks value-typed
+/// locals and tracks calls) every snapshot also carries the stack and the heap (<see cref="ProbeSnapshot.Memory"/>); <c>mainFunction</c> names the
+/// method that holds the code outside any tracked call.
 /// </summary>
-public sealed class ProbeBudget(int maxSteps = 100_000, TimeSpan? timeout = null, int maxDepth = 128, int maxSnapshots = 1_000, bool trackObjects = false)
+public sealed class ProbeBudget(int maxSteps = 100_000, TimeSpan? timeout = null, int maxDepth = 128, int maxSnapshots = 1_000, bool trackObjects = false,
+    bool trackMemory = false, string? mainFunction = null)
 {
     public const int DefaultStackSize = 4 * 1024 * 1024;
     [ThreadStatic] private static ProbeBudget? _current;
@@ -66,6 +69,7 @@ public sealed class ProbeBudget(int maxSteps = 100_000, TimeSpan? timeout = null
     private readonly List<ProbeSnapshot> _snapshots = [];
     private readonly Dictionary<object, int> _identities = new(ReferenceEqualityComparer.Instance);
     private readonly List<CapturedCall> _calls = [];
+    private readonly MemoryCapturer? _memory = trackMemory ? new(mainFunction) : null;
     private int _callsTaken;
     private int CaptureDepth => trackObjects ? 256 : 16;
     private long? _started;
@@ -121,7 +125,8 @@ public sealed class ProbeBudget(int maxSteps = 100_000, TimeSpan? timeout = null
         Enter();
         var args = new List<KeyValuePair<string, object?>>();
         for (var i = 0; i < Math.Min(names.Length, values.Length); i++)
-            args.Add(new(names[i], _snapshots.Count >= _maxSnapshots ? new UnavailableCapture("limit") : Freeze(values[i], new HashSet<object>(ReferenceEqualityComparer.Instance), 0, new CaptureLimit { Remaining = 200 })));
+            args.Add(new(names[i], _snapshots.Count >= _maxSnapshots ? new UnavailableCapture("limit") : Freeze(Plain(values[i]), new HashSet<object>(ReferenceEqualityComparer.Instance), 0, new CaptureLimit { Remaining = 200 })));
+        _memory?.Enter(_callsTaken, function, names, values);
         _calls.Add(new(_callsTaken++, function, args));
     }
 
@@ -129,6 +134,7 @@ public sealed class ProbeBudget(int maxSteps = 100_000, TimeSpan? timeout = null
     public void ExitCall()
     {
         if (_calls.Count > 0) _calls.RemoveAt(_calls.Count - 1);
+        _memory?.Exit();
         Exit();
     }
 
@@ -147,15 +153,16 @@ public sealed class ProbeBudget(int maxSteps = 100_000, TimeSpan? timeout = null
         Tick();
         if (_snapshots.Count >= _maxSnapshots) { SnapshotsDropped = true; return; }
         var locals = FreezeLocals(names, values);
+        _memory?.Probe(function, names, values);
         var returned = new CapturedReturn(_calls.Count > 0 ? _calls[^1].Id : -1, function ?? "", isVoid ? null : Freeze(value, new HashSet<object>(ReferenceEqualityComparer.Instance), 0, new CaptureLimit { Remaining = 200 }), isVoid);
-        _snapshots.Add(new(line, locals, function, _calls.ToArray(), returned));
+        _snapshots.Add(new(line, locals, function, _calls.ToArray(), returned, _memory?.Capture()));
     }
 
     private Dictionary<string, object?> FreezeLocals(string[] names, object?[] values)
     {
         var locals = new Dictionary<string, object?>(StringComparer.Ordinal);
         for (var i = 0; i < Math.Min(names.Length, values.Length); i++)
-            locals[names[i]] = Freeze(values[i], new HashSet<object>(ReferenceEqualityComparer.Instance), 0, new CaptureLimit { Remaining = trackObjects ? 4_000 : 1_000 });
+            locals[names[i]] = Freeze(Plain(values[i]), new HashSet<object>(ReferenceEqualityComparer.Instance), 0, new CaptureLimit { Remaining = trackObjects ? 4_000 : 1_000 });
         return locals;
     }
 
@@ -165,8 +172,12 @@ public sealed class ProbeBudget(int maxSteps = 100_000, TimeSpan? timeout = null
     {
         Tick();
         if (_snapshots.Count >= _maxSnapshots) { SnapshotsDropped = true; return; }
-        _snapshots.Add(new(line, FreezeLocals(names, values), function, _calls.Count > 0 ? _calls.ToArray() : null));
+        var locals = FreezeLocals(names, values);
+        _memory?.Probe(function, names, values);
+        _snapshots.Add(new(line, locals, function, _calls.Count > 0 ? _calls.ToArray() : null, Memory: _memory?.Capture()));
     }
+
+    private static object? Plain(object? value) => value is InlineValue inline ? inline.Value : value;
 
     private sealed class CaptureLimit { public int Remaining; }
 

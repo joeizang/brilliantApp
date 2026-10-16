@@ -21,6 +21,7 @@ public sealed class TraceRecorderTests
         ["graph-bfs"] = [new("graph", Visual.Graph, ["node"], Visited: "seen") { Frontier = "queue" }],
         ["graph-weighted"] = [new("roads", Visual.Graph, ["here"]), new("tuples", Visual.Graph, []) { Weights = true }],
         ["call-stack-recursion"] = [new("", Visual.CallStack, [])],
+        ["memory"] = [new("", Visual.Memory, [])],
         ["heap"] = [new("heap", Visual.Heap, ["i"])],
         ["grid"] = [new("grid", Visual.Grid, []) { Cells = [new("row", "col")], RowLabels = "names", Highlight = "path" }, new("square", Visual.Grid, []), new("rows", Visual.Grid, [])],
     };
@@ -430,5 +431,81 @@ public sealed class TraceRecorderTests
         var result = CSharpTraceRecorder.Record("var x = F(2);\nint F(int n) { return n + 1; }", []);
         Assert.All(result.Frames, frame => Assert.Null(frame.Calls));
         Assert.DoesNotContain(result.Frames, f => f.Event == "return" && f.Line is not null);
+    }
+
+    private static TrackedMemory MemoryAt(string name, int line) => Record(name).Frames.First(f => f.Line == line).Memory!;
+
+    [Fact]
+    public void Copying_a_struct_gives_two_values_and_copying_a_reference_gives_one_object()
+    {
+        var copied = MemoryAt("memory", 4);
+        var main = copied.Frames.Single();
+        Assert.Equal("Main", main.Function);
+        var p = main.Slots.Single(s => s.Name == "p");
+        var q = main.Slots.Single(s => s.Name == "q");
+        Assert.Equal(["X", "Y"], p.Fields!.Select(f => f.Name));
+        Assert.Equal("1", p.Fields![0].Value);
+        Assert.Equal("9", q.Fields![0].Value);
+        Assert.Empty(copied.Objects);
+
+        var shared = MemoryAt("memory", 7);
+        var main2 = shared.Frames.Single();
+        var a = main2.Slots.Single(s => s.Name == "a");
+        Assert.Equal(a.Ref, main2.Slots.Single(s => s.Name == "b").Ref);
+        var counter = Assert.Single(shared.Objects);
+        Assert.Equal(MemoryKinds.Class, counter.Kind);
+        Assert.Equal("Counter", counter.Type);
+        Assert.Equal("5", counter.Slots.Single().Value);
+    }
+
+    [Fact]
+    public void Boxing_a_value_puts_a_new_object_on_the_heap_and_a_struct_local_does_not()
+    {
+        var before = MemoryAt("memory", 7);
+        var after = MemoryAt("memory", 8);
+        Assert.DoesNotContain(before.Objects, o => o.Kind == MemoryKinds.Box);
+        var box = Assert.Single(after.Objects, o => o.Kind == MemoryKinds.Box);
+        Assert.Equal("int", box.Type);
+        Assert.Equal("42", box.Slots.Single().Value);
+        Assert.Equal(box.Id, after.Frames.Single().Slots.Single(s => s.Name == "boxed").Ref);
+        Assert.Null(after.Frames.Single().Slots.Single(s => s.Name == "p").Ref);
+    }
+
+    [Fact]
+    public void A_call_adds_a_frame_with_its_parameters_and_the_caller_keeps_its_locals()
+    {
+        var inside = MemoryAt("memory", 14);
+        Assert.Equal(["Main", "Bump"], inside.Frames.Select(f => f.Function));
+        var bump = inside.Frames[1];
+        Assert.Equal(["counter", "point"], bump.Slots.Select(s => s.Name));
+        Assert.Equal(inside.Frames[0].Slots.Single(s => s.Name == "a").Ref, bump.Slots[0].Ref);
+        Assert.NotNull(bump.Slots[1].Fields);
+        Assert.Contains(inside.Frames[0].Slots, s => s.Name == "boxed");
+    }
+
+    [Fact]
+    public void An_array_is_a_heap_object_with_its_elements()
+    {
+        var last = Record("memory").Frames[^1].Memory!;
+        var array = Assert.Single(last.Objects, o => o.Kind == MemoryKinds.Array);
+        Assert.Equal("int[]", array.Type);
+        Assert.Equal(["[0]", "[1]", "[2]"], array.Slots.Select(s => s.Name));
+        Assert.Equal(["1", "2", "3"], array.Slots.Select(s => s.Value));
+    }
+
+    [Fact]
+    public void Recording_without_a_memory_view_carries_no_memory_and_the_same_frames()
+    {
+        var code = File.ReadAllText(Path.Combine(TracesDirectory(), "memory.snippet"));
+        var plain = CSharpTraceRecorder.Record(code, []);
+        Assert.All(plain.Frames, f => Assert.Null(f.Memory));
+        Assert.All(plain.Frames, f => Assert.Null(f.Calls));
+    }
+
+    [Fact]
+    public void A_recording_with_a_memory_view_survives_the_json_a_pack_stores()
+    {
+        var result = Record("memory");
+        Assert.Equal(TraceResultJson.Serialize(result), TraceResultJson.Serialize(TraceResultJson.Parse(TraceResultJson.Serialize(result))));
     }
 }

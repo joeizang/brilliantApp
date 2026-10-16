@@ -10,8 +10,10 @@ public static class ProbeRewriter
     /// <summary>
     /// <paramref name="trackCall"/>, when given (it needs <paramref name="captureLocals"/>), names the methods and local functions whose calls are
     /// recorded: each call is put on the call stack the snapshots carry, with its arguments, and a return is a probe of its own, with the value returned.
+    /// <paramref name="markValues"/> wraps the value-typed locals and parameters in an <see cref="InlineValue"/>, so a probe can tell a struct held
+    /// in a variable from a box held in one (for <see cref="ProbeBudget"/>'s memory capture).
     /// </summary>
-    public static SyntaxTree Rewrite(SyntaxTree tree, bool captureLocals = false, SemanticModel? semanticModel = null, Func<string, bool>? trackCall = null)
+    public static SyntaxTree Rewrite(SyntaxTree tree, bool captureLocals = false, SemanticModel? semanticModel = null, Func<string, bool>? trackCall = null, bool markValues = false)
     {
         var root = tree.GetRoot();
         if (captureLocals && semanticModel is null)
@@ -20,10 +22,10 @@ public static class ProbeRewriter
             throw new NotSupportedException("Finalizers and stackalloc are not supported by the bounded synchronous C# gate.");
         if (root.DescendantNodes().Any(n => n is GotoStatementSyntax))
             throw new NotSupportedException("goto is not supported by the bounded C# execution gate.");
-        return tree.WithRootAndOptions(new Rewriter(captureLocals, semanticModel, captureLocals ? trackCall : null).Visit(root)!, tree.Options);
+        return tree.WithRootAndOptions(new Rewriter(captureLocals, semanticModel, captureLocals ? trackCall : null, captureLocals && markValues).Visit(root)!, tree.Options);
     }
 
-    private sealed class Rewriter(bool captureLocals, SemanticModel? semanticModel, Func<string, bool>? trackCall) : CSharpSyntaxRewriter
+    private sealed class Rewriter(bool captureLocals, SemanticModel? semanticModel, Func<string, bool>? trackCall, bool markValues) : CSharpSyntaxRewriter
     {
         private const string Budget = "global::Brilliant.Code.CSharp.ProbeBudget.Current!";
         private static StatementSyntax Call(string method) => SyntaxFactory.ParseStatement($"{Budget}.{method}();");
@@ -77,11 +79,17 @@ public static class ProbeRewriter
             return Arguments(statement.GetLocation().GetMappedLineSpan().StartLinePosition.Line + 1, FunctionName(statement), symbols);
         }
 
-        private static string Arguments(int line, string? functionName, IEnumerable<ISymbol> symbols)
+        private static ITypeSymbol? TypeOf(ISymbol symbol) => symbol switch { ILocalSymbol local => local.Type, IParameterSymbol parameter => parameter.Type, _ => null };
+
+        // A variable's value as a probe takes it: marked when it is a value held in the variable itself.
+        private string Value(ISymbol symbol) => markValues && TypeOf(symbol)?.IsValueType == true
+            ? $"new global::Brilliant.Code.CSharp.InlineValue(@{symbol.Name})" : "@" + symbol.Name;
+
+        private string Arguments(int line, string? functionName, IEnumerable<ISymbol> symbols)
         {
             var list = symbols.ToArray();
             var names = string.Join(",", list.Select(symbol => SymbolDisplay.FormatLiteral(symbol.Name, true)));
-            var values = string.Join(",", list.Select(symbol => "@" + symbol.Name));
+            var values = string.Join(",", list.Select(Value));
             var function = functionName is not null ? SymbolDisplay.FormatLiteral(functionName, true) : "null";
             return $"{line}, {function}, new string[] {{{names}}}, new object?[] {{{values}}}";
         }
@@ -115,11 +123,11 @@ public static class ProbeRewriter
             _ => throw new InvalidOperationException(),
         };
 
-        private static BlockSyntax Called(BlockSyntax body, IMethodSymbol function, string? end)
+        private BlockSyntax Called(BlockSyntax body, IMethodSymbol function, string? end)
         {
             var parameters = function.Parameters.Where(p => p.RefKind != RefKind.Out && Capturable(p.Type)).ToArray();
             var names = string.Join(",", parameters.Select(p => SymbolDisplay.FormatLiteral(p.Name, true)));
-            var values = string.Join(",", parameters.Select(p => "@" + p.Name));
+            var values = string.Join(",", parameters.Select(Value));
             var inside = end is null ? body : body.WithStatements(body.Statements.Add(SyntaxFactory.ParseStatement(end)));
             return SyntaxFactory.Block(
                 SyntaxFactory.ParseStatement($"{Budget}.Enter({SymbolDisplay.FormatLiteral(function.Name, true)}, new string[] {{{names}}}, new object?[] {{{values}}});"),

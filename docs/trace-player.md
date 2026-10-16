@@ -355,6 +355,8 @@ Issue [#157](https://github.com/joeizang/brilliantApp/issues/157). A C# trace st
 - It needs no variable and no pointers, is drawn at most once, and is for `language: csharp` steps only (the validator says so for Python,
   where there is no such distinction to draw). It sits above the other visuals and works beside them.
 - `validate`/`pack` refuse a memory view over code that never has a local or an object to show.
+- The recording is made at pack time, with what it draws and where it stops described in [csharp-recorded-traces.md](csharp-recorded-traces.md#the-stack-and-the-heap).
+  A memory view tracks every method, so its recording has the return steps a call stack has.
 
 On a phone the drawing is 372 units wide and scales down to the column rather than scrolling, which keeps its text at about 12px (labels) and 11px (types, ids) on a 375px
 screen. Long names and values are clipped with `…` and carry the full text in a tooltip, and the SVG's label reads every frame and object aloud.

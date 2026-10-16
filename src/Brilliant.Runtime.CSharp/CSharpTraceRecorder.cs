@@ -66,9 +66,12 @@ public static class CSharpTraceRecorder
             var captured = tree.WithRootAndOptions(new ConsoleCaptureRewriter(compilation.GetSemanticModel(tree)).Visit(tree.GetRoot())!, tree.Options);
             compilation = compilation.ReplaceSyntaxTree(tree, captured);
             // The calls are recorded only when a call stack is drawn: the extra probes (a return is one) would otherwise add steps nobody asked for.
+            // The stack and the heap need every call, and which locals are values and which are boxes.
             var calls = visuals.FirstOrDefault(v => v.As == Visual.CallStack);
-            Func<string, bool>? trackCall = calls is null ? null : name => name != Wrapper && (calls.Functions.Count == 0 || calls.Functions.Contains(name));
-            rewritten = ProbeRewriter.Rewrite(captured, captureLocals: true, compilation.GetSemanticModel(captured), trackCall);
+            var memory = visuals.Any(v => v.As == Visual.Memory);
+            Func<string, bool>? trackCall = calls is null && !memory ? null
+                : name => name != Wrapper && (memory || calls!.Functions.Count == 0 || calls.Functions.Contains(name));
+            rewritten = ProbeRewriter.Rewrite(captured, captureLocals: true, compilation.GetSemanticModel(captured), trackCall, markValues: memory);
             compilation = compilation.ReplaceSyntaxTree(captured, rewritten);
         }
         catch (NotSupportedException ex) { return Failure(ex.Message); }
@@ -84,7 +87,8 @@ public static class CSharpTraceRecorder
     private static TraceResult Run(MemoryStream pe, IReadOnlyList<Visual> visuals)
     {
         var context = new AssemblyLoadContext("C# trace", isCollectible: true);
-        var budget = new ProbeBudget(maxSteps: 100_000, timeout: TimeSpan.FromSeconds(2), maxSnapshots: MaxFrames, trackObjects: true);
+        var budget = new ProbeBudget(maxSteps: 100_000, timeout: TimeSpan.FromSeconds(2), maxSnapshots: MaxFrames, trackObjects: true,
+            trackMemory: visuals.Any(v => v.As == Visual.Memory), mainFunction: Wrapper);
         Exception? failure = null;
         using var printed = new StringWriter(CultureInfo.InvariantCulture);
         var finished = false;
@@ -125,7 +129,8 @@ public static class CSharpTraceRecorder
         var watched = visuals.Where(v => v.As is Visual.Array or Visual.Stack or Visual.Queue).Select(v => v.Variable).ToHashSet(StringComparer.Ordinal);
         var views = new CSharpTraceViews(visuals);
         var frames = new List<TraceFrame>(snapshots.Count);
-        var callStack = visuals.Any(v => v.As == Visual.CallStack);
+        var callStack = visuals.FirstOrDefault(v => v.As == Visual.CallStack);
+        var memory = visuals.Any(v => v.As == Visual.Memory);
         ReturnedValue? handedBack = null;   // what the step before returned, which the next step carries
         foreach (var snapshot in snapshots)
         {
@@ -142,7 +147,8 @@ public static class CSharpTraceRecorder
             frames.Add(new(closing || returning is not null ? "return" : "line", closing ? null : snapshot.Line, function, locals, tracked,
                 Tables: views.Tables(snapshot.Locals, shown), Lists: views.Lists(snapshot.Locals), Trees: views.Trees(snapshot.Locals), Grids: views.Grids(snapshot.Locals),
                 Graphs: views.Graphs(snapshot.Locals), Heaps: views.Heaps(snapshot.Locals),
-                Calls: callStack ? Calls(snapshot, handedBack) : null));
+                Calls: callStack is not null ? Calls(snapshot, handedBack, callStack) : null,
+                Memory: memory && snapshot.Memory is { } captured ? Memory(captured) : null));
             // It went to the call under it on the stack, if there is one.
             handedBack = returning is { Void: false } && snapshot.Calls is { } stackAtReturn
                 ? new(returning.Function, Clip(Repr(returning.Value), MaxCellRepr), stackAtReturn.Count > 1 ? stackAtReturn[^2].Id : null) : null;
@@ -151,15 +157,42 @@ public static class CSharpTraceRecorder
     }
 
     // The call stack at one step: the innermost calls, the one that is returning (if it is) with its value, and what the step before handed back.
-    private static TrackedCalls Calls(ProbeSnapshot snapshot, ReturnedValue? handedBack)
+    private static TrackedCalls Calls(ProbeSnapshot snapshot, ReturnedValue? handedBack, Visual visual)
     {
-        var stack = snapshot.Calls ?? [];
+        var stack = (snapshot.Calls ?? []).Where(call => visual.Functions.Count == 0 || visual.Functions.Contains(call.Function)).ToArray();
         var recorded = stack.Select((call, place) => new RecordedCall(call.Id, call.Function,
                 call.Args.Select(arg => new CallArg(arg.Key, Clip(Repr(arg.Value), MaxCellRepr))).ToArray(),
-                place == stack.Count - 1 && snapshot.Return is { } returning ? returning.Void ? "void" : Clip(Repr(returning.Value), MaxCellRepr) : null))
+                place == stack.Length - 1 && snapshot.Return is { } returning ? returning.Void ? "void" : Clip(Repr(returning.Value), MaxCellRepr) : null))
             .ToArray();
         return new(recorded[Math.Max(0, recorded.Length - MaxCalls)..], Math.Max(0, recorded.Length - MaxCalls), handedBack);
     }
+
+    // The stack and the heap at one step: the innermost frames, and the objects they reach, numbered from 1.
+    private static TrackedMemory Memory(CapturedMemory captured)
+    {
+        var frames = captured.Frames.Select(f => new MemoryFrame(f.CallId, f.CallId < 0 ? Module : f.Function, f.Slots.Select(MemorySlotOf).ToArray())).ToArray();
+        var cut = Math.Max(0, frames.Length - MaxCalls);
+        frames = frames[cut..];
+        var objects = captured.Objects.Select(o => new MemoryObject(o.Key + 1, o.Type, o.Kind, o.Slots.Select(MemorySlotOf).ToArray(), o.More)).ToArray();
+        // A frame cut off takes with it the objects only it reached.
+        var byId = objects.ToDictionary(o => o.Id);
+        var reached = new HashSet<int>();
+        var pending = new Stack<int>(frames.SelectMany(f => Refs(f.Slots)));
+        while (pending.Count > 0)
+        {
+            var id = pending.Pop();
+            if (reached.Add(id) && byId.TryGetValue(id, out var next)) foreach (var r in Refs(next.Slots)) pending.Push(r);
+        }
+        return new(frames, objects.Where(o => reached.Contains(o.Id)).ToArray(), cut);
+    }
+
+    private static IEnumerable<int> Refs(IReadOnlyList<MemorySlot> slots) =>
+        slots.SelectMany(s => (s.Ref is { } r ? [r] : Enumerable.Empty<int>()).Concat(s.Fields is { } fields ? Refs(fields) : []));
+
+    private static MemorySlot MemorySlotOf(CapturedSlot slot) => slot.Ref >= 0
+        ? new(slot.Name, slot.Type, null, slot.Ref + 1)
+        : slot.Fields is { } fields ? new(slot.Name, slot.Type, null, Fields: fields.Select(MemorySlotOf).ToArray())
+        : new(slot.Name, slot.Type, Clip(Repr(slot.Value), MaxCellRepr));
 
     private static TraceLocal Local(string name, object? value) => value switch
     {

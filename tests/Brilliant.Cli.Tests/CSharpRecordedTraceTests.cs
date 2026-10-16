@@ -188,6 +188,23 @@ public sealed class CSharpRecordedTraceTests : IDisposable
     }
 
     [Fact]
+    public void A_memory_view_is_recorded_into_the_pack_and_plays_in_the_trace_model()
+    {
+        WritePack("var p = new P(1);\nvar q = p;\nq.N = 2;\nvar a = new C();\nvar b = a;\nobject boxed = 7;\nConsole.WriteLine(b == a);\n\nstruct P(int n) { public int N = n; }\nclass C { public int V; }",
+            "[{as: memory}]");
+
+        var step = Assert.IsType<TraceStep>(PackAndLoad().Lessons.Single().Steps[0]);
+
+        var last = step.Recorded!.Frames[^1].Memory!;
+        var main = Assert.Single(last.Frames);
+        Assert.NotNull(main.Slots.Single(s => s.Name == "p").Fields);
+        Assert.Equal(main.Slots.Single(s => s.Name == "a").Ref, main.Slots.Single(s => s.Name == "b").Ref);
+        Assert.Contains(last.Objects, o => o.Kind == MemoryKinds.Box);
+        var played = TraceModel.Build(step.Recorded!, step.Visuals)[^1].Memory!;
+        Assert.Equal(2, played.Objects.Count);
+    }
+
+    [Fact]
     public void A_memory_view_over_code_with_no_local_or_object_is_reported_in_csharp_terms()
     {
         WritePack("Console.WriteLine(1);", "[{as: memory}]");
