@@ -1,6 +1,6 @@
 # Spike: pack-time C# recording in the CLI (#139)
 
-**Proceed, with three small gaps to close in the real recorder.** From one C# snippet the spike produced (1) a trace the existing trace player plays unmodified, (2) lowered C# and IL that show the async state machine and the `List<T>` enumerator, and (3) a two-method benchmark with mean, allocated bytes and machine info. Trace and lowering output are byte-for-byte reproducible and take about half a second each in a cold CLI process. Benchmarks are the only non-deterministic artefact and cost about thirteen seconds. The gaps: the final state needs a synthesized `return`, loop conditions never get a step, and snapshots do not name the method they came from (see [Gaps](#gaps-the-real-recorder-must-close)).
+**Proceed, with three small gaps to close in the real recorder.** From one C# snippet the spike produced (1) a trace the existing trace player plays unmodified, (2) lowered C# and IL that show the async state machine and the `List<T>` enumerator, and (3) a two-method benchmark with mean, allocated bytes and machine info. Trace and lowering output are byte-for-byte reproducible and take about half a second (trace) and under a second (lowering) in a cold CLI process. Benchmarks are the only non-deterministic artefact and cost about thirteen seconds. The gaps: the final state needs a synthesized `return`, loop conditions never get a step, and snapshots do not name the method they came from (see [Gaps](#gaps-the-real-recorder-must-close)).
 
 ## Reproduction and environment
 
@@ -154,7 +154,7 @@ IL ([lowered.il](https://github.com/joeizang/brilliantApp/blob/b4908afeaeb7e2755
 } finally { … Dispose … }
 ```
 
-**Cleanup the pack step would need.** The whole-module output includes assembly attributes (`CompilationRelaxations`, `Debuggable`, `AssemblyVersion`), the `[NullableContext]`/`[Nullable]` attributes, and ILSpy comments on explicit interface implementations. Showing only the learner's members means decompiling per type or per method and dropping the attribute block. Release mode drops local names (`num`, `current`); that is the honest lowering, but a Debug emit would keep `sum` and `item` for readability at the cost of a class-shaped state machine. Which is better for teaching is a content decision for #154.
+**Cleanup the pack step would need.** The whole-module output includes assembly attributes (`CompilationRelaxations`, `Debuggable`, `AssemblyVersion`), the `[NullableContext]`/`[Nullable]` attributes, and ILSpy comments on explicit interface implementations. Showing only the learner's members means decompiling per type or per method and dropping the attribute block. The output uses compiler-invented local names (`num`, `current`) because local names live in the PDB, not the PE, and the spike emits no PDB and gives the decompiler no debug-info provider; a Debug emit alone would not change that (only hoisted async locals keep names, as `<sum>5__N` fields). Emitting a portable PDB and passing it to `CSharpDecompiler` should keep `sum` and `item` in Release too, which would separate readability from the struct-versus-class state-machine choice; this was not tried. Which shape teaches better is a content decision for #154.
 
 ## 3. Benchmark
 
