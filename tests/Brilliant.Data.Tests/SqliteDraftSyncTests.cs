@@ -54,6 +54,23 @@ public sealed class SqliteDraftSyncTests
     }
 
     [Fact]
+    public void The_files_of_a_multi_file_step_sync_as_separate_drafts()
+    {
+        using var store = new SqliteCodeDraftStore("Data Source=:memory:", () => T0);
+        store.Save("step.m/Circle.cs", "mine circle");
+        store.Save("step.m/Program.cs", "mine program");
+        store.MarkSynced(store.ReadUnsynced());
+
+        // The other device edited only Circle.cs, later: it replaces that file and leaves the other alone.
+        store.Merge([Draft("step.m/Circle.cs", "theirs circle", 5)]);
+
+        Assert.Equal("theirs circle", store.Get("step.m/Circle.cs"));
+        Assert.Equal("mine program", store.Get("step.m/Program.cs"));
+        Assert.Null(store.Get("step.m"));
+        Assert.Empty(store.ReadUnsynced());
+    }
+
+    [Fact]
     public void A_newer_draft_from_another_device_replaces_ours_and_is_not_sent_back()
     {
         using var store = new SqliteCodeDraftStore("Data Source=:memory:", () => T0);

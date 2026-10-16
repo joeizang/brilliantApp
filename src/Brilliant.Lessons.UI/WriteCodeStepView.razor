@@ -16,7 +16,27 @@
     }
     else
     {
-    <CodeEditor @ref="_editor" InitialCode="@_initialCode" OnChanged="SaveDraft" Language="@Step.Language" />
+    @if (Step.IsMultiFile)
+    {
+        <div class="file-tabs mt-4 flex flex-wrap items-center gap-3" role="tablist" aria-label="Files">
+            @foreach (var file in Step.Files!)
+            {
+                var selected = file.Name == _active;
+                <button type="button" role="tab" data-file="@file.Name" id="@TabId(file.Name)" aria-selected="@(selected ? "true" : "false")" aria-controls="@PanelId"
+                        class="file-tab rounded-md border border-hairline px-4 @(selected ? "font-semibold bg-surface-raised" : "text-fg-secondary")"
+                        disabled="@_running" @onclick="() => SwitchTo(file.Name)">
+                    @file.Name
+                    @if (file.Name == _errorFile)
+                    {
+                        <span class="file-error text-danger" role="img" aria-label="has an error" title="has an error">●</span>
+                    }
+                </button>
+            }
+        </div>
+    }
+    <div id="@PanelId" role="@(Step.IsMultiFile ? "tabpanel" : null)" aria-labelledby="@(Step.IsMultiFile ? TabId(_active) : null)">
+        <CodeEditor @ref="_editor" InitialCode="@_initialCode" OnChanged="SaveDraft" Language="@Step.Language" />
+    </div>
 
     <div class="run-row mb-4 flex flex-wrap items-center gap-4">
         <button class="primary btn-primary" disabled="@_running" @onclick="Submit">@(_running ? "Running…" : "Run tests")</button>
@@ -134,6 +154,16 @@
     [Parameter] public bool OfferContinue { get; set; } = true;
 
     private string Key => DraftKey ?? Step.Id;
+
+    // Multi-file exercises (#152): each file is its own draft, keyed "{Key}/{file}", so drafts sync like any other step's.
+    private readonly Dictionary<string, string> _contents = [];   // every file's text as last seen; the open file's is read from the editor
+    private string _active = "";
+    private string? _errorFile;
+    private bool _switching;
+    private string PanelId => "file-panel-" + Key;
+    private string TabId(string name) => "file-tab-" + Key + "-" + name;
+    private string DraftKeyOf(string file) => CodeFiles.DraftKey(Key, file);
+    private string StarterOf(string file) => Step.Files!.First(f => f.Name == file).Content;
     private CodeEditor _editor = default!;
     private string _initialCode = "";
     private bool _confirmingReset;
@@ -147,7 +177,13 @@
 
     protected override void OnInitialized()
     {
-        _initialCode = Drafts.Get(Key) ?? Step.Starter;
+        if (Step.IsMultiFile)
+        {
+            foreach (var file in Step.Files!) _contents[file.Name] = Drafts.Get(DraftKeyOf(file.Name)) ?? file.Content;
+            _active = Step.Files![0].Name;
+            _initialCode = _contents[_active];
+        }
+        else _initialCode = Drafts.Get(Key) ?? Step.Starter;
         _shortcuts = Shortcuts.Subscribe(OnShortcut);
     }
 
@@ -171,9 +207,43 @@
     // Code that matches the starter is stored as "no draft", so a later change to the starter still reaches learners who never edited it.
     private void SaveDraft(string code)
     {
-        if (_resetting) return;   // an edit reported while a reset is in flight is the text being replaced
-        if (code == Step.Starter) Drafts.Reset(Key);
+        if (_resetting || _switching) return;   // an edit reported while a reset or a tab switch is in flight is the text being replaced
+        if (Step.IsMultiFile) SaveFile(_active, code);
+        else if (code == Step.Starter) Drafts.Reset(Key);
         else Drafts.Save(Key, code);
+    }
+
+    private void SaveFile(string file, string code)
+    {
+        _contents[file] = code;
+        if (code == StarterOf(file)) Drafts.Reset(DraftKeyOf(file));
+        else Drafts.Save(DraftKeyOf(file), code);
+    }
+
+    private async Task SwitchTo(string file)
+    {
+        if (file == _active || _running) return;
+        _switching = true;
+        try
+        {
+            // The editor holds one document at a time: keep the open file's text, show the other's.
+            SaveFile(_active, await _editor.GetCodeAsync());
+            await _editor.SetCodeAsync(_contents[file]);
+            _active = file;
+            await _editor.ClearErrorMarkersAsync();
+            await _editor.HighlightLineAsync(null);
+        }
+        finally
+        {
+            _switching = false;
+        }
+    }
+
+    // Every file's current text, in the exercise's order.
+    private async Task<List<CodeFile>> GatherFilesAsync()
+    {
+        _contents[_active] = await _editor.GetCodeAsync();
+        return Step.Files!.Select(f => new CodeFile(f.Name, _contents[f.Name])).ToList();
     }
 
     private async Task ResetToStarter()
@@ -181,18 +251,32 @@
         _confirmingReset = false;
         _result = null;
         _runtimeFailure = null;
+        _errorFile = null;
         _resetting = true;
         try
         {
-            Drafts.Reset(Key);
-            await _editor.SetCodeAsync(Step.Starter);
+            if (Step.IsMultiFile)
+            {
+                foreach (var file in Step.Files!)
+                {
+                    Drafts.Reset(DraftKeyOf(file.Name));
+                    _contents[file.Name] = file.Content;
+                }
+                await _editor.SetCodeAsync(_contents[_active]);
+            }
+            else
+            {
+                Drafts.Reset(Key);
+                await _editor.SetCodeAsync(Step.Starter);
+            }
             await _editor.ClearErrorMarkersAsync();
             await _editor.HighlightLineAsync(null);
         }
         finally
         {
             // Whatever autosave callbacks arrived during the JS round trips were ignored; the reset has the last word.
-            Drafts.Reset(Key);
+            if (Step.IsMultiFile) foreach (var file in Step.Files!) Drafts.Reset(DraftKeyOf(file.Name));
+            else Drafts.Reset(Key);
             _resetting = false;
         }
     }
@@ -204,7 +288,7 @@
     public async Task<Submission?> RunAsync()
     {
         await Submit();
-        return _result is { } result ? new Submission(await _editor.GetCodeAsync(), result) : null;
+        return _result is { } result ? new Submission(await CurrentCodeAsync(), result) : null;
     }
 
     private async Task Submit()
@@ -213,14 +297,19 @@
         _running = true;
         _result = null;
         _runtimeFailure = null;
+        _errorFile = null;
         StateHasChanged();   // a run started from the keyboard has no click to trigger the render that disables the button
         await _editor.ClearErrorMarkersAsync();
         await _editor.HighlightLineAsync(null);
 
-        var code = await _editor.GetCodeAsync();
+        var files = Step.IsMultiFile ? await GatherFilesAsync() : null;
+        var code = files is null ? await _editor.GetCodeAsync() : CodeFiles.Combine(files);
         try
         {
-            _result = await Runtimes.Resolve(Step.Language).RunTestsAsync(code, Step.Entrypoint, Step.Tests);
+            var runtime = Runtimes.Resolve(Step.Language);
+            _result = files is null
+                ? await runtime.RunTestsAsync(code, Step.Entrypoint, Step.Tests)
+                : await runtime.RunTestsAsync(files, Step.Entrypoint, Step.Tests);
             _warmedUp = true;
         }
         catch (Exception ex)
@@ -238,12 +327,23 @@
         await MarkErrorLine(_result);
     }
 
+    // What the learner wrote: the editor's text, or for several files all of them joined (what progress events record).
+    private async Task<string> CurrentCodeAsync() =>
+        Step.IsMultiFile ? CodeFiles.Combine(await GatherFilesAsync()) : await _editor.GetCodeAsync();
+
     private async Task MarkErrorLine(TestRunResult result)
     {
         var (line, trace) = result.Status == TestRunStatus.Error
             ? (result.ErrorLine, result.Traceback)
             : (result.FirstFailure?.ErrorLine, result.FirstFailure?.Traceback);
         if (line is not { } n || trace is null) return;
+        if (Step.IsMultiFile && result.ErrorFile is { } file && file != _active && _contents.ContainsKey(file))
+        {
+            // The error is in a file that isn't open: open it, so the marker and the highlight land where the learner can see them.
+            await SwitchTo(file);
+            _errorFile = file;
+        }
+        else if (Step.IsMultiFile) _errorFile = result.ErrorFile;
         var message = trace.Split('\n', StringSplitOptions.RemoveEmptyEntries).LastOrDefault()?.Trim() ?? "Error";
         await _editor.SetErrorMarkersAsync([new EditorMarker(n, message)]);
         await _editor.HighlightLineAsync(n);

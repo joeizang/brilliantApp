@@ -16,7 +16,10 @@ public sealed class CSharpReferenceSolutionRunner(TimeSpan? timeout = null) : IR
     private readonly TimeSpan _timeout = timeout ?? TimeSpan.FromSeconds(15);
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
-    public TestRunResult Run(string code, string entrypoint, IReadOnlyList<CodeTest> tests)
+    public TestRunResult Run(string code, string entrypoint, IReadOnlyList<CodeTest> tests) =>
+        Run([new CodeFile(CodeFiles.SingleFileName, code)], entrypoint, tests);
+
+    public TestRunResult Run(IReadOnlyList<CodeFile> files, string entrypoint, IReadOnlyList<CodeTest> tests)
     {
         var start = new ProcessStartInfo(Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet")
         {
@@ -30,7 +33,7 @@ public sealed class CSharpReferenceSolutionRunner(TimeSpan? timeout = null) : IR
             using var process = Process.Start(start) ?? throw new ReferenceRunnerUnavailableException("could not start the C# reference worker.");
             var stdout = process.StandardOutput.ReadToEndAsync();
             var stderr = process.StandardError.ReadToEndAsync();
-            process.StandardInput.Write(JsonSerializer.Serialize(new Request(code, entrypoint, tests), Json));
+            process.StandardInput.Write(JsonSerializer.Serialize(new Request(files, entrypoint, tests), Json));
             process.StandardInput.Close();
             if (!process.WaitForExit(_timeout))
             {
@@ -69,11 +72,11 @@ public sealed class CSharpReferenceSolutionRunner(TimeSpan? timeout = null) : IR
 
     private static readonly TimeSpan MeasureLimit = TimeSpan.FromSeconds(5);
 
-    private sealed record Request(string Code, string Entrypoint, IReadOnlyList<CodeTest> Tests);
+    private sealed record Request(IReadOnlyList<CodeFile> Files, string Entrypoint, IReadOnlyList<CodeTest> Tests);
 
     private static TestRunResult CompileAndRun(Request request)
     {
-        var compiled = CSharpSubmissionCompiler.Compile(request.Code, request.Entrypoint, request.Tests);
+        var compiled = CSharpSubmissionCompiler.Compile(request.Files, request.Entrypoint, request.Tests);
         if (compiled.Error is { } error) return error;
         using var pe = new MemoryStream(compiled.Assembly!);
         pe.Position = 0;

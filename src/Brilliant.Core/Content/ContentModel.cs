@@ -209,7 +209,19 @@ public sealed record WriteCodeStep(
     string Language,
     string Starter,
     string Entrypoint,
-    IReadOnlyList<CodeTest> Tests) : Step(Id, Title);
+    IReadOnlyList<CodeTest> Tests) : Step(Id, Title)
+{
+    /// <summary>
+    /// The starter files of a multi-file C# exercise (an interface, an implementation, a consumer), in tab order; null for the usual single
+    /// file, whose code is <see cref="Starter"/>. When present <see cref="Starter"/> holds the first file's code, so a reader that doesn't know
+    /// about files still shows something sensible.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<CodeFile>? Files { get; init; }
+
+    [JsonIgnore]
+    public bool IsMultiFile => Files is { Count: > 1 };
+}
 
 /// <summary>
 /// One blank of a fill-in-the-blank step. The learner's text is correct when it equals one of <see cref="Accepted"/> after

@@ -47,6 +47,9 @@ public sealed record TestRunResult(
     int? ErrorLine,
     IReadOnlyList<TestOutcome> Tests)
 {
+    /// <summary>The file <see cref="ErrorLine"/> is in, for a compile error in a multi-file exercise; null for a single file.</summary>
+    public string? ErrorFile { get; init; }
+
     public int PassedCount => Tests.Count(t => t.Passed);
     public TestOutcome? FirstFailure => Tests.FirstOrDefault(t => !t.Passed);
 
@@ -79,6 +82,15 @@ public interface ICodeRuntime
     /// Never throws for problems in the learner's code; those come back in the result.
     /// </summary>
     Task<TestRunResult> RunTestsAsync(string code, string entrypoint, IReadOnlyList<CodeTest> tests, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The same for an exercise with several files, compiled together. A runtime that has no notion of files answers a single file as
+    /// <see cref="RunTestsAsync(string, string, IReadOnlyList{CodeTest}, CancellationToken)"/> and refuses more.
+    /// </summary>
+    Task<TestRunResult> RunTestsAsync(IReadOnlyList<CodeFile> files, string entrypoint, IReadOnlyList<CodeTest> tests, CancellationToken cancellationToken = default) =>
+        files.Count == 1
+            ? RunTestsAsync(files[0].Content, entrypoint, tests, cancellationToken)
+            : Task.FromResult(new TestRunResult(TestRunStatus.Error, "", $"{CodeLanguages.DisplayName(Language)} exercises have a single file.", null, null, []));
 
     /// <summary>
     /// Runs <paramref name="code"/> once, recording every line it executes (see wwwroot/python/tracer.py) and the lists named by
