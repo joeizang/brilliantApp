@@ -17,9 +17,9 @@ Code is current C# (.NET 10 / C# 14) throughout: primary constructors, collectio
 | 1 | Where values live | The stack-and-heap view: a struct copy is a second set of fields, a reference is a second arrow, passing either by value copies the variable. |
 | 1 | Records and value equality | What `record` and `record struct` generate; `with` copies; equality is by value, identity is not. |
 | 1 | What the compiler writes | Lowered steps: `foreach`, a captured variable's closure class, a primary constructor's parameter capture, and what a capturing lambda allocates. |
-| 2 | `in`, `ref` and `out` | Aliasing a variable: the memory view with a `ref` local, defensive copies of an `in` struct, `ref readonly`. |
-| 2 | Boxing | Where a box comes from (`object`, interfaces, non-generic collections), allocations questions, and generics as the way out. |
-| 2 | Nullability flow analysis | The compiler's null state follows the code; `?`, `!`, `[NotNull]`-style attributes, and what it cannot know. |
+| 2 | `in`, `ref` and `out` | Aliasing a variable: `ref` replaces the caller's arrow, `out` must be assigned, a `ref` local aliases an array element, and an `in` struct that is not `readonly` gets a defensive copy (lowered). The memory view is not used: it reads values, not aliases. |
+| 2 | Boxing | A recorded box in the memory view, mutation through a boxed interface, which lines box, the measured 24-byte cost, the IL `box` instruction, and a rewrite that compares without boxing. |
+| 2 | Nullability flow analysis | The compiler's null state follows the code; guards, CS8602, `[NotNullWhen]`, `?` being compile-time only, and `!` changing the belief and not the value. |
 | 3 | Generic constraints and variance | `where T : …`, `in`/`out` on interfaces and delegates, why `List<T>` is invariant and `IEnumerable<T>` is not. |
 | 3 | Static abstract members | `INumber<T>`, generic math, operators in interfaces. |
 | 3 | Pattern matching, lowered | What `is`, `switch` expressions and list patterns turn into. |

@@ -1,0 +1,203 @@
+id: lesson.csharp.boxing
+title: Boxing
+concepts:
+  - id: concept.csharp.box-copy
+    title: A box is a separate copy of the value
+  - id: concept.csharp.box-source
+    title: Converting a struct to object or an interface boxes it
+  - id: concept.csharp.box-cost
+    title: Every box is a heap allocation
+  - id: concept.csharp.box-il
+    title: Boxing is the IL instruction box
+reviewItems:
+  - id: review.csharp.box-copy
+    concept: concept.csharp.box-copy
+    step: step.csharp.boxing.predict-interface
+  - id: review.csharp.box-source
+    concept: concept.csharp.box-source
+    step: step.csharp.boxing.check-source
+  - id: review.csharp.box-cost
+    concept: concept.csharp.box-cost
+    step: step.csharp.boxing.alloc-box
+  - id: review.csharp.box-il
+    concept: concept.csharp.box-il
+    step: step.csharp.boxing.lowered-box
+steps:
+  - id: step.csharp.boxing.intro
+    type: explain
+    title: A value type on the heap
+    body: |
+      A value-typed variable holds its value inline. An `object` variable can only hold an arrow, so when you assign an `int` to an `object`, the runtime
+      allocates a small heap object, copies the value into it and gives you an arrow to that. That object is a **box**.
+
+      Unboxing reverses it: `(int)o` checks the box's type and copies the value back out. The box is a copy, so the original and the box no longer
+      influence each other.
+
+      Boxing is often invisible. A struct converted to an interface, a value passed to a non-generic `object` parameter, or a value added to an
+      `ArrayList`, all box. In a hot path they are allocations you did not write.
+  - id: step.csharp.boxing.trace-box
+    type: trace
+    language: csharp
+    title: A box is its own object
+    body: |
+      Step through the conversions. After `object o = n;` the heap holds a *box* with its own copy of `5`. Changing `n` afterwards does not
+      change the box. The same happens for `IComparable c = n;`: an interface variable is also just an arrow, so it needs a box too.
+    code: |
+      int n = 5;
+      object o = n;
+      n = 6;
+      IComparable c = n;
+      int back = (int)o;
+      Console.WriteLine($"{n} {back} {c}");
+    visualise:
+      - as: memory
+  - id: step.csharp.boxing.predict-interface
+    type: predict-output
+    title: Mutating through an interface
+    prompt: |
+      `Counter` is a mutable struct that implements `IIncrement`. What does this program print?
+    language: csharp
+    code: |
+      var c = new Counter();
+      IIncrement i = c;
+      i.Increment();
+      i.Increment();
+      Console.WriteLine($"{c.Count} {i.Count}");
+
+      interface IIncrement { int Count { get; } void Increment(); }
+
+      struct Counter : IIncrement
+      {
+          public int Count { get; private set; }
+          public void Increment() => Count++;
+      }
+    accepted:
+      - '0 2'
+    mistakes:
+      - answers:
+          - '2 2'
+        feedback: '`IIncrement i = c;` boxes a copy of `c`. The calls through `i` change the box, and `c` is never touched.'
+      - answers:
+          - '0 0'
+        feedback: 'The interface variable holds the box, and `Increment` runs on the box''s own copy of the struct, so its count does reach `2`.'
+    hints:
+      - How many copies of the struct exist after `IIncrement i = c;`, and which one does `i` point to?
+  - id: step.csharp.boxing.check-source
+    type: choice
+    title: Which line boxes?
+    prompt: |
+      With `int n = 5;` and `var list = new List<int>();`, which one allocates a box?
+    options:
+      - text: '`IComparable c = n;`'
+        correct: true
+        feedback: Right. An interface variable can only hold a reference, so the `int` is copied into a new box.
+      - text: '`int? m = n;`'
+        correct: false
+        feedback: '`int?` is `Nullable<int>`, a struct. The value is wrapped in another struct, not placed on the heap.'
+      - text: '`list.Add(n);`'
+        correct: false
+        feedback: '`List<int>` is a generic type specialised for `int`, so its array holds `int`s directly. This is why generics replaced `ArrayList`.'
+    hints:
+      - Which of the three converts a struct to something that is a reference?
+  - id: step.csharp.boxing.alloc-box
+    type: allocations
+    variant: predict
+    title: What one box costs
+    prompt: |
+      How much does one call of `Roundtrip` allocate?
+    entrypoint: Roundtrip
+    input: '5'
+    code: |
+      static int Roundtrip(int n)
+      {
+          object o = n;
+          return (int)o + 1;
+      }
+    options:
+      - bytes: 0
+        feedback: The value is copied into a heap object, so something is allocated.
+      - bytes: 24
+      - bytes: 48
+        feedback: That would be two boxes. There is one conversion to `object`, and the cast back out only copies.
+      - bytes: 72
+  - id: step.csharp.boxing.lowered-box
+    type: lowered
+    title: The instruction that boxes
+    prompt: |
+      Switch to the IL view. Which instruction creates the box in `Roundtrip`?
+    code: |
+      static class Demo
+      {
+          public static int Roundtrip(int n)
+          {
+              object o = n;
+              return (int)o + 1;
+          }
+      }
+    options:
+      - text: '`box`'
+        correct: true
+        feedback: Right. `box System.Int32` allocates the object and copies the value in. Its partner `unbox.any` copies it back out.
+      - text: '`newobj`'
+        correct: false
+        feedback: '`newobj` calls a constructor. A boxed `int` has none; `box` allocates and copies it.'
+      - text: '`castclass`'
+        correct: false
+        feedback: '`castclass` checks a reference type. Here a value type is turned into a reference.'
+    hints:
+      - The instruction is named after the thing it does.
+  - id: step.csharp.boxing.rewrite-same
+    type: allocations
+    variant: rewrite
+    title: Compare without boxing
+    prompt: |
+      `Same` calls `object.Equals(object, object)`, which boxes both numbers. Rewrite it so a call allocates nothing.
+    entrypoint: Same
+    largeScreenPreferred: true
+    starter: |
+      static bool Same(int a, int b)
+      {
+          return Equals(a, b);
+      }
+    solution: |
+      static bool Same(int a, int b)
+      {
+          return a == b;
+      }
+    tests:
+      - input: '4, 4'
+        expected: 'true'
+        maxAllocatedBytes: 0
+      - input: '4, 5'
+        expected: 'false'
+    phoneAlternative:
+      id: step.csharp.boxing.rewrite-same.fill
+      type: fill-blank
+      title: Complete the comparison
+      prompt: |
+        Comparing two `int`s directly needs no boxing.
+      language: csharp
+      template: |
+        static bool Same(int a, int b)
+        {
+            return a {{op}} b;
+        }
+      blanks:
+        - id: op
+          accepted:
+            - '=='
+          mistakes:
+            - answers:
+                - '='
+              feedback: '`=` assigns. Use `==` to compare.'
+    hints:
+      - Both parameters are already `int`. The operator on two `int`s needs no object at all.
+  - id: step.csharp.boxing.recap
+    type: explain
+    title: Where the boxes come from
+    body: |
+      - A box is a heap object holding a *copy* of a value. Changing the original, or mutating through the box, never affects the other.
+      - Converting a struct to `object`, to an interface it implements, or to `ValueType`/`Enum` boxes it. `int?` and tuples do not box by themselves.
+      - Each box is a 24-byte allocation for an `int` on 64-bit .NET, and an unbox is only a copy.
+      - Generics avoid boxing because `List<int>` really stores `int`s. A generic method constrained to an interface (`where T : IComparable<T>`) calls the
+        struct's own method with no box, which is the next track's subject.

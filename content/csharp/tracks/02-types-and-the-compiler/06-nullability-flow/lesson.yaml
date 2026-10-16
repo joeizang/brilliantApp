@@ -1,0 +1,223 @@
+id: lesson.csharp.nullability-flow
+title: Nullability flow analysis
+concepts:
+  - id: concept.csharp.null-flow-state
+    title: The compiler tracks whether each variable may be null
+  - id: concept.csharp.null-warning
+    title: Dereferencing a maybe-null value is warning CS8602
+  - id: concept.csharp.null-annotations
+    title: Nullable annotations are compile-time only
+  - id: concept.csharp.null-forgiving
+    title: The ! operator changes the compiler's belief, not the value
+reviewItems:
+  - id: review.csharp.null-flow-state
+    concept: concept.csharp.null-flow-state
+    step: step.csharp.nullflow.check-guard
+  - id: review.csharp.null-warning
+    concept: concept.csharp.null-warning
+    step: step.csharp.nullflow.check-warning
+  - id: review.csharp.null-annotations
+    concept: concept.csharp.null-annotations
+    step: step.csharp.nullflow.check-runtime
+  - id: review.csharp.null-forgiving
+    concept: concept.csharp.null-forgiving
+    step: step.csharp.nullflow.predict-bang
+steps:
+  - id: step.csharp.nullflow.intro
+    type: explain
+    title: A warning, not a type
+    body: |
+      With nullable reference types on, `string` means "should not be null" and `string?` means "may be null". Both are the same type at runtime. The
+      difference is a note the compiler keeps, and it runs a **flow analysis** over your method to decide, line by line, whether each variable is
+      *maybe-null* or *not-null*.
+
+      A variable starts in the state its declaration gives it. A check changes it: after `if (s is null) return;` the compiler knows `s` is not null on
+      the lines that follow. An assignment changes it too. When you use a maybe-null value as if it were not null (call a method on it, read `.Length`),
+      you get a warning. The code still compiles and runs, and can throw a `NullReferenceException`.
+  - id: step.csharp.nullflow.check-guard
+    type: choice
+    title: After the guard
+    prompt: |
+      What does the compiler believe about `s` on the last line?
+    options:
+      - text: '`s` is not null, so `s.Length` gives no warning'
+        correct: true
+        feedback: Right. On the path that reaches the last line, `s is null` was false, so the flow state of `s` is *not-null*. This is why guard clauses silence the warning.
+      - text: '`s` is still maybe-null, because its declared type is `string?`'
+        correct: false
+        feedback: The declared type is where the analysis starts, not where it stays. Each check and assignment updates the state.
+      - text: The compiler cannot tell, so it always warns
+        correct: false
+        feedback: Flow analysis is exactly the compiler telling. A null check followed by an early return is the case it handles best.
+    code: |
+      static int Size(string? s)
+      {
+          if (s is null) return 0;
+          return s.Length;
+      }
+    hints:
+      - Which paths can reach the line `return s.Length;`?
+  - id: step.csharp.nullflow.check-warning
+    type: choice
+    title: Reading a maybe-null value
+    prompt: |
+      `Name` returns `string?`. What does the compiler do with `Name().Length`?
+    code: |
+      static string? Name() => null;
+      var n = Name().Length;
+    options:
+      - text: It reports warning CS8602 (dereference of a possibly null reference), and the program still builds
+        correct: true
+        feedback: Right. Nullability findings are warnings by default. The code runs and throws `NullReferenceException` here, so the warning was right.
+      - text: It reports an error and the program does not build
+        correct: false
+        feedback: Only if the project turns warnings into errors (`TreatWarningsAsErrors`, or `<WarningsAsErrors>nullable`). The default is a warning.
+      - text: It inserts a null check, so the call returns `0`
+        correct: false
+        feedback: The compiler never adds a check. Nullable annotations change what it says about your code, not what the code does.
+    hints:
+      - Is nullability a compile error, a runtime check, or something between the two?
+  - id: step.csharp.nullflow.check-api
+    type: choice
+    title: The method that proves it
+    prompt: |
+      Why does `s.Length` compile without a warning after `string.IsNullOrEmpty(s)` is checked, even though the guard is a method call?
+    code: |
+      static int Size(string? s)
+      {
+          if (string.IsNullOrEmpty(s)) return 0;
+          return s.Length;
+      }
+    options:
+      - text: The method's parameter is annotated `[NotNullWhen(false)]`, which tells the analysis `s` is not null when it returns `false`
+        correct: true
+        feedback: Right. These attributes carry the contract of a method into its callers' flow analysis. You can add them to your own methods.
+      - text: The compiler has special knowledge of `string` and nothing else
+        correct: false
+        feedback: The mechanism is general. `[NotNullWhen]`, `[NotNull]`, `[MaybeNullWhen]` and the rest are ordinary attributes anyone can put on a method.
+      - text: The runtime checks the value when the method returns
+        correct: false
+        feedback: Nothing runs differently. This is all compile-time reasoning.
+    hints:
+      - The analysis cannot see inside `IsNullOrEmpty`. Something on its signature must tell it what the result means.
+  - id: step.csharp.nullflow.check-runtime
+    type: choice
+    title: Same type at runtime
+    prompt: |
+      What differs at run time between a `string` parameter and a `string?` parameter?
+    options:
+      - text: Nothing. Both are `System.String` references, and either can hold `null` at run time
+        correct: true
+        feedback: Right. The `?` is recorded in metadata for the compiler to read and has no runtime effect. Lowering the code removes it, which is why the lowered view in this course shows no `?`.
+      - text: A `string` parameter throws if `null` is passed
+        correct: false
+        feedback: No check is generated. `Foo(null!)` runs fine and fails later, on the first dereference.
+      - text: A `string?` is a `Nullable<string>`, a struct wrapping the reference
+        correct: false
+        feedback: '`Nullable<T>` is only for value types: `int?` is a different type from `int`. `string?` is just an annotated `string`.'
+    hints:
+      - Compare this with `int?`, which really is a different type from `int`.
+  - id: step.csharp.nullflow.predict-bang
+    type: predict-output
+    title: The forgiving operator
+    prompt: |
+      `x!` tells the compiler to treat `x` as not-null. What does this program print?
+    language: csharp
+    code: |
+      string? x = null;
+      try
+      {
+          Console.WriteLine(x!.Length);
+      }
+      catch (NullReferenceException)
+      {
+          Console.WriteLine("boom");
+      }
+      Console.WriteLine(x?.Length ?? -1);
+    accepted:
+      - 'boom -1'
+      - |-
+        boom
+        -1
+    mistakes:
+      - answers:
+          - '0 -1'
+          - |-
+            0
+            -1
+        feedback: '`!` silences the warning but does not change the value. `x` is still `null`, so `.Length` throws.'
+      - answers:
+          - 'boom'
+          - |-
+            boom
+            0
+        feedback: 'The `catch` handles the exception and the program continues. `x?.Length` is `null` for a null `x`, and `?? -1` turns that into `-1`.'
+    hints:
+      - Does `!` do anything at run time?
+      - '`x?.Length` returns `null` when `x` is null instead of throwing.'
+  - id: step.csharp.nullflow.first-word
+    type: write-code
+    title: First word, null-safe
+    prompt: |
+      Finish `FirstWord` so it returns the text up to the first space. For `null`, an empty string or only whitespace it returns `""`. Check first and return early,
+      so the compiler's flow analysis sees `text` as not-null afterwards and gives no warning.
+    language: csharp
+    largeScreenPreferred: true
+    entrypoint: FirstWord
+    starter: |
+      static string FirstWord(string? text)
+      {
+          return "";
+      }
+    solution: |
+      static string FirstWord(string? text)
+      {
+          if (string.IsNullOrWhiteSpace(text)) return "";
+          var space = text.IndexOf(' ');
+          return space < 0 ? text : text[..space];
+      }
+    tests:
+      - input: 'null'
+        expected: '""'
+      - input: '"  "'
+        expected: '""'
+      - input: '"hello world"'
+        expected: '"hello"'
+      - input: '"single"'
+        expected: '"single"'
+    phoneAlternative:
+      id: step.csharp.nullflow.first-word.fill
+      type: fill-blank
+      title: Complete the guard
+      prompt: |
+        The guard returns early for `null`, empty and whitespace-only text, so the lines after it can use `text` without a warning.
+      language: csharp
+      template: |
+        static string FirstWord(string? text)
+        {
+            if ({{guard}}) return "";
+            var space = text.IndexOf(' ');
+            return space < 0 ? text : text[..space];
+        }
+      blanks:
+        - id: guard
+          accepted:
+            - 'string.IsNullOrWhiteSpace(text)'
+          mistakes:
+            - answers:
+                - 'text == ""'
+              feedback: 'That misses `null` and whitespace-only text, and it does not tell the analysis that `text` is not null afterwards.'
+    hints:
+      - '`string.IsNullOrWhiteSpace(text)` covers null, empty and whitespace-only text in one call, and the compiler understands it.'
+      - After the guard, find the first space with `IndexOf(' ')`. If there is none, the whole text is the word.
+  - id: step.csharp.nullflow.recap
+    type: explain
+    title: What the analysis gives you
+    body: |
+      - The compiler keeps a *flow state* for each variable: maybe-null or not-null. Checks, assignments and early returns move it.
+      - Using a maybe-null value as non-null is warning CS8602; it is a warning, so read your build output.
+      - `[NotNullWhen]` and friends let a method tell callers what it proves, which is how `string.IsNullOrEmpty` works as a guard.
+      - `string?` and `string` are the same type. Nothing is checked at run time, and `!` only quiets the compiler.
+
+      Flow analysis is the compiler reasoning about your code; the next lessons move to the type system's other compile-time tools: constraints, variance
+      and static abstract members.
