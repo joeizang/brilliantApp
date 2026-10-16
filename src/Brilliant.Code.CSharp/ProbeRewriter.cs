@@ -7,7 +7,11 @@ namespace Brilliant.Code.CSharp;
 /// <summary>Inserts cooperative limits into synchronous learner syntax. Generated calls always name the host runtime explicitly.</summary>
 public static class ProbeRewriter
 {
-    public static SyntaxTree Rewrite(SyntaxTree tree, bool captureLocals = false, SemanticModel? semanticModel = null)
+    /// <summary>
+    /// <paramref name="trackCall"/>, when given (it needs <paramref name="captureLocals"/>), names the methods and local functions whose calls are
+    /// recorded: each call is put on the call stack the snapshots carry, with its arguments, and a return is a probe of its own, with the value returned.
+    /// </summary>
+    public static SyntaxTree Rewrite(SyntaxTree tree, bool captureLocals = false, SemanticModel? semanticModel = null, Func<string, bool>? trackCall = null)
     {
         var root = tree.GetRoot();
         if (captureLocals && semanticModel is null)
@@ -16,10 +20,10 @@ public static class ProbeRewriter
             throw new NotSupportedException("Finalizers and stackalloc are not supported by the bounded synchronous C# gate.");
         if (root.DescendantNodes().Any(n => n is GotoStatementSyntax))
             throw new NotSupportedException("goto is not supported by the bounded C# execution gate.");
-        return tree.WithRootAndOptions(new Rewriter(captureLocals, semanticModel).Visit(root)!, tree.Options);
+        return tree.WithRootAndOptions(new Rewriter(captureLocals, semanticModel, captureLocals ? trackCall : null).Visit(root)!, tree.Options);
     }
 
-    private sealed class Rewriter(bool captureLocals, SemanticModel? semanticModel) : CSharpSyntaxRewriter
+    private sealed class Rewriter(bool captureLocals, SemanticModel? semanticModel, Func<string, bool>? trackCall) : CSharpSyntaxRewriter
     {
         private const string Budget = "global::Brilliant.Code.CSharp.ProbeBudget.Current!";
         private static StatementSyntax Call(string method) => SyntaxFactory.ParseStatement($"{Budget}.{method}();");
@@ -33,11 +37,30 @@ public static class ProbeRewriter
             var body = ExpressionBody(visited, returnsVoid);
             return Snapshot(original) is { } probe ? body.WithStatements(body.Statements.Insert(0, probe)) : body;
         }
+
+        // An expression body of a tracked method or local function: its value returned as a recorded return, or a void body ended with the probe.
+        private BlockSyntax TrackedArrow(SyntaxNode original, ExpressionSyntax originalExpression, ExpressionSyntax visited, TypeSyntax returnType, IMethodSymbol symbol)
+        {
+            var body = ArrowBody(originalExpression, visited, symbol.ReturnsVoid);
+            var line = originalExpression.GetLocation().GetMappedLineSpan().StartLinePosition.Line + 1;
+            if (symbol.ReturnsVoid)
+                return Called(body, symbol, EndOfVoidCall(null, original, symbol, line));
+            if (ProbeArguments(originalExpression) is { } arguments && body.Statements.OfType<ReturnStatementSyntax>().FirstOrDefault() is { Expression: { } value } ret && value is not ThrowExpressionSyntax)
+            {
+                var call = SyntaxFactory.ParseExpression($"{Budget}.Return<{returnType.ToString().Trim()}>(__BRILLIANT_VALUE__, {arguments})");
+                var placeholder = call.DescendantNodes().OfType<IdentifierNameSyntax>().First(i => i.Identifier.ValueText == "__BRILLIANT_VALUE__");
+                body = body.ReplaceNode(ret, ret.WithExpression(call.ReplaceNode(placeholder, value.WithoutTrivia())));
+            }
+            return Called(body, symbol, null);
+        }
         private static bool Void(TypeSyntax type) => type is PredefinedTypeSyntax predefined && predefined.Keyword.IsKind(SyntaxKind.VoidKeyword);
         private static StatementSyntax Loop(StatementSyntax statement) => statement is BlockSyntax block
             ? block.WithStatements(block.Statements.Insert(0, Call("Tick"))) : SyntaxFactory.Block(Call("Tick"), statement);
 
-        private StatementSyntax? Snapshot(SyntaxNode statement)
+        private static bool Capturable(ITypeSymbol type) => !type.IsRefLikeType && type.TypeKind is not (TypeKind.Pointer or TypeKind.FunctionPointer);
+
+        // The arguments of a probe before a statement: its line, its function, and the variables in scope that are definitely assigned there.
+        private string? ProbeArguments(SyntaxNode statement)
         {
             if (!captureLocals || semanticModel is null || statement is LocalFunctionStatementSyntax) return null;
             var flow = semanticModel.AnalyzeDataFlow(statement);
@@ -47,15 +70,91 @@ public static class ProbeRewriter
                 .Where(symbol => assigned.Contains(symbol, SymbolEqualityComparer.Default))
                 .Where(symbol => symbol switch
                 {
-                    ILocalSymbol local => !local.Type.IsRefLikeType && local.Type.TypeKind is not (TypeKind.Pointer or TypeKind.FunctionPointer),
-                    IParameterSymbol parameter => !parameter.Type.IsRefLikeType && parameter.Type.TypeKind is not (TypeKind.Pointer or TypeKind.FunctionPointer),
+                    ILocalSymbol local => Capturable(local.Type),
+                    IParameterSymbol parameter => Capturable(parameter.Type),
                     _ => false,
                 }).GroupBy(symbol => symbol.Name).Select(group => group.First()).ToArray();
-            var line = statement.GetLocation().GetMappedLineSpan().StartLinePosition.Line + 1;
-            var names = string.Join(",", symbols.Select(symbol => SymbolDisplay.FormatLiteral(symbol.Name, true)));
-            var values = string.Join(",", symbols.Select(symbol => "@" + symbol.Name));
-            var function = FunctionName(statement) is { } name ? SymbolDisplay.FormatLiteral(name, true) : "null";
-            return SyntaxFactory.ParseStatement($"{Budget}.Snapshot({line}, {function}, new string[] {{{names}}}, new object?[] {{{values}}});");
+            return Arguments(statement.GetLocation().GetMappedLineSpan().StartLinePosition.Line + 1, FunctionName(statement), symbols);
+        }
+
+        private static string Arguments(int line, string? functionName, IEnumerable<ISymbol> symbols)
+        {
+            var list = symbols.ToArray();
+            var names = string.Join(",", list.Select(symbol => SymbolDisplay.FormatLiteral(symbol.Name, true)));
+            var values = string.Join(",", list.Select(symbol => "@" + symbol.Name));
+            var function = functionName is not null ? SymbolDisplay.FormatLiteral(functionName, true) : "null";
+            return $"{line}, {function}, new string[] {{{names}}}, new object?[] {{{values}}}";
+        }
+
+        private StatementSyntax? Snapshot(SyntaxNode statement) =>
+            ProbeArguments(statement) is { } arguments ? SyntaxFactory.ParseStatement($"{Budget}.Snapshot({arguments});") : null;
+
+        // ---- call tracking ----
+
+        // The method or local function a node is directly in (not through a lambda), when its calls are tracked.
+        private IMethodSymbol? TrackedFunction(SyntaxNode node)
+        {
+            if (trackCall is null || semanticModel is null) return null;
+            foreach (var ancestor in node.Ancestors())
+                switch (ancestor)
+                {
+                    case MethodDeclarationSyntax or LocalFunctionStatementSyntax:
+                        var symbol = semanticModel.GetDeclaredSymbol(ancestor) as IMethodSymbol;
+                        return symbol is not null && !symbol.ReturnsByRef && !symbol.ReturnsByRefReadonly && trackCall(symbol.Name) ? symbol : null;
+                    case AnonymousFunctionExpressionSyntax or ConstructorDeclarationSyntax or DestructorDeclarationSyntax or AccessorDeclarationSyntax
+                        or OperatorDeclarationSyntax or ConversionOperatorDeclarationSyntax or PropertyDeclarationSyntax or IndexerDeclarationSyntax:
+                        return null;
+                }
+            return null;
+        }
+
+        private static TypeSyntax ReturnTypeOf(SyntaxNode function) => function switch
+        {
+            MethodDeclarationSyntax method => method.ReturnType,
+            LocalFunctionStatementSyntax local => local.ReturnType,
+            _ => throw new InvalidOperationException(),
+        };
+
+        private static BlockSyntax Called(BlockSyntax body, IMethodSymbol function, string? end)
+        {
+            var parameters = function.Parameters.Where(p => p.RefKind != RefKind.Out && Capturable(p.Type)).ToArray();
+            var names = string.Join(",", parameters.Select(p => SymbolDisplay.FormatLiteral(p.Name, true)));
+            var values = string.Join(",", parameters.Select(p => "@" + p.Name));
+            var inside = end is null ? body : body.WithStatements(body.Statements.Add(SyntaxFactory.ParseStatement(end)));
+            return SyntaxFactory.Block(
+                SyntaxFactory.ParseStatement($"{Budget}.Enter({SymbolDisplay.FormatLiteral(function.Name, true)}, new string[] {{{names}}}, new object?[] {{{values}}});"),
+                SyntaxFactory.TryStatement(inside, default, SyntaxFactory.FinallyClause(SyntaxFactory.Block(Call("ExitCall")))));
+        }
+
+        // The probe that ends a void call that runs off its end: its parameters, and the locals declared at the top of its body.
+        private string? EndOfVoidCall(BlockSyntax? original, SyntaxNode function, IMethodSymbol symbol, int line)
+        {
+            if (!symbol.ReturnsVoid || semanticModel is null) return null;
+            IEnumerable<ISymbol> locals = [];
+            if (original is not null)
+            {
+                // The body as a region says its end is unreachable inside a local function; the statements of the body say it right.
+                var reaches = original.Statements.Count == 0 || semanticModel.AnalyzeControlFlow(original.Statements[0], original.Statements[^1]) is { Succeeded: true, EndPointIsReachable: true };
+                if (!reaches) return null;
+                var assigned = semanticModel.AnalyzeDataFlow(original) is { Succeeded: true } flow ? flow.DefinitelyAssignedOnExit : [];
+                locals = original.Statements.OfType<LocalDeclarationStatementSyntax>().SelectMany(d => d.Declaration.Variables)
+                    .Select(v => semanticModel.GetDeclaredSymbol(v)).OfType<ILocalSymbol>()
+                    .Where(local => Capturable(local.Type) && assigned.Contains(local, SymbolEqualityComparer.Default));
+            }
+            var parameters = symbol.Parameters.Where(p => p.RefKind != RefKind.Out && Capturable(p.Type));
+            return $"{Budget}.ReturnVoid({Arguments(line, symbol.Name, parameters.Cast<ISymbol>().Concat(locals))});";
+        }
+
+        public override SyntaxNode? VisitReturnStatement(ReturnStatementSyntax node)
+        {
+            var visited = (ReturnStatementSyntax)base.VisitReturnStatement(node)!;
+            if (TrackedFunction(node) is not { } function || ProbeArguments(node) is not { } arguments) return visited;
+            if (visited.Expression is null)
+                return SyntaxFactory.Block(SyntaxFactory.ParseStatement($"{Budget}.ReturnVoid({arguments});"), visited);
+            var type = ReturnTypeOf(node.Ancestors().First(a => a is MethodDeclarationSyntax or LocalFunctionStatementSyntax));
+            var call = SyntaxFactory.ParseExpression($"{Budget}.Return<{type.ToString().Trim()}>(__BRILLIANT_VALUE__, {arguments})");
+            var placeholder = call.DescendantNodes().OfType<IdentifierNameSyntax>().First(i => i.Identifier.ValueText == "__BRILLIANT_VALUE__");
+            return visited.WithExpression(call.ReplaceNode(placeholder, visited.Expression.WithoutTrivia()));
         }
 
         /// <summary>The method, local function, constructor or accessor the node sits in; a lambda is part of the member around it.</summary>
@@ -126,7 +225,7 @@ public static class ProbeRewriter
             }
             var declaration = visited.Declaration ?? SyntaxFactory.CatchDeclaration(SyntaxFactory.ParseTypeName("global::System.Exception"));
             declaration = declaration.WithIdentifier(SyntaxFactory.ParseToken("@" + name).WithLeadingTrivia(SyntaxFactory.Space));
-            var exclude = SyntaxFactory.ParseExpression($"@{name} is not global::Brilliant.Code.CSharp.BudgetExceededException");
+            var exclude = SyntaxFactory.ParseExpression($"(object)@{name} is not global::Brilliant.Code.CSharp.BudgetExceededException");
             var filter = visited.Filter?.FilterExpression;
             if (filter is not null) exclude = SyntaxFactory.BinaryExpression(SyntaxKind.LogicalAndExpression,
                 SyntaxFactory.ParenthesizedExpression(exclude), SyntaxFactory.ParenthesizedExpression(filter));
@@ -147,12 +246,26 @@ public static class ProbeRewriter
         public override SyntaxNode? VisitMethodDeclaration(MethodDeclarationSyntax node)
         {
             var v = (MethodDeclarationSyntax)base.VisitMethodDeclaration(node)!;
+            if (TrackedFunction(node.Body ?? (SyntaxNode?)node.ExpressionBody ?? node) is { } tracked && (node.Body is not null || node.ExpressionBody is not null))
+            {
+                var called = node.Body is not null
+                    ? Called(v.Body!, tracked, EndOfVoidCall(node.Body, node, tracked, node.Body.CloseBraceToken.GetLocation().GetMappedLineSpan().StartLinePosition.Line + 1))
+                    : TrackedArrow(node, node.ExpressionBody!.Expression, v.ExpressionBody!.Expression, v.ReturnType, tracked);
+                return v.WithBody(called).WithExpressionBody(null).WithSemicolonToken(default);
+            }
             var body = v.Body ?? (v.ExpressionBody is { } expression ? ArrowBody(node.ExpressionBody!.Expression, expression.Expression, Void(v.ReturnType)) : null);
             return body is null ? v : v.WithBody(Wrap(body)).WithExpressionBody(null).WithSemicolonToken(default);
         }
         public override SyntaxNode? VisitLocalFunctionStatement(LocalFunctionStatementSyntax node)
         {
             var v = (LocalFunctionStatementSyntax)base.VisitLocalFunctionStatement(node)!;
+            if (TrackedFunction(node.Body ?? (SyntaxNode?)node.ExpressionBody ?? node) is { } tracked && (node.Body is not null || node.ExpressionBody is not null))
+            {
+                var called = node.Body is not null
+                    ? Called(v.Body!, tracked, EndOfVoidCall(node.Body, node, tracked, node.Body.CloseBraceToken.GetLocation().GetMappedLineSpan().StartLinePosition.Line + 1))
+                    : TrackedArrow(node, node.ExpressionBody!.Expression, v.ExpressionBody!.Expression, v.ReturnType, tracked);
+                return v.WithBody(called).WithExpressionBody(null).WithSemicolonToken(default);
+            }
             var body = v.Body ?? (v.ExpressionBody is { } expression ? ArrowBody(node.ExpressionBody!.Expression, expression.Expression, Void(v.ReturnType)) : null);
             return body is null ? v : v.WithBody(Wrap(body)).WithExpressionBody(null).WithSemicolonToken(default);
         }

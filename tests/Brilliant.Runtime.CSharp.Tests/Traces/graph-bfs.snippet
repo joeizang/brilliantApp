@@ -1,0 +1,19 @@
+var graph = new Dictionary<string, List<string>>
+{
+    ["A"] = new() { "B", "C" },
+    ["B"] = new() { "D" },
+    ["C"] = new() { "D" },
+    ["D"] = new(),
+};
+var seen = new HashSet<string> { "A" };
+var queue = new Queue<string>();
+queue.Enqueue("A");
+var node = "";
+while (queue.Count > 0)
+{
+    node = queue.Dequeue();
+    foreach (var next in graph[node])
+    {
+        if (seen.Add(next)) queue.Enqueue(next);
+    }
+}

@@ -35,8 +35,19 @@ public sealed record CapturedReference(int Identity);
 
 public sealed record UnavailableCapture(string Reason);
 
-/// <summary><see cref="Function"/> is the method, local function or lambda the probe sits in (null when the rewriter wasn't told).</summary>
-public sealed record ProbeSnapshot(int Line, IReadOnlyDictionary<string, object?> Locals, string? Function = null);
+/// <summary>A call under way when a probe fired: <see cref="Id"/> numbers the calls of the run in the order they were made, and <see cref="Args"/> are its parameters as they were at the call.</summary>
+public sealed record CapturedCall(int Id, string Function, IReadOnlyList<KeyValuePair<string, object?>> Args);
+
+/// <summary>What a call returned: the call's <see cref="CallId"/>, and the value (<see cref="Void"/>: the method returns nothing, so <see cref="Value"/> is null).</summary>
+public sealed record CapturedReturn(int CallId, string Function, object? Value, bool Void);
+
+/// <summary>
+/// <see cref="Function"/> is the method, local function or lambda the probe sits in (null when the rewriter wasn't told). <see cref="Calls"/>
+/// are the calls under way, outermost first, when the rewriter tracks calls (else null); <see cref="Return"/> is set when the probe is a call
+/// returning (the state it returns in) rather than a statement about to run.
+/// </summary>
+public sealed record ProbeSnapshot(int Line, IReadOnlyDictionary<string, object?> Locals, string? Function = null,
+    IReadOnlyList<CapturedCall>? Calls = null, CapturedReturn? Return = null);
 
 /// <summary>
 /// One synchronous run's limits, installed on the dedicated execution thread before invoking learner code. With <c>trackObjects</c> the
@@ -54,6 +65,8 @@ public sealed class ProbeBudget(int maxSteps = 100_000, TimeSpan? timeout = null
     private readonly int _maxSnapshots = maxSnapshots >= 0 ? maxSnapshots : throw new ArgumentOutOfRangeException(nameof(maxSnapshots));
     private readonly List<ProbeSnapshot> _snapshots = [];
     private readonly Dictionary<object, int> _identities = new(ReferenceEqualityComparer.Instance);
+    private readonly List<CapturedCall> _calls = [];
+    private int _callsTaken;
     private int CaptureDepth => trackObjects ? 256 : 16;
     private long? _started;
     private volatile string? _exhausted;
@@ -102,16 +115,57 @@ public sealed class ProbeBudget(int maxSteps = 100_000, TimeSpan? timeout = null
         Tick();
     }
 
+    /// <summary>A tracked call begins (see <see cref="ProbeRewriter"/>): counts as <see cref="Enter()"/>, and puts the call on the stack the snapshots carry.</summary>
+    public void Enter(string function, string[] names, object?[] values)
+    {
+        Enter();
+        var args = new List<KeyValuePair<string, object?>>();
+        for (var i = 0; i < Math.Min(names.Length, values.Length); i++)
+            args.Add(new(names[i], _snapshots.Count >= _maxSnapshots ? new UnavailableCapture("limit") : Freeze(values[i], new HashSet<object>(ReferenceEqualityComparer.Instance), 0, new CaptureLimit { Remaining = 200 })));
+        _calls.Add(new(_callsTaken++, function, args));
+    }
+
+    /// <summary>A tracked call ends, however it ends.</summary>
+    public void ExitCall()
+    {
+        if (_calls.Count > 0) _calls.RemoveAt(_calls.Count - 1);
+        Exit();
+    }
+
+    /// <summary>A tracked call returns <paramref name="value"/>: records the state it returns in, and hands the value on.</summary>
+    public T Return<T>(T value, int line, string? function, string[] names, object?[] values)
+    {
+        Record(line, function, names, values, value, isVoid: false);
+        return value;
+    }
+
+    /// <summary>A tracked call that returns nothing ends (a <c>return;</c>, or running off its end).</summary>
+    public void ReturnVoid(int line, string? function, string[] names, object?[] values) => Record(line, function, names, values, null, isVoid: true);
+
+    private void Record(int line, string? function, string[] names, object?[] values, object? value, bool isVoid)
+    {
+        Tick();
+        if (_snapshots.Count >= _maxSnapshots) { SnapshotsDropped = true; return; }
+        var locals = FreezeLocals(names, values);
+        var returned = new CapturedReturn(_calls.Count > 0 ? _calls[^1].Id : -1, function ?? "", isVoid ? null : Freeze(value, new HashSet<object>(ReferenceEqualityComparer.Instance), 0, new CaptureLimit { Remaining = 200 }), isVoid);
+        _snapshots.Add(new(line, locals, function, _calls.ToArray(), returned));
+    }
+
+    private Dictionary<string, object?> FreezeLocals(string[] names, object?[] values)
+    {
+        var locals = new Dictionary<string, object?>(StringComparer.Ordinal);
+        for (var i = 0; i < Math.Min(names.Length, values.Length); i++)
+            locals[names[i]] = Freeze(values[i], new HashSet<object>(ReferenceEqualityComparer.Instance), 0, new CaptureLimit { Remaining = trackObjects ? 4_000 : 1_000 });
+        return locals;
+    }
+
     public void Snapshot(int line, string[] names, object?[] values) => Snapshot(line, null, names, values);
 
     public void Snapshot(int line, string? function, string[] names, object?[] values)
     {
         Tick();
         if (_snapshots.Count >= _maxSnapshots) { SnapshotsDropped = true; return; }
-        var locals = new Dictionary<string, object?>(StringComparer.Ordinal);
-        for (var i = 0; i < Math.Min(names.Length, values.Length); i++)
-            locals[names[i]] = Freeze(values[i], new HashSet<object>(ReferenceEqualityComparer.Instance), 0, new CaptureLimit { Remaining = trackObjects ? 4_000 : 1_000 });
-        _snapshots.Add(new(line, locals, function));
+        _snapshots.Add(new(line, FreezeLocals(names, values), function, _calls.Count > 0 ? _calls.ToArray() : null));
     }
 
     private sealed class CaptureLimit { public int Remaining; }

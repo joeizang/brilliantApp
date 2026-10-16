@@ -1,0 +1,13 @@
+var roads = new Dictionary<int, Dictionary<int, int>>
+{
+    [1] = new() { [2] = 7, [3] = 9 },
+    [2] = new() { [3] = 10 },
+    [3] = new(),
+};
+var tuples = new Dictionary<int, (int, int)[]>
+{
+    [1] = new[] { (2, 4) },
+    [2] = new[] { (1, 4) },
+};
+var here = 1;
+here = 3;

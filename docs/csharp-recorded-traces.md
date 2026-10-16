@@ -32,6 +32,9 @@ statement, runs it on a dedicated thread under the usual `ProbeBudget`, and turn
 | `Locals` | the variables in scope, sorted by name (ordinal) so the order never depends on declaration order |
 | `Tracked` | each variable a `visuals` entry names: `array`, `stack` or `queue` drawings |
 | `Tables`, `Heaps`, `Grids` | the `dict`, `set`, `heap` and `grid` drawings, see below |
+| `Lists`, `Trees` | the `linked_list` and `tree` drawings, see below |
+| `Graphs` | the `graph` drawings, see below |
+| `Calls` | the `call_stack` drawing, and with it a step for each return, see below |
 | `Stdout` | everything `Console.Write*` printed, with `\n` line endings |
 
 Collections map onto the existing views by shape: an array or `List<T>` is a row of cells front to back, a `Stack<T>` is drawn bottom
@@ -44,7 +47,7 @@ counted in `More`), 60-character reprs (24 for a cell) and 4000 characters of st
 the step/time budget is recorded as `Truncated` with a message; a run that throws is recorded as `Error` with the frames up to the
 throw. Both play like their Python equivalents.
 
-Known gaps: loop conditions and `for` headers get no step of their own, and a top-level `return;` before the end of the code leaves
+Known gaps: `PriorityQueue<,>` is not drawn as a heap, loop conditions and `for` headers get no step of their own, and a top-level `return;` before the end of the code leaves
 no closing frame. `async`, iterators, `unsafe`, `#define`/`#undef` and interactive console input are refused.
 
 ## Determinism
@@ -88,8 +91,8 @@ shows the members met first rather than sorted ones.
 A node is an instance of one of the learner's own classes (`FullName` not under `System.` or `Microsoft.`) that has the `next` field or
 property (a list), or both `left` and `right` (a tree). `ProbeBudget` is built with `trackObjects: true` by the recorder, and then:
 
-- every instance of a learner class gets an **identity**: a number for the whole run, handed out in the order objects are first captured
-  (`CapturedObject.Identity`). It is the same at every probe whichever variable holds the object, and never comes from an address or a hash code,
+- every instance of a learner class gets an **identity**: a number for the whole run, handed out in the order objects finish being captured
+  (`CapturedObject.Identity`, assigned after the object's own members, so a node comes after the nodes it points to). It is the same at every probe whichever variable holds the object, and never comes from an address or a hash code,
   so re-recording gives the same ids. A node's id in `ListNode`/`TreeNode` is this number.
 - an object reached again on the way to itself (a circular or doubly linked list, a parent pointer) is captured as a `CapturedReference` to that
   identity instead of the old `<cycle>` placeholder; `CSharpTraceViews` follows it through an index of the snapshot's objects. Locals still read `<cycle>`.
@@ -102,7 +105,38 @@ their own getter are not read (capturing never runs learner code). Walks follow 
 what was captured, so a structure cut by the capture limit adds 1 for the cut; and a watched variable is drawn only in the frames where it is in
 scope (a local function of top-level code sees it, a static method does not; pass the node as a parameter and watch that name as a pointer).
 
-## Not yet recorded
+## Graphs
 
-The graph and the call stack. Until they land, `validate` refuses those `visuals` for C# with "'X' drawings of C# code are not recorded yet…".
-They are the rest of #196.
+Issue [#196](https://github.com/joeizang/brilliantApp/issues/196), last part. A graph is a **non-empty `Dictionary<,>`** (or `SortedDictionary<,>`) from
+each node to its neighbours, which the Python tracer draws from a dict the same way. `CSharpTraceViews.Graph` follows its rules and limits:
+
+- a neighbour collection is a sequence (`List<T>`, an array, a `HashSet<T>`, sorted so the order is stable), or a nested dictionary whose values are the
+  edge weights. With `weights: true` a member that is a two-item array/list or a `(node, weight)` tuple is read as the neighbour and its weight.
+- a node is a key, then each neighbour not yet met, walked in the dictionary's order. A node that is an instance of the learner's own class keeps its
+  run-wide identity (see above) as its id, so the same object is the same node at every step; any other node gets an id from the order it was met.
+  A label is a string as it is, or the clipped repr of the value.
+- 20 nodes and 60 edges; `More` and `MoreEdges` count what was cut. A `Pointers` name is kept only when it names a node that was kept.
+- `visited` takes a sequence or a table (its keys) and `frontier` a sequence; both become `GraphMarks` of node ids, with the entries that match no node
+  counted in `Unmatched`. `directed`, `weights`, `edge` and `max` are passed through for the player.
+
+A watched variable that is never a non-empty dictionary is reported by `validate` as "never a non-empty Dictionary<,>".
+
+## The call stack
+
+A `call_stack` visual (it names no variable) records the calls the code makes: **methods and local functions** that have a body. Lambdas, constructors,
+accessors and `ref`-returning methods are not tracked, and `functions: [Name]` narrows the stack to those names. When the visual is present
+`ProbeRewriter` wraps each tracked body (`Enter`/`ExitCall` around it, a `try`/`finally` so a throw pops the call) and turns every `return` into a
+probe, and `ProbeBudget` hands each snapshot the calls that were open at that moment. Without a `call_stack` none of this is inserted, so every other
+recording is byte-identical to before.
+
+| `TrackedCalls` | Recorded as |
+| --- | --- |
+| `Frames` | the open calls, outermost first, each a `RecordedCall` with a run-wide `Id` (0, 1, 2 … in call order, never an address), the function name and its parameters as `Args` (reprs clipped to 24 characters; `out` and ref-like parameters left out) |
+| `Returning` | on the innermost call only, in the frame of its return: the clipped repr of the value, or `void` |
+| `Returned` | on the frame *after* a non-void return only: the function, the value and the `Id` of the caller it went back to (`null` for the outermost) |
+| `More` | the number of outer calls cut off. Only the 12 innermost calls are kept |
+
+A return is a step of its own (`Event` `"return"` with the line of the `return`), but only while a stack is being watched. A void method returns on the line
+of its closing brace, with the parameters and the top-level locals it had assigned. Known quirks: `if (n <= 1) return 1;` gives two steps on one line
+(a probe before the `if`, a probe before the `return`), and a thrown exception ends the call with no return step.
+

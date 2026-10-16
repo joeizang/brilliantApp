@@ -1,0 +1,14 @@
+var answer = Fact(3);
+Print("done");
+
+int Fact(int n)
+{
+    if (n <= 1) return 1;
+    var smaller = Fact(n - 1);
+    return n * smaller;
+}
+
+void Print(string text)
+{
+    Console.WriteLine(text);
+}

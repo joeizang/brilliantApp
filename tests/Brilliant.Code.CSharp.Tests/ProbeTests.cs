@@ -119,6 +119,14 @@ public class ProbeTests
         Assert.Equal(1, Run("class Lesson { public static object Run() { try { throw new System.Exception(); } catch(System.Exception @event) when(@event.Message.Length>0) { return 1; } } }", new()));
     }
 
+    [Theory]
+    [InlineData("catch(System.InvalidOperationException) { return 1; }")]
+    [InlineData("catch(System.InvalidOperationException ex) when(ex.Message.Length >= 0) { return 1; }")]
+    public void A_catch_of_a_specific_exception_type_still_compiles_and_catches(string handler)
+    {
+        Assert.Equal(1, Run("class Lesson { public static object Run() { try { throw new System.InvalidOperationException(); } " + handler + " } }", new()));
+    }
+
     [Fact]
     public void Unbraced_loop_bodies_capture_the_executed_line_and_loop_local()
     {

@@ -1,0 +1,328 @@
+{
+  "status": "ok",
+  "frames": [
+    {
+      "event": "line",
+      "line": 1,
+      "function": "Main",
+      "locals": [],
+      "tracked": {}
+    },
+    {
+      "event": "line",
+      "line": 7,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "roads",
+          "type": "Dictionary<int, Dictionary<int, int>>",
+          "repr": "{1: {2: 7, 3: 9}, 2: {3: 10}, 3: {}}"
+        }
+      ],
+      "tracked": {},
+      "graphs": {
+        "roads": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "1"
+            },
+            {
+              "id": 1,
+              "label": "2"
+            },
+            {
+              "id": 2,
+              "label": "3"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1,
+              "weight": "7"
+            },
+            {
+              "from": 0,
+              "to": 2,
+              "weight": "9"
+            },
+            {
+              "from": 1,
+              "to": 2,
+              "weight": "10"
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {}
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 12,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "roads",
+          "type": "Dictionary<int, Dictionary<int, int>>",
+          "repr": "{1: {2: 7, 3: 9}, 2: {3: 10}, 3: {}}"
+        },
+        {
+          "name": "tuples",
+          "type": "Dictionary<int, ValueTuple<int, int>[]>",
+          "repr": "{1: [(2, 4)], 2: [(1, 4)]}"
+        }
+      ],
+      "tracked": {},
+      "graphs": {
+        "roads": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "1"
+            },
+            {
+              "id": 1,
+              "label": "2"
+            },
+            {
+              "id": 2,
+              "label": "3"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1,
+              "weight": "7"
+            },
+            {
+              "from": 0,
+              "to": 2,
+              "weight": "9"
+            },
+            {
+              "from": 1,
+              "to": 2,
+              "weight": "10"
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {}
+        },
+        "tuples": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "1"
+            },
+            {
+              "id": 1,
+              "label": "2"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1,
+              "weight": "4"
+            },
+            {
+              "from": 1,
+              "to": 0,
+              "weight": "4"
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {}
+        }
+      }
+    },
+    {
+      "event": "line",
+      "line": 13,
+      "function": "Main",
+      "locals": [
+        {
+          "name": "here",
+          "type": "int",
+          "repr": "1",
+          "index": 1
+        },
+        {
+          "name": "roads",
+          "type": "Dictionary<int, Dictionary<int, int>>",
+          "repr": "{1: {2: 7, 3: 9}, 2: {3: 10}, 3: {}}"
+        },
+        {
+          "name": "tuples",
+          "type": "Dictionary<int, ValueTuple<int, int>[]>",
+          "repr": "{1: [(2, 4)], 2: [(1, 4)]}"
+        }
+      ],
+      "tracked": {},
+      "graphs": {
+        "roads": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "1"
+            },
+            {
+              "id": 1,
+              "label": "2"
+            },
+            {
+              "id": 2,
+              "label": "3"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1,
+              "weight": "7"
+            },
+            {
+              "from": 0,
+              "to": 2,
+              "weight": "9"
+            },
+            {
+              "from": 1,
+              "to": 2,
+              "weight": "10"
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {
+            "here": 0
+          }
+        },
+        "tuples": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "1"
+            },
+            {
+              "id": 1,
+              "label": "2"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1,
+              "weight": "4"
+            },
+            {
+              "from": 1,
+              "to": 0,
+              "weight": "4"
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {}
+        }
+      }
+    },
+    {
+      "event": "return",
+      "function": "Main",
+      "locals": [
+        {
+          "name": "here",
+          "type": "int",
+          "repr": "3",
+          "index": 3
+        },
+        {
+          "name": "roads",
+          "type": "Dictionary<int, Dictionary<int, int>>",
+          "repr": "{1: {2: 7, 3: 9}, 2: {3: 10}, 3: {}}"
+        },
+        {
+          "name": "tuples",
+          "type": "Dictionary<int, ValueTuple<int, int>[]>",
+          "repr": "{1: [(2, 4)], 2: [(1, 4)]}"
+        }
+      ],
+      "tracked": {},
+      "graphs": {
+        "roads": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "1"
+            },
+            {
+              "id": 1,
+              "label": "2"
+            },
+            {
+              "id": 2,
+              "label": "3"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1,
+              "weight": "7"
+            },
+            {
+              "from": 0,
+              "to": 2,
+              "weight": "9"
+            },
+            {
+              "from": 1,
+              "to": 2,
+              "weight": "10"
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {
+            "here": 2
+          }
+        },
+        "tuples": {
+          "nodes": [
+            {
+              "id": 0,
+              "label": "1"
+            },
+            {
+              "id": 1,
+              "label": "2"
+            }
+          ],
+          "more": 0,
+          "edges": [
+            {
+              "from": 0,
+              "to": 1,
+              "weight": "4"
+            },
+            {
+              "from": 1,
+              "to": 0,
+              "weight": "4"
+            }
+          ],
+          "moreEdges": 0,
+          "pointers": {}
+        }
+      }
+    }
+  ],
+  "stdout": ""
+}

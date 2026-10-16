@@ -25,6 +25,7 @@ public static class CSharpTraceRecorder
     public const int MaxCells = 40;        // array cells recorded per frame (the rest are counted in More)
     public const int MaxRepr = 60;         // characters of a variable's repr
     public const int MaxCellRepr = 24;     // characters of an array cell's repr
+    public const int MaxCalls = 12;        // calls shown on the call stack: the innermost ones
     public const int MaxOutput = 4000;     // characters of stdout kept
 
     private const string FileName = "code.cs";
@@ -64,7 +65,10 @@ public static class CSharpTraceRecorder
             // Console output goes to the recording, not the process console (which other code may be using at the same time).
             var captured = tree.WithRootAndOptions(new ConsoleCaptureRewriter(compilation.GetSemanticModel(tree)).Visit(tree.GetRoot())!, tree.Options);
             compilation = compilation.ReplaceSyntaxTree(tree, captured);
-            rewritten = ProbeRewriter.Rewrite(captured, captureLocals: true, compilation.GetSemanticModel(captured));
+            // The calls are recorded only when a call stack is drawn: the extra probes (a return is one) would otherwise add steps nobody asked for.
+            var calls = visuals.FirstOrDefault(v => v.As == Visual.CallStack);
+            Func<string, bool>? trackCall = calls is null ? null : name => name != Wrapper && (calls.Functions.Count == 0 || calls.Functions.Contains(name));
+            rewritten = ProbeRewriter.Rewrite(captured, captureLocals: true, compilation.GetSemanticModel(captured), trackCall);
             compilation = compilation.ReplaceSyntaxTree(captured, rewritten);
         }
         catch (NotSupportedException ex) { return Failure(ex.Message); }
@@ -121,6 +125,8 @@ public static class CSharpTraceRecorder
         var watched = visuals.Where(v => v.As is Visual.Array or Visual.Stack or Visual.Queue).Select(v => v.Variable).ToHashSet(StringComparer.Ordinal);
         var views = new CSharpTraceViews(visuals);
         var frames = new List<TraceFrame>(snapshots.Count);
+        var callStack = visuals.Any(v => v.As == Visual.CallStack);
+        ReturnedValue? handedBack = null;   // what the step before returned, which the next step carries
         foreach (var snapshot in snapshots)
         {
             var closing = snapshot.Line == EndLine;
@@ -132,10 +138,27 @@ public static class CSharpTraceRecorder
             var tracked = ordered.Where(pair => watched.Contains(pair.Key) && pair.Value is CapturedSequence)
                 .ToDictionary(pair => pair.Key, pair => Tracked((CapturedSequence)pair.Value!), StringComparer.Ordinal);
             var function = snapshot.Function is null or Wrapper ? Module : snapshot.Function;
-            frames.Add(new(closing ? "return" : "line", closing ? null : snapshot.Line, function, locals, tracked,
-                Tables: views.Tables(snapshot.Locals, shown), Lists: views.Lists(snapshot.Locals), Trees: views.Trees(snapshot.Locals), Grids: views.Grids(snapshot.Locals), Heaps: views.Heaps(snapshot.Locals)));
+            var returning = snapshot.Return;
+            frames.Add(new(closing || returning is not null ? "return" : "line", closing ? null : snapshot.Line, function, locals, tracked,
+                Tables: views.Tables(snapshot.Locals, shown), Lists: views.Lists(snapshot.Locals), Trees: views.Trees(snapshot.Locals), Grids: views.Grids(snapshot.Locals),
+                Graphs: views.Graphs(snapshot.Locals), Heaps: views.Heaps(snapshot.Locals),
+                Calls: callStack ? Calls(snapshot, handedBack) : null));
+            // It went to the call under it on the stack, if there is one.
+            handedBack = returning is { Void: false } && snapshot.Calls is { } stackAtReturn
+                ? new(returning.Function, Clip(Repr(returning.Value), MaxCellRepr), stackAtReturn.Count > 1 ? stackAtReturn[^2].Id : null) : null;
         }
         return frames;
+    }
+
+    // The call stack at one step: the innermost calls, the one that is returning (if it is) with its value, and what the step before handed back.
+    private static TrackedCalls Calls(ProbeSnapshot snapshot, ReturnedValue? handedBack)
+    {
+        var stack = snapshot.Calls ?? [];
+        var recorded = stack.Select((call, place) => new RecordedCall(call.Id, call.Function,
+                call.Args.Select(arg => new CallArg(arg.Key, Clip(Repr(arg.Value), MaxCellRepr))).ToArray(),
+                place == stack.Count - 1 && snapshot.Return is { } returning ? returning.Void ? "void" : Clip(Repr(returning.Value), MaxCellRepr) : null))
+            .ToArray();
+        return new(recorded[Math.Max(0, recorded.Length - MaxCalls)..], Math.Max(0, recorded.Length - MaxCalls), handedBack);
     }
 
     private static TraceLocal Local(string name, object? value) => value switch
