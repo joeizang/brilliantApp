@@ -1,3 +1,4 @@
+using Brilliant.Core.Apps;
 using System.Text.Json;
 using Brilliant.Core.Sync;
 
@@ -7,7 +8,7 @@ namespace Brilliant.App;
 public sealed class SecureDeviceCredentialStore(string key) : IDeviceCredentialStore
 {
 
-    private sealed record Stored(string Server, string DeviceId, string Token);
+    private sealed record Stored(string Server, string DeviceId, string Token, string AppId = AppStoragePaths.DsaAppId);
 
     public async Task<DeviceCredentials?> LoadAsync(CancellationToken ct = default)
     {
@@ -24,14 +25,14 @@ public sealed class SecureDeviceCredentialStore(string key) : IDeviceCredentialS
         {
             var stored = JsonSerializer.Deserialize<Stored>(json);
             return stored is not null && Uri.TryCreate(stored.Server, UriKind.Absolute, out var server)
-                ? new DeviceCredentials(server, stored.DeviceId, stored.Token)
+                ? new DeviceCredentials(server, stored.DeviceId, stored.Token, stored.AppId)
                 : null;
         }
         catch (JsonException) { return null; }
     }
 
     public Task SaveAsync(DeviceCredentials credentials, CancellationToken ct = default) =>
-        SecureStorage.Default.SetAsync(key, JsonSerializer.Serialize(new Stored(credentials.Server.ToString(), credentials.DeviceId, credentials.Token)));
+        SecureStorage.Default.SetAsync(key, JsonSerializer.Serialize(new Stored(credentials.Server.ToString(), credentials.DeviceId, credentials.Token, AppId: credentials.AppId)));
 
     public async Task ClearAsync(CancellationToken ct = default)
     {

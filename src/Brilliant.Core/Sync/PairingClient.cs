@@ -1,3 +1,4 @@
+using Brilliant.Core.Apps;
 using System.Net.Http.Json;
 
 namespace Brilliant.Core.Sync;
@@ -35,7 +36,7 @@ public sealed record PairingOutcome(DeviceCredentials? Credentials, PairingFailu
 }
 
 /// <summary>Talks to the server's <c>POST /pair</c>. The <see cref="HttpClient"/> is injected so tests can answer for the server.</summary>
-public sealed class PairingClient(HttpClient http)
+public sealed class PairingClient(HttpClient http, string appId = AppStoragePaths.DsaAppId)
 {
     public async Task<PairingOutcome> PairAsync(string address, string code, string deviceName, CancellationToken ct = default)
     {
@@ -43,13 +44,16 @@ public sealed class PairingClient(HttpClient http)
 
         try
         {
-            using var response = await http.PostAsJsonAsync(new Uri(server, "pair"), new PairRequest(code, deviceName), ct);
+            using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(server, "pair"));
+            request.Headers.Add(AppSync.AppIdHeader, appId);
+            request.Content = JsonContent.Create(new PairRequest(code, deviceName, appId));
+            using var response = await http.SendAsync(request, ct);
             switch ((int)response.StatusCode)
             {
                 case 200:
                     var paired = await response.Content.ReadFromJsonAsync<PairResponse>(ct);
-                    return paired is { Token.Length: > 0, DeviceId.Length: > 0 }
-                        ? PairingOutcome.Success(new DeviceCredentials(server, paired.DeviceId, paired.Token))
+                    return paired is { Token.Length: > 0, DeviceId.Length: > 0 } && paired.AppId == appId
+                        ? PairingOutcome.Success(new DeviceCredentials(server, paired.DeviceId, paired.Token, appId))
                         : PairingOutcome.Failed(PairingFailure.Unreachable);
                 case 401: return PairingOutcome.Failed(PairingFailure.CodeRejected);
                 case 429: return PairingOutcome.Failed(PairingFailure.TooManyAttempts);

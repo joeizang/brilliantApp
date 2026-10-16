@@ -1,4 +1,5 @@
 using System.Threading.RateLimiting;
+using Brilliant.Core.Apps;
 using Brilliant.Server;
 using Brilliant.Server.Data;
 using Brilliant.Server.Pairing;
@@ -22,6 +23,7 @@ if (tls is not null)
 builder.Services.AddDbContext<ServerDb>(o => o.UseNpgsql(
     builder.Configuration.GetConnectionString("Postgres") ?? throw new InvalidOperationException("ConnectionStrings:Postgres is not set.")));
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton(ServerApps.Load(builder.Configuration["Apps:Directory"] ?? Path.Combine(AppContext.BaseDirectory, "apps")));
 builder.Services.Configure<PairingOptions>(builder.Configuration.GetSection("Pairing"));
 builder.Services.AddScoped<PairingCodes>();
 
@@ -49,15 +51,17 @@ using (var scope = app.Services.CreateScope())
     await db.Database.MigrateAsync();
 
     // `dotnet Brilliant.Server.dll pairing-code` prints a fresh code and exits (see docs/server.md).
-    if (args is ["pairing-code"])
+    if (args is ["pairing-code"] or ["pairing-code", "--app", _])
     {
-        var (code, _) = await scope.ServiceProvider.GetRequiredService<PairingCodes>().MintAsync();
-        Console.WriteLine($"Pairing code: {code}  (valid for {scope.ServiceProvider.GetRequiredService<IOptions<PairingOptions>>().Value.CodeLifetimeMinutes} minutes)");
+        var appId = args.Length == 3 ? args[2] : AppStoragePaths.DsaAppId;
+        var (code, _) = await scope.ServiceProvider.GetRequiredService<PairingCodes>().MintAsync(appId);
+        Console.WriteLine($"Pairing code for {appId}: {code}  (valid for {scope.ServiceProvider.GetRequiredService<IOptions<PairingOptions>>().Value.CodeLifetimeMinutes} minutes)");
         return;
     }
 
     // The very first start has no device to mint a code, so print one.
-    if (!await db.Devices.AnyAsync(d => d.RevokedAt == null))
+    if (scope.ServiceProvider.GetRequiredService<ServerApps>().Contains(AppStoragePaths.DsaAppId) &&
+        !await db.Devices.AnyAsync(d => d.AppId == AppStoragePaths.DsaAppId && d.RevokedAt == null))
     {
         var (code, _) = await scope.ServiceProvider.GetRequiredService<PairingCodes>().MintAsync();
         app.Logger.LogWarning("No paired devices. Pairing code: {Code} (valid for {Minutes} minutes).", code,

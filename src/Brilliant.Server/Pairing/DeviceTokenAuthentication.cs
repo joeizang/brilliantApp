@@ -1,5 +1,7 @@
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using Brilliant.Core.Apps;
+using Brilliant.Core.Sync;
 using Brilliant.Server.Data;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
@@ -14,7 +16,7 @@ public static class DeviceTokenDefaults
 
 /// <summary>Authenticates "Authorization: Bearer &lt;device token&gt;" against the paired, un-revoked devices.</summary>
 public sealed class DeviceTokenAuthenticationHandler(
-    IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder, ServerDb db, TimeProvider clock)
+    IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder, ServerDb db, TimeProvider clock, ServerApps apps)
     : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
 {
     private static readonly TimeSpan LastSeenGranularity = TimeSpan.FromMinutes(1);
@@ -33,6 +35,11 @@ public sealed class DeviceTokenAuthenticationHandler(
         if (device is null) return AuthenticateResult.Fail("Unknown token.");
         if (device.RevokedAt is not null) return AuthenticateResult.Fail("This device has been revoked.");
 
+        var appHeaders = Request.Headers[AppSync.AppIdHeader];
+        var requestedApp = appHeaders.Count == 0 ? AppStoragePaths.DsaAppId : appHeaders.ToString();
+        if (appHeaders.Count > 1 || !apps.Contains(requestedApp) || device.AppId != requestedApp)
+            return AuthenticateResult.Fail("The device token is not paired for this app.");
+
         // Recorded at most once a minute, so a busy sync doesn't turn every request into a write.
         var now = clock.GetUtcNow();
         if (device.LastSeenAt is null || now - device.LastSeenAt > LastSeenGranularity)
@@ -40,7 +47,7 @@ public sealed class DeviceTokenAuthenticationHandler(
             await db.Devices.Where(d => d.Id == device.Id).ExecuteUpdateAsync(s => s.SetProperty(d => d.LastSeenAt, now), Context.RequestAborted);
         }
 
-        var identity = new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, device.Id.ToString()), new Claim(ClaimTypes.Name, device.Name)], Scheme.Name);
+        var identity = new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, device.Id.ToString()), new Claim(ClaimTypes.Name, device.Name), new Claim(AuthenticatedApp.Claim, device.AppId)], Scheme.Name);
         return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme.Name));
     }
 }

@@ -50,9 +50,9 @@ build metadata. Build inputs include the shared schema/CLI/recorder sources and
 that manifest plus only that app's YAML and Markdown; changing the manifest, adding, removing or renaming content triggers
 repacking. The bundle still contains the original DSA `track-1.pack.zip` asset.
 
-Publishing transport and CLI pairing are unchanged. Server-side app scoping and
-independent pairings belong to #145; this issue adds the authoring gate, not a
-second server namespace.
+Publishing and CLI pairing are scoped by the selected manifest app ID; see
+[Server app identity](server.md#app-identity) and
+[per-app publishing](content-distribution.md#per-app-publishing).
 
 ## Language-neutral authoring (#144)
 

@@ -114,7 +114,7 @@ public sealed class AppContentTests : IDisposable
         var path = Path.Combine(_repository, "output.zip");
         string[] args = operation == "pack" ? [operation, "--app", Manifest, "-o", path] : [operation, "--app", Manifest];
         var store = new FileDeviceCredentialStore(Path.Combine(_repository, "credentials.json"));
-        await store.SaveAsync(new DeviceCredentials(new Uri("https://test.invalid"), "test-device", "fake-token"));
+        await store.SaveAsync(new DeviceCredentials(new Uri("https://test.invalid"), "test-device", "fake-token", "example.sample"));
         using var server = new Server();
         using var http = new HttpClient(server);
         var errors = new StringWriter();
@@ -125,8 +125,50 @@ public sealed class AppContentTests : IDisposable
         if (operation == "publish")
         {
             Assert.Equal(1, server.Requests);
+            Assert.Equal("example.sample", server.AppId);
             Assert.Equal(ContentPacker.PackToBytes(Root, out _), server.Body);
         }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Publishing_never_uses_credentials_from_another_app(bool explicitSelection)
+    {
+        File.WriteAllText(Manifest, File.ReadAllText(Manifest).Replace("[choice]", "[explain]"));
+        var store = new FileDeviceCredentialStore(Path.Combine(_repository, "credentials.json"));
+        await store.SaveAsync(new DeviceCredentials(new Uri("https://test.invalid"), "device", "token"));
+        using var server = new Server();
+        using var http = new HttpClient(server);
+        var errors = new StringWriter();
+        string[] args = explicitSelection ? ["publish", "--app", Manifest] : ["publish", Root];
+        Assert.Equal(1, await CliApp.RunAsync(args, new StringWriter(), errors, http, store));
+        Assert.Contains("example.sample", errors.ToString());
+        Assert.Equal(0, server.Requests);
+    }
+
+    [Fact]
+    public async Task Cli_pairing_uses_the_selected_manifest_identity_and_persists_it()
+    {
+        var store = new FileDeviceCredentialStore(Path.Combine(_repository, "pairing.json"));
+        using var server = new Server();
+        using var http = new HttpClient(server);
+        var errors = new StringWriter();
+        Assert.Equal(0, await CliApp.RunAsync(["pair", "https://test.invalid", "code", "--name", "Mac", "--app", Manifest],
+            new StringWriter(), errors, http, store));
+        Assert.Equal("example.sample", server.AppId);
+        Assert.Equal("example.sample", (await store.LoadAsync())!.AppId);
+    }
+
+    [Fact]
+    public void Cli_credentials_are_separate_for_explicit_and_inferred_app_selection()
+    {
+        var legacy = Path.Combine(_repository, "cli-credentials.json");
+        var expected = Path.Combine(_repository, "apps", "example.sample", "cli-credentials.json");
+        Assert.Equal(legacy, CliApp.CredentialPath(["pair", "server", "code"], legacy));
+        Assert.Equal(expected, CliApp.CredentialPath(["pair", "server", "code", "--app", Manifest], legacy));
+        Assert.Equal(expected, CliApp.CredentialPath(["publish", Root], legacy));
+        Assert.Equal(expected, CliApp.CredentialPath(["publish", Root, "--manifest", Manifest], legacy));
     }
 
     [Fact]
@@ -245,14 +287,22 @@ public sealed class AppContentTests : IDisposable
     {
         public int Requests { get; private set; }
         public byte[]? Body { get; private set; }
+        public string? AppId { get; private set; }
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             Requests++;
+            AppId = Assert.Single(request.Headers.GetValues(AppSync.AppIdHeader));
             Body = await request.Content!.ReadAsByteArrayAsync(ct);
+            if (request.RequestUri!.AbsolutePath == "/pair")
+            {
+                var pair = System.Text.Json.JsonSerializer.Deserialize<PairRequest>(Body, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))!;
+                Assert.Equal(AppId, pair.AppId);
+                return new(HttpStatusCode.OK) { Content = JsonContent.Create(new PairResponse("device", "token", AppId)) };
+            }
             return new(HttpStatusCode.OK)
             {
                 Content = JsonContent.Create(new PublishPackResponse(
-                    new PackInfo("pack.sample", "1.0.0", 1, "hash", Body.Length, DateTimeOffset.UnixEpoch), true, [])),
+                    new PackInfo("pack.sample", "1.0.0", 1, "hash", Body.Length, DateTimeOffset.UnixEpoch, AppId), true, [])),
             };
         }
     }

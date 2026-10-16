@@ -47,10 +47,12 @@ public class PairingClientTests
     private sealed class Stub(Func<HttpRequestMessage, Task<HttpResponseMessage>> respond) : HttpMessageHandler
     {
         public HttpRequestMessage? Seen;
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        public PairRequest? PairBody;
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             Seen = request;
-            return respond(request);
+            if (request.Content is not null) PairBody = await request.Content.ReadFromJsonAsync<PairRequest>(ct);
+            return await respond(request);
         }
     }
 
@@ -81,7 +83,7 @@ public class PairingClientTests
         Assert.True(outcome.Succeeded);
         Assert.Equal(new DeviceCredentials(new Uri("https://nuc.local:8443/"), "dev-1", "tok-1"), outcome.Credentials);
         Assert.Equal("https://nuc.local:8443/pair", handler.Seen!.RequestUri!.ToString());
-        var sent = await handler.Seen.Content!.ReadFromJsonAsync<PairRequest>();
+        var sent = handler.PairBody;
         Assert.Equal(new PairRequest("abcd-2345", "My Mac"), sent);
     }
 

@@ -28,6 +28,13 @@ namespace Brilliant.Server.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("AppId")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasDefaultValue("com.joeizang.brilliantapp");
+
                     b.Property<DateTimeOffset?>("LastSeenAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -49,6 +56,8 @@ namespace Brilliant.Server.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("AppId");
+
                     b.HasIndex("TokenHash")
                         .IsUnique();
 
@@ -57,6 +66,12 @@ namespace Brilliant.Server.Data.Migrations
 
             modelBuilder.Entity("Brilliant.Server.Data.DraftRecord", b =>
                 {
+                    b.Property<string>("AppId")
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasDefaultValue("com.joeizang.brilliantapp");
+
                     b.Property<string>("StepId")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
@@ -76,10 +91,12 @@ namespace Brilliant.Server.Data.Migrations
                     b.Property<long>("UpdatedAtTicks")
                         .HasColumnType("bigint");
 
-                    b.HasKey("StepId");
+                    b.HasKey("AppId", "StepId");
 
                     b.HasIndex("Seq")
                         .IsUnique();
+
+                    b.HasIndex("AppId", "Seq");
 
                     b.ToTable("Drafts");
                 });
@@ -91,6 +108,13 @@ namespace Brilliant.Server.Data.Migrations
                         .HasColumnType("bigint");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Seq"));
+
+                    b.Property<string>("AppId")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasDefaultValue("com.joeizang.brilliantapp");
 
                     b.Property<string>("Data")
                         .HasColumnType("text");
@@ -131,14 +155,22 @@ namespace Brilliant.Server.Data.Migrations
 
                     b.HasKey("Seq");
 
-                    b.HasIndex("Id")
+                    b.HasIndex("AppId", "Id")
                         .IsUnique();
+
+                    b.HasIndex("AppId", "Seq");
 
                     b.ToTable("Events");
                 });
 
             modelBuilder.Entity("Brilliant.Server.Data.PackRecord", b =>
                 {
+                    b.Property<string>("AppId")
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasDefaultValue("com.joeizang.brilliantapp");
+
                     b.Property<string>("PackId")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
@@ -173,13 +205,19 @@ namespace Brilliant.Server.Data.Migrations
                     b.Property<long>("Size")
                         .HasColumnType("bigint");
 
-                    b.HasKey("PackId", "Major", "Minor", "Patch");
+                    b.HasKey("AppId", "PackId", "Major", "Minor", "Patch");
 
                     b.ToTable("Packs");
                 });
 
             modelBuilder.Entity("Brilliant.Server.Data.PairingCode", b =>
                 {
+                    b.Property<string>("AppId")
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasDefaultValue("com.joeizang.brilliantapp");
+
                     b.Property<string>("Hash")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
@@ -193,7 +231,7 @@ namespace Brilliant.Server.Data.Migrations
                     b.Property<DateTimeOffset?>("UsedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.HasKey("Hash");
+                    b.HasKey("AppId", "Hash");
 
                     b.ToTable("PairingCodes");
                 });

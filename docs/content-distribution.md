@@ -82,3 +82,24 @@ All need a device token. Publishes are serialised with a Postgres advisory lock,
 | `src/Brilliant.Core/Sync/PackClient.cs`, `ContentUpdateService.cs` | the app's HTTP client; the check-and-download logic |
 | `src/Brilliant.App/MauiProgram.cs`, `src/Brilliant.Lessons.UI/PairingView.razor` | start-up choice of pack; the status on the Sync screen |
 | `tests/…/PackEndpointTests.cs`, `ContentDistributionTests.cs`, `PublishTests.cs`, `ContentStatusTests.cs` | server (real Postgres), Core, CLI and Sync-screen tests |
+
+## Per-app publishing
+
+Pair the authoring CLI separately for each app. DSA retains `~/.brilliant/cli-credentials.json`.
+Other apps use its sibling `apps/<appId>/cli-credentials.json` (the filename follows
+`BRILLIANT_CLI_CREDENTIALS` if overridden). Existing credential JSON without an app
+ID is treated as DSA.
+
+```sh
+dotnet run --project tools/Brilliant.Cli -- pair https://server:8443 CODE --name Mac --app apps/runtime-check/manifest.yaml
+dotnet run --project tools/Brilliant.Cli -- publish --app apps/runtime-check/manifest.yaml
+```
+
+`publish content/<app>` infers the manifest; `--app`/`--manifest` selects it
+explicitly. A standalone directory with no manifest remains DSA. Publishing with
+another app's credentials is rejected before upload, and pack clients reject
+metadata for another app. App credentials include their app ID and every request
+carries `X-Brilliant-App-Id`; the server assigns the pack row to the token's app,
+never to an untrusted body/query value. Version ordering, immutable bytes and
+removed-ID comparisons operate within one app only. A new app needs this server
+version: pairing cannot silently accept an older server's unscoped response.

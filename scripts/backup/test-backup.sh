@@ -9,14 +9,24 @@ export POSTGRES_PASSWORD="test-only"
 export BACKUP_DIR; BACKUP_DIR="$(mktemp -d)"
 export BACKUP_KEEP=2
 dc() { docker compose "$@"; }
-psql_() { dc exec -T postgres psql -U brilliant -d brilliant -v ON_ERROR_STOP=1 -tA "$@"; }
+psql_() { dc exec -T postgres psql -h 127.0.0.1 -U brilliant -d brilliant -v ON_ERROR_STOP=1 -tA "$@"; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
 cleanup() { dc down -v --remove-orphans >/dev/null 2>&1 || true; rm -rf "$BACKUP_DIR"; }
 trap cleanup EXIT
 
 echo "== start a database with some data"
 dc up -d --wait postgres >/dev/null
+# Image initialization briefly starts a Unix-socket-only server before the real TCP listener.
+# The Compose health check can observe that temporary server; wait for the final listener.
+ready=false
+for attempt in {1..30}; do
+    if psql_ -c 'select 1' >/dev/null 2>&1; then ready=true; break; fi
+    sleep 1
+done
+[ "$ready" = true ] || fail "Postgres did not become ready on TCP"
 psql_ -c "create table lesson_notes (id int primary key, note text); insert into lesson_notes values (1,'one'),(2,'two'),(3,'three');" >/dev/null
+# Same row ID in two app scopes: the full-database dump must preserve both namespaces.
+psql_ -c "create table app_scoped_notes (app_id text, id int, note text, primary key(app_id,id)); insert into app_scoped_notes values ('com.joeizang.brilliantapp',1,'dsa-progress'),('com.joeizang.brilliantapp.runtimecheck',1,'other-progress');" >/dev/null
 
 echo "== three dumps with BACKUP_KEEP=2 keep the newest two, timestamp-named"
 for _ in 1 2 3; do dc run --rm -T backup once >/dev/null; sleep 1.2; done
@@ -37,6 +47,8 @@ psql_ -c "delete from lesson_notes; insert into lesson_notes values (9,'later');
 dc exec -T postgres pg_restore -U brilliant -d brilliant --clean --if-exists --no-owner < "$newest"
 got=$(psql_ -c "select string_agg(note, ',' order by id) from lesson_notes")
 [ "$got" = "one,two,three" ] || fail "after restore expected one,two,three, got '$got'"
+got_apps=$(psql_ -c "select string_agg(app_id || ':' || note, ',' order by app_id) from app_scoped_notes;")
+[ "$got_apps" = "com.joeizang.brilliantapp:dsa-progress,com.joeizang.brilliantapp.runtimecheck:other-progress" ] || fail "restore lost app-scoped data: '$got_apps'"
 
 echo "== the service starts, sees a recent dump, and waits for tonight"
 dc up -d backup >/dev/null

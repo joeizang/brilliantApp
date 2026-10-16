@@ -1,3 +1,4 @@
+using Brilliant.Core.Apps;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -34,7 +35,7 @@ public sealed class SyncException(SyncFailure failure, string? detail = null, Ex
 }
 
 /// <summary>Talks to the server's <c>/events</c> and <c>/drafts</c> endpoints. The <see cref="HttpClient"/> is injected so tests can answer for the server.</summary>
-public sealed class SyncClient(HttpClient http)
+public sealed class SyncClient(HttpClient http, string appId = AppStoragePaths.DsaAppId)
 {
     public async Task<PushEventsResponse> PushAsync(DeviceCredentials credentials, IReadOnlyList<ProgressEvent> events, CancellationToken ct = default)
     {
@@ -62,9 +63,11 @@ public sealed class SyncClient(HttpClient http)
         return await SendAsync<PullDraftsResponse>(request, ct);
     }
 
-    private static HttpRequestMessage Authorised(HttpMethod method, Uri uri, DeviceCredentials credentials)
+    private HttpRequestMessage Authorised(HttpMethod method, Uri uri, DeviceCredentials credentials)
     {
+        AppSync.RequireCredentials(credentials, appId);
         var request = new HttpRequestMessage(method, uri);
+        request.Headers.Add(AppSync.AppIdHeader, appId);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credentials.Token);
         return request;
     }

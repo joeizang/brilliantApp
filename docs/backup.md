@@ -11,6 +11,12 @@ Issue [#32](https://github.com/joeizang/brilliantApp/issues/32), PRD story 58. T
 - A failed dump is logged (`docker compose logs backup`) and the service stays up for the next night. `docker compose ps` shows the service **unhealthy** when there is no dump from the last 36 hours.
 - Dump files are mode 600.
 
+The dump covers the whole database, including every app ID's pairings, pairing codes,
+events, drafts and pack bytes. App scoping adds columns and composite keys to the
+same tables; the nightly command, schedule and retention are unchanged. Restoring
+a dump restores all app namespaces together. The backup regression test checks
+restoration of overlapping row IDs in two app scopes.
+
 Only the database is backed up. The apps' own progress lives on each device and flows to the server through sync ([sync.md](sync.md)), so every device is also a copy of the learner's data.
 
 ## Settings

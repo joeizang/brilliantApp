@@ -1,7 +1,10 @@
+using Brilliant.Core.Apps;
+
 namespace Brilliant.Server.Data;
 
 public sealed class Device
 {
+    public string AppId { get; set; } = AppStoragePaths.DsaAppId;
     public Guid Id { get; set; }
     public string Name { get; set; } = "";
 
@@ -15,6 +18,7 @@ public sealed class Device
 
 public sealed class PairingCode
 {
+    public string AppId { get; set; } = AppStoragePaths.DsaAppId;
     /// <summary>SHA-256 of the normalised code, so a database dump doesn't hand out working codes.</summary>
     public string Hash { get; set; } = "";
 
@@ -29,6 +33,7 @@ public sealed class PairingCode
 /// </summary>
 public sealed class EventRecord
 {
+    public string AppId { get; set; } = AppStoragePaths.DsaAppId;
     public long Seq { get; set; }
     public string Id { get; set; } = "";
 
@@ -56,6 +61,7 @@ public sealed class EventRecord
 /// </summary>
 public sealed class DraftRecord
 {
+    public string AppId { get; set; } = AppStoragePaths.DsaAppId;
     public string StepId { get; set; } = "";
     public long Seq { get; set; }
     public string? Code { get; set; }
@@ -73,6 +79,7 @@ public sealed class DraftRecord
 /// </summary>
 public sealed class PackRecord
 {
+    public string AppId { get; set; } = AppStoragePaths.DsaAppId;
     public string PackId { get; set; } = "";
     public int Major { get; set; }
     public int Minor { get; set; }
