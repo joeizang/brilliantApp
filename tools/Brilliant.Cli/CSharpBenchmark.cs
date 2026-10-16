@@ -23,7 +23,7 @@ namespace Brilliant.Cli;
 /// Measurements differ from run to run, so nothing downstream depends on exact figures: the pack records one run and the step is graded
 /// on the order that run produced. A time ranking whose neighbours are too close to call is refused rather than recorded.
 /// </summary>
-internal static class CSharpBenchmark
+internal static partial class CSharpBenchmark
 {
     public const int MaxCandidates = 5;
     public const int MaxSourceLength = 8_192;
@@ -153,6 +153,12 @@ internal static class CSharpBenchmark
         var error = emitted.Diagnostics.First(d => d.Severity == DiagnosticSeverity.Error);
         var mapped = error.Location.GetMappedLineSpan();
         var where = mapped.HasMappedPath ? $"{(mapped.Path == "setup" ? "the setup" : $"candidate '{mapped.Path}'")}, line {mapped.StartLinePosition.Line + 1}: " : "";
-        return (null, $"the benchmark does not compile ({where}{error.Id} {error.GetMessage(System.Globalization.CultureInfo.InvariantCulture)}).");
+        // A problem with a candidate as a whole (no return on some path) is reported at the generated method; name the candidate instead.
+        var message = GeneratedMethod().Replace(error.GetMessage(System.Globalization.CultureInfo.InvariantCulture),
+            m => int.Parse(m.Groups[1].Value) < candidates.Count ? $"candidate '{candidates[int.Parse(m.Groups[1].Value)].Id}'" : m.Value);
+        return (null, $"the benchmark does not compile ({where}{error.Id} {message}).");
     }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"BenchmarkCandidates\.Candidate(\d+)\(\)")]
+    private static partial System.Text.RegularExpressions.Regex GeneratedMethod();
 }

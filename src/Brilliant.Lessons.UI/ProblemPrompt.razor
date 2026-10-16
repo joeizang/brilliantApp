@@ -19,6 +19,7 @@
         ChoiceStep s => s.Prompt,
         PredictOutputStep s => s.Prompt,
         LoweredStep s => s.Prompt,
+        BenchmarkPredictStep s => s.Prompt,
         _ => "",
     };
 }

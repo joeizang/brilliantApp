@@ -412,6 +412,8 @@ public static partial class ContentValidator
             report.Add(file, $"{label}: 'compare' only applies to write-code steps.");
         if (dto.Files is not null && dto.Type != "write-code")
             report.Add(file, $"{label}: 'files' only applies to write-code steps.");
+        if (dto.Type != "benchmark-predict" && (dto.Measure is not null || dto.Setup is not null || dto.Candidates is not null))
+            report.Add(file, $"{label}: 'measure', 'setup' and 'candidates' only apply to benchmark-predict steps.");
         if (isAlternative && preferred)
             report.Add(file, $"{label}: a phone alternative is for phones; it can't be 'largeScreenPreferred' itself.");
 

@@ -74,6 +74,19 @@ public sealed class BenchmarkRecorderTests
     }
 
     [Fact]
+    public void An_error_at_the_method_itself_names_the_candidate_not_the_generated_method()
+    {
+        var noReturn = new BenchmarkCandidate[] { Candidates[0], new("silent", "No return", "var x = 1;") };
+
+        var message = CSharpBenchmark.Check(Setup, noReturn);
+
+        Assert.NotNull(message);
+        Assert.Contains("CS0161", message);
+        Assert.Contains("candidate 'silent'", message);
+        Assert.DoesNotContain("BenchmarkCandidates.Candidate", message);
+    }
+
+    [Fact]
     public void A_setup_that_does_not_compile_is_reported_as_the_setup()
     {
         var message = CSharpBenchmark.Check("int[] data = Missing();", Candidates);

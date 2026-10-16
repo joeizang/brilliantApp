@@ -80,3 +80,14 @@ with no recording (a pack source that was only validated) throws rather than gra
 - Record on a quiet machine. BenchmarkDotNet reads allocations process-wide, so background load can add a stray few bytes to a candidate. Two candidates that should tie may then differ; re-pack when that happens.
 - A time ranking is refused when a candidate's mean is under 10 ns (`MinimumMeanNs`). That is timer noise, usually because the JIT folded the work away. Give the candidate more work (a larger input, a loop) or rank by allocations.
 - A time ranking is also refused when neighbouring candidates are within 1.25x of each other ("too close to call").
+
+## The view
+
+`BenchmarkPredictStepView` lists the candidates (label and code) in a fixed shuffled order that is never already the answer, with up/down
+buttons (and Alt+arrow keys on a desktop) to move each one. **Check** grades the ranking with `AnswerEvaluator`: a wrong order says how many
+places are right and lets the learner keep their order and try again; a right order shows a results table (mean time with its standard
+deviation, allocated bytes, in ranked order, with the ranked measure in bold) and a line saying which machine and runtime it was measured on,
+and that it was one run. A pack with no recording shows "the results aren't in this pack" instead of a question nobody can answer.
+
+It is wired into the lesson viewer (the ranking is recorded as `ranking` in the `StepAnswered` event, and nothing is recorded on a replay),
+Review, test-out and the practice prompt, and enabled for the `csharp` app only (the DSA and flavor-check manifests do not list it).
