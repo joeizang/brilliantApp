@@ -89,6 +89,7 @@ public sealed class MultiFileTests
     [InlineData("../Circle.cs")]
     [InlineData("test-1.cs")]
     [InlineData("reference.cs")]
+    [InlineData("usings.cs")]
     public async Task Bad_file_names_are_refused(string name)
     {
         var result = await new CSharpRuntime().RunTestsAsync([Shape, new CodeFile(name, "class A {}"), Program], "TotalArea", [new CodeTest("1", "12")]);
