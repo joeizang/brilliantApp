@@ -84,6 +84,9 @@ else if (step is not null)
             case LoweredStep lowered:
                 <LoweredStepView Step="lowered" OnAnswered="a => Answered(step, lowered, a)" OnContinue="() => Complete(step)" />
                 break;
+            case BenchmarkPredictStep bench:
+                <BenchmarkPredictStepView Step="bench" OnAnswered="a => Answered(step, a)" OnContinue="() => Complete(step)" />
+                break;
             case WriteCodeStep write:
                 <WriteCodeStepView Step="write" OnSubmitted="s => Submitted(step, write, s)" OnContinue="() => Complete(step)" />
                 break;
@@ -189,6 +192,11 @@ else
         if (Review) return;
         if (a.Response is not null) Recorder.StepAnswered(Lesson.Id, owner.Id, a.Result.IsCorrect, a.Response);
         else Recorder.StepAnswered(Lesson.Id, owner.Id, a.Result.IsCorrect, [a.Selected!.Value]);
+    }
+
+    private void Answered(Step owner, BenchmarkPredictStepView.Attempt a)
+    {
+        if (!Review) Recorder.StepAnswered(Lesson.Id, owner.Id, a.Result.IsCorrect, a.Ranking);
     }
 
     private void Answered(Step owner, FillBlankStep step, FillBlankStepView.Attempt a)

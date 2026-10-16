@@ -193,4 +193,12 @@ public sealed class BenchmarkPredictStepTests : IDisposable
 
         Assert.Contains(Errors(), e => e.Contains("require targetFramework"));
     }
+
+    [Fact]
+    public void Benchmark_fields_on_another_step_type_are_refused()
+    {
+        WritePack("  - id: step.bench.note\n    type: explain\n    title: Note\n    body: Hello.\n    measure: time\n");
+
+        Assert.Contains(Errors(), e => e.Contains("'measure', 'setup' and 'candidates' only apply to benchmark-predict steps"));
+    }
 }

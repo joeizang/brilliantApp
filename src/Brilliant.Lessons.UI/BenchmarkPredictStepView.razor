@@ -1,0 +1,182 @@
+@implements IDisposable
+@inject StepShortcuts Shortcuts
+@inject ScreenInfo Screen
+
+@* "Which is faster?" The learner puts the candidates in order, then sees what the benchmark measured and on which machine. *@
+<article class="benchmark-step lesson-step">
+    <h2>@(Title ?? Step.Title)</h2>
+    <p class="prompt">@Step.Prompt</p>
+    @if (Step.Recorded is null)
+    {
+        <p class="benchmark-missing text-fg-secondary">The benchmark results aren't in this pack. Rebuild the pack to record them.</p>
+        <button class="primary btn-primary" @onclick="() => OnContinue.InvokeAsync()">Continue</button>
+    }
+    else
+    {
+        <p class="hint-text text-[.95rem] text-fg-secondary" id="@HelpId">
+            Put the candidates in order, @(Step.Measure == BenchmarkPredictStep.Allocations ? "fewest allocated bytes" : "fastest") first. Use the arrow buttons to move one@(Screen.IsPhone ? "" : ", or select it and press ⌥↑ / ⌥↓").
+        </p>
+        <ol class="candidates my-4 grid list-none gap-3 p-0" aria-label="Candidates, in the order you have put them">
+            @for (var i = 0; i < _order.Count; i++)
+            {
+                var index = i;
+                var candidate = _order[i];
+                <li @key="candidate.Id" class="@RowClass(candidate)" tabindex="0" aria-describedby="@HelpId"
+                    aria-label="@($"Place {index + 1} of {_order.Count}: {candidate.Label}")" @onkeydown="e => KeyDown(index, e)">
+                    <div class="flex items-center gap-2">
+                        <span class="place font-semibold text-fg-secondary" aria-hidden="true">@(index + 1).</span>
+                        <strong class="min-w-0 flex-1">@candidate.Label</strong>
+                        <span class="controls inline-flex gap-1">
+                            <button type="button" class="@ControlButton" tabindex="-1" aria-label="Move up" disabled="@(Locked || index == 0)" @onclick="() => Move(index, -1)">▲</button>
+                            <button type="button" class="@ControlButton" tabindex="-1" aria-label="Move down" disabled="@(Locked || index == _order.Count - 1)" @onclick="() => Move(index, 1)">▼</button>
+                        </span>
+                    </div>
+                    <pre class="code-block mt-2 max-h-[40vh] overflow-auto"><code>@candidate.Code</code></pre>
+                </li>
+            }
+        </ol>
+
+        @if (_result is null)
+        {
+            <button class="primary btn-primary" @onclick="Check">@CheckText</button>
+        }
+        else if (_result.IsCorrect)
+        {
+            <p class="verdict correct font-semibold text-success" role="status">Correct!</p>
+            <section class="benchmark-results my-4" aria-label="What the benchmark measured">
+                <table class="w-full border-collapse text-left text-[.95rem]">
+                    <thead>
+                        <tr><th scope="col">#</th><th scope="col">Candidate</th><th scope="col">Mean time</th><th scope="col">Allocated</th></tr>
+                    </thead>
+                    <tbody>
+                        @{ var rank = 0; }
+                        @foreach (var row in Step.RankedRows())
+                        {
+                            rank++;
+                            <tr data-candidate="@row.CandidateId">
+                                <td>@rank</td>
+                                <th scope="row" class="font-normal">@LabelOf(row.CandidateId)</th>
+                                <td class="@Emphasis(BenchmarkPredictStep.Time)">@BenchmarkFormat.Time(row.MeanNs) <span class="text-fg-secondary">± @BenchmarkFormat.Time(row.StdDevNs)</span></td>
+                                <td class="@Emphasis(BenchmarkPredictStep.Allocations)">@BenchmarkFormat.Bytes(row.AllocatedBytes)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                <p class="machine mt-2 text-[.85rem] text-fg-secondary">Measured on @Step.Recorded.Machine, @Step.Recorded.Runtime. This is one run: your machine's figures will differ, but the order and the rough ratios should hold.</p>
+            </section>
+            <button class="primary btn-primary" @onclick="() => OnContinue.InvokeAsync()">Continue</button>
+        }
+        else
+        {
+            <p class="verdict incorrect font-semibold text-danger" role="status">Not quite: @_result.Feedback Have another go.</p>
+            <button class="primary btn-primary" @onclick="TryAgain">Try again</button>
+        }
+    }
+</article>
+
+@code {
+    /// <summary>What the learner submitted: the candidate ids, best first, and the verdict.</summary>
+    public sealed record Attempt(AnswerResult Result, IReadOnlyList<string> Ranking);
+
+    [Parameter, EditorRequired] public BenchmarkPredictStep Step { get; set; } = default!;
+
+    /// <summary>Shown instead of the step's title (Practice shows "Problem").</summary>
+    [Parameter] public string? Title { get; set; }
+
+    [Parameter] public string CheckText { get; set; } = "Check";
+
+    /// <summary>Raised each time the learner checks a ranking (right or not).</summary>
+    [Parameter] public EventCallback<Attempt> OnAnswered { get; set; }
+
+    /// <summary>Raised when the learner continues after a correct ranking.</summary>
+    [Parameter] public EventCallback OnContinue { get; set; }
+
+    private const string RowBase = "candidate rounded-sm border border-hairline bg-surface p-3 focus:outline-none";
+    private const string ControlButton = "min-h-8 min-w-8 coarse:min-h-(--touch) coarse:min-w-(--touch) cursor-pointer rounded-sm border border-border bg-surface px-2 py-0 font-inherit leading-none text-inherit disabled:cursor-default disabled:opacity-35";
+
+    private List<BenchmarkCandidate> _order = [];
+    private AnswerResult? _result;
+    private BenchmarkPredictStep? _source;
+    private IDisposable? _shortcuts;
+
+    private bool Locked => _result is not null;
+    private string HelpId => $"{Step.Id}-help";
+
+    protected override void OnInitialized() => _shortcuts = Shortcuts.Subscribe(OnShortcut);
+
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(_source, Step)) return;
+        _source = Step;
+        _result = null;
+        _order = Shuffled(Step);
+    }
+
+    public void Dispose() => _shortcuts?.Dispose();
+
+    /// <summary>
+    /// The candidates in an order that is not already the answer, the same every time the step is shown (a restart doesn't reshuffle,
+    /// and the authored order, which is often the answer, is never the starting point).
+    /// </summary>
+    public static List<BenchmarkCandidate> Shuffled(BenchmarkPredictStep step)
+    {
+        var order = step.Candidates.ToList();
+        if (step.Recorded is null || order.Count < 2) return order;
+
+        var seed = 17;
+        foreach (var c in step.Id) seed = unchecked(seed * 31 + c);
+        new Random(seed).Shuffle(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(order));
+        // A shuffle can land on the answer (more likely with a few candidates): turn it until it doesn't.
+        for (var turns = 0; turns < order.Count && AnswerEvaluator.Evaluate(step, order.Select(c => c.Id).ToList()).IsCorrect; turns++)
+            (order[0], order[^1]) = (order[^1], order[0]);
+        return order;
+    }
+
+    private string RowClass(BenchmarkCandidate candidate) => RowBase + (Locked ? "" : " focus:ring-2 focus:ring-accent");
+
+    private string Emphasis(string measure) => Step.Measure == measure ? "font-semibold" : "";
+
+    private string LabelOf(string id) => Step.Candidates.First(c => c.Id == id).Label;
+
+    private void Move(int index, int delta)
+    {
+        var target = index + delta;
+        if (Locked || target < 0 || target >= _order.Count) return;
+        (_order[index], _order[target]) = (_order[target], _order[index]);
+    }
+
+    private void KeyDown(int index, KeyboardEventArgs e)
+    {
+        if (!e.AltKey) return;
+        if (e.Key == "ArrowUp") Move(index, -1);
+        else if (e.Key == "ArrowDown") Move(index, 1);
+    }
+
+    private async Task Check()
+    {
+        var ranking = _order.Select(c => c.Id).ToList();
+        _result = AnswerEvaluator.Evaluate(Step, ranking);
+        await OnAnswered.InvokeAsync(new Attempt(_result, ranking));
+    }
+
+    // The learner keeps their order and fixes what's wrong.
+    private void TryAgain() => _result = null;
+
+    private Task OnShortcut(StepShortcut s) => InvokeAsync(async () =>
+    {
+        if (Step.Recorded is null) return;
+        switch (s.Command)
+        {
+            case StepCommand.Run or StepCommand.Advance when _result is null:
+                await Check();
+                break;
+            case StepCommand.Advance when _result is { IsCorrect: true }:
+                await OnContinue.InvokeAsync();
+                return;
+            case StepCommand.Advance:
+                TryAgain();
+                break;
+        }
+        StateHasChanged();
+    });
+}

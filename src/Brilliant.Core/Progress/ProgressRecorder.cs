@@ -57,6 +57,11 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
         Append(ProgressEventTypes.StepAnswered, lessonId, stepId,
             JsonSerializer.Serialize(new { correct, arrangement = arrangement.Select(p => new { line = p.Piece, level = p.Level }) }));
 
+    /// <summary>Records a benchmark-ranking attempt: the candidate ids as ordered by the learner, best first.</summary>
+    public void StepAnswered(string lessonId, string stepId, bool correct, IReadOnlyList<string> ranking) =>
+        Append(ProgressEventTypes.StepAnswered, lessonId, stepId,
+            JsonSerializer.Serialize(new { correct, ranking }));
+
     /// <summary>Records one write-code submission: the code as submitted and how many hidden tests it passed.</summary>
     public void CodeSubmitted(string lessonId, string stepId, string code, int passedTests, int totalTests) =>
         Append(ProgressEventTypes.CodeSubmitted, lessonId, stepId,

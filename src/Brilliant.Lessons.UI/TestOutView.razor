@@ -31,6 +31,9 @@ else if (_current is { } item)
             case LoweredStep lowered:
                 <LoweredStepView Step="lowered" OnAnswered="a => Answered(a.Result.IsCorrect)" OnContinue="Next" />
                 break;
+            case BenchmarkPredictStep bench:
+                <BenchmarkPredictStepView Step="bench" OnAnswered="a => Answered(a.Result.IsCorrect)" OnContinue="Next" />
+                break;
             case FillBlankStep fill:
                 <FillBlankStepView Step="fill" OnAnswered="a => Answered(a.Result.IsCorrect)" OnContinue="Next" />
                 break;
