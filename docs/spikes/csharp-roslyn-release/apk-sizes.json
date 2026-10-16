@@ -1,0 +1,18 @@
+{
+  "baseline-release.apk": {
+    "bytes": 42365973,
+    "sha256": "08d851105bba100cd14d33dfc6b3ecf8c845652a0c8b707cdf70d138a2be1db6",
+    "abis": [
+      "arm64-v8a",
+      "x86_64"
+    ]
+  },
+  "roslyn-release.apk": {
+    "bytes": 60884149,
+    "sha256": "1ce97e5fe491f65026fca6c321a6104e4573bda528be896b9d70149ccdbb3195",
+    "abis": [
+      "arm64-v8a",
+      "x86_64"
+    ]
+  }
+}
