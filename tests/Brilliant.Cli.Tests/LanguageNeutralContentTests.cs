@@ -25,7 +25,7 @@ public sealed class LanguageNeutralContentTests : IDisposable
             stepTypes: [explain, write-code, trace, predict-output, fill-blank, parsons]
             """);
         Directory.CreateDirectory(Path.Combine(Root, "tracks", "t", "l"));
-        File.WriteAllText(Path.Combine(Root, "pack.yaml"), "id: pack.sample\nversion: 1.0.0\n");
+        File.WriteAllText(Path.Combine(Root, "pack.yaml"), "id: pack.sample\nversion: 1.0.0\ntargetFramework: net10.0\nlangVersion: 14\n");
         File.WriteAllText(Path.Combine(Root, "tracks", "t", "track.yaml"), "id: track.sample\ntitle: Sample\n");
         File.WriteAllText(Path.Combine(Root, "tracks", "t", "l", "lesson.yaml"),
             "id: lesson.sample\ntitle: Sample\nsteps:\n" + steps + "\n");

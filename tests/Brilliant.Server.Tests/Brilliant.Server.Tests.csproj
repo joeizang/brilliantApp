@@ -25,6 +25,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Brilliant.Server\Brilliant.Server.csproj" />
     <ProjectReference Include="..\..\src\Brilliant.Data\Brilliant.Data.csproj" />
+    <ProjectReference Include="..\..\tools\Brilliant.Cli\Brilliant.Cli.csproj" />
   </ItemGroup>
 
   <ItemGroup>

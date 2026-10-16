@@ -240,7 +240,16 @@ public sealed record ParsonsStep(
     string Language,
     IReadOnlyList<ParsonsLine> Lines) : Step(Id, Title);
 
-public sealed record PackManifest(string PackId, string Version, int FormatVersion);
+public sealed record PackManifest(string PackId, string Version, int FormatVersion)
+{
+    /// <summary>The target framework used to author and check C# source; absent from legacy and DSA packs.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TargetFramework { get; init; }
+
+    /// <summary>The pinned C# language version; absent from legacy and DSA packs.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LangVersion { get; init; }
+}
 
 /// <summary>
 /// Which variable of a <see cref="TraceStep"/>'s code to draw and how. <see cref="As"/> is the drawing:
