@@ -25,9 +25,9 @@ public sealed class CSharpAppTests(PostgresFixture postgres)
         Assert.NotNull(bytes);
         using var stream = new MemoryStream(bytes);
         var starter = ContentPackFormat.Load(stream);
-        Assert.Equal(("pack.csharp.starter", "0.1.1"), (starter.Manifest.PackId, starter.Manifest.Version));
+        Assert.Equal(("pack.csharp.starter", "0.2.0"), (starter.Manifest.PackId, starter.Manifest.Version));
         Assert.Equal(("net10.0", "14"), (starter.Manifest.TargetFramework, starter.Manifest.LangVersion));
-        var lesson = Assert.Single(starter.Lessons);
+        var lesson = starter.Lessons.First();
         Assert.NotEmpty(lesson.Steps);
 
         await using var server = await ServerHarness.StartAsync(postgres);

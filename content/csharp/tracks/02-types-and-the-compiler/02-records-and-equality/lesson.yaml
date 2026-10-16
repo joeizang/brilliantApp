@@ -1,0 +1,200 @@
+id: lesson.csharp.records-and-equality
+title: Records and value equality
+concepts:
+  - id: concept.csharp.record-equality
+    title: A record compares by value
+  - id: concept.csharp.record-generated
+    title: What the compiler writes for a record
+  - id: concept.csharp.with-shallow
+    title: with makes a shallow copy
+  - id: concept.csharp.record-struct
+    title: A record struct is mutable unless readonly
+reviewItems:
+  - id: review.csharp.record-equality
+    concept: concept.csharp.record-equality
+    step: step.csharp.records.predict-equality
+  - id: review.csharp.record-generated
+    concept: concept.csharp.record-generated
+    step: step.csharp.records.lowered-clone
+  - id: review.csharp.with-shallow
+    concept: concept.csharp.with-shallow
+    step: step.csharp.records.predict-with
+  - id: review.csharp.record-struct
+    concept: concept.csharp.record-struct
+    step: step.csharp.records.check-record-struct
+steps:
+  - id: step.csharp.records.intro
+    type: explain
+    title: A record is a class with the boring parts written for you
+    body: |
+      `record Point(int X, int Y);` is an ordinary class plus members the compiler writes: the properties, a constructor, `Deconstruct`,
+      `ToString`, `Equals`, `GetHashCode`, the `==` and `!=` operators and, for a record class, a hidden copy method that `with` uses.
+      A `record struct` gets the same members except that copy method: `with` on a struct is a plain value copy followed by the setters.
+
+      The interesting change is **equality**. A class compares by reference unless you override `Equals`. A record compares its
+      members. That is useful, and it has edges: equality of a record is only as deep as the equality of each of its members.
+    comparison:
+      - label: Before records
+        language: csharp
+        code: |
+          public sealed class Point(int x, int y) : IEquatable<Point>
+          {
+              public int X { get; } = x;
+              public int Y { get; } = y;
+              public bool Equals(Point? other) => other is not null && X == other.X && Y == other.Y;
+              public override bool Equals(object? obj) => Equals(obj as Point);
+              public override int GetHashCode() => HashCode.Combine(X, Y);
+          }
+      - label: A record
+        language: csharp
+        code: |
+          public record Point(int X, int Y);
+  - id: step.csharp.records.predict-equality
+    type: predict-output
+    title: Equal, but not the same
+    prompt: |
+      What does this program print? `ReferenceEquals` is true only when two variables point at the same object.
+    language: csharp
+    code: |
+      var a = new Point(1, 2);
+      var b = new Point(1, 2);
+      Console.WriteLine($"{a == b} {a.Equals(b)} {ReferenceEquals(a, b)}");
+
+      record Point(int X, int Y);
+    accepted:
+      - 'True True False'
+    mistakes:
+      - answers:
+          - 'False False False'
+        feedback: 'That is how a plain class behaves. A record''s `==` and `Equals` compare the members, so two records with the same values are equal.'
+      - answers:
+          - 'True True True'
+        feedback: 'They are two separate objects, so `ReferenceEquals` is false. Equal values do not make one object.'
+    hints:
+      - Which of the three questions is about the values, and which is about the object?
+  - id: step.csharp.records.lowered-clone
+    type: lowered
+    title: How with copies
+    prompt: |
+      `moved = p with { X = 5 }` first makes a copy of `p`, then sets `X` on the copy. Which compiler-written member makes the copy?
+    code: |
+      var p = new Point(1, 2);
+      var moved = p with { X = 5 };
+
+      record Point(int X, int Y);
+    options:
+      - text: '`<Clone>$()`, a hidden virtual method'
+        correct: true
+        feedback: Right. `with` calls `<Clone>$` (its name cannot be typed in C#), which calls a copy constructor, and then the initializer runs on the copy.
+      - text: '`MemberwiseClone()`, called from `Main`'
+        correct: false
+        feedback: The record does call the copy constructor, but through its own `<Clone>$` method. `with` is not a call to `object.MemberwiseClone`.
+      - text: '`new Point(p.X, p.Y)`, written out by the compiler at the call site'
+        correct: false
+        feedback: A record can have more members than the positional ones, and a derived record must copy its own. A virtual `<Clone>$` handles both.
+    hints:
+      - Look in the lowered view for a method whose name could not be written in C#.
+  - id: step.csharp.records.predict-with
+    type: predict-output
+    title: A copy that shares a list
+    prompt: |
+      `with` copies each member. What does this print?
+    language: csharp
+    code: |
+      var first = new Basket("a", new List<string> { "apple" });
+      var second = first with { Owner = "b" };
+      second.Items.Add("pear");
+      Console.WriteLine($"{first.Owner} {first.Items.Count} {first == second}");
+
+      record Basket(string Owner, List<string> Items);
+    accepted:
+      - 'a 2 False'
+    mistakes:
+      - answers:
+          - 'a 1 False'
+        feedback: 'The copy''s `Items` points at the same `List` as the original, so adding through `second` shows through `first`. `with` is shallow.'
+      - answers:
+          - 'a 2 True'
+        feedback: 'The owners differ (`"a"` and `"b"`), so the records are not equal, even though they share a list.'
+    hints:
+      - Does `with` make a new list, or a second arrow to the same one?
+  - id: step.csharp.records.check-record-struct
+    type: choice
+    title: Is a record struct immutable?
+    prompt: |
+      Given `record struct Point(int X, int Y);`, which statement is true?
+    options:
+      - text: Its properties have setters, so `p.X = 5;` compiles
+        correct: true
+        feedback: Right. A positional `record struct` has mutable properties. `readonly record struct` makes them `init`-only, and is usually what you want.
+      - text: Its properties are `init`-only, as in a record class
+        correct: false
+        feedback: For a record *class* they are `init`-only. For a record struct they are settable unless the struct is `readonly`.
+      - text: It is a reference type, like any record
+        correct: false
+        feedback: '`record struct` is a value type. Only `record` and `record class` are reference types.'
+    hints:
+      - Compare `record` with `readonly record struct`. Which one adds `readonly`, and why would it need to?
+  - id: step.csharp.records.discount
+    type: write-code
+    title: Discount an order without changing it
+    prompt: |
+      `Discount` returns a new `Order` whose `Cents` is reduced by `percent` percent (use integer arithmetic: `Cents * (100 - percent) / 100`).
+      The order that was passed in must be left as it was. Use the record's `with` expression.
+    language: csharp
+    largeScreenPreferred: true
+    entrypoint: Discount
+    starter: |
+      static Order Discount(Order order, int percent)
+      {
+          return order;
+      }
+
+      record Order(string Id, int Cents);
+    solution: |
+      static Order Discount(Order order, int percent)
+      {
+          return order with { Cents = order.Cents * (100 - percent) / 100 };
+      }
+
+      record Order(string Id, int Cents);
+    tests:
+      - input: 'new Order("a", 1000), 10'
+        expected: 'new Order("a", 900)'
+      - input: 'new Order("b", 250), 0'
+        expected: 'new Order("b", 250)'
+      - input: 'new Order("c", 999), 50'
+        expected: 'new Order("c", 499)'
+    phoneAlternative:
+      id: step.csharp.records.discount.fill
+      type: fill-blank
+      title: Complete the with expression
+      prompt: |
+        `Discount` returns a copy of the order with a smaller `Cents`.
+      language: csharp
+      template: |
+        static Order Discount(Order order, int percent)
+        {
+            return order {{keyword}} { Cents = order.Cents * (100 - percent) / 100 };
+        }
+      blanks:
+        - id: keyword
+          accepted:
+            - with
+          mistakes:
+            - answers:
+                - new
+              feedback: '`new` would build an object from scratch. The copy is made with the `with` expression.'
+    hints:
+      - A `with` expression takes the original on its left and the changed members in braces on its right.
+  - id: step.csharp.records.recap
+    type: explain
+    title: What to remember
+    body: |
+      A record is a class or struct with value-based equality and a copy method written by the compiler.
+
+      - `==` and `Equals` compare members, one at a time, using each member's own equality. A `List<T>` member compares by reference,
+        so two records holding equal-looking lists are not equal.
+      - `with` copies every member (shallow) and then applies your changes to the copy.
+      - A `record class` is immutable by convention (`init`); a `record struct` is mutable unless it is `readonly`.
+      - All of this is generated code you can read in the lowered view, so a surprise is something to look up, not to guess.

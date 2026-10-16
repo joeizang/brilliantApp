@@ -1,0 +1,249 @@
+id: lesson.csharp.where-values-live
+title: Where values live
+concepts:
+  - id: concept.csharp.value-copy
+    title: Assigning a struct copies its fields
+  - id: concept.csharp.reference-alias
+    title: Assigning a reference copies the arrow, not the object
+  - id: concept.csharp.argument-copy
+    title: An argument is a copy of the variable
+  - id: concept.csharp.inline-or-heap
+    title: The variable's type decides where the value sits
+reviewItems:
+  - id: review.csharp.value-copy
+    concept: concept.csharp.value-copy
+    step: step.csharp.where.check-copy
+  - id: review.csharp.reference-alias
+    concept: concept.csharp.reference-alias
+    step: step.csharp.where.predict-alias
+  - id: review.csharp.argument-copy
+    concept: concept.csharp.argument-copy
+    step: step.csharp.where.predict-argument
+  - id: review.csharp.inline-or-heap
+    concept: concept.csharp.inline-or-heap
+    step: step.csharp.where.check-array
+steps:
+  - id: step.csharp.where.intro
+    type: explain
+    title: You know the rule; check it against the memory
+    body: |
+      "Structs are value types, classes are reference types." You have written that sentence many times. This lesson uses it to
+      *predict* what a program does, and then shows where each value actually sits so you can check the prediction.
+
+      Two places matter. A method call gets a **frame** holding its locals and parameters. Objects live on the **heap**.
+      A value-typed variable keeps its value *inside* its slot. A reference-typed variable keeps an *arrow* to a heap object.
+      Every rule in this lesson follows from that one difference.
+
+      The lessons that follow (`in`/`ref`/`out`, boxing, nullability, generics) are about the cases where the simple rule has an
+      exception, so it is worth being exact about the simple rule first.
+  - id: step.csharp.where.trace-copy
+    type: trace
+    language: csharp
+    title: A struct copy and a reference copy
+    body: |
+      Step through. Watch `b` after `var b = a;`: it has its own `X` and `Y`, so changing `b.X` leaves `a.X` alone.
+      Then watch `d` after `var d = c;`: it is a second arrow to the *same* `Counter`, so the change shows through `c`.
+    code: |
+      var a = new Point { X = 1, Y = 2 };
+      var b = a;
+      b.X = 10;
+
+      var c = new Counter();
+      var d = c;
+      d.Count = 5;
+
+      Console.WriteLine($"{a.X} {b.X} {c.Count}");
+
+      struct Point { public int X; public int Y; }
+      class Counter { public int Count; }
+    visualise:
+      - as: memory
+  - id: step.csharp.where.check-copy
+    type: choice
+    title: What does the copy share?
+    prompt: |
+      `Point` is a struct. After `var b = a; b.X = 10;`, what is `a.X`?
+    options:
+      - text: Unchanged, because `b` holds its own copy of the fields
+        correct: true
+        feedback: Right. Assigning a struct copies every field into the new variable's slot. Nothing links `b` back to `a`.
+      - text: "`10`, because `b` and `a` are the same object"
+        correct: false
+        feedback: That is how a class behaves. A struct variable holds the fields themselves, so `b` is a separate set.
+      - text: Undefined until `a` is assigned again
+        correct: false
+        feedback: '`a` was assigned before the copy and nothing assigns it afterwards, so it keeps its value.'
+    hints:
+      - Look at the memory view after `var b = a;`. Is there an arrow from `b`, or are the fields written inside `b`?
+  - id: step.csharp.where.predict-alias
+    type: predict-output
+    title: Two names, one object
+    prompt: |
+      `Counter` is a class. What does this program print?
+    language: csharp
+    code: |
+      var first = new Counter();
+      var second = first;
+      second.Count++;
+      second = new Counter();
+      second.Count += 10;
+      Console.WriteLine($"{first.Count} {second.Count}");
+
+      class Counter { public int Count; }
+    accepted:
+      - '1 10'
+    mistakes:
+      - answers:
+          - '11 10'
+        feedback: '`second = new Counter();` points `second` at a new object. It does not change the object `first` still points to.'
+      - answers:
+          - '0 10'
+        feedback: '`second.Count++` ran while `second` still pointed at the same object as `first`, so `first.Count` became `1`.'
+    hints:
+      - Draw the arrows after each line. Which object does `second` point to when `Count++` runs, and which when `+= 10` runs?
+  - id: step.csharp.where.explain-argument
+    type: explain
+    title: Arguments are copies of variables
+    body: |
+      Calling a method with no modifier copies each argument into the parameter's slot in the new frame. What gets copied is the *variable's
+      contents*: for a struct, its fields; for a reference, the arrow.
+
+      So a method that assigns to a struct parameter changes its own copy and the caller never sees it. A method that is handed a
+      reference can change the object (the caller sees it), but assigning a new object to the parameter only moves the method's own arrow.
+      Neither is "pass by reference". The `ref` keyword is the exception, and it is the next lesson.
+  - id: step.csharp.where.predict-argument
+    type: predict-output
+    title: Mutate or replace?
+    prompt: |
+      Each helper changes its parameter. What does the program print?
+    language: csharp
+    code: |
+      var p = new Point { X = 1 };
+      var l = new Box { Value = 1 };
+
+      GrowPoint(p);
+      GrowBox(l);
+      Swap(l);
+
+      Console.WriteLine($"{p.X} {l.Value}");
+
+      static void GrowPoint(Point point) => point.X += 100;
+      static void GrowBox(Box box) => box.Value += 100;
+      static void Swap(Box box) { box = new Box { Value = -1 }; box.Value++; }
+
+      struct Point { public int X; }
+      class Box { public int Value; }
+    accepted:
+      - '1 101'
+    mistakes:
+      - answers:
+          - '101 101'
+        feedback: '`Point` is a struct, so `GrowPoint(p)` changes a copy of `p`. Only the `Box` is shared with the caller.'
+      - answers:
+          - '1 0'
+          - '1 -1'
+        feedback: '`Swap` assigns a new `Box` to its own parameter. The caller''s `l` still points at the original, which `GrowBox` raised to `101`.'
+    hints:
+      - Which of the three calls can change something the caller can still see?
+  - id: step.csharp.where.trace-array
+    type: trace
+    language: csharp
+    title: Value elements, reference elements
+    body: |
+      An array of structs holds the fields inside the array. An array of class references holds arrows. Watch `values` and `cells`
+      fill in, then see what `copy[0].X = 99;` changes.
+    code: |
+      var values = new Point[2];
+      var cells = new Counter[2];
+      cells[0] = new Counter();
+      var copy = values;
+      copy[0].X = 99;
+      Console.WriteLine(values[0].X);
+
+      struct Point { public int X; }
+      class Counter { public int Count; }
+    visualise:
+      - as: memory
+  - id: step.csharp.where.check-array
+    type: choice
+    title: What does a Point[] hold?
+    prompt: |
+      `var values = new Point[2];` where `Point` is a struct. What is on the heap, and what is in the array?
+    options:
+      - text: One array object, whose two slots hold the `Point` fields themselves
+        correct: true
+        feedback: Right. The array is the only heap object. A struct element is stored inside its slot, so `copy[0].X = 99` writes straight into the shared array.
+      - text: One array object holding two arrows, each to a `Point` object
+        correct: false
+        feedback: That describes `Counter[]`, where each element is a reference. A struct element is stored inline.
+      - text: Three objects, the array and two boxed `Point`s
+        correct: false
+        feedback: Nothing is boxed here. Boxing only happens when a struct is converted to `object` or an interface.
+    hints:
+      - In the memory view, look at the array's slots. Are they values or arrows?
+  - id: step.csharp.where.add-point
+    type: write-code
+    title: Return a moved copy
+    prompt: |
+      `Move` is handed a `Point` by value. Finish it so it returns the coordinates of the point moved right by `dx`, as an `(X, Y)` tuple.
+      The caller's point must be left as it was.
+    language: csharp
+    largeScreenPreferred: true
+    entrypoint: Move
+    starter: |
+      static (int X, int Y) Move(Point p, int dx)
+      {
+          return (p.X, p.Y);
+      }
+
+      struct Point { public int X; public int Y; }
+    solution: |
+      static (int X, int Y) Move(Point p, int dx)
+      {
+          p.X += dx;
+          return (p.X, p.Y);
+      }
+
+      struct Point { public int X; public int Y; }
+    tests:
+      - input: 'new Point { X = 1, Y = 2 }, 3'
+        expected: '(4, 2)'
+      - input: 'new Point { X = 0, Y = -1 }, 0'
+        expected: '(0, -1)'
+      - input: 'new Point { X = -5, Y = 5 }, 2'
+        expected: '(-3, 5)'
+    phoneAlternative:
+      id: step.csharp.where.add-point.fill
+      type: fill-blank
+      title: Complete the move
+      prompt: |
+        `Move` changes its own copy of the `Point` and returns the new coordinates.
+      language: csharp
+      template: |
+        static (int X, int Y) Move(Point p, int dx)
+        {
+            p.X {{op}} dx;
+            return (p.X, p.Y);
+        }
+      blanks:
+        - id: op
+          accepted:
+            - '+='
+          mistakes:
+            - answers:
+                - '='
+              feedback: '`=` would set X to `dx`. Moving right adds to it.'
+    hints:
+      - Because `p` is a copy, you may change it freely. The caller's point is not affected.
+  - id: step.csharp.where.recap
+    type: explain
+    title: One rule, four consequences
+    body: |
+      A value-typed variable holds its value inside its slot; a reference-typed variable holds an arrow. From that:
+
+      - assigning a struct copies its fields, assigning a reference copies the arrow;
+      - an argument is a copy of the variable's contents, so a callee can change a shared *object* but never the caller's *variable*;
+      - an array of structs is one object full of values, while an array of references is one object full of arrows;
+      - a struct stored in a class field lives inside that object, not in a box of its own.
+
+      Boxing breaks the pattern on purpose by putting a value onto the heap. That is a later lesson.

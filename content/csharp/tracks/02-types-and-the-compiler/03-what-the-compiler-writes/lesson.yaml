@@ -1,0 +1,219 @@
+id: lesson.csharp.what-the-compiler-writes
+title: What the compiler writes
+concepts:
+  - id: concept.csharp.foreach-enumerator
+    title: foreach is an enumerator and a finally
+  - id: concept.csharp.closure-class
+    title: A captured variable moves into a generated class
+  - id: concept.csharp.primary-capture
+    title: A primary constructor parameter that is used becomes a field
+  - id: concept.csharp.closure-allocation
+    title: A capturing lambda allocates, a non-capturing one is cached
+reviewItems:
+  - id: review.csharp.foreach-enumerator
+    concept: concept.csharp.foreach-enumerator
+    step: step.csharp.lowering.lowered-foreach
+  - id: review.csharp.closure-class
+    concept: concept.csharp.closure-class
+    step: step.csharp.lowering.lowered-closure
+  - id: review.csharp.primary-capture
+    concept: concept.csharp.primary-capture
+    step: step.csharp.lowering.lowered-primary
+  - id: review.csharp.closure-allocation
+    concept: concept.csharp.closure-allocation
+    step: step.csharp.lowering.alloc-closure
+steps:
+  - id: step.csharp.lowering.intro
+    type: explain
+    title: The compiler is also an author
+    body: |
+      Many C# keywords are not features of the runtime. The compiler rewrites them into plainer C# and then into IL. `foreach` becomes an
+      enumerator and a `try`/`finally`, a lambda that uses a local variable becomes an instance of a generated class, and a primary
+      constructor parameter you use in a method becomes a field.
+
+      The lowered views in this lesson are produced by the real compiler when the pack is built, with the pinned .NET 10 / C# 14 toolchain,
+      so what you read is what your program is. Names such as `<>c__DisplayClass0_0` cannot be typed in C#. That is deliberate: it keeps them from
+      clashing with your own names.
+  - id: step.csharp.lowering.lowered-foreach
+    type: lowered
+    title: What foreach becomes
+    prompt: |
+      In the lowered `Total`, which call releases the enumerator even if the loop body throws?
+    code: |
+      static class Demo
+      {
+          public static int Total(List<int> items)
+          {
+              var sum = 0;
+              foreach (var item in items) sum += item;
+              return sum;
+          }
+      }
+    options:
+      - text: '`Dispose()`, in a `finally` block'
+        correct: true
+        feedback: Right. `List<T>.Enumerator` is a struct that implements `IDisposable`, and the compiler calls `Dispose` from a `finally`. The loop itself is `while (enumerator.MoveNext())`.
+      - text: '`MoveNext()`, when it returns false'
+        correct: false
+        feedback: '`MoveNext` advances the loop and returns false at the end, but it does not guarantee release if the body throws.'
+      - text: '`GetEnumerator()`, at the top of the loop'
+        correct: false
+        feedback: '`GetEnumerator` creates the enumerator. Releasing it is `Dispose`''s job.'
+    hints:
+      - Find the `try` and look at what is in its `finally`.
+  - id: step.csharp.lowering.lowered-closure
+    type: lowered
+    title: Where does a captured variable live?
+    prompt: |
+      `factor` is a local of `Scale`, and the lambda uses it. In the lowered code, where is `factor` stored?
+    code: |
+      static class Demo
+      {
+          public static Func<int, int> Scale(int factor)
+          {
+              return x => x * factor;
+          }
+      }
+    options:
+      - text: In a field of a compiler-generated class, which the delegate points to
+        correct: true
+        feedback: Right. `factor` moves out of the stack frame into a `<>c__DisplayClass` object, and the delegate's target is that object. That is why the lambda can outlive the call.
+      - text: In the delegate itself, as a copy of the value
+        correct: false
+        feedback: If it were a copy, later changes to `factor` would not be seen by the lambda. The lambda shares the variable, so it lives in a class both sides use.
+      - text: On the stack, in the frame of `Scale`
+        correct: false
+        feedback: That frame is gone when `Scale` returns. A variable the lambda still needs after that has to live on the heap.
+    hints:
+      - Look for a nested class and ask where `factor` is read in the generated method.
+  - id: step.csharp.lowering.lowered-primary
+    type: lowered
+    title: A primary constructor parameter
+    prompt: |
+      `Greeter(string name)` has no field declared. In the lowered class, how does `Hello` read `name`?
+    code: |
+      class Greeter(string name)
+      {
+          public string Hello() => "Hi " + name;
+      }
+    options:
+      - text: From a compiler-generated field that the constructor fills
+        correct: true
+        feedback: Right. Because `Hello` uses `name`, the compiler captures it in a hidden field (`<name>P`). A parameter nobody uses after construction costs nothing.
+      - text: The constructor parameter itself, which stays alive
+        correct: false
+        feedback: A constructor's parameters are gone when it returns. The value is saved in a field so that other methods can read it.
+      - text: From a public property named `name`
+        correct: false
+        feedback: A primary constructor does not create a property. For a class, the hidden field is private.
+    hints:
+      - Compare the constructor with `Hello`. What is the one thing they both touch?
+  - id: step.csharp.lowering.alloc-closure
+    type: allocations
+    variant: predict
+    title: What a capturing lambda costs
+    prompt: |
+      How much does one call of `Apply` allocate? The lambda uses `k`, which is a parameter.
+    entrypoint: Apply
+    input: '5'
+    code: |
+      static int Apply(int k)
+      {
+          Func<int, int> add = x => x + k;
+          return add(1);
+      }
+    options:
+      - bytes: 0
+        feedback: A lambda that uses `k` needs somewhere to keep it, so something is allocated on every call.
+      - bytes: 24
+        feedback: That is the display class alone. The delegate that points to it is an object too.
+      - bytes: 88
+      - bytes: 152
+  - id: step.csharp.lowering.check-static
+    type: choice
+    title: How do you avoid it?
+    prompt: |
+      `Apply` allocates because its lambda captures `k`. Which change makes the lambda stop allocating?
+    options:
+      - text: Mark the lambda `static` and pass `k` in, so nothing is captured
+        correct: true
+        feedback: Right. A `static` lambda cannot capture, so the compiler caches one delegate for the whole program. Declare `Func<int, int, int>` and call `add(1, k)`.
+      - text: Declare `k` with `var`
+        correct: false
+        feedback: '`var` only chooses the type. The lambda still uses a local variable of this call.'
+      - text: Add `readonly` to the lambda
+        correct: false
+        feedback: A lambda can't be `readonly`. `static` is the modifier that forbids capture.
+    hints:
+      - The modifier you want makes the compiler refuse to let a lambda use enclosing locals.
+  - id: step.csharp.lowering.rewrite-count
+    type: allocations
+    variant: rewrite
+    title: Count without a closure
+    prompt: |
+      `CountMultiples` counts how many of `0` to `n - 1` are multiples of `k`. The lambda captures `k` and `Enumerable.Range` creates an iterator,
+      so every call allocates. Rewrite it so one call allocates nothing.
+    entrypoint: CountMultiples
+    largeScreenPreferred: true
+    starter: |
+      static int CountMultiples(int n, int k)
+      {
+          return Enumerable.Range(0, n).Count(x => x % k == 0);
+      }
+    solution: |
+      static int CountMultiples(int n, int k)
+      {
+          var count = 0;
+          for (var x = 0; x < n; x++)
+          {
+              if (x % k == 0) count++;
+          }
+          return count;
+      }
+    tests:
+      - input: '10, 3'
+        expected: '4'
+        maxAllocatedBytes: 0
+      - input: '0, 5'
+        expected: '0'
+      - input: '7, 1'
+        expected: '7'
+    phoneAlternative:
+      id: step.csharp.lowering.rewrite-count.fill
+      type: fill-blank
+      title: Complete the loop
+      prompt: |
+        A plain `for` loop needs no closure and no iterator. Finish the condition.
+      language: csharp
+      template: |
+        static int CountMultiples(int n, int k)
+        {
+            var count = 0;
+            for (var x = 0; x {{cmp}} n; x++)
+            {
+                if (x % k == 0) count++;
+            }
+            return count;
+        }
+      blanks:
+        - id: cmp
+          accepted:
+            - '<'
+          mistakes:
+            - answers:
+                - '<='
+              feedback: '`<=` would also test `n` itself. The range is `0` to `n - 1`.'
+    hints:
+      - A plain `for` loop with an `if` keeps `k` in a local and needs no lambda at all.
+  - id: step.csharp.lowering.recap
+    type: explain
+    title: Read the lowering before guessing
+    body: |
+      A feature that costs something usually shows its cost in the lowered code: an enumerator, a class, a field, a delegate.
+
+      - `foreach` over a `List<T>` uses a struct enumerator in a `try`/`finally`.
+      - A lambda that uses a local moves that local into a heap object, and creates a delegate for it, on every call.
+      - A `static` lambda, or one that captures nothing, is cached once.
+      - A primary constructor parameter used after construction is stored in a hidden field.
+
+      When the cost of some syntax is unclear, look at the lowered form before reaching for a benchmark.
