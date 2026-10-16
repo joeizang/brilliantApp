@@ -1,0 +1,123 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
+
+internal static class Demo
+{
+    [CompilerGenerated]
+    private sealed class <Evens>d__0 : IEnumerable<int>, IEnumerable, IEnumerator<int>, IEnumerator, IDisposable
+    {
+        private int <>1__state;
+
+        private int <>2__current;
+
+        private int <>l__initialThreadId;
+
+        private int limit;
+
+        public int <>3__limit;
+
+        private int <i>5__2;
+
+        int IEnumerator<int>.Current
+        {
+            [DebuggerHidden]
+            get
+            {
+                return <>2__current;
+            }
+        }
+
+        object IEnumerator.Current
+        {
+            [DebuggerHidden]
+            get
+            {
+                return <>2__current;
+            }
+        }
+
+        [DebuggerHidden]
+        public <Evens>d__0(int <>1__state)
+        {
+            this.<>1__state = <>1__state;
+            <>l__initialThreadId = Environment.CurrentManagedThreadId;
+        }
+
+        [DebuggerHidden]
+        void IDisposable.Dispose()
+        {
+            <>1__state = -2;
+        }
+
+        private bool MoveNext()
+        {
+            switch (<>1__state)
+            {
+            default:
+                return false;
+            case 0:
+                <>1__state = -1;
+                <i>5__2 = 0;
+                break;
+            case 1:
+                <>1__state = -1;
+                <i>5__2 += 2;
+                break;
+            }
+            if (<i>5__2 < limit)
+            {
+                <>2__current = <i>5__2;
+                <>1__state = 1;
+                return true;
+            }
+            return false;
+        }
+
+        bool IEnumerator.MoveNext()
+        {
+            return this.MoveNext();
+        }
+
+        [DebuggerHidden]
+        void IEnumerator.Reset()
+        {
+            throw new NotSupportedException();
+        }
+
+        [DebuggerHidden]
+        [return: Nullable(1)]
+        IEnumerator<int> IEnumerable<int>.GetEnumerator()
+        {
+            <Evens>d__0 obj;
+            if (<>1__state == -2 && <>l__initialThreadId == Environment.CurrentManagedThreadId)
+            {
+                <>1__state = 0;
+                obj = this;
+            }
+            else
+            {
+                obj = new <Evens>d__0(0);
+            }
+            obj.limit = <>3__limit;
+            return obj;
+        }
+
+        [DebuggerHidden]
+        [return: Nullable(1)]
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return ((IEnumerable<int>)this).GetEnumerator();
+        }
+    }
+
+    [IteratorStateMachine(typeof(<Evens>d__0))]
+    public static IEnumerable<int> Evens(int limit)
+    {
+        <Evens>d__0 obj = new <Evens>d__0(-2);
+        obj.<>3__limit = limit;
+        return obj;
+    }
+}

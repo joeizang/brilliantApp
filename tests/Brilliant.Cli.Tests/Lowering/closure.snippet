@@ -1,0 +1,8 @@
+static class Demo
+{
+    public static Func<int> Counter(int start)
+    {
+        var count = start;
+        return () => count++;
+    }
+}

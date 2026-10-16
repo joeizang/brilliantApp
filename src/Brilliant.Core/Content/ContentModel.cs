@@ -71,6 +71,7 @@ public sealed record LabelledSnippet(string Label, string Language, string Code)
 [JsonDerivedType(typeof(FillBlankStep), "fill-blank")]
 [JsonDerivedType(typeof(ParsonsStep), "parsons")]
 [JsonDerivedType(typeof(TraceStep), "trace")]
+[JsonDerivedType(typeof(LoweredStep), "lowered")]
 public abstract record Step(string Id, string Title) : ContentItem(Id)
 {
     /// <summary>
@@ -374,4 +375,36 @@ public sealed record TraceStep(
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Brilliant.Core.Code.TraceResult? Recorded { get; init; }
+}
+
+/// <summary>
+/// What the compiler turns a C# snippet into, produced when the pack is built (Roslyn compiles it, ICSharpCode.Decompiler reads it back):
+/// <see cref="CSharp"/> is the lowered C#, with the compiler's own state machines, enumerators and try/finally blocks written out, and
+/// <see cref="Il"/> is the IL. Authors never write either.
+/// </summary>
+public sealed record LoweredCode(string CSharp, string Il);
+
+/// <summary>
+/// "What did the compiler do with this?" The learner reads <see cref="Code"/> beside what it lowers to (C# or IL, their choice) and answers
+/// a question about the pair. Typed variant: <see cref="Accepted"/> answers plus authored <see cref="Mistakes"/>. Multiple-choice variant:
+/// <see cref="Options"/> is non-empty (exactly one correct) and the typed fields are empty, as for <see cref="PredictOutputStep"/>.
+/// Only C# has a lowered form, so there is no language to choose.
+/// </summary>
+public sealed record LoweredStep(
+    string Id,
+    string Title,
+    string Prompt,
+    string Code,
+    IReadOnlyList<string> Accepted,
+    IReadOnlyList<MistakePattern> Mistakes,
+    IReadOnlyList<ChoiceOption> Options) : Step(Id, Title)
+{
+    [JsonIgnore] public bool IsTyped => Options.Count == 0;
+
+    /// <summary>
+    /// The lowered forms of <see cref="Code"/>, recorded when the pack was built. Never authored; null in a pack source that hasn't been
+    /// built yet, and the view then has nothing to show beside the code.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public LoweredCode? Lowered { get; init; }
 }

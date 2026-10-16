@@ -29,6 +29,10 @@ public sealed class ValidationReport
 
     /// <summary>What running each checked C# example recorded, by the step it belongs to and whether it is that step's walkthrough. The pack carries these.</summary>
     internal Dictionary<(string StepId, bool IsWalkthrough), TraceResult> Recordings { get; } = [];
+
+    /// <summary>C# <c>lowered</c> steps waiting to be compiled, and what the compiler made of each, by step id. The pack carries these.</summary>
+    internal List<LoweringCheck> LoweringChecks { get; } = [];
+    internal Dictionary<string, LoweredCode> Lowerings { get; } = [];
     internal AppManifest? App { get; set; }
 }
 
@@ -104,24 +108,36 @@ public static partial class ContentValidator
                 LoadTrack(contentRoot, trackDir, report, seenIds, tracks, lessons, patterns);
         patterns.Check(report);
 
-        if (report.ReferenceChecks.Any(c => c.Language == "csharp") &&
+        if ((report.ReferenceChecks.Any(c => c.Language == "csharp") || report.LoweringChecks.Count > 0) &&
             (manifest?.TargetFramework != CSharpPins.TargetFramework || manifest.LangVersion != CSharpPins.LanguageVersion))
-            report.Add("pack.yaml", $"C# reference solutions require targetFramework: {CSharpPins.TargetFramework} and langVersion: {CSharpPins.LanguageVersion}.");
+            report.Add("pack.yaml", $"C# reference solutions and lowered steps require targetFramework: {CSharpPins.TargetFramework} and langVersion: {CSharpPins.LanguageVersion}.");
+
+        // Only once the content is structurally sound: compile each lowered step's snippet and keep what the compiler made of it.
+        if (report.IsValid)
+            foreach (var check in report.LoweringChecks)
+            {
+                var (lowered, error) = CSharpLowering.Lower(check.Code);
+                if (lowered is null) report.Add(check.File, $"{check.Label}: {error}");
+                else report.Lowerings[check.StepId] = lowered;
+            }
 
         // Only once the content is structurally sound: prove every exercise's reference solution passes its own tests.
         if (report.IsValid && (report.ReferenceChecks.Count > 0 || report.TraceChecks.Count > 0))
             ReferenceSolutionChecker.CheckAll(report, runner);
 
         if (report.IsValid && manifest is not null)
-            content = new LoadedContent(manifest, tracks, report.Recordings.Count == 0 ? lessons : lessons.Select(l => WithRecordings(l, report.Recordings)).ToList());
+            content = new LoadedContent(manifest, tracks, report.Recordings.Count == 0 && report.Lowerings.Count == 0
+                ? lessons : lessons.Select(l => WithRecordings(l, report.Recordings, report.Lowerings)).ToList());
         return report;
     }
 
     /// <summary>The lesson with each recorded example attached to the step (or walkthrough) it was run for.</summary>
-    private static Lesson WithRecordings(Lesson lesson, IReadOnlyDictionary<(string StepId, bool IsWalkthrough), TraceResult> recordings)
+    private static Lesson WithRecordings(Lesson lesson, IReadOnlyDictionary<(string StepId, bool IsWalkthrough), TraceResult> recordings,
+        IReadOnlyDictionary<string, LoweredCode> lowerings)
     {
         Step Attach(Step step)
         {
+            if (step is LoweredStep lowered && lowerings.TryGetValue(step.Id, out var made)) step = lowered with { Lowered = made };
             if (step is TraceStep trace && recordings.TryGetValue((step.Id, false), out var recorded)) step = trace with { Recorded = recorded };
             if (step.Walkthrough is { } walkthrough && recordings.TryGetValue((step.Id, true), out var walked))
                 step = step with { Walkthrough = walkthrough with { Recorded = walked } };
@@ -319,7 +335,7 @@ public static partial class ContentValidator
                 if (step is null)
                     report.Add(file, $"{label}: step '{r.Step}' is not a valid step of this lesson.");
                 else if (step is ExplainStep or TraceStep)
-                    report.Add(file, $"{label}: step '{r.Step}' is an {(step is TraceStep ? "trace" : "explain")} step; a review item needs a question (choice or predict-output).");
+                    report.Add(file, $"{label}: step '{r.Step}' is an {(step is TraceStep ? "trace" : "explain")} step; a review item needs a question (choice, predict-output or lowered).");
             }
             if (r.Id is not null && r.Concept is not null && r.Step is not null)
                 items.Add(new ReviewItem(r.Id, r.Concept, r.Step, kind));
@@ -338,8 +354,8 @@ public static partial class ContentValidator
     {
         var hints = dto.Hints ?? [];
         if (hints.Count == 0) return [];
-        if (dto.Type is not ("choice" or "predict-output" or "write-code" or "fill-blank" or "parsons"))
-            report.Add(file, $"{label}: 'hints' only apply to questions (choice, predict-output, write-code, fill-blank or parsons).");
+        if (dto.Type is not ("choice" or "predict-output" or "lowered" or "write-code" or "fill-blank" or "parsons"))
+            report.Add(file, $"{label}: 'hints' only apply to questions (choice, predict-output, lowered, write-code, fill-blank or parsons).");
         var max = dto.Walkthrough is null ? MaxHints : MaxHints - 1;
         if (hints.Count > max)
             report.Add(file, dto.Walkthrough is null
@@ -352,7 +368,7 @@ public static partial class ContentValidator
 
     private const int MaxHints = 4;
 
-    private static readonly string[] QuestionTypes = ["choice", "predict-output", "write-code", "fill-blank", "parsons"];
+    private static readonly string[] QuestionTypes = ["choice", "predict-output", "lowered", "write-code", "fill-blank", "parsons"];
 
     private static Step? LoadStep(StepDto dto, string where, string file, ValidationReport report,
         Dictionary<string, string> seenIds, bool isAlternative = false)
@@ -364,7 +380,7 @@ public static partial class ContentValidator
 
         var preferred = dto.LargeScreenPreferred ?? false;
         if (preferred && !QuestionTypes.Contains(dto.Type))
-            report.Add(file, $"{label}: 'largeScreenPreferred' only applies to questions (choice, predict-output, write-code, fill-blank or parsons).");
+            report.Add(file, $"{label}: 'largeScreenPreferred' only applies to questions (choice, predict-output, lowered, write-code, fill-blank or parsons).");
         if (dto.Compare is not null && dto.Type != "write-code")
             report.Add(file, $"{label}: 'compare' only applies to write-code steps.");
         if (dto.Files is not null && dto.Type != "write-code")
@@ -473,6 +489,7 @@ public static partial class ContentValidator
         var hints = LoadHints(dto, label, file, report);
         if (dto.Type == "choice") return WithHints(RejectWalkthrough(dto, label, file, report, LoadChoice(dto, label, file, report, before)), hints);
         if (dto.Type == "predict-output") return WithHints(WithWalkthrough(LoadPredictOutput(dto, label, file, report, before), dto, label, file, report), hints);
+        if (dto.Type == "lowered") return WithHints(RejectWalkthrough(dto, label, file, report, LoadLowered(dto, label, file, report, before)), hints);
         if (dto.Type == "write-code") return WithHints(WithWalkthrough(LoadWriteCode(dto, label, file, report, before), dto, label, file, report), hints);
         if (dto.Type == "fill-blank") return WithHints(WithWalkthrough(LoadFillBlank(dto, label, file, report, before), dto, label, file, report), hints);
         if (dto.Type == "parsons") return WithHints(WithWalkthrough(LoadParsons(dto, label, file, report, before), dto, label, file, report), hints);
@@ -480,7 +497,7 @@ public static partial class ContentValidator
 
         if (dto.Type != "explain")
         {
-            report.Add(file, $"{label}: unsupported step type '{dto.Type ?? "(missing)"}' (supported: explain, choice, predict-output, write-code, fill-blank, parsons, trace).");
+            report.Add(file, $"{label}: unsupported step type '{dto.Type ?? "(missing)"}' (supported: explain, choice, predict-output, lowered, write-code, fill-blank, parsons, trace).");
             return null;
         }
 
@@ -610,7 +627,34 @@ public static partial class ContentValidator
     {
         Require(dto.Prompt, "prompt", file, report, label);
         Require(dto.Code, "code", file, report, label);
+        var (options, accepted, mistakes) = LoadPrediction(dto, label, file, report);
 
+        return report.Errors.Count == errorsBefore
+            ? new PredictOutputStep(dto.Id!, dto.Title!, dto.Prompt!, new CodeSnippet(dto.Language ?? "python", dto.Code!), accepted, mistakes, options)
+            : null;
+    }
+
+    /// <summary>
+    /// A <c>lowered</c> step: a question about what the C# compiler made of the snippet. It is answered like a prediction (typed or
+    /// multiple choice). The lowered C# and IL are never authored; the pack build compiles the snippet and attaches them.
+    /// </summary>
+    private static Step? LoadLowered(StepDto dto, string label, string file, ValidationReport report, int errorsBefore)
+    {
+        Require(dto.Prompt, "prompt", file, report, label);
+        Require(dto.Code, "code", file, report, label);
+        if (dto.Language is not null and not "csharp")
+            report.Add(file, $"{label}: a lowered step shows what the C# compiler produced; 'language' must be csharp (or left out).");
+        var (options, accepted, mistakes) = LoadPrediction(dto, label, file, report);
+
+        if (report.Errors.Count != errorsBefore) return null;
+        report.LoweringChecks.Add(new LoweringCheck(file, label, dto.Code!, dto.Id!));
+        return new LoweredStep(dto.Id!, dto.Title!, dto.Prompt!, dto.Code!, accepted, mistakes, options);
+    }
+
+    /// <summary>The answer side shared by predict-output and lowered steps: typed 'accepted' answers with 'mistakes', or multiple-choice 'options'.</summary>
+    private static (List<ChoiceOption> Options, List<string> Accepted, List<MistakePattern> Mistakes) LoadPrediction(
+        StepDto dto, string label, string file, ValidationReport report)
+    {
         var hasOptions = dto.Options is { Count: > 0 };
         var hasAccepted = dto.Accepted is { Count: > 0 };
         var options = new List<ChoiceOption>();
@@ -647,9 +691,7 @@ public static partial class ContentValidator
             mistakes = LoadMistakes(dto.Mistakes, accepted, label, file, report);
         }
 
-        return report.Errors.Count == errorsBefore
-            ? new PredictOutputStep(dto.Id!, dto.Title!, dto.Prompt!, new CodeSnippet(dto.Language ?? "python", dto.Code!), accepted, mistakes, options)
-            : null;
+        return (options, accepted, mistakes);
     }
 
     /// <summary>Validates typed-answer mistake patterns against the answers the same prompt or blank accepts.</summary>

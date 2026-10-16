@@ -21,8 +21,10 @@ public class AppManifestTests
         Assert.Equal(["python"], app.Runtimes);
         var knownSteps = typeof(Step).GetCustomAttributes<JsonDerivedTypeAttribute>()
             .Select(type => Assert.IsType<string>(type.TypeDiscriminator));
-        Assert.True(app.StepTypes.SetEquals(knownSteps));
-        Assert.True(app.StepTypes.SetEquals(StepTypes.All));
+        // Every step type but the C#-only lowered step (#154): the Python/DSA app never shows compiler output.
+        Assert.False(app.SupportsStepType("lowered"));
+        Assert.True(app.StepTypes.SetEquals(knownSteps.Where(type => type != "lowered")));
+        Assert.True(app.StepTypes.SetEquals(StepTypes.All.Where(type => type != "lowered")));
     }
 
     private const string Dsa = """

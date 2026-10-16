@@ -1,0 +1,24 @@
+using System;
+using System.Collections.Generic;
+
+internal static class Demo
+{
+    public static int Total(List<int> items)
+    {
+        int num = 0;
+        List<int>.Enumerator enumerator = items.GetEnumerator();
+        try
+        {
+            while (enumerator.MoveNext())
+            {
+                int current = enumerator.Current;
+                num += current;
+            }
+            return num;
+        }
+        finally
+        {
+            ((IDisposable)enumerator/*cast due to constrained. prefix*/).Dispose();
+        }
+    }
+}
