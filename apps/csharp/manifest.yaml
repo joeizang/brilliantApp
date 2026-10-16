@@ -1,0 +1,11 @@
+appId: com.joeizang.brilliantapp.csharp
+displayName: Brilliant C#
+icon: apps/csharp/icon.svg
+accent:
+  dark: '#c3a4ff'
+  light: '#6537c1'
+  onDark: '#1a092e'
+  onLight: '#ffffff'
+contentPack: csharp.pack.zip
+runtimes: [csharp]
+stepTypes: [explain, choice, predict-output]

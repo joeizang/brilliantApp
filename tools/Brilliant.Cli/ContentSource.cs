@@ -118,7 +118,25 @@ public static partial class ContentValidator
         if (string.IsNullOrWhiteSpace(dto.Id)) report.Add("pack.yaml", "'id' is required.");
         if (string.IsNullOrWhiteSpace(dto.Version) || !VersionPattern().IsMatch(dto.Version))
             report.Add("pack.yaml", "'version' is required and must look like 1.2.3.");
-        return report.IsValid ? new PackManifest(dto.Id!, dto.Version!, ContentPackFormat.CurrentFormatVersion) : null;
+        var csharp = report.App?.SupportsRuntime("csharp") == true;
+        if (dto.TargetFramework is null)
+        {
+            if (csharp) report.Add("pack.yaml", "'targetFramework' is required for apps enabling csharp (supported: net10.0).");
+        }
+        else if (dto.TargetFramework != "net10.0")
+            report.Add("pack.yaml", $"unsupported targetFramework '{dto.TargetFramework}' (supported: net10.0).");
+        if (dto.LangVersion is null)
+        {
+            if (csharp) report.Add("pack.yaml", "'langVersion' is required for apps enabling csharp (supported: 14).");
+        }
+        else if (dto.LangVersion != "14")
+            report.Add("pack.yaml", $"unsupported langVersion '{dto.LangVersion}' (supported: 14).");
+
+        return report.IsValid ? new PackManifest(dto.Id!, dto.Version!, ContentPackFormat.CurrentFormatVersion)
+        {
+            TargetFramework = dto.TargetFramework,
+            LangVersion = dto.LangVersion,
+        } : null;
     }
 
     private static void LoadTrack(string root, string trackDir, ValidationReport report,
@@ -1011,7 +1029,7 @@ public static partial class ContentValidator
 
     private static string Rel(string root, string path) => Path.GetRelativePath(root, path).Replace('\\', '/');
 
-    private sealed class PackDto { public string? Id { get; set; } public string? Version { get; set; } }
+    private sealed class PackDto { public string? Id { get; set; } public string? Version { get; set; } public string? TargetFramework { get; set; } public string? LangVersion { get; set; } }
     private sealed class TrackDto { public string? Id { get; set; } public string? Title { get; set; } }
     private sealed class LessonDto
     {

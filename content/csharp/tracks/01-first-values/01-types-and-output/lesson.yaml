@@ -1,0 +1,115 @@
+id: lesson.csharp.types-and-output
+title: Types, values, and output
+concepts:
+  - id: concept.csharp.version-pins
+    title: Framework and language versions
+  - id: concept.csharp.inferred-types
+    title: Inferred types stay fixed
+  - id: concept.csharp.console-output
+    title: Printing a value
+reviewItems:
+  - id: review.csharp.version-pins
+    concept: concept.csharp.version-pins
+    step: step.csharp.check-version-pins
+  - id: review.csharp.inferred-types
+    concept: concept.csharp.inferred-types
+    step: step.csharp.check-inferred-types
+  - id: review.csharp.console-output
+    concept: concept.csharp.console-output
+    step: step.csharp.predict-count
+steps:
+  - id: step.csharp.version-pins
+    type: explain
+    title: Two versions, two jobs
+    body: |
+      These lessons use **.NET 10** and **C# 14**. The two numbers describe different parts of a C# program.
+
+      The **target framework**, `net10.0`, selects the .NET platform and libraries the program can use.
+      The **language version**, `14`, selects the C# syntax the compiler accepts.
+
+      Keeping both versions fixed gives every lesson a clear starting point. A newer language feature and a newer library API are different kinds of change.
+  - id: step.csharp.check-version-pins
+    type: choice
+    title: Which version controls syntax?
+    prompt: |
+      A program targets `net10.0` and uses language version `14`. Which setting says which C# syntax its compiler accepts?
+    options:
+      - text: The language version, `14`
+        correct: true
+        feedback: Right. C# 14 sets the language rules; `net10.0` selects the target framework and libraries.
+      - text: The target framework, `net10.0`
+        correct: false
+        feedback: The target framework selects the .NET platform and libraries. The language version sets the syntax rules.
+      - text: The number of lines in the program
+        correct: false
+        feedback: Program length does not choose a language version. The compiler's language setting does.
+  - id: step.csharp.inferred-types
+    type: explain
+    title: A shorter declaration keeps its type
+    body: |
+      C# checks the types of values before the program runs. In `int count = 3;`, `int` declares a whole-number variable.
+
+      You can also write `var count = 3;`. The compiler uses the initializer, `3`, to infer that `count` is an `int`.
+      Both declarations below give `count` the same type and value.
+
+      `var` does not let the variable change type later. You can assign another `int` to `count`, but assigning a string such as `"three"` is a compile error.
+    comparison:
+      - label: Explicit type
+        language: csharp
+        code: |
+          int count = 3;
+      - label: Inferred type
+        language: csharp
+        code: |
+          var count = 3;
+  - id: step.csharp.check-inferred-types
+    type: choice
+    title: What does var mean here?
+    prompt: |
+      After `var count = 3;`, what type does `count` have?
+    options:
+      - text: '`int`, inferred from `3`'
+        correct: true
+        feedback: Right. The compiler infers `int` from the initializer, and that type stays fixed.
+      - text: A type that changes whenever a new value is assigned
+        correct: false
+        feedback: '`var` infers a type once. It does not make the variable dynamically typed.'
+      - text: '`string`, because the value could be printed'
+        correct: false
+        feedback: Printing a number does not change its type. Here, `3` gives the variable type `int`.
+    hints:
+      - Look at the value on the right of the equals sign. What type does the compiler infer from `3`?
+  - id: step.csharp.predict-count
+    type: predict-output
+    title: Follow the value
+    prompt: |
+      `using System;` lets this program refer to `Console` by its short name.
+      `count += 2;` adds `2` to the current value and stores the result in `count`.
+      What does `Console.WriteLine` print?
+    language: csharp
+    code: |
+      using System;
+      var count = 3;
+      count += 2;
+      Console.WriteLine(count);
+    accepted:
+      - '5'
+    mistakes:
+      - answers:
+          - '3'
+        feedback: '`count` starts at `3`, then `count += 2;` updates it to `5` before it is printed.'
+      - answers:
+          - '32'
+        feedback: '`count` is an `int`, so `+= 2` adds numbers. There are no strings to join here.'
+    hints:
+      - Start with `count = 3`, then add `2`. Which value reaches the final line?
+  - id: step.csharp.values-recap
+    type: explain
+    title: Read a declaration, then follow its value
+    body: |
+      You just followed a C# value from its declaration to its output.
+
+      `var count = 3;` gives `count` the fixed type `int`. The assignment `count += 2;` changes its value to `5`.
+      `Console.WriteLine(count);` prints that value and ends the line.
+
+      When reading a short program, first identify each variable's type, then follow the assignments in order. A variable's value can change while its type stays the same.
