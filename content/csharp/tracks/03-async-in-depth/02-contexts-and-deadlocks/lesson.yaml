@@ -1,0 +1,154 @@
+id: lesson.csharp.async-contexts
+title: Contexts, ConfigureAwait, and deadlocks
+concepts:
+  - id: concept.csharp.sync-context
+    title: A SynchronizationContext can choose where a continuation runs
+  - id: concept.csharp.configure-await
+    title: ConfigureAwait false avoids capturing the current SynchronizationContext
+  - id: concept.csharp.sync-over-async-deadlock
+    title: Blocking a context thread can prevent its async continuation from running
+reviewItems:
+  - id: review.csharp.sync-context
+    concept: concept.csharp.sync-context
+    step: step.csharp.contexts.check-sync-context
+  - id: review.csharp.configure-await
+    concept: concept.csharp.configure-await
+    step: step.csharp.contexts.check-configure-await
+  - id: review.csharp.sync-over-async-deadlock
+    concept: concept.csharp.sync-over-async-deadlock
+    step: step.csharp.contexts.check-deadlock-fix
+steps:
+  - id: step.csharp.contexts.intro
+    type: explain
+    title: A continuation needs somewhere to run
+    body: |
+      Before an `await`, C# can capture the current `SynchronizationContext`. UI frameworks install one so UI-bound continuations return to the UI thread. ASP.NET Core deliberately has no synchronization context; its continuations usually use a thread-pool thread. Neither model promises a particular physical thread in general.
+
+      `ConfigureAwait(false)` says that a library operation does not need the caller's synchronization context. It avoids an unnecessary UI-context hop, but code after it must not touch UI state. It does **not** suppress `ExecutionContext`: culture, `AsyncLocal` values and similar ambient data still flow unless that flow is explicitly suppressed.
+  - id: step.csharp.contexts.timeline-hop
+    type: async-timeline
+    title: A UI continuation returns home
+    body: |
+      The UI thread starts `LoadAsync`. The I/O completes on a worker, but the continuation was captured for the UI context, so it resumes on the UI lane before updating the screen.
+    events:
+      - sequence: 1
+        thread: UI
+        kind: enter
+        label: LoadAsync starts from the button handler
+        state: Start
+      - sequence: 2
+        thread: UI
+        kind: await
+        label: The HTTP request is incomplete; the UI context is captured
+        operation: request
+        state: AwaitingRequest
+      - sequence: 3
+        thread: I/O worker
+        kind: complete
+        label: The HTTP request completes
+        operation: request
+      - sequence: 4
+        thread: I/O worker
+        kind: continuation-queued
+        label: The captured continuation is posted to the UI context
+        operation: request
+        continuationThread: UI
+        state: AwaitingRequest
+      - sequence: 5
+        thread: UI
+        kind: resume
+        label: The continuation updates the UI
+        state: AfterAwait
+  - id: step.csharp.contexts.check-configure-await
+    type: choice
+    title: What ConfigureAwait(false) changes
+    prompt: |
+      A reusable HTTP client library awaits network I/O and then parses a response without touching UI state. What does `await request.ConfigureAwait(false)` tell it not to do?
+    options:
+      - text: Capture the caller's SynchronizationContext for the continuation
+        correct: true
+        feedback: Right. The continuation may run wherever the runtime schedules it. That is appropriate because this library code has no UI affinity.
+      - text: Flow AsyncLocal and culture values through ExecutionContext
+        correct: false
+        feedback: ConfigureAwait controls SynchronizationContext capture, not ExecutionContext flow. They are distinct mechanisms.
+      - text: Resume until the network operation has completed
+        correct: false
+        feedback: It still awaits normally. ConfigureAwait does not make an incomplete operation synchronous.
+    hints:
+      - Think about what a library should avoid assuming about its caller's UI or request context.
+  - id: step.csharp.contexts.check-sync-context
+    type: choice
+    title: Which context does await capture?
+    prompt: |
+      On a UI thread, an incomplete plain `await` captures a SynchronizationContext. What decision does that context make for the continuation?
+    options:
+      - text: Where the continuation is scheduled to run
+        correct: true
+        feedback: Right. A UI context posts it back to the UI loop. The context is a scheduling policy, not the operation itself.
+      - text: Whether the awaited operation is cancelled
+        correct: false
+        feedback: Cancellation comes from the operation and its CancellationToken. A synchronization context decides continuation placement.
+      - text: Which local variables the async state machine saves
+        correct: false
+        feedback: The compiler determines what state survives an await. The context only participates when scheduling the continuation.
+    hints:
+      - The word synchronization is about coordinating access to something such as a UI thread.
+  - id: step.csharp.contexts.timeline-deadlock
+    type: async-timeline
+    title: The sync-over-async cycle
+    body: |
+      This is the classic UI deadlock. `Result` blocks the UI thread, while the awaited operation's captured continuation needs that very thread. The final resume event is what *would* happen after the thread is released; it never occurs in the deadlocked run.
+    events:
+      - sequence: 1
+        thread: UI
+        kind: enter
+        label: Button handler calls LoadAsync
+        state: Start
+      - sequence: 2
+        thread: UI
+        kind: await
+        label: LoadAsync awaits incomplete I/O and captures the UI context
+        operation: load
+        state: AwaitingLoad
+      - sequence: 3
+        thread: UI
+        kind: blocking-wait
+        label: The handler calls task.Result and blocks the UI thread
+        operation: load
+      - sequence: 4
+        thread: I/O worker
+        kind: continuation-queued
+        label: I/O completed; the continuation is queued to the UI context
+        operation: load
+        continuationThread: UI
+        state: AwaitingLoad
+      - sequence: 5
+        thread: UI
+        kind: resume
+        label: This resume cannot run while Result owns the UI thread
+        state: AfterAwait
+  - id: step.csharp.contexts.check-deadlock-fix
+    type: choice
+    title: Break the cycle
+    prompt: |
+      A UI click handler calls `LoadAsync().Result`, and LoadAsync captures the UI context. What is the primary fix?
+    options:
+      - text: Make the click handler async and await LoadAsync
+        correct: true
+        feedback: Right. Await gives the UI loop back while I/O runs, so it can later dispatch the continuation. The asynchronous path must continue all the way to the event boundary.
+      - text: Wrap Result in a lock so only one handler blocks at once
+        correct: false
+        feedback: The problem is not contention between handlers. A single blocked UI thread is enough to prevent its own continuation from running.
+      - text: Add a longer timeout to Result
+        correct: false
+        feedback: More time does not make the UI thread available. The continuation is waiting for exactly the thread Result is blocking.
+    hints:
+      - The blocked thread needs to return to its message loop before it can run the queued continuation.
+    
+  - id: step.csharp.contexts.recap
+    type: explain
+    title: Make the whole path async
+    body: |
+      The fix is not to sprinkle `Task.Run` around a UI handler or block somewhere else. Let the handler itself be `async` and `await` the operation. Then it gives the UI loop back while I/O is in flight, and the captured continuation can run normally.
+
+      Use `ConfigureAwait(false)` inside context-independent library code. In application code, be deliberate: if the continuation updates UI state, it needs the UI context; if it does not, avoid relying on it. Never use `.Result` or `.Wait()` as a bridge from asynchronous work to a context-bound synchronous call path.

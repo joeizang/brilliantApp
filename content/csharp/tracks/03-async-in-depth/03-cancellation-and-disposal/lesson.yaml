@@ -1,0 +1,88 @@
+id: lesson.csharp.async-cancellation
+title: Cancellation and async disposal
+concepts:
+  - id: concept.csharp.cancellation-cooperative
+    title: CancellationToken asks work to stop; it does not forcibly stop it
+  - id: concept.csharp.cancellation-propagation
+    title: A token must be passed to each operation that can observe cancellation
+  - id: concept.csharp.async-disposal
+    title: await using waits for asynchronous cleanup
+reviewItems:
+  - id: review.csharp.cancellation-cooperative
+    concept: concept.csharp.cancellation-cooperative
+    step: step.csharp.cancel.check-cooperative
+  - id: review.csharp.cancellation-propagation
+    concept: concept.csharp.cancellation-propagation
+    step: step.csharp.cancel.predict-token
+  - id: review.csharp.async-disposal
+    concept: concept.csharp.async-disposal
+    step: step.csharp.cancel.check-await-using
+steps:
+  - id: step.csharp.cancel.intro
+    type: explain
+    title: Cancellation is a request with a deadline
+    body: |
+      `CancellationToken` is cooperative. Calling `Cancel` changes the token's state and invokes its registrations; it does not interrupt arbitrary code. A method must pass the token to cancellable I/O and check it at sensible boundaries in CPU work. When it observes cancellation, it normally throws `OperationCanceledException` with that token.
+
+      Treat the token as part of the method's contract. Accept it near the end of public method signatures, pass it onward, and do not convert cancellation into a successful empty result. A caller needs to distinguish “no data” from “the caller withdrew the request.”
+  - id: step.csharp.cancel.check-cooperative
+    type: choice
+    title: What Cancel does not do
+    prompt: |
+      A CPU-bound loop receives a token but never reads it. Its caller calls `Cancel()`. What happens to that loop?
+    options:
+      - text: It continues until it reaches a check, returns, or otherwise finishes
+        correct: true
+        feedback: Right. Cancellation is a signal, not a thread abort. Add `ThrowIfCancellationRequested` or an explicit check at a boundary where stopping is safe.
+      - text: The runtime immediately terminates its thread
+        correct: false
+        feedback: .NET cancellation tokens deliberately do not abort threads. Forced interruption would make invariants and cleanup unsafe.
+      - text: Every await in the program throws automatically
+        correct: false
+        feedback: Only APIs given the token can observe it, and each API defines where it does so.
+    hints:
+      - 'Who reads the token: the runtime, or the code and APIs doing the work?'
+  - id: step.csharp.cancel.predict-token
+    type: predict-output
+    title: Does the token reach the delay?
+    prompt: |
+      The source is cancelled before `Pause` starts. What does the program print?
+    language: csharp
+    code: |
+      using var source = new CancellationTokenSource();
+      source.Cancel();
+      try
+      {
+          await Pause(source.Token);
+          Console.Write("done");
+      }
+      catch (OperationCanceledException)
+      {
+          Console.Write("cancelled");
+      }
+
+      static Task Pause(CancellationToken token) => Task.Delay(1, token);
+    accepted:
+      - 'cancelled'
+    mistakes:
+      - answers: ['done']
+        feedback: '`Pause` passes its token to `Task.Delay`, which observes the already-cancelled token and returns a cancelled task. Await throws that cancellation exception.'
+    hints:
+      - Does Task.Delay receive the token, or is the token only present in Pause's signature?
+  - id: step.csharp.cancel.check-await-using
+    type: choice
+    title: Cleanup that needs I/O
+    prompt: |
+      A resource implements `IAsyncDisposable` because flushing it requires asynchronous I/O. Which form guarantees the method waits for cleanup before leaving the scope?
+    options:
+      - text: '`await using var resource = OpenAsync();`'
+        correct: true
+        feedback: Right. At scope exit the compiler awaits `DisposeAsync`, including when the body throws. This is async's counterpart to `using` and `Dispose`.
+      - text: '`using var resource = await OpenAsync();`'
+        correct: false
+        feedback: That requires IDisposable, not IAsyncDisposable. A normal using statement cannot await asynchronous cleanup.
+      - text: '`var resource = await OpenAsync();` with no cleanup'
+        correct: false
+        feedback: The resource needs its disposal protocol to flush and release it. Ownership still matters in async code.
+    hints:
+      - The cleanup call returns a ValueTask, so the scope exit needs an await.

@@ -42,4 +42,5 @@ public sealed class AsyncTimelineStepViewTests : BunitContext
         Assert.Empty(cut.FindAll(".async-deadlock"));
         Assert.Contains("Worker", cut.Find(".async-lane[aria-label='Thread Worker']").TextContent);
     }
+
 }
