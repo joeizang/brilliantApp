@@ -63,13 +63,17 @@ else
         </li>
     }
 </ul>
-@if (OnOpenFlagged.HasDelegate || OnOpenSync.HasDelegate)
+@if (OnOpenFlagged.HasDelegate || OnOpenWritten.HasDelegate || OnOpenSync.HasDelegate)
 {
     @* The sidebar is hidden on narrow windows, so these are how the narrow layout reaches them. *@
     <div class="content-column mb-6 flex flex-wrap items-center gap-x-6 gap-y-2">
         @if (OnOpenFlagged.HasDelegate)
         {
             <button class="flagged-link link btn-link text-fg-secondary" @onclick="() => OnOpenFlagged.InvokeAsync()">Flagged steps</button>
+        }
+        @if (OnOpenWritten.HasDelegate)
+        {
+            <button class="written-link link btn-link text-fg-secondary" @onclick="() => OnOpenWritten.InvokeAsync()">Written answers</button>
         }
         @if (OnOpenSync.HasDelegate)
         {
@@ -89,6 +93,7 @@ else
     /// <summary>Opens the timed interview. Without it there is no interview card.</summary>
     [Parameter] public EventCallback OnOpenInterview { get; set; }
     [Parameter] public EventCallback OnOpenFlagged { get; set; }
+    [Parameter] public EventCallback OnOpenWritten { get; set; }
     [Parameter] public EventCallback OnOpenSync { get; set; }
 
     /// <summary>Back to Today, when Tracks is reached from there.</summary>

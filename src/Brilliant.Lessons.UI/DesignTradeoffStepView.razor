@@ -93,49 +93,7 @@
             <button type="button" class="primary btn-primary mt-2" @onclick="() => OnContinue.InvokeAsync()">Continue</button>
             @if (_feedbackState != FeedbackState.None)
             {
-                <section class="feedback mt-6" aria-label="Feedback" aria-live="polite">
-                    <h3 class="mb-1">Feedback</h3>
-                    <p class="mt-0 mb-2 text-[.95rem] text-fg-secondary">Advisory, from a model on this Mac. Your own ticks set the grade.</p>
-                    @if (_feedbackState == FeedbackState.Pending)
-                    {
-                        <p class="feedback-pending m-0 text-fg-secondary">Getting feedback…</p>
-                    }
-                    else if (_feedbackState == FeedbackState.Unavailable)
-                    {
-                        <p class="feedback-unavailable m-0 text-fg-secondary">@_feedbackProblem</p>
-                    }
-                    else if (_feedback is not null)
-                    {
-                        <ul class="m-0 mb-4 grid list-none gap-2 p-0">
-                            @foreach (var point in _feedback.Points)
-                            {
-                                <li class="feedback-point rounded-lg border border-hairline bg-surface-raised px-4 py-2" data-point="@point.Index" data-verdict="@(point.Hit ? "hit" : "missed")">
-                                    <div class="font-semibold"><span class="@(point.Hit ? "text-success" : "text-fg-secondary")">@(point.Hit ? "✓ Made" : "✗ Missed")</span>: @point.Point</div>
-                                    @if (point.Note.Length > 0)
-                                    {
-                                        <div class="mt-[.2rem] text-[.9rem] text-fg-secondary">@point.Note</div>
-                                    }
-                                </li>
-                            }
-                        </ul>
-                        @if (_feedback.RedFlagsFound.Count > 0)
-                        {
-                            <h4 class="mb-1">Red flags in your answer</h4>
-                            <ul class="m-0 grid list-none gap-2 p-0">
-                                @foreach (var flag in _feedback.RedFlagsFound)
-                                {
-                                    <li class="feedback-flag rounded-lg border border-hairline bg-surface-raised px-4 py-2" data-flag="@flag.Index">
-                                        <div class="font-semibold"><span class="text-danger">⚠</span> @flag.Flag</div>
-                                        @if (flag.Note.Length > 0)
-                                        {
-                                            <div class="mt-[.2rem] text-[.9rem] text-fg-secondary">@flag.Note</div>
-                                        }
-                                    </li>
-                                }
-                            </ul>
-                        }
-                    }
-                </section>
+                <FeedbackPanel State="_feedbackState" Problem="@_feedbackProblem" Feedback="_feedback" />
             }
         }
     }
@@ -143,11 +101,10 @@
 
 @code {
     /// <summary>What the learner submitted: the option, their written justification and self-assessment, and the grade that came of it.</summary>
-    public sealed record Attempt(bool Correct, double Score, int Option, string Justification, IReadOnlyList<int> PointsMade, IReadOnlyList<int> RedFlags);
+    public sealed record Attempt(bool Correct, double Score, int Option, string Justification, IReadOnlyList<int> PointsMade, IReadOnlyList<int> RedFlags, string? Context = null);
 
     private enum Phase { Writing, Assessing, Done }
 
-    private enum FeedbackState { None, Pending, Ready, Unavailable }
 
     [Parameter, EditorRequired] public DesignTradeoffStep Step { get; set; } = default!;
 
@@ -230,7 +187,7 @@
         if (_phase != Phase.Assessing || _selected is not { } option) return;
         _result = DesignTradeoffEvaluator.Evaluate(Step, option, _made, _flagged);
         _phase = Phase.Done;
-        await OnAnswered.InvokeAsync(new Attempt(_result.IsCorrect, _result.Score, option, _justification, [.. _made], [.. _flagged]));
+        await OnAnswered.InvokeAsync(new Attempt(_result.IsCorrect, _result.Score, option, _justification, [.. _made], [.. _flagged], GradeRequest.ContextOf(Step, option)));
         // After the grade is recorded, and not waited for: feedback is a courtesy, so the step never waits on a model.
         _ = RequestFeedbackAsync(option);
     }
@@ -239,7 +196,7 @@
     // "unavailable"; nothing here can fail the step.
     private async Task RequestFeedbackAsync(int option)
     {
-        if (Services.GetService(typeof(IAnswerGrader)) is not IAnswerGrader grader) return;
+        if (Services.GetService(typeof(IAnswerGrader)) is not IAnswerGrader { Enabled: true } grader) return;
         var cts = _feedbackCts = new CancellationTokenSource();
         _feedbackState = FeedbackState.Pending;
         StateHasChanged();

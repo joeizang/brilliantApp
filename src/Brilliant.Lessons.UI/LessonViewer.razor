@@ -219,7 +219,7 @@ else
 
     private void Answered(Step owner, DesignTradeoffStepView.Attempt a)
     {
-        if (!Review) Recorder.TradeoffSubmitted(Lesson.Id, owner.Id, a.Correct, a.Score, a.Option, a.Justification, a.PointsMade, a.RedFlags);
+        if (!Review) Recorder.TradeoffSubmitted(Lesson.Id, owner.Id, a.Correct, a.Score, a.Option, a.Justification, a.PointsMade, a.RedFlags, a.Context);
     }
 
     private void Answered(Step owner, ReviewCodeStepView.Attempt a)

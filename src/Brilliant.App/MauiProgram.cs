@@ -69,10 +69,21 @@ public static class MauiProgram
         builder.Services.AddSingleton(new ScreenInfo(csharpWriteCodeAvailable: !OperatingSystem.IsAndroid()));
         builder.Services.AddSingleton(TimeProvider.System);   // the Trace Player's playback timer
 
-        // Advisory feedback on written answers comes from the model the manifest names, in Ollama on this Mac (#166). Android has no Ollama
-        // of its own: its loopback is the phone, so it gets no grader here (the home server's proxy is #167) and the step simply shows none.
-        if (manifest.GraderModel is { } graderModel && !OperatingSystem.IsAndroid())
-            builder.Services.AddSingleton<IAnswerGrader>(_ => new OllamaAnswerGrader(new HttpClient { Timeout = TimeSpan.FromMinutes(2) }, graderModel));
+        // Advisory feedback on written answers comes from the model the manifest names. A Mac asks its own Ollama (#166). Android has no
+        // Ollama (its loopback is the phone), so it asks the household server to ask the Mac's, but only once the learner turns that on in
+        // Sync (#167): until then the grader reports itself disabled and the step shows no feedback at all.
+        if (manifest.GraderModel is { } graderModel)
+        {
+            if (!OperatingSystem.IsAndroid())
+                builder.Services.AddSingleton<IAnswerGrader>(_ => new OllamaAnswerGrader(new HttpClient { Timeout = TimeSpan.FromMinutes(2) }, graderModel));
+            else
+            {
+                builder.Services.AddSingleton<IFeedbackSettings>(_ => new FileFeedbackSettings(Path.Combine(dataDir, "feedback-settings.json")));
+                builder.Services.AddSingleton<IAnswerGrader>(sp => new ProxyAnswerGrader(
+                    new HttpClient { Timeout = TimeSpan.FromMinutes(2.5) },   // the server gives Ollama two minutes; this outlasts it
+                    sp.GetRequiredService<IDeviceCredentialStore>(), sp.GetRequiredService<IFeedbackSettings>(), manifest.AppId));
+            }
+        }
 
         // Pairing with the household server over plain HTTP on the LAN; the token it returns goes in the platform's secure storage.
         // An unsigned Mac build has no keychain entitlement (MissingEntitlement), so the token falls back to a private file in the app's sandbox.

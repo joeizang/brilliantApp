@@ -242,6 +242,7 @@ public sealed class DesignTradeoffStepViewTests : ShortcutContext
         public List<GradeRequest> Requests { get; } = [];
         public List<CancellationToken> Tokens { get; } = [];
         public TaskCompletionSource<AnswerFeedback> Reply { get; } = new();
+        public bool Enabled { get; set; } = true;
 
         public Task<AnswerFeedback> GradeAsync(GradeRequest request, CancellationToken ct = default)
         {
@@ -277,6 +278,32 @@ public sealed class DesignTradeoffStepViewTests : ShortcutContext
 
         cut.Find("button.primary").Click();
 
+        Assert.Empty(cut.FindAll(".feedback"));
+    }
+
+    [Fact]
+    public void The_attempt_carries_a_fingerprint_of_the_question_it_answered()
+    {
+        DesignTradeoffStepView.Attempt? attempt = null;
+        var cut = Show(answered: a => attempt = a);
+        SelfAssess(cut, 0);
+
+        cut.Find("button.primary").Click();
+
+        Assert.Equal(GradeRequest.ContextOf(Cache, 1), attempt!.Context);
+    }
+
+    [Fact]
+    public void A_grader_that_is_switched_off_is_treated_as_absent()
+    {
+        var grader = UseGrader();
+        grader.Enabled = false;
+        var cut = Show();
+        SelfAssess(cut, 0);
+
+        cut.Find("button.primary").Click();
+
+        Assert.Empty(grader.Requests);
         Assert.Empty(cut.FindAll(".feedback"));
     }
 

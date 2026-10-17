@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Brilliant.Core.Feedback;
 using Brilliant.Core.Progress;
 using Brilliant.Core.Sync;
 using Bunit;
@@ -94,6 +95,71 @@ public class PairingViewTests : BunitContext
     {
         cut.Find("input.pair-address").Change(address);
         cut.Find("input.pair-code").Change(code);
+    }
+
+    private sealed class MemoryFeedbackSettings : IFeedbackSettings
+    {
+        public bool UseServer { get; set; }
+    }
+
+    [Fact]
+    public void A_paired_phone_can_opt_in_to_feedback_through_the_server_and_it_starts_off()
+    {
+        _store.Saved = Paired;
+        var settings = new MemoryFeedbackSettings();
+        Services.AddSingleton<IFeedbackSettings>(settings);
+        var cut = Open();
+        var box = cut.WaitForElement("input.use-server-feedback");
+
+        Assert.False(settings.UseServer);
+        Assert.Null(box.GetAttribute("checked"));
+
+        box.Change(true);
+        Assert.True(settings.UseServer);
+
+        cut.Find("input.use-server-feedback").Change(false);
+        Assert.False(settings.UseServer);
+    }
+
+    [Fact]
+    public void The_opt_in_does_not_claim_answers_stay_on_the_device()
+    {
+        _store.Saved = Paired;
+        Services.AddSingleton<IFeedbackSettings>(new MemoryFeedbackSettings());
+        var cut = Open();
+
+        var text = cut.WaitForElement(".feedback-setting").TextContent;
+
+        Assert.DoesNotContain("stay on this device", text);
+        Assert.Contains("still sync", text);
+    }
+
+    [Fact]
+    public void The_opt_in_shows_the_current_choice()
+    {
+        _store.Saved = Paired;
+        Services.AddSingleton<IFeedbackSettings>(new MemoryFeedbackSettings { UseServer = true });
+        var cut = Open();
+
+        Assert.NotNull(cut.WaitForElement("input.use-server-feedback").GetAttribute("checked"));
+    }
+
+    [Fact]
+    public void A_device_with_a_model_of_its_own_has_no_opt_in()
+    {
+        _store.Saved = Paired;
+        var cut = Open();
+        cut.WaitForElement(".paired");
+
+        Assert.Empty(cut.FindAll("input.use-server-feedback"));
+    }
+
+    [Fact]
+    public void An_unpaired_device_has_no_opt_in()
+    {
+        Services.AddSingleton<IFeedbackSettings>(new MemoryFeedbackSettings());
+
+        Assert.Empty(Open().FindAll("input.use-server-feedback"));
     }
 
     [Fact]

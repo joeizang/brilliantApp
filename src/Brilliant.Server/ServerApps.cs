@@ -11,6 +11,9 @@ public sealed class ServerApps
 
     public bool Contains(string? appId) => appId is not null && _apps.ContainsKey(appId);
 
+    /// <summary>The Ollama model the app's manifest names for written-answer feedback, or null if the app has none.</summary>
+    public string? GraderModel(string appId) => _apps.TryGetValue(appId, out var app) ? app.GraderModel : null;
+
     public static ServerApps Load(string directory)
     {
         var apps = new Dictionary<string, AppManifest>(StringComparer.Ordinal);

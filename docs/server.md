@@ -114,6 +114,7 @@ A revoked device gets `401` on everything except `/health` and `/pair`. Revoking
 | `POST /packs` | device | a Content Pack (the zip as the body, at most 20 MB) → `{pack, created, removedIds}`. Validated by loading it; idempotent for identical bytes; `409` for the same version with other contents or a lower version than the newest; `400` with a reason for an invalid pack. See [content-distribution.md](content-distribution.md) |
 | `GET /packs` | device | `{packs:[{packId, version, formatVersion, sha256, size, publishedAt}]}`, the newest version of each pack |
 | `GET /packs/{packId}/{version}` | device | the pack's zip (`ETag` is its SHA-256); `404` if unknown |
+| `POST /feedback/grade` | device | a `GradeRequest` (`{title, option, answer, modelAnswer, rubric, redFlags}`, each text at most 8000 characters) → advisory `AnswerFeedback` from the Ollama the server is configured with, using the `graderModel` in the calling app's manifest. `404` for an app with no grader, `400` for a bad request, `503 {failure, error}` when Ollama is unset, unreachable, too slow or lacks the model (the error never names its address), `502` when its reply is unusable. See [csharp-answer-feedback.md](csharp-answer-feedback.md#phone-feedback-through-the-server-opt-in) |
 
 ## HTTPS on the home network
 
@@ -134,6 +135,8 @@ Devices paired before #35 remember `http://…:8080` and must pair again ([https
 | `BACKUP_DIR`, `BACKUP_KEEP`, `BACKUP_AT`, `BACKUP_TZ`, `BACKUP_UID`, `BACKUP_GID` | `.env` | `./backups`, `14`, `03:00`, `UTC`, root; see [backup.md](backup.md) |
 | `Pairing__CodeLifetimeMinutes` | environment | `15` |
 | `Pairing__AttemptsPerMinute` | environment | `10` |
+| `OLLAMA_URL` (sets `Feedback__OllamaUrl`) | `.env` | empty: the feedback proxy answers "unavailable". The Mac's Ollama, for example `http://192.168.1.50:11434`; see [csharp-answer-feedback.md](csharp-answer-feedback.md#the-one-time-setting-on-the-mac) |
+| `Feedback__ConnectTimeoutSeconds`, `Feedback__TimeoutSeconds` | environment | `3`, `120`: how long to wait to reach Ollama, and for its whole answer |
 
 ## Tests
 

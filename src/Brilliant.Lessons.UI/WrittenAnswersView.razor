@@ -1,0 +1,95 @@
+@* Design-tradeoff answers written on any paired device, each with a button to get advisory feedback on it now. This is how a phone
+   answer that couldn't be graded there gets its feedback later, from the Mac's model (#167). *@
+@using Brilliant.Core.Feedback
+@using Brilliant.Core.Progress
+@implements IDisposable
+@inject ProgressRecorder Recorder
+@inject IServiceProvider Services
+
+@{
+    var scan = WrittenAnswers.Scan(Recorder.Log.ReadAll(), Content);
+    var answers = scan.Answers;
+}
+@if (OnBack.HasDelegate)
+{
+    <div class="crumbs content-column"><button class="link btn-link" @onclick="() => OnBack.InvokeAsync()">← Today</button></div>
+}
+<h1 class="screen-title content-column mt-6">Written answers</h1>
+<p class="content-column mt-2 text-fg-secondary">Ask the model on this Mac for feedback on an answer you wrote, here or on another device. Feedback is advisory and isn't kept.</p>
+@if (scan.Changed > 0)
+{
+    <p class="written-changed content-column mt-2 text-[.9rem] text-fg-secondary">@scan.Changed older @(scan.Changed == 1 ? "answer isn't" : "answers aren't") listed: the question changed after @(scan.Changed == 1 ? "it was" : "they were") written, or @(scan.Changed == 1 ? "it was" : "they were") saved without enough to check, so feedback would judge the words against a different question.</p>
+}
+@if (answers.Count == 0)
+{
+    <p class="written-none content-column mt-4 text-fg-secondary">No written answers yet. Answer a design-tradeoff step and it will be listed here.</p>
+}
+else
+{
+    <ul class="written-list content-column mt-4 mb-6 grid list-none gap-3 p-0">
+        @foreach (var a in answers)
+        {
+            var id = a.EventId;
+            _states.TryGetValue(id, out var attempt);
+            <li class="written-item rounded-md border border-hairline bg-surface-raised px-4 py-3" data-answer="@id">
+                <div class="font-semibold">@a.Step.Title</div>
+                <div class="text-[.85rem] text-fg-secondary">@a.LessonTitle · @a.At.ToLocalTime().ToString("d MMM yyyy")</div>
+                <p class="written-option mt-2 mb-0"><strong>@a.Step.Options[a.Option].Text</strong></p>
+                <p class="written-justification mt-1 mb-0 whitespace-pre-wrap">@a.Justification</p>
+                @if (attempt is null || attempt.State == FeedbackState.Unavailable)
+                {
+                    <div class="mt-3"><button class="get-feedback btn-secondary" @onclick="() => GetAsync(a)">@(attempt is null ? "Get feedback" : "Try again")</button></div>
+                }
+                @if (attempt is not null)
+                {
+                    <FeedbackPanel State="attempt.State" Problem="@attempt.Problem" Feedback="attempt.Feedback" />
+                }
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private sealed class Attempt
+    {
+        public FeedbackState State = FeedbackState.Pending;
+        public string Problem = "";
+        public AnswerFeedback? Feedback;
+    }
+
+    [Parameter, EditorRequired] public ContentGraph Content { get; set; } = default!;
+
+    /// <summary>Back to Today.</summary>
+    [Parameter] public EventCallback OnBack { get; set; }
+
+    private readonly Dictionary<string, Attempt> _states = [];
+    private readonly CancellationTokenSource _leaving = new();
+
+    public void Dispose()
+    {
+        _leaving.Cancel();
+        _leaving.Dispose();
+    }
+
+    private async Task GetAsync(WrittenAnswer answer)
+    {
+        if (_states.TryGetValue(answer.EventId, out var running) && running.State == FeedbackState.Pending) return;
+        var attempt = _states[answer.EventId] = new Attempt();
+        var token = _leaving.Token;
+        if (Services.GetService(typeof(IAnswerGrader)) is not IAnswerGrader { Enabled: true } grader)
+        {
+            (attempt.State, attempt.Problem) = (FeedbackState.Unavailable, "No model is available on this device.");
+            return;
+        }
+        StateHasChanged();
+        try
+        {
+            attempt.Feedback = await grader.GradeAsync(answer.ToGradeRequest(), token);
+            attempt.State = FeedbackState.Ready;
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
+        catch (AnswerGraderException ex) { (attempt.State, attempt.Problem) = (FeedbackState.Unavailable, ex.Message); }
+        catch (Exception) { (attempt.State, attempt.Problem) = (FeedbackState.Unavailable, "Feedback is unavailable right now."); }
+        if (!token.IsCancellationRequested) await InvokeAsync(StateHasChanged);
+    }
+}
