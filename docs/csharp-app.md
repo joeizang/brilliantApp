@@ -30,7 +30,7 @@ uses `adb install -r dist/brilliant-csharp.apk` (or the APK helper's `--install`
 
 ```yaml
 id: pack.csharp.starter
-version: 0.5.0
+version: 0.6.0
 targetFramework: net10.0
 langVersion: '14'
 ```
