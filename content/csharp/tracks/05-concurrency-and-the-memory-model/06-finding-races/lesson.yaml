@@ -1,0 +1,152 @@
+id: lesson.csharp.finding-races
+title: Finding races and deadlocks
+concepts:
+  - id: concept.csharp.conc-race-shape
+    title: Races hide in read-modify-write and check-then-act sequences on shared state
+  - id: concept.csharp.conc-lock-scope
+    title: A lock must cover the whole read-decide-write sequence, not only the write
+  - id: concept.csharp.conc-lock-order
+    title: Taking two locks in opposite orders can deadlock, and one global order prevents it
+  - id: concept.csharp.conc-race-evidence
+    title: Passing tests are weak evidence about a race; reason about the interleavings
+reviewItems:
+  - id: review.csharp.conc-race-shape
+    concept: concept.csharp.conc-race-shape
+    step: step.csharp.races.check-spot-race
+  - id: review.csharp.conc-lock-scope
+    concept: concept.csharp.conc-lock-scope
+    step: step.csharp.races.read-outside-lock
+  - id: review.csharp.conc-lock-order
+    concept: concept.csharp.conc-lock-order
+    step: step.csharp.races.deadlock
+  - id: review.csharp.conc-lock-order-fix
+    concept: concept.csharp.conc-lock-order
+    step: step.csharp.races.check-lock-order
+  - id: review.csharp.conc-race-evidence
+    concept: concept.csharp.conc-race-evidence
+    step: step.csharp.races.check-evidence
+steps:
+  - id: step.csharp.races.intro
+    type: explain
+    title: A race is a property of the code, not of a run
+    body: |
+      A **data race** is not something a particular run does; it is something the code *allows*. If two threads can touch the same location, at least one of them writes, and nothing orders them, the program is racy even if it has produced the right answer a million times. The answer depends on an interleaving, and the scheduler chooses interleavings.
+
+      Two shapes cause most races. **Read-modify-write** (`count++`, `total += x`) loses updates. **Check-then-act** (`if (x == null) x = Create();`, `if (balance >= n) balance -= n;`) acts on a decision that is stale by the time it executes. The cure is to put the *whole* read-decide-write under one lock, or one atomic operation. Locking only the write leaves the decision unprotected.
+
+      When you need to share nothing, share nothing. In order of preference: do not share the data (give each thread its own and combine at the end), share only immutable data, guard shared mutable data with a lock, and only then reach for lock-free code. Locks bring their own failure: when two threads each hold one lock and wait for the other, both wait forever. The usual cure is to take locks in one agreed global order.
+  - id: step.csharp.races.check-spot-race
+    type: choice
+    title: Which one is racy?
+    prompt: |
+      Two threads call each of these methods on the same instance, and `_items` is a plain `List<int>`. Which method has a data race even though it never loops?
+    options:
+      - text: '`void Add(int x) { _items.Add(x); }`'
+        correct: true
+        feedback: Right. `List<T>.Add` reads the count, writes the slot and bumps the count, with nothing ordering two callers. Items can be lost or the list can throw.
+      - text: '`int First() { return _items.Count == 0 ? -1 : _items[0]; }` called by a single thread with no writer'
+        correct: false
+        feedback: With no writer, nothing changes underneath it. A race needs at least one concurrent write.
+      - text: '`static int Square(int x) { return x * x; }`'
+        correct: false
+        feedback: It reads only its argument and touches no shared state, so there is nothing to race on.
+    hints:
+      - A race needs shared state and at least one write.
+  - id: step.csharp.races.read-outside-lock
+    type: interleave
+    title: The lock covered only the write
+    prompt: |
+      Two threads each take one item from a stock of 2: `var t = stock;` and then `lock (m) { stock = t - 1; }`. The lock guards the write, but the read happens before it. Find an order that leaves `stock` at 1 instead of 0.
+    language: csharp
+    shared:
+      - { name: stock, value: 2 }
+    threads:
+      - name: A
+        ops:
+          - { code: "var t = stock;", do: "t = stock" }
+          - { code: "lock (m) {", do: "lock m" }
+          - { code: "  stock = t - 1;", do: "stock = t - 1" }
+          - { code: "}", do: "unlock m" }
+      - name: B
+        ops:
+          - { code: "var t = stock;", do: "t = stock" }
+          - { code: "lock (m) {", do: "lock m" }
+          - { code: "  stock = t - 1;", do: "stock = t - 1" }
+          - { code: "}", do: "unlock m" }
+    invariant:
+      kind: final-value
+      description: stock is 0 once both threads have taken an item
+      variable: stock
+      expected: 0
+    breakingSchedule: [A, B, A, A, A, B, B, B]
+    replays:
+      - label: A takes its item, then B
+        schedule: [A, A, A, A, B, B, B, B]
+    explanation: Both threads loaded 2 before either one entered the lock. The lock then made the two writes happen one after the other, but each wrote 1 from a stale read. The read, the decision and the write all belong inside one `lock`.
+    hints:
+      - Let both threads read before either takes the lock.
+  - id: step.csharp.races.deadlock
+    type: interleave
+    title: Two transfers, two locks
+    prompt: |
+      Thread A moves money from account `first` to `second`; thread B moves it the other way. Each takes the source lock and then the destination lock. Find an order in which both threads end up waiting forever.
+    language: csharp
+    shared:
+      - { name: moved, value: 0 }
+    threads:
+      - name: A
+        ops:
+          - { code: "lock (first) {", do: "lock first" }
+          - { code: "  lock (second) {", do: "lock second" }
+          - { code: "  }", do: "unlock second" }
+          - { code: "}", do: "unlock first" }
+      - name: B
+        ops:
+          - { code: "lock (second) {", do: "lock second" }
+          - { code: "  lock (first) {", do: "lock first" }
+          - { code: "  }", do: "unlock first" }
+          - { code: "}", do: "unlock second" }
+    invariant:
+      kind: no-deadlock
+      description: both threads always finish
+    breakingSchedule: [A, B]
+    replays:
+      - label: A completes first
+        schedule: [A, A, A, A, B, B, B, B]
+    explanation: A holds `first` and wants `second`; B holds `second` and wants `first`. Neither can proceed, and neither will release what it holds. Each order of the two threads on its own was fine; it is the opposite order that makes a cycle.
+    hints:
+      - Let each thread take its first lock before either takes its second.
+  - id: step.csharp.races.check-lock-order
+    type: choice
+    title: Breaking the cycle
+    prompt: |
+      The transfer code from the last puzzle must keep locking both accounts. Which change removes the deadlock?
+    options:
+      - text: Always take the lock of the account with the lower id first, whichever way the money moves
+        correct: true
+        feedback: Right. If every thread takes locks in one global order, no thread can hold the later lock while waiting for the earlier one, so a cycle cannot form.
+      - text: Add a `Thread.Sleep(10)` between the two locks
+        correct: false
+        feedback: A delay only changes the odds of hitting the bad order. It does not remove it.
+      - text: Lock the destination account first in thread A only
+        correct: false
+        feedback: Changing the order in only one thread makes the two threads agree for this pair, but it breaks as soon as the roles swap. The order must come from a rule that every caller follows.
+    hints:
+      - Think of a rule that gives both threads the same order for the same pair of accounts.
+  - id: step.csharp.races.check-evidence
+    type: choice
+    title: It passed ten thousand times
+    prompt: |
+      A concurrent test runs a method 10,000 times and always passes. What does that tell you?
+    options:
+      - text: It shows the bad interleaving did not occur in those runs, not that the code cannot produce it
+        correct: true
+        feedback: Right. A race may need a rare interleaving, and a given machine, load or CPU may almost never produce it. Reason about what the code allows, and use stress tests to find bugs rather than prove their absence.
+      - text: The code is race-free, because a race would have failed at least once
+        correct: false
+        feedback: Rare interleavings can pass very many runs. Absence of failure is not a proof of correctness.
+      - text: The code is race-free if the test ran on more than one machine
+        correct: false
+        feedback: More machines raise the chance of seeing a failure but still cannot prove one cannot happen.
+    hints:
+      - What can a test show about interleavings it never produced?

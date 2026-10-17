@@ -1,0 +1,148 @@
+id: lesson.csharp.locks-and-semaphores
+title: Locks, Lock, and SemaphoreSlim
+concepts:
+  - id: concept.csharp.conc-lock-everyone
+    title: A lock protects shared state only if every access takes the same lock
+  - id: concept.csharp.conc-lock-lowering
+    title: lock compiles to Monitor.Enter and Monitor.Exit in a try/finally, or to EnterScope on a System.Threading.Lock
+  - id: concept.csharp.conc-semaphore
+    title: SemaphoreSlim admits a limited number of holders and can be awaited
+reviewItems:
+  - id: review.csharp.conc-lock-everyone
+    concept: concept.csharp.conc-lock-everyone
+    step: step.csharp.locks.forgot-the-lock
+  - id: review.csharp.conc-lock-lowering
+    concept: concept.csharp.conc-lock-lowering
+    step: step.csharp.locks.lowered-lock
+  - id: review.csharp.conc-lock-type
+    concept: concept.csharp.conc-lock-lowering
+    step: step.csharp.locks.check-lock-type
+  - id: review.csharp.conc-semaphore
+    concept: concept.csharp.conc-semaphore
+    step: step.csharp.locks.predict-semaphore
+  - id: review.csharp.conc-semaphore-async
+    concept: concept.csharp.conc-semaphore
+    step: step.csharp.locks.check-await-in-lock
+steps:
+  - id: step.csharp.locks.intro
+    type: explain
+    title: Mutual exclusion, and its limits
+    body: |
+      A `lock` statement lets one thread at a time run a region of code. Threads that arrive while it is held wait their turn. For the guarantee to mean anything, **every** read and write of the shared state must happen under the *same* lock object; code that touches the state without taking the lock is not excluded by it.
+
+      `lock (obj)` on an ordinary object compiles to `Monitor.Enter(obj)` and a `try`/`finally` that calls `Monitor.Exit(obj)`, so the lock is released even if the body throws. Since .NET 9, `System.Threading.Lock` is a dedicated lock type: when the compiler sees `lock (x)` where `x` is a `Lock`, it calls `x.EnterScope()` and disposes the returned scope instead. Prefer a private `Lock` field; never lock on `this`, a `Type`, or a string, because other code can lock on the same object. Locks are also **re-entrant**: the thread that holds one can take it again.
+
+      A `lock` cannot be held across an `await`, because the continuation might resume on a different thread. For asynchronous code, or when you want to admit more than one holder, use `SemaphoreSlim`: its count says how many callers may be inside at once, `Wait` blocks and `WaitAsync` awaits.
+  - id: step.csharp.locks.forgot-the-lock
+    type: interleave
+    title: One thread forgot the lock
+    prompt: |
+      Thread A updates the counter inside `lock (m)`. Thread B was written later and updates the same counter without taking it. Find an order that leaves `counter` at 1 instead of 2.
+    language: csharp
+    shared:
+      - { name: counter, value: 0 }
+    threads:
+      - name: A
+        ops:
+          - { code: "lock (m) {", do: "lock m" }
+          - { code: "  var t = counter;", do: "t = counter" }
+          - { code: "  counter = t + 1;", do: "counter = t + 1" }
+          - { code: "}", do: "unlock m" }
+      - name: B
+        ops:
+          - { code: "var t = counter;", do: "t = counter" }
+          - { code: "counter = t + 1;", do: "counter = t + 1" }
+    invariant:
+      kind: final-value
+      description: counter is 2 once both threads have finished
+      variable: counter
+      expected: 2
+    breakingSchedule: [A, A, B, B, A, A]
+    replays:
+      - label: A finishes first
+        schedule: [A, A, A, A, B, B]
+    explanation: B never asks for the lock, so holding it in A does not stop B. B loaded 0 while A was inside the lock, and both threads stored 1. A lock excludes only the code that takes it.
+    hints:
+      - Can B run while A is inside its lock?
+  - id: step.csharp.locks.lowered-lock
+    type: lowered
+    title: lock becomes a finally
+    prompt: |
+      Which call releases the lock if `Work` throws?
+    code: |
+      static class Demo
+      {
+          private static readonly object Gate = new();
+          public static void Run() { lock (Gate) { Work(); } }
+          private static void Work() { }
+      }
+    options:
+      - text: '`Monitor.Exit` in a `finally` block'
+        correct: true
+        feedback: Right. The compiler wraps the body in `try`/`finally` so the lock is released on every path, including an exception.
+      - text: A finalizer that runs when `Gate` is collected
+        correct: false
+        feedback: A finalizer would run at an unpredictable time. The release is deterministic and happens at the end of the lock statement.
+      - text: Nothing; the lock is released when the thread ends
+        correct: false
+        feedback: A lock is released at the end of the statement, not when the thread ends. Otherwise a long-lived thread would hold it forever.
+    hints:
+      - Look for the `finally` in the lowered form.
+  - id: step.csharp.locks.check-lock-type
+    type: choice
+    title: Which object should you lock on?
+    prompt: |
+      A class needs a lock for its private state. Which declaration is the best choice on .NET 10?
+    options:
+      - text: '`private readonly Lock _gate = new();`'
+        correct: true
+        feedback: Right. A private `System.Threading.Lock` cannot be locked on by outside code, and `lock (_gate)` compiles to the cheaper `EnterScope` pattern.
+      - text: '`lock (this)`'
+        correct: false
+        feedback: Any caller holding a reference to the object can also lock on it, which creates surprising contention and deadlocks.
+      - text: '`lock ("gate")`'
+        correct: false
+        feedback: String literals are interned, so unrelated code can end up locking on the same instance.
+    hints:
+      - Only your own code should be able to take this lock.
+  - id: step.csharp.locks.predict-semaphore
+    type: predict-output
+    title: Counting permits
+    prompt: |
+      A `SemaphoreSlim` created with `initialCount: 2` has two permits. What does this print?
+    language: csharp
+    code: |
+      var gate = new SemaphoreSlim(2);
+      gate.Wait();
+      gate.Wait();
+      var empty = gate.CurrentCount;
+      gate.Release();
+      Console.WriteLine($"{empty},{gate.CurrentCount}");
+    accepted:
+      - 0,1
+    mistakes:
+      - answers:
+          - 2,1
+        feedback: Each `Wait` takes a permit, so `CurrentCount` fell to 0 before the `Release`.
+      - answers:
+          - 0,2
+        feedback: '`Release` returns one permit, not both, so the count rises from 0 to 1.'
+    hints:
+      - Two permits are taken, then one is returned.
+  - id: step.csharp.locks.check-await-in-lock
+    type: choice
+    title: Waiting asynchronously for a turn
+    prompt: |
+      An async method must allow only one caller at a time to run a section that contains an `await`. What should it use?
+    options:
+      - text: A `SemaphoreSlim(1, 1)` with `await WaitAsync()` and `Release()` in a `finally`
+        correct: true
+        feedback: Right. `WaitAsync` frees the thread while waiting and the semaphore is not tied to a thread, so the section may resume anywhere.
+      - text: '`lock` around the section, with the `await` inside it'
+        correct: false
+        feedback: C# rejects an `await` inside a `lock` body. The continuation could resume on another thread, and a lock is owned by a thread.
+      - text: '`Monitor.Enter` before the `await` and `Monitor.Exit` after it'
+        correct: false
+        feedback: A monitor must be exited by the thread that entered it, and the continuation may run on a different one.
+    hints:
+      - The thing that guards the section must not belong to one particular thread.

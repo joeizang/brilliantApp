@@ -1,0 +1,122 @@
+id: lesson.csharp.concurrent-collections-and-parallel
+title: Concurrent collections, Parallel and PLINQ
+concepts:
+  - id: concept.csharp.conc-collection-ops
+    title: Concurrent collections make each single operation safe, not a check followed by an action
+  - id: concept.csharp.conc-getoradd
+    title: ConcurrentDictionary.GetOrAdd may run its factory more than once but keeps only one value
+  - id: concept.csharp.conc-parallel-shared
+    title: Parallel and PLINQ bodies run at the same time, so shared mutable state needs synchronization
+  - id: concept.csharp.conc-plinq-order
+    title: PLINQ gives no ordering guarantee unless you ask for AsOrdered
+reviewItems:
+  - id: review.csharp.conc-collection-ops
+    concept: concept.csharp.conc-collection-ops
+    step: step.csharp.parallel.check-check-then-add
+  - id: review.csharp.conc-getoradd
+    concept: concept.csharp.conc-getoradd
+    step: step.csharp.parallel.predict-getoradd
+  - id: review.csharp.conc-getoradd-factory
+    concept: concept.csharp.conc-getoradd
+    step: step.csharp.parallel.check-factory
+  - id: review.csharp.conc-parallel-shared
+    concept: concept.csharp.conc-parallel-shared
+    step: step.csharp.parallel.predict-parallel-sum
+  - id: review.csharp.conc-plinq-order
+    concept: concept.csharp.conc-plinq-order
+    step: step.csharp.parallel.predict-ordered
+steps:
+  - id: step.csharp.parallel.intro
+    type: explain
+    title: Safe operations, unsafe sequences
+    body: |
+      The types in `System.Collections.Concurrent`, such as `ConcurrentDictionary`, `ConcurrentQueue` and `ConcurrentBag`, make each **individual** operation safe to call from several threads at once. They do not make a *sequence* of operations safe. `if (!dict.ContainsKey(k)) dict[k] = v;` is a check followed by an action with a gap between them, even though both calls are thread-safe. Use the single combined operations instead: `TryAdd`, `GetOrAdd`, `AddOrUpdate`, `TryRemove`.
+
+      `GetOrAdd(key, factory)` has a subtle contract. If two threads miss the key at the same time, **both may run the factory**; the dictionary stores the first result that arrives and returns that one to everyone. That is fine for a cheap, pure factory. If creating the value has side effects or is expensive, store a `Lazy<T>` as the value so only one thread runs the work.
+
+      `Parallel.For`, `Parallel.ForEach` and PLINQ's `AsParallel()` split the work across pool threads, so the body runs concurrently with itself. Adding to a captured local or updating a shared list from the body is exactly the lost-update race again. Aggregate per partition (the `localInit`/`localFinally` overloads, or PLINQ's `Sum`) or use `Interlocked`. PLINQ also returns results in whatever order partitions finish, unless the query calls `AsOrdered()`.
+  - id: step.csharp.parallel.check-check-then-add
+    type: choice
+    title: A safe dictionary, an unsafe sequence
+    prompt: |
+      Two threads run `if (!cache.ContainsKey(id)) cache[id] = Load(id);` on a `ConcurrentDictionary`. What is wrong?
+    options:
+      - text: Both threads can pass the check before either stores, so both do the work and one overwrites the other. Use `GetOrAdd` or `TryAdd`
+        correct: true
+        feedback: Right. Each call is thread-safe, but the check and the store are two separate operations. A single combined operation closes the gap.
+      - text: The dictionary is corrupted whenever two threads touch it
+        correct: false
+        feedback: A `ConcurrentDictionary` stays internally consistent. The race here is in the program's own logic, not the container.
+      - text: Nothing; a concurrent collection makes the whole `if` statement atomic
+        correct: false
+        feedback: It cannot. The collection only sees each call separately, and the `if` is your code.
+    hints:
+      - Which part of this code could the dictionary not possibly protect?
+  - id: step.csharp.parallel.predict-getoradd
+    type: predict-output
+    title: Only one value is kept
+    prompt: |
+      Two sequential calls ask for the same key. What does this print?
+    language: csharp
+    code: |
+      var cache = new System.Collections.Concurrent.ConcurrentDictionary<string, int>();
+      var calls = 0;
+      cache.GetOrAdd("a", _ => ++calls);
+      cache.GetOrAdd("a", _ => ++calls);
+      Console.WriteLine($"{calls},{cache["a"]}");
+    accepted:
+      - 1,1
+    mistakes:
+      - answers:
+          - 2,2
+        feedback: The second call found the key already present, so its factory never ran.
+    hints:
+      - Once a key exists, `GetOrAdd` returns the stored value without calling the factory.
+  - id: step.csharp.parallel.check-factory
+    type: choice
+    title: A factory that must run once
+    prompt: |
+      A `GetOrAdd` factory opens a network connection, and opening it twice would be a bug. Several threads may request the same new key at once. What is the sound fix?
+    options:
+      - text: Store `Lazy<T>` values, so every caller shares one `Lazy` and only one runs the creation
+        correct: true
+        feedback: Right. Several threads might each create a `Lazy`, but only one is stored, and only the stored one's value is ever created.
+      - text: Rely on `GetOrAdd` to run the factory exactly once
+        correct: false
+        feedback: It does not promise that. Concurrent callers can each run the factory, and only one result is kept.
+      - text: Wrap the `GetOrAdd` call in a `try`/`catch`
+        correct: false
+        feedback: Exception handling does not stop two threads from both running the factory.
+    hints:
+      - The thing that must run once can be wrapped so that creating the wrapper is cheap.
+  - id: step.csharp.parallel.predict-parallel-sum
+    type: predict-output
+    title: A parallel sum with an atomic add
+    prompt: |
+      The body runs concurrently on several threads, but each addition is a single atomic step. What does this print?
+    language: csharp
+    code: |
+      var total = 0;
+      Parallel.For(1, 101, i => Interlocked.Add(ref total, i));
+      Console.WriteLine(total);
+    accepted:
+      - '5050'
+    mistakes:
+      - answers:
+          - '5000'
+        feedback: '`Parallel.For(1, 101, ...)` covers 1 through 100, so the total is 5050, and `Interlocked.Add` loses nothing.'
+    hints:
+      - Add the numbers from 1 to 100. The atomic add means no update is lost.
+  - id: step.csharp.parallel.predict-ordered
+    type: predict-output
+    title: Asking PLINQ to keep the order
+    prompt: |
+      Without `AsOrdered`, PLINQ may return results in any order. With it, the output follows the source. What does this print?
+    language: csharp
+    code: |
+      var squares = Enumerable.Range(1, 5).AsParallel().AsOrdered().Select(x => x * x);
+      Console.WriteLine(string.Join(",", squares));
+    accepted:
+      - 1,4,9,16,25
+    hints:
+      - '`AsOrdered` restores source order, even though the work ran in parallel.'

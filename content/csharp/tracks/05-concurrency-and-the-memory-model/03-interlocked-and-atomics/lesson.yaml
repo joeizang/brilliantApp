@@ -1,0 +1,124 @@
+id: lesson.csharp.interlocked-and-atomics
+title: Interlocked and atomic updates
+concepts:
+  - id: concept.csharp.conc-interlocked-atomic
+    title: Interlocked performs a read-modify-write as one indivisible operation
+  - id: concept.csharp.conc-cas
+    title: CompareExchange stores only if the current value matches, and returns the original value
+  - id: concept.csharp.conc-atomic-compose
+    title: Two atomic operations in a row are not one atomic operation
+reviewItems:
+  - id: review.csharp.conc-interlocked-atomic
+    concept: concept.csharp.conc-interlocked-atomic
+    step: step.csharp.interlocked.deposit-withdraw
+  - id: review.csharp.conc-cas
+    concept: concept.csharp.conc-cas
+    step: step.csharp.interlocked.predict-cas
+  - id: review.csharp.conc-cas-loop
+    concept: concept.csharp.conc-cas
+    step: step.csharp.interlocked.fill-atomic-max
+  - id: review.csharp.conc-atomic-compose
+    concept: concept.csharp.conc-atomic-compose
+    step: step.csharp.interlocked.check-compose
+steps:
+  - id: step.csharp.interlocked.intro
+    type: explain
+    title: Making one step really one step
+    body: |
+      The lost update in the first lesson comes from splitting one logical change into a load and a store. `Interlocked` closes that gap for a single variable: `Interlocked.Increment(ref n)`, `Add`, `Exchange` and `CompareExchange` each do their whole read-modify-write as one indivisible hardware operation. No thread can observe or interleave with the middle of it. They also act as full memory barriers, a point the volatile lesson returns to.
+
+      `Interlocked.CompareExchange(ref location, value, comparand)` is the building block of lock-free code. It stores `value` only if `location` currently equals `comparand`, and it **returns the value that was there before**, whether or not it stored. A caller therefore compares the return value with its comparand to learn whether it won. To make an arbitrary update atomic, read the current value, compute the new one, and try to swap; if someone else got in first, loop and try again with what they left.
+
+      Atomic does not mean composable. Each `Interlocked` call is atomic on its own, but a read followed by a separate write, or a check on one variable followed by a change to another, leaves a gap again.
+  - id: step.csharp.interlocked.deposit-withdraw
+    type: interleave
+    title: A deposit and a withdrawal
+    prompt: |
+      Thread A adds 10 to `balance`; thread B subtracts 10. Both use plain loads and stores. The balance starts at 100 and should end at 100. Find an order that ends anywhere else.
+    language: csharp
+    shared:
+      - { name: balance, value: 100 }
+    threads:
+      - name: A
+        ops:
+          - { code: "var t = balance;", do: "t = balance" }
+          - { code: "balance = t + 10;", do: "balance = t + 10" }
+      - name: B
+        ops:
+          - { code: "var t = balance;", do: "t = balance" }
+          - { code: "balance = t - 10;", do: "balance = t - 10" }
+    invariant:
+      kind: final-value
+      description: balance is 100 again once both threads have finished
+      variable: balance
+      expected: 100
+    breakingSchedule: [A, B, A, B]
+    replays:
+      - label: Deposit, then withdrawal
+        schedule: [A, A, B, B]
+    explanation: Both threads loaded 100. A stored 110, then B stored 90, so the deposit vanished. Replacing each pair with `Interlocked.Add(ref balance, 10)` and `Interlocked.Add(ref balance, -10)` makes each change a single step with nothing to interleave.
+    hints:
+      - Let both threads load before either one stores.
+  - id: step.csharp.interlocked.predict-cas
+    type: predict-output
+    title: What CompareExchange returns
+    prompt: |
+      `CompareExchange` returns the value that was in the location before the call. What does this print?
+    language: csharp
+    code: |
+      var n = 5;
+      var a = Interlocked.Increment(ref n);
+      var b = Interlocked.CompareExchange(ref n, 10, 6);
+      var c = Interlocked.CompareExchange(ref n, 20, 6);
+      Console.WriteLine($"{a},{b},{c},{n}");
+    accepted:
+      - 6,6,10,10
+    mistakes:
+      - answers:
+          - 6,10,20,20
+        feedback: '`CompareExchange` returns the previous value, not the new one. The first call saw 6 and stored 10. The second call compared against 6 but found 10, so it stored nothing and returned 10.'
+      - answers:
+          - 6,6,10,20
+        feedback: The second `CompareExchange` expected 6, but `n` was already 10, so its comparison failed and `n` stayed 10.
+    hints:
+      - '`Increment` returns the new value. Each `CompareExchange` returns what was there before it ran.'
+  - id: step.csharp.interlocked.fill-atomic-max
+    type: fill-blank
+    title: A compare-and-swap loop
+    prompt: |
+      Raise `target` to `value` if `value` is larger, even while other threads update it. Name the comparand so the swap only succeeds if no other thread changed `target` since it was read.
+    language: csharp
+    template: |
+      static void AtomicMax(ref int target, int value)
+      {
+          var current = Volatile.Read(ref target);
+          while (value > current)
+          {
+              var seen = Interlocked.CompareExchange(ref target, value, {{comparand}});
+              if (seen == current) break;
+              current = seen;
+          }
+      }
+    blanks:
+      - id: comparand
+        accepted:
+          - current
+    hints:
+      - The swap should succeed only if the location still holds what this thread last read.
+  - id: step.csharp.interlocked.check-compose
+    type: choice
+    title: Atomic calls in a row
+    prompt: |
+      Two threads run `Interlocked.Exchange(ref total, Interlocked.Read(ref total) + 1)`. Why can this still lose an update?
+    options:
+      - text: Each call is atomic, but another thread can change `total` between the read and the exchange
+        correct: true
+        feedback: Right. Two atomic operations do not make one. `Interlocked.Increment(ref total)` does the whole change in one step.
+      - text: '`Interlocked.Read` is not allowed on an `int`'
+        correct: false
+        feedback: The rule is not about the type. The problem is the gap between two separate calls.
+      - text: '`Exchange` makes a private copy of `total` for each thread'
+        correct: false
+        feedback: '`Exchange` writes the shared location directly. There is no per-thread copy.'
+    hints:
+      - Where is the gap between the two calls?

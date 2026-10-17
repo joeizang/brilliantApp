@@ -1,0 +1,109 @@
+id: lesson.csharp.threads-pool-and-lost-updates
+title: The thread pool and lost updates
+concepts:
+  - id: concept.csharp.conc-pool-queue
+    title: The thread pool runs queued work on a small set of reused worker threads
+  - id: concept.csharp.conc-pool-starvation
+    title: Blocking pool threads on work that is still queued starves the pool
+  - id: concept.csharp.conc-lost-update
+    title: counter++ is a read and then a write, so threads can interleave between them
+reviewItems:
+  - id: review.csharp.conc-pool-queue
+    concept: concept.csharp.conc-pool-queue
+    step: step.csharp.pool.check-task-run
+  - id: review.csharp.conc-pool-starvation
+    concept: concept.csharp.conc-pool-starvation
+    step: step.csharp.pool.check-starvation
+  - id: review.csharp.conc-lost-update
+    concept: concept.csharp.conc-lost-update
+    step: step.csharp.pool.lost-update
+steps:
+  - id: step.csharp.pool.intro
+    type: explain
+    title: Work is cheap, threads are not
+    body: |
+      A thread has its own stack and costs real memory and scheduling time, so .NET keeps a **thread pool**: a set of worker threads that take small work items from a queue, run them, and go back for more. `Task.Run`, `ThreadPool.QueueUserWorkItem`, `Parallel.For` and the continuations of most `await`s all end up as work items on that queue. Queuing returns at once; the delegate runs later, on whichever worker is free.
+
+      The pool starts with a minimum number of workers (by default, one per logical processor) and adds more only gradually when the queue stays backed up. That makes **blocking a pool thread** expensive: if every worker is waiting for a result that is still sitting in the queue, nothing can make progress until the pool slowly injects another thread.
+
+      Once code runs on more than one thread, the next problem is **shared mutable state**. A statement that looks like one step, such as `counter++`, is really a load, an add and a store. Another thread can run between those machine steps, and when it does, one of the two updates is lost. The puzzle below lets you build that order yourself.
+  - id: step.csharp.pool.check-task-run
+    type: choice
+    title: What Task.Run does with the delegate
+    prompt: |
+      A method calls `Task.Run(() => Compute())` and keeps going. What happens to `Compute`?
+    options:
+      - text: It is queued as a work item for the thread pool and runs later on a free worker
+        correct: true
+        feedback: Right. The call returns a `Task` right away; the pool decides when and on which worker the delegate runs.
+      - text: It runs on the calling thread before `Task.Run` returns
+        correct: false
+        feedback: That would not be "run". The point of queuing is that the caller is not made to wait for the delegate.
+      - text: It starts a brand-new operating-system thread dedicated to that call
+        correct: false
+        feedback: Creating a thread per call is what the pool exists to avoid. Workers are reused for many items.
+    hints:
+      - The pool exists so that small pieces of work do not each pay for a new thread.
+  - id: step.csharp.pool.check-starvation
+    type: choice
+    title: Everyone is waiting for the queue
+    prompt: |
+      A service queues 200 work items. Each one starts a second work item and then blocks on its `.Result`. The pool has 8 workers. What happens first?
+    options:
+      - text: All 8 workers block on results that are queued behind them, so progress stalls until the pool injects more threads
+        correct: true
+        feedback: Right. The blocked workers cannot run the work they are waiting for. The pool adds threads slowly, so throughput collapses; asynchronous waiting (`await`) avoids occupying a worker at all.
+      - text: The pool immediately creates 200 new threads so nothing waits
+        correct: false
+        feedback: The pool deliberately ramps up slowly. Thread creation is costly, and unbounded thread creation would hurt a busy process.
+      - text: The blocked items are cancelled and retried automatically
+        correct: false
+        feedback: The runtime does not cancel or retry work items. They simply wait.
+    hints:
+      - Count how many workers are free to run the second-level items once the first 8 have blocked.
+  - id: step.csharp.pool.lost-update
+    type: interleave
+    title: Lose an update
+    prompt: |
+      Two threads each run `counter++` on the same field, which really is a load and then a store. Run the lines in an order that leaves `counter` at 1 instead of 2.
+    language: csharp
+    shared:
+      - { name: counter, value: 0 }
+    threads:
+      - name: A
+        ops:
+          - { code: "var t = counter;", do: "t = counter" }
+          - { code: "counter = t + 1;", do: "counter = t + 1" }
+      - name: B
+        ops:
+          - { code: "var t = counter;", do: "t = counter" }
+          - { code: "counter = t + 1;", do: "counter = t + 1" }
+    invariant:
+      kind: final-value
+      description: counter is 2 once both threads have finished
+      variable: counter
+      expected: 2
+    breakingSchedule: [A, B, A, B]
+    replays:
+      - label: One thread after the other
+        schedule: [A, A, B, B]
+    explanation: Both threads loaded 0 before either stored, so both stored 1. Each thread did its work correctly in isolation; the loss comes only from the order in which the two threads' steps were interleaved.
+    hints:
+      - What if B loads the counter before A has stored its result?
+  - id: step.csharp.pool.check-increment
+    type: choice
+    title: Is counter++ one step?
+    prompt: |
+      Two threads each execute `counter++` on a shared `int` field 1,000 times, with no synchronization. Why can the final value be less than 2,000?
+    options:
+      - text: The increment is a separate read, add and write, so threads can interleave between them and overwrite each other
+        correct: true
+        feedback: Right. Both can read the same value, add one, and store the same result, which loses one increment.
+      - text: Integers are copied per thread, so each thread increments its own copy
+        correct: false
+        feedback: A field is one location in the heap. The threads share it, which is exactly why they can interfere.
+      - text: The pool refuses to run two items that touch one field
+        correct: false
+        feedback: The runtime does not detect or prevent this. Preventing it is the program's job.
+    hints:
+      - Think of the load and the store as two separate moments.

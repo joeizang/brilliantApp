@@ -1,0 +1,118 @@
+id: lesson.csharp.volatile-and-reordering
+title: Volatile and reordering
+concepts:
+  - id: concept.csharp.conc-reordering
+    title: The compiler, JIT and CPU may reorder or cache memory operations that another thread then observes
+  - id: concept.csharp.conc-volatile-semantics
+    title: A volatile read acquires and a volatile write releases, but neither makes a read-modify-write atomic
+  - id: concept.csharp.conc-publication
+    title: Publish data by writing it first and then writing a volatile flag that readers check before reading it
+  - id: concept.csharp.conc-full-fence
+    title: lock, Monitor and Interlocked are full barriers, stronger than volatile
+reviewItems:
+  - id: review.csharp.conc-reordering
+    concept: concept.csharp.conc-reordering
+    step: step.csharp.volatile.check-hoisting
+  - id: review.csharp.conc-volatile-semantics
+    concept: concept.csharp.conc-volatile-semantics
+    step: step.csharp.volatile.three-threads
+  - id: review.csharp.conc-publication
+    concept: concept.csharp.conc-publication
+    step: step.csharp.volatile.check-publication
+  - id: review.csharp.conc-full-fence
+    concept: concept.csharp.conc-full-fence
+    step: step.csharp.volatile.check-fence
+steps:
+  - id: step.csharp.volatile.intro
+    type: explain
+    title: Your program order is not what other threads see
+    body: |
+      Source order is a promise about what a **single** thread observes, not about what other threads observe. The C# compiler and the JIT may keep a field in a register instead of rereading it, or move independent loads and stores. Modern CPUs also buffer writes and execute out of order. On x64 the hardware is fairly strict; on ARM64, which includes phones and Apple silicon, it is much freer. The .NET memory model is deliberately weaker than "everything happens in source order", so code that works on one machine can break on another.
+
+      `volatile` is the smallest tool for this. Reading a volatile field has **acquire** semantics: later reads and writes cannot be moved before it. Writing one has **release** semantics: earlier reads and writes cannot be moved after it. It also stops the JIT from caching the field in a register. That is enough to **publish** data: write the data, then write a volatile flag; a reader that sees the flag set and then reads the data is guaranteed to see the data.
+
+      What `volatile` does *not* do is make a compound operation atomic: `counter++` on a volatile field is still a separate load and store. And it is weaker than `lock`, `Monitor` and the `Interlocked` methods, which are full barriers: nothing moves across them in either direction.
+  - id: step.csharp.volatile.check-hoisting
+    type: choice
+    title: A loop that never ends
+    prompt: |
+      One thread runs `while (!_stop) { Work(); }` where `_stop` is a plain `bool` field. Another thread later sets `_stop = true`. Under the .NET memory model, what may happen?
+    options:
+      - text: The JIT may read `_stop` once and reuse it, so the loop may never observe the change
+        correct: true
+        feedback: Right. Nothing in the loop tells the compiler that another thread writes `_stop`. Making it `volatile` (or using `Volatile.Read`, or a `CancellationToken`) forces a fresh read each time.
+      - text: The loop always sees the new value on the very next iteration
+        correct: false
+        feedback: No such guarantee exists for a plain field. Whether the change is seen can depend on the JIT and the hardware.
+      - text: The runtime raises an exception because the field is shared
+        correct: false
+        feedback: The runtime does not detect unsynchronized sharing. The program just misbehaves.
+    hints:
+      - What does the loop body give the compiler a reason to reread?
+  - id: step.csharp.volatile.check-publication
+    type: choice
+    title: Publishing a value with a flag
+    prompt: |
+      A writer thread does `_data = 42; _ready = true;`. A reader thread does `if (_ready) Use(_data);`. What makes the reader certain to see 42?
+    options:
+      - text: Declare `_ready` as `volatile`, so the write releases `_data` and the read acquires it
+        correct: true
+        feedback: Right. The volatile write cannot be moved before the earlier write of `_data`, and the volatile read cannot be moved after the later read of `_data`.
+      - text: Declare `_data` as `volatile` and leave `_ready` alone
+        correct: false
+        feedback: The flag is the synchronizing access. Without a release on the flag write, the flag can become visible before the data does.
+      - text: Nothing is needed because statements run in source order
+        correct: false
+        feedback: Source order is only guaranteed for the thread that runs it. Other threads may observe the writes in a different order.
+    hints:
+      - Which of the two fields is the one the reader checks first?
+  - id: step.csharp.volatile.three-threads
+    type: interleave
+    title: Volatile does not make ++ atomic
+    prompt: |
+      Three threads each run `counter++` on a field that is declared `volatile int counter`. Every read sees the latest write, yet the total can still be wrong. Find an order that leaves `counter` at 1 instead of 3.
+    language: csharp
+    shared:
+      - { name: counter, value: 0 }
+    threads:
+      - name: A
+        ops:
+          - { code: "var t = counter;", do: "t = counter" }
+          - { code: "counter = t + 1;", do: "counter = t + 1" }
+      - name: B
+        ops:
+          - { code: "var t = counter;", do: "t = counter" }
+          - { code: "counter = t + 1;", do: "counter = t + 1" }
+      - name: C
+        ops:
+          - { code: "var t = counter;", do: "t = counter" }
+          - { code: "counter = t + 1;", do: "counter = t + 1" }
+    invariant:
+      kind: final-value
+      description: counter is 3 once all three threads have finished
+      variable: counter
+      expected: 3
+    breakingSchedule: [A, B, C, A, B, C]
+    replays:
+      - label: One thread after another
+        schedule: [A, A, B, B, C, C]
+    explanation: Each load saw the latest stored value, which is all `volatile` promises. But all three loaded 0 before any of them stored, so all three stored 1. Fixing this needs an atomic read-modify-write, for example `Interlocked.Increment`, or a lock.
+    hints:
+      - Let every thread load before any thread stores.
+  - id: step.csharp.volatile.check-fence
+    type: choice
+    title: Which operation is a full barrier?
+    prompt: |
+      You need no memory operation to be moved across a particular point in either direction. Which of these gives you that?
+    options:
+      - text: '`Interlocked.Increment(ref n)`'
+        correct: true
+        feedback: Right. `Interlocked` operations, `lock` and `Monitor` are full barriers, and `Interlocked.Increment` is atomic as well.
+      - text: Reading a `volatile` field
+        correct: false
+        feedback: A volatile read only stops later operations from moving before it. Earlier operations may still move after it.
+      - text: Writing a `volatile` field
+        correct: false
+        feedback: A volatile write only stops earlier operations from moving after it. Later operations may still move before it.
+    hints:
+      - A volatile access constrains one direction only.
