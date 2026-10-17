@@ -1,6 +1,7 @@
 using Brilliant.Core.Apps;
 using Brilliant.Core.Content;
 using Brilliant.Core.Drafts;
+using Brilliant.Core.Feedback;
 using Brilliant.Core.Progress;
 using Brilliant.Core.Code;
 using Brilliant.Core.Sync;
@@ -67,6 +68,11 @@ public static class MauiProgram
         builder.Services.AddSingleton<StepShortcuts>();
         builder.Services.AddSingleton(new ScreenInfo(csharpWriteCodeAvailable: !OperatingSystem.IsAndroid()));
         builder.Services.AddSingleton(TimeProvider.System);   // the Trace Player's playback timer
+
+        // Advisory feedback on written answers comes from the model the manifest names, in Ollama on this Mac (#166). Android has no Ollama
+        // of its own: its loopback is the phone, so it gets no grader here (the home server's proxy is #167) and the step simply shows none.
+        if (manifest.GraderModel is { } graderModel && !OperatingSystem.IsAndroid())
+            builder.Services.AddSingleton<IAnswerGrader>(_ => new OllamaAnswerGrader(new HttpClient { Timeout = TimeSpan.FromMinutes(2) }, graderModel));
 
         // Pairing with the household server over plain HTTP on the LAN; the token it returns goes in the platform's secure storage.
         // An unsigned Mac build has no keychain entitlement (MissingEntitlement), so the token falls back to a private file in the app's sandbox.

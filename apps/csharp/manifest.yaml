@@ -9,3 +9,5 @@ accent:
 contentPack: csharp.pack.zip
 runtimes: [csharp]
 stepTypes: [explain, choice, predict-output, trace, async-timeline, lowered, benchmark-predict, allocations, interleave, review-code, design-tradeoff, write-code, fill-blank]
+# Advisory feedback on written answers, from Ollama on the Mac. A starting point until the grader evals choose a model (#169).
+graderModel: gemma3:12b

@@ -163,4 +163,43 @@ public class AppManifestTests
         Assert.Contains("appId", ex.Message);
     }
 
+    [Fact]
+    public void The_grading_model_is_optional_and_the_dsa_app_names_none()
+    {
+        Assert.Null(AppManifest.Parse(Dsa).GraderModel);
+    }
+
+    [Theory]
+    [InlineData("gemma3:12b")]
+    [InlineData("qwen3:32b")]
+    [InlineData("hf.co/org/model-GGUF:Q4_K_M")]
+    [InlineData("llama3")]
+    public void A_manifest_can_name_the_Ollama_model_that_gives_feedback(string model)
+    {
+        Assert.Equal(model, AppManifest.Parse(Dsa + $"\ngraderModel: {model}\n").GraderModel);
+    }
+
+    [Theory]
+    [InlineData("''")]
+    [InlineData("'   '")]
+    [InlineData("'two words'")]
+    [InlineData("'-leading-dash'")]
+    [InlineData("'semi;colon'")]
+    [InlineData("'new\\nline'")]
+    public void A_grading_model_name_must_be_one_Ollama_tag(string model)
+    {
+        var ex = Assert.Throws<AppManifestException>(() => AppManifest.Parse(Dsa + $"\ngraderModel: {model}\n"));
+
+        Assert.Contains("graderModel", ex.Message);
+    }
+
+    [Fact]
+    public void The_shipped_csharp_manifest_names_its_grading_model()
+    {
+        var app = AppManifest.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "csharp-manifest.yaml")));
+
+        Assert.False(string.IsNullOrWhiteSpace(app.GraderModel));
+        Assert.True(app.SupportsStepType("design-tradeoff"));
+    }
+
 }

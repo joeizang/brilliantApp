@@ -15,6 +15,7 @@
 | `contentPack` | Relative bundled pack asset name, currently `track-1.pack.zip`. |
 | `runtimes` | Explicit runtime capability keys, `python` and `csharp` (declaring C# does not supply its implementation). An empty list is allowed. |
 | `stepTypes` | Nonempty list of enabled step-type keys. |
+| `graderModel` | Optional Ollama model tag (for example `gemma3:12b`) that gives advisory feedback on written answers. Omitted by the DSA app. See [Answer feedback](csharp-answer-feedback.md). |
 
 Capability keys use lowercase words separated by hyphens and are compared exactly.
 Unknown keys are rejected with a list of valid keys. Step keys come from
@@ -52,5 +53,5 @@ dotnet build src/Brilliant.App -f net10.0-android
 
 Build-time selection, native identity and local storage isolation are described in
 [App flavors](app-flavors.md). [Per-app content](app-content.md) describes source
-selection and validator enforcement; runtime selection is described in [Code runtimes](code-runtimes.md). Grading-model configuration
-will be added with the grading provider.
+selection and validator enforcement; runtime selection is described in [Code runtimes](code-runtimes.md). The grading model is described in
+[Answer feedback](csharp-answer-feedback.md).

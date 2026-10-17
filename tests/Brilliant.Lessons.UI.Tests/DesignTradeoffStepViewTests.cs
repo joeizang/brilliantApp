@@ -1,5 +1,7 @@
 using Brilliant.Core.Content;
+using Brilliant.Core.Feedback;
 using Bunit;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Brilliant.Lessons.UI.Tests;
 
@@ -231,5 +233,216 @@ public sealed class DesignTradeoffStepViewTests : ShortcutContext
         await Press(StepCommand.Advance);
 
         Assert.Equal(1, continued);
+    }
+
+    // ---- Advisory feedback from a local model (#166) ----
+
+    private sealed class FakeGrader : IAnswerGrader
+    {
+        public List<GradeRequest> Requests { get; } = [];
+        public List<CancellationToken> Tokens { get; } = [];
+        public TaskCompletionSource<AnswerFeedback> Reply { get; } = new();
+
+        public Task<AnswerFeedback> GradeAsync(GradeRequest request, CancellationToken ct = default)
+        {
+            Requests.Add(request);
+            Tokens.Add(ct);
+            return Reply.Task;
+        }
+    }
+
+    private static readonly AnswerFeedback Verdict = new(
+        [new(0, "Several instances need one consistent view", true, "You said every instance sees one copy."), new(1, "Accepts the network hop", false, "You never mentioned the hop.")],
+        [new(0, "A shared cache is always faster.", "You called it faster.")]);
+
+    private FakeGrader UseGrader()
+    {
+        var grader = new FakeGrader();
+        Services.AddSingleton<IAnswerGrader>(grader);
+        return grader;
+    }
+
+    private static void SelfAssess(IRenderedComponent<DesignTradeoffStepView> cut, params int[] points)
+    {
+        Answer(cut, 1, "Because every instance sees one copy.");
+        cut.Find("button.primary").Click();
+        foreach (var point in points) cut.Find($".rubric-point[data-point='{point}'] input").Change(true);
+    }
+
+    [Fact]
+    public void Without_a_grader_there_is_no_feedback_section()
+    {
+        var cut = Show();
+        SelfAssess(cut, 0);
+
+        cut.Find("button.primary").Click();
+
+        Assert.Empty(cut.FindAll(".feedback"));
+    }
+
+    [Fact]
+    public void Feedback_is_not_asked_for_until_the_self_assessment_is_done()
+    {
+        var grader = UseGrader();
+        var cut = Show();
+
+        Answer(cut, 1, "Because every instance sees one copy.");
+        cut.Find("button.primary").Click();
+        cut.Find(".rubric-point[data-point='0'] input").Change(true);
+
+        Assert.Empty(grader.Requests);
+        Assert.Empty(cut.FindAll(".feedback"));
+    }
+
+    [Fact]
+    public void Finishing_the_self_assessment_asks_the_grader_with_the_option_and_the_answer_as_written()
+    {
+        var grader = UseGrader();
+        var cut = Show();
+        SelfAssess(cut, 0);
+
+        cut.Find("button.primary").Click();
+
+        var request = Assert.Single(grader.Requests);
+        Assert.Equal("Redis shared by all instances", request.Option);
+        Assert.Equal("Because every instance sees one copy.", request.Answer);
+        Assert.Equal(2, request.RubricPoints.Count);
+    }
+
+    [Fact]
+    public void While_the_model_thinks_the_result_and_Continue_are_already_there()
+    {
+        UseGrader();
+        var continued = 0;
+        var cut = Show(continued: () => continued++);
+        SelfAssess(cut, 0);
+
+        cut.Find("button.primary").Click();
+
+        Assert.Contains("Getting feedback", cut.Find(".feedback-pending").TextContent);
+        Assert.NotEmpty(cut.FindAll(".verdict"));
+        cut.Find("button.primary").Click();
+        Assert.Equal(1, continued);
+    }
+
+    [Fact]
+    public void Feedback_shows_a_verdict_and_a_note_for_every_rubric_point_and_the_red_flags_found()
+    {
+        var grader = UseGrader();
+        var cut = Show();
+        SelfAssess(cut, 0);
+        cut.Find("button.primary").Click();
+
+        grader.Reply.SetResult(Verdict);
+
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll(".feedback-point").Count));
+        var hit = cut.Find(".feedback-point[data-point='0']");
+        Assert.Equal("hit", hit.GetAttribute("data-verdict"));
+        Assert.Contains("every instance sees one copy", hit.TextContent);
+        Assert.Contains("Several instances need one consistent view", hit.TextContent);
+        var miss = cut.Find(".feedback-point[data-point='1']");
+        Assert.Equal("missed", miss.GetAttribute("data-verdict"));
+        Assert.Contains("never mentioned the hop", miss.TextContent);
+        Assert.Contains("You called it faster.", cut.Find(".feedback-flag[data-flag='0']").TextContent);
+        Assert.Empty(cut.FindAll(".feedback-pending"));
+    }
+
+    [Fact]
+    public void A_clean_answer_with_no_red_flags_found_says_nothing_about_them()
+    {
+        var grader = UseGrader();
+        var cut = Show();
+        SelfAssess(cut, 0);
+        cut.Find("button.primary").Click();
+
+        grader.Reply.SetResult(Verdict with { RedFlagsFound = [] });
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".feedback-point")));
+        Assert.Empty(cut.FindAll(".feedback-flag"));
+    }
+
+    [Fact]
+    public void Feedback_says_it_is_advisory_and_changes_neither_the_grade_nor_the_recorded_attempt()
+    {
+        var grader = UseGrader();
+        DesignTradeoffStepView.Attempt? attempt = null;
+        var answers = 0;
+        var cut = Show(answered: a => { attempt = a; answers++; });
+        SelfAssess(cut);   // the learner ticks nothing
+        cut.Find("button.primary").Click();
+        var scoreBefore = cut.Find(".score").TextContent;
+
+        // The model thinks every point was made; the learner's own ticks still set the grade.
+        grader.Reply.SetResult(new AnswerFeedback([new(0, "p", true, "n"), new(1, "q", true, "n")], []));
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".feedback-point")));
+        Assert.Contains("advisory", cut.Find(".feedback").TextContent, StringComparison.OrdinalIgnoreCase);
+        Assert.False(attempt!.Correct);
+        Assert.Empty(attempt.PointsMade);
+        Assert.Equal(1, answers);
+        Assert.Equal(scoreBefore, cut.Find(".score").TextContent);
+        Assert.Contains("incorrect", cut.Find(".verdict").ClassName);
+    }
+
+    [Fact]
+    public void An_unavailable_model_says_why_and_the_step_still_finishes()
+    {
+        var grader = UseGrader();
+        var continued = 0;
+        var cut = Show(continued: () => continued++);
+        SelfAssess(cut, 0);
+        cut.Find("button.primary").Click();
+
+        grader.Reply.SetException(new AnswerGraderException(AnswerGraderFailure.Unavailable, "Ollama isn't running. Start it on this Mac to get feedback."));
+
+        cut.WaitForAssertion(() => Assert.Contains("Ollama isn't running", cut.Find(".feedback-unavailable").TextContent));
+        Assert.Empty(cut.FindAll(".feedback-point"));
+        Assert.Empty(cut.FindAll(".feedback-pending"));
+        cut.Find("button.primary").Click();
+        Assert.Equal(1, continued);
+    }
+
+    [Fact]
+    public void A_failure_nobody_planned_for_is_also_just_unavailable_feedback()
+    {
+        var grader = UseGrader();
+        var cut = Show();
+        SelfAssess(cut, 0);
+        cut.Find("button.primary").Click();
+
+        grader.Reply.SetException(new InvalidOperationException("boom: internal detail"));
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".feedback-unavailable")));
+        Assert.DoesNotContain("boom", cut.Markup);
+        Assert.Contains("unavailable", cut.Find(".feedback-unavailable").TextContent, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Moving_to_another_step_cancels_the_request_and_drops_a_late_answer()
+    {
+        var grader = UseGrader();
+        var cut = Show();
+        SelfAssess(cut, 0);
+        cut.Find("button.primary").Click();
+
+        cut.Render(p => p.Add(c => c.Step, Cache with { Id = "step.tradeoff.other" }));
+        grader.Reply.SetResult(Verdict);
+
+        Assert.True(grader.Tokens[0].IsCancellationRequested);
+        Assert.Empty(cut.FindAll(".feedback"));
+        Assert.Empty(cut.FindAll(".feedback-point"));
+    }
+
+    [Fact]
+    public async Task Leaving_the_screen_cancels_the_request()
+    {
+        var grader = UseGrader();
+        var cut = Show();
+        SelfAssess(cut, 0);
+        cut.Find("button.primary").Click();
+
+        await DisposeComponentsAsync();
+
+        Assert.True(grader.Tokens[0].IsCancellationRequested);
     }
 }
