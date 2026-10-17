@@ -10,6 +10,6 @@ public static class StepTypes
 {
     public static IReadOnlySet<string> All { get; } = new[]
     {
-        "explain", "choice", "predict-output", "write-code", "fill-blank", "parsons", "trace", "async-timeline", "lowered", "benchmark-predict", "allocations",
+        "explain", "choice", "predict-output", "write-code", "fill-blank", "parsons", "trace", "async-timeline", "lowered", "benchmark-predict", "allocations", "interleave",
     }.ToFrozenSet(StringComparer.Ordinal);
 }

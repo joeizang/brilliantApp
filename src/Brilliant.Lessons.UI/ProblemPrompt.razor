@@ -20,6 +20,7 @@
         PredictOutputStep s => s.Prompt,
         LoweredStep s => s.Prompt,
         BenchmarkPredictStep s => s.Prompt,
+        InterleaveStep s => s.Prompt,
         _ => "",
     };
 }

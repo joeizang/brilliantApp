@@ -47,6 +47,8 @@ public static class LessonTestOut
         PredictOutputStep => 2,
         LoweredStep => 2,
         BenchmarkPredictStep => 2,
+        // Finding the bad order is a puzzle, harder than picking from options but nothing like writing code.
+        InterleaveStep => 3,
         ChoiceStep => 1,
         _ => 0,
     };

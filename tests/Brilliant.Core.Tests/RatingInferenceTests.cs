@@ -79,4 +79,15 @@ public class RatingInferenceTests
         Assert.True(RatingInference.Thresholds(bench).Slow > RatingInference.Thresholds(predict).Slow);
         Assert.True(LessonTestOut.Difficulty(bench) > 0);
     }
+
+    [Fact]
+    public void An_interleave_puzzle_is_given_longer_than_a_prediction_and_can_be_asked_in_a_test_out()
+    {
+        var interleave = new InterleaveStep("i", "I", "?", [], [], new(InterleaveInvariant.NoDeadlock, "d"), [], [], "e");
+        var predict = new PredictOutputStep("p", "P", "?", new CodeSnippet("csharp", "code"), [], [], [new ChoiceOption("a", true, null)]);
+
+        Assert.True(RatingInference.Thresholds(interleave).Fast > RatingInference.Thresholds(predict).Fast);
+        Assert.True(RatingInference.Thresholds(interleave).Slow > RatingInference.Thresholds(predict).Slow);
+        Assert.True(LessonTestOut.Difficulty(interleave) > LessonTestOut.Difficulty(predict));
+    }
 }

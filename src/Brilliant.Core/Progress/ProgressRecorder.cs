@@ -62,6 +62,11 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
         Append(ProgressEventTypes.StepAnswered, lessonId, stepId,
             JsonSerializer.Serialize(new { correct, ranking }));
 
+    /// <summary>Records an interleave attempt: the thread names in the order the learner ran them, and whether that order broke the invariant.</summary>
+    public void ScheduleSubmitted(string lessonId, string stepId, bool correct, IReadOnlyList<string> schedule) =>
+        Append(ProgressEventTypes.StepAnswered, lessonId, stepId,
+            JsonSerializer.Serialize(new { correct, schedule }));
+
     /// <summary>Records one write-code submission: the code as submitted and how many hidden tests it passed.</summary>
     public void CodeSubmitted(string lessonId, string stepId, string code, int passedTests, int totalTests) =>
         Append(ProgressEventTypes.CodeSubmitted, lessonId, stepId,

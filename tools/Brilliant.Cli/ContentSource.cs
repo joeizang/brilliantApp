@@ -375,7 +375,7 @@ public static partial class ContentValidator
                         AsyncTimelineStep => "async-timeline",
                         _ => "explain",
                     };
-                    report.Add(file, $"{label}: step '{r.Step}' is an {type} step; a review item needs a question (choice, predict-output, lowered or benchmark-predict).");
+                    report.Add(file, $"{label}: step '{r.Step}' is an {type} step; a review item needs a question (choice, predict-output, lowered, benchmark-predict or interleave).");
                 }
             }
             if (r.Id is not null && r.Concept is not null && r.Step is not null)
@@ -395,8 +395,8 @@ public static partial class ContentValidator
     {
         var hints = dto.Hints ?? [];
         if (hints.Count == 0) return [];
-        if (dto.Type is not ("choice" or "predict-output" or "lowered" or "benchmark-predict" or "allocations" or "write-code" or "fill-blank" or "parsons"))
-            report.Add(file, $"{label}: 'hints' only apply to questions (choice, predict-output, lowered, benchmark-predict, allocations, write-code, fill-blank or parsons).");
+        if (dto.Type is not ("choice" or "predict-output" or "lowered" or "benchmark-predict" or "allocations" or "interleave" or "write-code" or "fill-blank" or "parsons"))
+            report.Add(file, $"{label}: 'hints' only apply to questions (choice, predict-output, lowered, benchmark-predict, allocations, interleave, write-code, fill-blank or parsons).");
         var max = dto.Walkthrough is null ? MaxHints : MaxHints - 1;
         if (hints.Count > max)
             report.Add(file, dto.Walkthrough is null
@@ -409,7 +409,7 @@ public static partial class ContentValidator
 
     private const int MaxHints = 4;
 
-    private static readonly string[] QuestionTypes = ["choice", "predict-output", "lowered", "benchmark-predict", "allocations", "write-code", "fill-blank", "parsons"];
+    private static readonly string[] QuestionTypes = ["choice", "predict-output", "lowered", "benchmark-predict", "allocations", "interleave", "write-code", "fill-blank", "parsons"];
 
     private static Step? LoadStep(StepDto dto, string where, string file, ValidationReport report,
         Dictionary<string, string> seenIds, bool isAlternative = false)
@@ -423,7 +423,7 @@ public static partial class ContentValidator
 
         var preferred = dto.LargeScreenPreferred ?? false;
         if (preferred && !QuestionTypes.Contains(dto.Type))
-            report.Add(file, $"{label}: 'largeScreenPreferred' only applies to questions (choice, predict-output, lowered, benchmark-predict, allocations, write-code, fill-blank or parsons).");
+            report.Add(file, $"{label}: 'largeScreenPreferred' only applies to questions (choice, predict-output, lowered, benchmark-predict, allocations, interleave, write-code, fill-blank or parsons).");
         if (dto.Compare is not null && dto.Type != "write-code")
             report.Add(file, $"{label}: 'compare' only applies to write-code steps.");
         if (dto.Files is not null && dto.Type != "write-code")
@@ -548,10 +548,11 @@ public static partial class ContentValidator
         if (dto.Type == "parsons") return WithHints(WithWalkthrough(LoadParsons(dto, label, file, report, before), dto, label, file, report), hints);
         if (dto.Type == "trace") return RejectWalkthrough(dto, label, file, report, LoadTrace(dto, label, file, report, before));
         if (dto.Type == "async-timeline") return RejectWalkthrough(dto, label, file, report, LoadAsyncTimeline(dto, label, file, report, before));
+        if (dto.Type == "interleave") return WithHints(RejectWalkthrough(dto, label, file, report, LoadInterleave(dto, label, file, report, before)), hints);
 
         if (dto.Type != "explain")
         {
-            report.Add(file, $"{label}: unsupported step type '{dto.Type ?? "(missing)"}' (supported: explain, choice, predict-output, lowered, benchmark-predict, allocations, write-code, fill-blank, parsons, trace, async-timeline).");
+            report.Add(file, $"{label}: unsupported step type '{dto.Type ?? "(missing)"}' (supported: explain, choice, predict-output, lowered, benchmark-predict, allocations, interleave, write-code, fill-blank, parsons, trace, async-timeline).");
             return null;
         }
 
@@ -974,6 +975,138 @@ public static partial class ContentValidator
         if (report.Errors.Count != errorsBefore) return null;
         report.TraceChecks.Add(new TraceCheck(file, label, dto.Code!, visuals, language, dto.Id ?? "", IsWalkthrough: false));
         return new TraceStep(dto.Id!, dto.Title!, dto.Body!, dto.Code!, visuals) { Language = dto.Language };
+    }
+
+    private const int MaxInterleaveOps = 8;
+
+    [GeneratedRegex(@"^[A-Za-z][A-Za-z0-9]{0,7}$")]
+    private static partial Regex ThreadNamePattern();
+
+    /// <summary>
+    /// An <c>interleave</c> step: two or three threads, each a short list of machine lines, and an invariant the learner must break by
+    /// choosing the order the lines run in. Everything it needs to be graded is in the step, so nothing is compiled or run on a device. The
+    /// pack build proves it is a fair puzzle: every one-thread-after-another order keeps the invariant, and the authored
+    /// <c>breakingSchedule</c> breaks it.
+    /// </summary>
+    private static Step? LoadInterleave(StepDto dto, string label, string file, ValidationReport report, int errorsBefore)
+    {
+        Require(dto.Prompt, "prompt", file, report, label);
+        Require(dto.Explanation, "explanation", file, report, label);
+        if (dto.Language is not null and not "csharp")
+            report.Add(file, $"{label}: an interleave step shows C# threads; 'language' must be csharp (or left out).");
+        if (dto.Accepted is { Count: > 0 } || dto.Options is { Count: > 0 } || dto.Mistakes is { Count: > 0 } || dto.Code is not null || dto.Tests is { Count: > 0 })
+            report.Add(file, $"{label}: an interleave step is answered by building a schedule; remove 'accepted', 'options', 'mistakes', 'code' and 'tests' (each thread's lines go under 'threads').");
+
+        var shared = new List<InterleaveVariable>();
+        var sharedNames = new HashSet<string>(StringComparer.Ordinal);
+        for (var i = 0; i < (dto.Shared?.Count ?? 0); i++)
+        {
+            var v = dto.Shared![i];
+            if (IsEmptyEntry(v, $"{label}: shared[{i}]", file, report)) continue;
+            if (string.IsNullOrWhiteSpace(v.Name)) report.Add(file, $"{label}: shared[{i}] needs a 'name'.");
+            else if (!sharedNames.Add(v.Name.Trim())) report.Add(file, $"{label}: shared[{i}] repeats the name '{v.Name}'.");
+            if (v.Value is null) report.Add(file, $"{label}: shared[{i}] needs an integer 'value' to start from.");
+            shared.Add(new InterleaveVariable(v.Name?.Trim() ?? "", v.Value ?? 0));
+        }
+
+        var threads = new List<InterleaveThread>();
+        var threadNames = new HashSet<string>(StringComparer.Ordinal);
+        for (var i = 0; i < (dto.Threads?.Count ?? 0); i++)
+        {
+            var t = dto.Threads![i];
+            if (IsEmptyEntry(t, $"{label}: threads[{i}]", file, report)) continue;
+            var where = $"{label}: threads[{i}]";
+            var name = t.Name?.Trim() ?? "";
+            if (!ThreadNamePattern().IsMatch(name)) report.Add(file, $"{where} needs a 'name' of up to 8 letters and digits, such as A (found '{t.Name}').");
+            else if (!threadNames.Add(name)) report.Add(file, $"{where} repeats the thread name '{name}'.");
+
+            var ops = new List<InterleaveOp>();
+            var loaded = new HashSet<string>(StringComparer.Ordinal);
+            var held = new HashSet<string>(StringComparer.Ordinal);
+            for (var j = 0; j < (t.Ops?.Count ?? 0); j++)
+            {
+                var op = t.Ops![j];
+                if (IsEmptyEntry(op, $"{where}, ops[{j}]", file, report)) continue;
+                var at = $"{where}, ops[{j}]";
+                if (string.IsNullOrWhiteSpace(op.Code)) report.Add(file, $"{at} needs 'code': the C# line the learner reads.");
+                if (!InterleaveMachine.TryParse(op.Do, sharedNames, out var instruction, out var error)) report.Add(file, $"{at}: 'do' {error}");
+                else
+                {
+                    switch (instruction.Kind)
+                    {
+                        case InterleaveInstructionKind.Load: loaded.Add(instruction.Name); break;
+                        case InterleaveInstructionKind.Store when instruction.Source is not null && !loaded.Contains(instruction.Source):
+                            report.Add(file, $"{at}: '{instruction.Source}' is used before this thread loads it."); break;
+                        case InterleaveInstructionKind.Lock when !held.Add(instruction.Name):
+                            report.Add(file, $"{at}: thread '{name}' already holds '{instruction.Name}'; locks here are not re-entrant."); break;
+                        case InterleaveInstructionKind.Unlock when !held.Remove(instruction.Name):
+                            report.Add(file, $"{at}: thread '{name}' unlocks '{instruction.Name}' without holding it."); break;
+                    }
+                }
+                ops.Add(new InterleaveOp(op.Code ?? "", op.Do?.Trim() ?? ""));
+            }
+            if (ops.Count is 0 or > MaxInterleaveOps) report.Add(file, $"{where} needs 1 to {MaxInterleaveOps} ops (found {ops.Count}).");
+            if (held.Count > 0) report.Add(file, $"{where}: thread '{name}' ends still holding {string.Join(", ", held.Order(StringComparer.Ordinal))}; unlock every lock it takes.");
+            threads.Add(new InterleaveThread(name, ops));
+        }
+        if (threads.Count is < 2 or > 3) report.Add(file, $"{label}: an interleave step needs 2 or 3 threads (found {threads.Count}).");
+
+        var invariant = LoadInterleaveInvariant(dto.Invariant, sharedNames, label, file, report);
+        var breaking = dto.BreakingSchedule ?? [];
+        if (breaking.Count == 0) report.Add(file, $"{label}: needs a 'breakingSchedule': thread names, in order, that break the invariant.");
+        var replays = new List<InterleaveReplay>();
+        for (var i = 0; i < (dto.Replays?.Count ?? 0); i++)
+        {
+            var r = dto.Replays![i];
+            if (IsEmptyEntry(r, $"{label}: replays[{i}]", file, report)) continue;
+            if (string.IsNullOrWhiteSpace(r.Label)) report.Add(file, $"{label}: replays[{i}] needs a 'label'.");
+            if (r.Schedule is not { Count: > 0 }) report.Add(file, $"{label}: replays[{i}] needs a 'schedule' of thread names.");
+            replays.Add(new InterleaveReplay(r.Label ?? "", r.Schedule ?? []));
+        }
+
+        if (report.Errors.Count != errorsBefore || invariant is null) return null;
+        var step = new InterleaveStep(dto.Id!, dto.Title!, dto.Prompt!, shared, threads, invariant, breaking, replays, dto.Explanation!);
+
+        foreach (var order in Permutations(Enumerable.Range(0, threads.Count).ToList()))
+        {
+            var sequential = order.SelectMany(i => Enumerable.Repeat(threads[i].Name, threads[i].Ops.Count)).ToList();
+            var run = InterleaveMachine.Evaluate(step, sequential);
+            if (run.BreaksInvariant || run.Outcome != InterleaveOutcome.Completed)
+            {
+                report.Add(file, $"{label}: running the threads one after another ({string.Join(" then ", order.Select(i => threads[i].Name))}) already breaks the invariant, so the puzzle is not about interleaving.");
+                break;
+            }
+        }
+        if (!InterleaveMachine.Evaluate(step, breaking).BreaksInvariant)
+            report.Add(file, $"{label}: the 'breakingSchedule' does not break the invariant ({InterleaveMachine.Evaluate(step, breaking).Feedback}).");
+        for (var i = 0; i < replays.Count; i++)
+            if (InterleaveMachine.Evaluate(step, replays[i].Schedule) is var run && run.States.Count != replays[i].Schedule.Count + 1)
+                report.Add(file, $"{label}: replays[{i}] cannot be played: {run.Feedback}");
+        return report.Errors.Count == errorsBefore ? step : null;
+    }
+
+    private static InterleaveInvariant? LoadInterleaveInvariant(InterleaveInvariantDto? dto, HashSet<string> sharedNames, string label, string file, ValidationReport report)
+    {
+        if (dto is null) { report.Add(file, $"{label}: needs an 'invariant' (kind, description) for the learner to break."); return null; }
+        var before = report.Errors.Count;
+        Require(dto.Description, "invariant.description", file, report, label);
+        if (dto.Kind == InterleaveInvariant.FinalValue)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Variable) || !sharedNames.Contains(dto.Variable.Trim()))
+                report.Add(file, $"{label}: a final-value invariant needs a 'variable' that is one of the shared variables (found '{dto.Variable}').");
+            if (dto.Expected is null) report.Add(file, $"{label}: a final-value invariant needs the 'expected' value.");
+        }
+        else if (dto.Kind != InterleaveInvariant.NoDeadlock)
+            report.Add(file, $"{label}: invariant 'kind' must be final-value or no-deadlock (found '{dto.Kind}').");
+        return report.Errors.Count == before ? new InterleaveInvariant(dto.Kind!, dto.Description!, dto.Variable?.Trim(), dto.Expected) : null;
+    }
+
+    private static IEnumerable<List<int>> Permutations(List<int> items)
+    {
+        if (items.Count <= 1) { yield return items; yield break; }
+        for (var i = 0; i < items.Count; i++)
+            foreach (var rest in Permutations(items.Where((_, j) => j != i).ToList()))
+                yield return [items[i], .. rest];
     }
 
     private static Step? LoadAsyncTimeline(StepDto dto, string label, string file, ValidationReport report, int errorsBefore)
@@ -1425,7 +1558,18 @@ public static partial class ContentValidator
         public string? Setup { get; set; }
         public List<CandidateDto>? Candidates { get; set; }
         public List<AsyncTimelineEventDto>? Events { get; set; }
+        public List<InterleaveVariableDto>? Shared { get; set; }
+        public List<InterleaveThreadDto>? Threads { get; set; }
+        public InterleaveInvariantDto? Invariant { get; set; }
+        public List<string>? BreakingSchedule { get; set; }
+        public List<InterleaveReplayDto>? Replays { get; set; }
+        public string? Explanation { get; set; }
     }
+    private sealed class InterleaveVariableDto { public string? Name { get; set; } public int? Value { get; set; } }
+    private sealed class InterleaveOpDto { public string? Code { get; set; } public string? Do { get; set; } }
+    private sealed class InterleaveThreadDto { public string? Name { get; set; } public List<InterleaveOpDto>? Ops { get; set; } }
+    private sealed class InterleaveInvariantDto { public string? Kind { get; set; } public string? Description { get; set; } public string? Variable { get; set; } public int? Expected { get; set; } }
+    private sealed class InterleaveReplayDto { public string? Label { get; set; } public List<string>? Schedule { get; set; } }
     private sealed class AsyncTimelineEventDto { public int? Sequence { get; set; } public string? Thread { get; set; } public string? Kind { get; set; } public string? Label { get; set; } public string? Operation { get; set; } public string? ContinuationThread { get; set; } public string? State { get; set; } }
     private sealed class CandidateDto { public string? Id { get; set; } public string? Label { get; set; } public string? Code { get; set; } }
     private sealed class FileDto { public string? Name { get; set; } public string? Starter { get; set; } public string? Solution { get; set; } }

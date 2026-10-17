@@ -74,6 +74,7 @@ public sealed record LabelledSnippet(string Label, string Language, string Code)
 [JsonDerivedType(typeof(AsyncTimelineStep), "async-timeline")]
 [JsonDerivedType(typeof(LoweredStep), "lowered")]
 [JsonDerivedType(typeof(BenchmarkPredictStep), "benchmark-predict")]
+[JsonDerivedType(typeof(InterleaveStep), "interleave")]
 public abstract record Step(string Id, string Title) : ContentItem(Id)
 {
     /// <summary>
@@ -501,3 +502,45 @@ public sealed record BenchmarkPredictStep(
     public IReadOnlyList<BenchmarkRow> RankedRows() =>
         Recorded is null ? [] : Recorded.Rows.OrderBy(KeyOf).ToList();
 }
+
+/// <summary>A shared variable of an interleaving, and the value it starts with.</summary>
+public sealed record InterleaveVariable(string Name, int Initial);
+
+/// <summary>
+/// One line of a thread. <see cref="Code"/> is the C# the learner reads; <see cref="Do"/> is the same line in the interleaving's small
+/// machine language (see <see cref="InterleaveMachine"/>), which is what actually runs: <c>t = counter</c>, <c>counter = t + 1</c>,
+/// <c>lock a</c>, <c>unlock a</c>.
+/// </summary>
+public sealed record InterleaveOp(string Code, string Do);
+
+public sealed record InterleaveThread(string Name, IReadOnlyList<InterleaveOp> Ops);
+
+/// <summary>
+/// What the learner is trying to break. <see cref="FinalValue"/> holds while the shared <see cref="Variable"/> ends at <see cref="Expected"/>
+/// once every thread has finished; <see cref="NoDeadlock"/> holds while the threads never end up all waiting on each other.
+/// </summary>
+public sealed record InterleaveInvariant(string Kind, string Description, string? Variable = null, int? Expected = null)
+{
+    public const string FinalValue = "final-value";
+    public const string NoDeadlock = "no-deadlock";
+}
+
+/// <summary>A schedule the player can replay: thread names, in the order they take a step.</summary>
+public sealed record InterleaveReplay(string Label, IReadOnlyList<string> Schedule);
+
+/// <summary>
+/// "Find the interleaving that breaks it." Two or three threads' code side by side; the learner steps them by hand, one line at a time,
+/// to build a schedule that violates <see cref="Invariant"/> (a lost update, a deadlock). Graded by running the schedule on the
+/// machine, so no code is compiled and it runs on every device. <see cref="BreakingSchedule"/> is checked by the pack build to really break the
+/// invariant; <see cref="Replays"/> are schedules the learner can watch.
+/// </summary>
+public sealed record InterleaveStep(
+    string Id,
+    string Title,
+    string Prompt,
+    IReadOnlyList<InterleaveVariable> Shared,
+    IReadOnlyList<InterleaveThread> Threads,
+    InterleaveInvariant Invariant,
+    IReadOnlyList<string> BreakingSchedule,
+    IReadOnlyList<InterleaveReplay> Replays,
+    string Explanation) : Step(Id, Title);

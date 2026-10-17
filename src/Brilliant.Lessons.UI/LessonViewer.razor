@@ -91,6 +91,9 @@ else if (step is not null)
             case BenchmarkPredictStep bench:
                 <BenchmarkPredictStepView Step="bench" OnAnswered="a => Answered(step, a)" OnContinue="() => Complete(step)" />
                 break;
+            case InterleaveStep interleave:
+                <InterleaveStepView Step="interleave" OnAnswered="a => Answered(step, a)" OnContinue="() => Complete(step)" />
+                break;
             case WriteCodeStep write:
                 <WriteCodeStepView Step="write" OnSubmitted="s => Submitted(step, write, s)" OnContinue="() => Complete(step)" />
                 break;
@@ -201,6 +204,11 @@ else
     private void Answered(Step owner, BenchmarkPredictStepView.Attempt a)
     {
         if (!Review) Recorder.StepAnswered(Lesson.Id, owner.Id, a.Result.IsCorrect, a.Ranking);
+    }
+
+    private void Answered(Step owner, InterleaveStepView.Attempt a)
+    {
+        if (!Review) Recorder.ScheduleSubmitted(Lesson.Id, owner.Id, a.Correct, a.Schedule);
     }
 
     private void Answered(Step owner, FillBlankStep step, FillBlankStepView.Attempt a)

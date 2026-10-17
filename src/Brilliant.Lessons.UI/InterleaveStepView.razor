@@ -1,0 +1,297 @@
+@using Brilliant.Core.Content
+@implements IDisposable
+@inject StepShortcuts Shortcuts
+@inject ScreenInfo Screen
+
+@* "Break it." Two or three threads shown side by side (stacked on a phone). The learner runs one line at a time, in any order the threads allow,
+   to reach a state that breaks the invariant, then checks. Authored orders can be replayed to watch the shared state change. *@
+<article class="interleave-step lesson-step">
+    <h2>@(Title ?? Step.Title)</h2>
+    <p class="prompt">@Step.Prompt</p>
+    <p class="invariant rounded-lg border border-hairline bg-surface-raised px-4 py-3 text-[.95rem]"><strong>The rule to break:</strong> @Step.Invariant.Description</p>
+
+    <h3 class="mt-5 mb-1">Run the threads</h3>
+    <p class="hint-text mb-3 text-[.95rem] text-fg-secondary" id="@HelpId">
+        Each button runs the next line of that thread and nothing else. Mix them in any order. A thread whose next line needs a lock another thread holds has to wait.@(Screen.IsPhone ? "" : " Press 1–" + Step.Threads.Count + " to run a thread, ← to undo.")
+    </p>
+    @Board(Current, _schedule.Count == 0 ? null : _schedule[^1], !Locked, "play")
+
+    <div class="schedule mt-3 text-[.95rem]" aria-live="polite">
+        <strong>Order so far:</strong>
+        @if (_schedule.Count == 0)
+        {
+            <span class="text-fg-secondary">nothing has run yet</span>
+        }
+        else
+        {
+            <ol class="inline p-0">
+                @for (var i = 0; i < _schedule.Count; i++)
+                {
+                    <li class="schedule-item mr-1 inline-block rounded-sm border border-hairline bg-surface px-2 py-[.1rem]">@_schedule[i]</li>
+                }
+            </ol>
+        }
+    </div>
+
+    @if (_result is null)
+    {
+        <div class="actions mt-3 flex flex-wrap gap-2">
+            <button type="button" class="secondary btn-secondary" disabled="@(_schedule.Count == 0)" @onclick="Undo">Undo</button>
+            <button type="button" class="secondary btn-secondary" disabled="@(_schedule.Count == 0)" @onclick="Reset">Start over</button>
+            <button type="button" class="primary btn-primary" disabled="@(Outcome == InterleaveOutcome.Running)" @onclick="Check">@CheckText</button>
+        </div>
+        @if (Outcome == InterleaveOutcome.Running)
+        {
+            <p class="mt-2 text-[.9rem] text-fg-secondary">Run the threads until they have all finished or are stuck, then check.</p>
+        }
+        else if (Outcome == InterleaveOutcome.Deadlocked)
+        {
+            <p class="stuck mt-2 text-[.9rem] text-fg-secondary" role="status">Every thread left is waiting for a lock. Nothing can run.</p>
+        }
+    }
+    else if (_result.BreaksInvariant)
+    {
+        <p class="verdict correct mt-3 font-semibold text-success" role="status">You broke it.</p>
+        <div class="explanation my-3 max-w-(--content-width)">@((MarkupString)MarkdownHtml.ToHtml(Step.Explanation))</div>
+        <button type="button" class="primary btn-primary" @onclick="() => OnContinue.InvokeAsync()">Continue</button>
+    }
+    else
+    {
+        <p class="verdict incorrect mt-3 font-semibold text-danger" role="status">Not quite: @_result.Feedback Undo some steps, or start over, and try another order.</p>
+        <div class="actions mt-3 flex flex-wrap gap-2">
+            <button type="button" class="primary btn-primary" @onclick="TryAgain">Try again</button>
+        </div>
+    }
+
+    @if (Replays.Count > 0)
+    {
+        <section class="replays mt-6" aria-label="Watch an order">
+            <h3 class="mb-1">Watch an order</h3>
+            <p class="mb-3 text-[.95rem] text-fg-secondary">Replay a schedule one line at a time and see what each line does to the shared state.</p>
+            <div class="replay-choices flex flex-wrap gap-2">
+                @for (var i = 0; i < Replays.Count; i++)
+                {
+                    var index = i;
+                    <button type="button" class="@ReplayChoiceClass(index)" aria-pressed="@(_replay == index ? "true" : "false")" @onclick="() => OpenReplay(index)">@Replays[i].Label</button>
+                }
+            </div>
+            @if (_replay is { } open && open < Replays.Count)
+            {
+                var states = ReplayStates(Replays[open].Schedule);
+                var shown = Math.Min(_replayPos, states.Count - 1);
+                var ran = shown == 0 ? null : Replays[open].Schedule[shown - 1];
+                <div class="replay mt-4" role="group" aria-label="@Replays[open].Label">
+                    <p class="replay-caption mb-2 text-[.95rem]" aria-live="polite">@ReplayCaption(Replays[open].Schedule, shown)</p>
+                    @Board(states[shown], ran, false, "replay")
+                    <div class="actions mt-3 flex flex-wrap gap-2">
+                        <button type="button" class="secondary btn-secondary replay-back" disabled="@(shown == 0)" @onclick="() => _replayPos = shown - 1">Back</button>
+                        <button type="button" class="secondary btn-secondary replay-next" disabled="@(shown == states.Count - 1)" @onclick="() => _replayPos = shown + 1">Next line</button>
+                        <button type="button" class="secondary btn-secondary replay-reset" disabled="@(shown == 0)" @onclick="() => _replayPos = 0">Restart</button>
+                    </div>
+                </div>
+            }
+        </section>
+    }
+</article>
+
+@code {
+    /// <summary>What the learner submitted: the thread names in the order they ran, whether that order broke the invariant, and why not if it didn't.</summary>
+    public sealed record Attempt(bool Correct, IReadOnlyList<string> Schedule, string? Feedback);
+
+    [Parameter, EditorRequired] public InterleaveStep Step { get; set; } = default!;
+
+    /// <summary>Shown instead of the step's title (Practice shows "Problem").</summary>
+    [Parameter] public string? Title { get; set; }
+
+    [Parameter] public string CheckText { get; set; } = "Check";
+
+    /// <summary>Raised each time the learner checks an order (right or not).</summary>
+    [Parameter] public EventCallback<Attempt> OnAnswered { get; set; }
+
+    /// <summary>Raised when the learner continues after breaking the invariant.</summary>
+    [Parameter] public EventCallback OnContinue { get; set; }
+
+    private const string ThreadButton = "run-thread min-h-9 coarse:min-h-(--touch) w-full cursor-pointer rounded-sm border border-border bg-surface px-3 py-1 font-inherit text-inherit disabled:cursor-default disabled:opacity-40";
+    private const string ChoiceBase = "min-h-9 coarse:min-h-(--touch) cursor-pointer rounded-sm border px-3 py-1 font-inherit text-inherit";
+
+    private readonly List<InterleaveState> _states = [];
+    private readonly List<string> _schedule = [];
+    private IReadOnlyList<IReadOnlyList<InterleaveInstruction>> _program = [];
+    private InterleaveResult? _result;
+    private InterleaveStep? _source;
+    private IDisposable? _shortcuts;
+    private int? _replay;
+    private int _replayPos;
+
+    private InterleaveState Current => _states[^1];
+    private InterleaveOutcome Outcome => InterleaveMachine.OutcomeOf(Step, Current);
+    private bool Locked => _result is not null;
+    private string HelpId => $"{Step.Id}-help";
+
+    /// <summary>The authored replays, plus the breaking order once the learner has found a way to break it themselves.</summary>
+    private IReadOnlyList<InterleaveReplay> Replays => _result is { BreaksInvariant: true }
+        ? [.. Step.Replays, new InterleaveReplay("The break", Step.BreakingSchedule)]
+        : Step.Replays;
+
+    protected override void OnInitialized() => _shortcuts = Shortcuts.Subscribe(OnShortcut);
+
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(_source, Step)) return;
+        _source = Step;
+        _program = InterleaveMachine.Program(Step);
+        Reset();
+        _replay = null;
+        _replayPos = 0;
+    }
+
+    public void Dispose() => _shortcuts?.Dispose();
+
+    private string ReplayChoiceClass(int index) =>
+        ChoiceBase + (_replay == index ? " border-accent bg-surface-raised font-semibold" : " border-border bg-surface");
+
+    private string ThreadsGrid => Step.Threads.Count == 3 ? "grid gap-3 sm:grid-cols-2 lg:grid-cols-3" : "grid gap-3 sm:grid-cols-2";
+
+    private IReadOnlyList<InterleaveState> ReplayStates(IReadOnlyList<string> schedule) => InterleaveMachine.Evaluate(Step, schedule).States;
+
+    private string ReplayCaption(IReadOnlyList<string> schedule, int position)
+    {
+        if (position == 0) return $"Before anything runs. {schedule.Count} lines to go.";
+        var thread = Step.Threads.First(t => t.Name == schedule[position - 1]);
+        var line = LineRan(schedule, position - 1);
+        return $"Line {position} of {schedule.Count}: thread {thread.Name} ran {line}";
+    }
+
+    // Which of its own lines thread X ran at schedule position n: the count of earlier turns it took.
+    private string LineRan(IReadOnlyList<string> schedule, int index)
+    {
+        var name = schedule[index];
+        var own = schedule.Take(index).Count(t => t == name);
+        return Step.Threads.First(t => t.Name == name).Ops[own].Code;
+    }
+
+    private RenderFragment Board(InterleaveState state, string? lastRan, bool interactive, string scope) => __builder =>
+    {
+        <div class="board" data-scope="@scope">
+            <section class="shared-state sticky top-0 z-10 mb-3 rounded-lg border border-hairline bg-surface-raised px-4 py-3" aria-label="Shared state">
+                <h4 class="mt-0 mb-1 text-[.9rem] font-semibold text-fg-secondary">Shared</h4>
+                <ul class="m-0 flex list-none flex-wrap gap-x-5 gap-y-1 p-0">
+                    @foreach (var variable in Step.Shared)
+                    {
+                        <li class="shared-var" data-var="@variable.Name"><code>@variable.Name</code> = <strong class="value">@state.Shared[variable.Name]</strong></li>
+                    }
+                    @foreach (var lockName in LockNames)
+                    {
+                        <li class="shared-lock" data-lock="@lockName"><code>@lockName</code> <span class="text-fg-secondary">@(state.LockHolders.TryGetValue(lockName, out var holder) ? $"held by {holder}" : "free")</span></li>
+                    }
+                </ul>
+            </section>
+            <div class="@ThreadsGrid">
+                @for (var t = 0; t < Step.Threads.Count; t++)
+                {
+                    var index = t;
+                    var thread = Step.Threads[t];
+                    var status = InterleaveMachine.StatusOf(Step, state, t);
+                    var pc = state.Pcs[t];
+                    <section class="@ThreadCardClass(thread.Name == lastRan)" data-thread="@thread.Name" aria-label="@($"Thread {thread.Name}")">
+                        <h4 class="mt-0 mb-2">Thread @thread.Name</h4>
+                        <ol class="ops m-0 grid list-none gap-1 p-0">
+                            @for (var o = 0; o < thread.Ops.Count; o++)
+                            {
+                                <li class="@OpClass(o, pc)" data-state="@(o < pc ? "done" : o == pc ? "next" : "waiting")" aria-current="@(o == pc ? "step" : null)"><code>@thread.Ops[o].Code</code></li>
+                            }
+                        </ol>
+                        @if (state.Locals[t].Count > 0)
+                        {
+                            <p class="locals mt-2 mb-0 text-[.9rem] text-fg-secondary">Its own copy: @string.Join(", ", state.Locals[t].Select(l => $"{l.Key} = {l.Value}"))</p>
+                        }
+                        <p class="status mt-2 mb-0 text-[.9rem] text-fg-secondary">@StatusText(status, index, state)</p>
+                        @if (interactive)
+                        {
+                            <button type="button" class="@ThreadButton" disabled="@(status != InterleaveThreadStatus.Ready)" aria-describedby="@HelpId"
+                                    aria-label="@($"Run next line of thread {thread.Name}")" @onclick="() => Run(index)">Run @thread.Name</button>
+                        }
+                    </section>
+                }
+            </div>
+        </div>
+    };
+
+    private IEnumerable<string> LockNames => _program.SelectMany(p => p)
+        .Where(i => i.Kind is InterleaveInstructionKind.Lock or InterleaveInstructionKind.Unlock).Select(i => i.Name).Distinct(StringComparer.Ordinal);
+
+    private static string ThreadCardClass(bool justRan) =>
+        "thread rounded-lg border bg-surface-raised p-3 " + (justRan ? "border-accent" : "border-hairline");
+
+    private static string OpClass(int op, int pc) =>
+        "op rounded-sm px-2 py-1 " + (op < pc ? "bg-surface text-fg-secondary" : op == pc ? "border border-accent bg-surface font-semibold" : "border border-transparent");
+
+    private string StatusText(InterleaveThreadStatus status, int thread, InterleaveState state) => status switch
+    {
+        InterleaveThreadStatus.Done => "Finished.",
+        InterleaveThreadStatus.Blocked => $"Waiting for {_program[thread][state.Pcs[thread]].Name}, held by {state.LockHolders[_program[thread][state.Pcs[thread]].Name]}.",
+        _ => $"Next: line {state.Pcs[thread] + 1} of {Step.Threads[thread].Ops.Count}.",
+    };
+
+    private void Run(int thread)
+    {
+        if (Locked || InterleaveMachine.StatusOf(Step, Current, thread) != InterleaveThreadStatus.Ready) return;
+        _states.Add(InterleaveMachine.Advance(Step, Current, thread));
+        _schedule.Add(Step.Threads[thread].Name);
+    }
+
+    private void Undo()
+    {
+        if (Locked || _schedule.Count == 0) return;
+        _states.RemoveAt(_states.Count - 1);
+        _schedule.RemoveAt(_schedule.Count - 1);
+    }
+
+    private void Reset()
+    {
+        _states.Clear();
+        _states.Add(InterleaveMachine.Start(Step));
+        _schedule.Clear();
+        _result = null;
+    }
+
+    private async Task Check()
+    {
+        if (Locked || Outcome == InterleaveOutcome.Running) return;
+        var schedule = _schedule.ToList();
+        _result = InterleaveMachine.Evaluate(Step, schedule);
+        await OnAnswered.InvokeAsync(new Attempt(_result.BreaksInvariant, schedule, _result.Feedback));
+    }
+
+    // The learner keeps their order and undoes from the end.
+    private void TryAgain() => _result = null;
+
+    private void OpenReplay(int index)
+    {
+        _replay = _replay == index ? null : index;
+        _replayPos = 0;
+    }
+
+    private Task OnShortcut(StepShortcut s) => InvokeAsync(async () =>
+    {
+        switch (s.Command)
+        {
+            case StepCommand.Choose when s.Number >= 1 && s.Number <= Step.Threads.Count:
+                Run(s.Number - 1);
+                break;
+            case StepCommand.Previous:
+                Undo();
+                break;
+            case StepCommand.Run or StepCommand.Advance when _result is null:
+                await Check();
+                break;
+            case StepCommand.Advance when _result is { BreaksInvariant: true }:
+                await OnContinue.InvokeAsync();
+                return;
+            case StepCommand.Advance:
+                TryAgain();
+                break;
+        }
+        StateHasChanged();
+    });
+}
