@@ -1,0 +1,78 @@
+id: lesson.csharp.gc-large-and-pinned
+title: Large and pinned heaps
+concepts:
+  - id: concept.csharp.gc-loh
+    title: Large objects use the LOH and are collected with generation 2
+  - id: concept.csharp.gc-poh
+    title: The pinned object heap isolates pinned allocations
+  - id: concept.csharp.gc-pinning
+    title: Pinning trades movement for address stability
+reviewItems:
+  - id: review.csharp.gc-loh
+    concept: concept.csharp.gc-loh
+    step: step.csharp.gc-large.check-loh
+  - id: review.csharp.gc-poh
+    concept: concept.csharp.gc-poh
+    step: step.csharp.gc-large.check-poh
+  - id: review.csharp.gc-pinning
+    concept: concept.csharp.gc-pinning
+    step: step.csharp.gc-large.check-pinning
+steps:
+  - id: step.csharp.gc-large.intro
+    type: explain
+    title: Large arrays have different costs
+    body: |
+      The large object heap (LOH) is for allocations at or above the runtime's large-object threshold, which is about 85,000 bytes by default. The request size is for the whole object, not just the array's payload, and the threshold can be configured. Large objects are collected with generation 2; the LOH is usually swept rather than compacted because copying large blocks is expensive. That makes allocation and fragmentation worth measuring when large buffers churn.
+
+      The pinned object heap (POH) is separate from the LOH. `GC.AllocateArray<T>(length, pinned: true)` asks the runtime for a pinned array there. A pinned object cannot move while its address must stay stable, so pinning lots of ordinary short-lived objects can impede compaction. Use pinning for an actual interop or native-I/O lifetime requirement, not as a general performance switch.
+  - id: step.csharp.gc-large.check-loh
+    type: choice
+    title: Which allocation is large?
+    prompt: |
+      On the default .NET GC configuration, which request is safely above the roughly 85,000-byte large-object threshold?
+    options:
+      - text: '`new byte[100_000]`'
+        correct: true
+        feedback: Right. Even before object-header overhead, the byte payload exceeds the default threshold, so this array is allocated on the LOH.
+      - text: '`new byte[1_024]`'
+        correct: false
+        feedback: A one-kilobyte payload is well below the default large-object threshold.
+      - text: '`new object()`'
+        correct: false
+        feedback: One ordinary instance is a small object. The LOH is mainly relevant to very large arrays and other large allocations.
+    hints:
+      - Compare the payload size with about 85,000 bytes.
+  - id: step.csharp.gc-large.check-poh
+    type: choice
+    title: Where does a pinned array go?
+    prompt: |
+      A native API needs a `byte[]` whose address remains stable while it uses the buffer. Which .NET API explicitly allocates a pinned array?
+    options:
+      - text: '`GC.AllocateArray<byte>(length, pinned: true)`'
+        correct: true
+        feedback: Right. This API creates an array intended to remain pinned and places it on the POH on supported .NET runtimes.
+      - text: '`ArrayPool<byte>.Shared.Rent(length)`'
+        correct: false
+        feedback: Renting reuses an array; it does not promise that the array is pinned or that its address stays stable.
+      - text: '`new byte[length]`'
+        correct: false
+        feedback: A normal array is movable. Use a pin only for the duration and reason that needs a stable address.
+    hints:
+      - The API that exposes a `pinned` parameter makes the lifetime requirement explicit.
+  - id: step.csharp.gc-large.check-pinning
+    type: choice
+    title: What pinning costs
+    prompt: |
+      Why should a service avoid pinning many short-lived objects across unrelated work?
+    options:
+      - text: Pinned objects cannot move, which can limit heap compaction around them
+        correct: true
+        feedback: Right. Pin only for the period an address must remain stable. The POH helps isolate long-lived pinned allocations, but pinning still has a lifetime and memory cost.
+      - text: A pinned object is immediately removed at the next collection
+        correct: false
+        feedback: Pinning prevents movement; it does not make an object unreachable or force its reclamation.
+      - text: Pinning moves every object into generation 0
+        correct: false
+        feedback: Pinning concerns address stability. It is not a generation-promotion mechanism.
+    hints:
+      - Ask what the compactor is prevented from doing around a pinned object.

@@ -1,0 +1,165 @@
+id: lesson.csharp.spans-pools-and-hidden-allocations
+title: Spans, pools, and hidden allocations
+concepts:
+  - id: concept.csharp.gc-span
+    title: Span is a stack-only view over contiguous memory
+  - id: concept.csharp.gc-memory
+    title: Memory can be stored across an asynchronous boundary
+  - id: concept.csharp.gc-array-pool
+    title: ArrayPool reuses storage but transfers a return obligation
+  - id: concept.csharp.gc-hidden-allocations
+    title: Temporary collections can dominate a hot path's allocation budget
+reviewItems:
+  - id: review.csharp.gc-span
+    concept: concept.csharp.gc-span
+    step: step.csharp.spans.stackalloc
+  - id: review.csharp.gc-memory
+    concept: concept.csharp.gc-memory
+    step: step.csharp.spans.check-memory-across-await
+  - id: review.csharp.gc-array-pool
+    concept: concept.csharp.gc-array-pool
+    step: step.csharp.spans.check-array-pool
+  - id: review.csharp.gc-hidden-allocations
+    concept: concept.csharp.gc-hidden-allocations
+    step: step.csharp.spans.rewrite-linq
+steps:
+  - id: step.csharp.spans.intro
+    type: explain
+    title: A view is not an owner
+    body: |
+      `Span<T>` and `ReadOnlySpan<T>` describe a contiguous region without copying it. They are `ref struct` types, so the compiler keeps them from escaping to the managed heap: they cannot be boxed, stored in a class field, or live across an `await` or `yield` boundary. A span may refer to stack storage, an array, or other memory; the type itself does not promise that its backing storage is on the stack.
+
+      `stackalloc` creates method-scoped stack storage and avoids a managed array allocation. Keep the size conservative, initialize the contents before reading them, and do not put repeated `stackalloc` expressions inside a loop. For a buffer that must be stored or carried across asynchronous work, use `Memory<T>`/`ReadOnlyMemory<T>` over storage with a lifetime that covers the operation.
+
+      `ArrayPool<T>.Shared.Rent` reuses an array when possible. Use only the requested slice, and return the array in a `finally` block even if processing throws. After return, treat it as no longer yours; clear it when it held sensitive data.
+  - id: step.csharp.spans.stackalloc
+    type: predict-output
+    title: A view over stack storage
+    prompt: |
+      `stackalloc` creates the storage on the stack, and the `Span<int>` is a view over it, not a managed array. What does this program print?
+    language: csharp
+    code: |
+      Span<int> values = stackalloc int[] { 2, 3, 5 };
+      values[1] *= 10;
+      Console.WriteLine(values[0] + values[1] + values[2]);
+    accepted:
+      - '37'
+    mistakes:
+      - answers:
+          - '10'
+        feedback: '`values` is a view of three stack-allocated integers. After the middle value changes from 3 to 30, the sum is 37.'
+    hints:
+      - The second slot changes from `3` to `30`; add all three values.
+  - id: step.csharp.spans.check-span-lifetime
+    type: choice
+    title: Which value can cross await?
+    prompt: |
+      A method needs to hold a view over an array while it awaits network I/O. Which type can be stored in the async state that survives the `await`?
+    options:
+      - text: '`Memory<byte>`'
+        correct: true
+        feedback: '`Memory<T>` is the heap-storable counterpart for storage that must cross an asynchronous boundary. The array or owner must still remain alive for the operation.'
+      - text: '`Span<byte>`'
+        correct: false
+        feedback: '`Span<T>` is a ref struct and cannot be live across an `await` boundary. Use it in a synchronous region before or after the await.'
+      - text: '`stackalloc byte[256]`'
+        correct: false
+        feedback: Stack storage ends with its method scope. It cannot safely outlive that scope or be carried through asynchronous suspension.
+    hints:
+      - One of these types is designed for storage across asynchronous work; Span deliberately has stricter lifetime rules.
+  - id: step.csharp.spans.rewrite-linq
+    type: allocations
+    variant: rewrite
+    title: Remove the temporary query objects
+    prompt: |
+      `Enumerable.Range(...).Select(...).ToArray().Sum()` creates a query and a temporary array. Rewrite the method so it returns the same sum without allocating per call.
+    language: csharp
+    entrypoint: SumSquares
+    largeScreenPreferred: true
+    starter: |
+      static int SumSquares(int n)
+      {
+          return Enumerable.Range(1, n).Select(value => value * value).ToArray().Sum();
+      }
+    solution: |
+      static int SumSquares(int n)
+      {
+          var total = 0;
+          for (var value = 1; value <= n; value++) total += value * value;
+          return total;
+      }
+    tests:
+      - input: '3'
+        expected: '14'
+        maxAllocatedBytes: 0
+      - input: '0'
+        expected: '0'
+    phoneAlternative:
+      id: step.csharp.spans.rewrite-linq.fill
+      type: fill-blank
+      title: Sum the squares
+      prompt: |
+        Add up the squares of 1 through `n` in a loop, with no query objects or arrays.
+      language: csharp
+      template: |
+        static int SumSquares(int n)
+        {
+            var total = 0;
+            for (var i = 1; {{condition}}; i++) total += i * i;
+            return total;
+        }
+      blanks:
+        - id: condition
+          accepted:
+            - i <= n
+  - id: step.csharp.spans.check-ref-struct
+    type: choice
+    title: What a ref struct may not do
+    prompt: |
+      `Span<T>` is a `ref struct`. Which of these is something the compiler rejects for a `ref struct` local or field?
+    options:
+      - text: Declaring a `Span<int>` field in an ordinary class
+        correct: true
+        feedback: Right. A `ref struct` can live only on the stack (or inside another `ref struct`), so a class field, a boxing conversion or a capture by a lambda is a compile error.
+      - text: Passing a `Span<int>` to a method as an argument
+        correct: false
+        feedback: Passing it is fine. The span is copied as a small struct (a pointer and a length) and the callee uses it before returning.
+      - text: Indexing into a `Span<int>` in a loop
+        correct: false
+        feedback: Indexing is the normal use. The restriction is about where the span may be stored, not what you may do with it.
+    hints:
+      - A ref struct must never end up on the heap.
+  - id: step.csharp.spans.check-memory-across-await
+    type: choice
+    title: What does Memory own?
+    prompt: |
+      A `Memory<byte>` wraps a segment of an array so a method can store the view while it awaits. What does the `Memory<byte>` value own?
+    options:
+      - text: A view describing a range; the backing array or owner must still stay alive
+        correct: true
+        feedback: '`Memory<T>` makes a heap-storable view. It does not copy or own the bytes, so retain the actual owner for as long as the operation needs them.'
+      - text: A private copy of all bytes in the range
+        correct: false
+        feedback: Creating a memory view does not copy its backing storage. Use an explicit copy when isolation is required.
+      - text: A pin that prevents the backing array from moving
+        correct: false
+        feedback: '`Memory<T>` does not pin an array. Pinning is a separate operation for APIs that truly need a stable address.'
+    hints:
+      - Compare a view over storage with an allocation that copies the storage.
+  - id: step.csharp.spans.check-array-pool
+    type: choice
+    title: Return rented storage safely
+    prompt: |
+      `ArrayPool<byte>.Shared.Rent(1024)` returns an array for temporary use. Which pattern is safe?
+    options:
+      - text: Use only the requested slice and return the array in `finally`; do not touch it afterwards
+        correct: true
+        feedback: Right. The returned array may be larger than requested and can be reused immediately by another caller after `Return`.
+      - text: Keep the array after `Return` because the pool only borrows it
+        correct: false
+        feedback: After returning it, ownership is back with the pool. Another operation can overwrite it at once.
+      - text: Assume every rented byte is zeroed and process the full array length
+        correct: false
+        feedback: Rent may return a larger, previously used array. Restrict work to the logical length and clear sensitive contents when required.
+    hints:
+      - A pool reuses storage; it does not provide a fresh, zeroed array for every request.

@@ -1,0 +1,119 @@
+id: lesson.csharp.disposal-and-finalization
+title: Disposal and finalization
+concepts:
+  - id: concept.csharp.dispose-deterministic
+    title: Dispose releases owned resources at a chosen point
+  - id: concept.csharp.dispose-using
+    title: using guarantees Dispose at scope exit
+  - id: concept.csharp.dispose-finalizer
+    title: A finalizer is a nondeterministic safety net
+  - id: concept.csharp.dispose-safehandle
+    title: SafeHandle is the default wrapper for native handles
+reviewItems:
+  - id: review.csharp.dispose-deterministic
+    concept: concept.csharp.dispose-deterministic
+    step: step.csharp.dispose.predict-order
+  - id: review.csharp.dispose-using
+    concept: concept.csharp.dispose-using
+    step: step.csharp.dispose.lowered-using
+  - id: review.csharp.dispose-finalizer
+    concept: concept.csharp.dispose-finalizer
+    step: step.csharp.dispose.check-finalizer
+  - id: review.csharp.dispose-safehandle
+    concept: concept.csharp.dispose-safehandle
+    step: step.csharp.dispose.check-safehandle
+steps:
+  - id: step.csharp.dispose.intro
+    type: explain
+    title: Managed memory is not every resource
+    body: |
+      The GC reclaims managed objects when they are no longer reachable. It does not promise to close a file, return a pooled buffer, or release a native handle at the moment your code stops using it. `IDisposable.Dispose` is the deterministic hand-off: a caller that owns a disposable resource uses `using` so cleanup runs at scope exit, including when the body throws.
+
+      A finalizer runs later on the runtime's finalizer path, at a time you cannot predict. It is only a fallback for a type that directly owns an unmanaged resource without a safer wrapper. Prefer `SafeHandle` for native handles; it already provides the critical finalization needed to close the handle safely. Call `Dispose` on the owner rather than waiting for a finalizer to release something important.
+  - id: step.csharp.dispose.predict-order
+    type: predict-output
+    title: Dispose when the scope exits
+    prompt: |
+      What does this print?
+    language: csharp
+    code: |
+      var events = new List<string>();
+      using (var lease = new Lease(events))
+      {
+          events.Add("body");
+      }
+      Console.WriteLine(string.Join(",", events));
+
+      sealed class Lease(List<string> events) : IDisposable
+      {
+          public void Dispose() => events.Add("dispose");
+      }
+    accepted:
+      - body,dispose
+    mistakes:
+      - answers:
+          - dispose,body
+        feedback: '`Dispose` runs after the body completes, when execution leaves the using scope.'
+      - answers:
+          - body
+        feedback: '`using` calls `Dispose` at scope exit, so the `dispose` event is appended before the final write.'
+    hints:
+      - The final `WriteLine` runs after the using block has ended.
+  - id: step.csharp.dispose.lowered-using
+    type: lowered
+    title: using becomes a finally
+    prompt: |
+      In the lowered form, which construct ensures `Dispose` runs when `WriteLine` throws?
+    code: |
+      static void WriteOne(System.IO.TextWriter output)
+      {
+          using var writer = new System.IO.StringWriter();
+          writer.WriteLine("ready");
+          output.WriteLine(writer.ToString());
+      }
+    options:
+      - text: A `try`/`finally` that disposes `writer`
+        correct: true
+        feedback: Right. The compiler lowers the using declaration so `Dispose` is in a `finally`, and it still runs during exception unwinding.
+      - text: A finalizer scheduled as soon as the method returns
+        correct: false
+        feedback: '`using` is deterministic compiler-generated cleanup. It does not wait for garbage collection or add a finalizer.'
+      - text: A catch block that retries the output operation
+        correct: false
+        feedback: Cleanup is placed in a `finally`; it is not an exception retry policy.
+    hints:
+      - Check what the compiler puts around the protected body, not what the GC might do later.
+  - id: step.csharp.dispose.check-finalizer
+    type: choice
+    title: When to write a finalizer
+    prompt: |
+      A class owns a `SafeFileHandle`. What is the normal cleanup design?
+    options:
+      - text: Implement `IDisposable` and dispose the `SafeFileHandle`; do not add another finalizer
+        correct: true
+        feedback: Right. `SafeHandle` owns the native-handle finalization safeguard. The wrapper type exposes deterministic cleanup through `Dispose`.
+      - text: Add a finalizer that calls methods on every managed field
+        correct: false
+        feedback: Finalizer order is nondeterministic, so other managed objects may already be finalized. Prefer `SafeHandle` and deterministic disposal.
+      - text: Let the GC call `Dispose` on every managed object automatically
+        correct: false
+        feedback: The GC does not automatically call `IDisposable.Dispose`. The owner must dispose the resource, usually with `using`.
+    hints:
+      - A resource wrapper already has its own finalization safeguard.
+  - id: step.csharp.dispose.check-safehandle
+    type: choice
+    title: The right abstraction for a native handle
+    prompt: |
+      A type owns an operating-system handle. Which choice is preferred over writing custom finalizer logic?
+    options:
+      - text: Wrap the handle in `SafeHandle` and dispose that wrapper
+        correct: true
+        feedback: Right. `SafeHandle` centralizes the critical finalization and release behavior; your type can own and dispose the wrapper normally.
+      - text: Store the raw integer and call `GC.Collect()` in `Dispose`
+        correct: false
+        feedback: Forcing a collection does not provide deterministic release and can trigger expensive global work. Dispose the handle wrapper directly.
+      - text: Depend on the object's finalizer running before process exit
+        correct: false
+        feedback: Finalization timing is nondeterministic, and finalizers are not guaranteed to complete during process shutdown.
+    hints:
+      - Prefer the standard runtime wrapper that already handles native release safely.

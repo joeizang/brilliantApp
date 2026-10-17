@@ -1,9 +1,10 @@
+using Brilliant.Core.Code;
 using Brilliant.Core.Content;
 using Brilliant.Core.Review;
 
 namespace Brilliant.Cli.Tests;
 
-/// <summary>The shipped C# pack (#158): every lesson has enough review questions for "I know this — test me" (#146).</summary>
+/// <summary>The shipped C# pack: every lesson has enough review questions for "I know this — test me" (#146).</summary>
 public sealed class CSharpTrack1ContentTests
 {
     private static readonly Lazy<ContentGraph> Shipped = new(() =>
@@ -49,6 +50,19 @@ public sealed class CSharpTrack1ContentTests
         Assert.Contains(lessons.SelectMany(lesson => lesson.Steps), step => step is LoweredStep);
         Assert.Contains(lessons.SelectMany(lesson => lesson.Steps), step => step.Id == "step.csharp.contexts.timeline-deadlock");
         Assert.Contains(lessons.SelectMany(lesson => lesson.Steps), step => step.Id == "step.csharp.streams.check-bounded");
+    }
+
+    [Fact]
+    public void Memory_track_uses_the_allocation_benchmark_and_stack_heap_views()
+    {
+        var track = Assert.Single(Shipped.Value.Tracks, track => track.Id == "track.csharp.memory-and-gc");
+        var lessons = track.LessonIds.Select(Shipped.Value.Get<Lesson>).ToList();
+        var steps = lessons.SelectMany(lesson => lesson.Steps).ToList();
+
+        Assert.Equal(4, lessons.Count);
+        Assert.Contains(steps, step => step is BenchmarkPredictStep);
+        Assert.Contains(steps, step => step is TraceStep trace && trace.Visuals.Any(visual => visual.As == Visual.Memory));
+        Assert.Contains(steps, step => step.Id == "step.csharp.spans.rewrite-linq" && step is WriteCodeStep);
     }
 
     private static string FindManifest()

@@ -1,0 +1,124 @@
+id: lesson.csharp.gc-generations
+title: Generations and survival
+concepts:
+  - id: concept.csharp.gc-roots
+    title: Reachability from roots decides whether an object is live
+  - id: concept.csharp.gc-promotion
+    title: Small objects that survive a collection are promoted
+  - id: concept.csharp.gc-gen1-buffer
+    title: An older-generation collection includes the younger generations
+  - id: concept.csharp.gc-allocation-pressure
+    title: Allocation volume creates collection work
+reviewItems:
+  - id: review.csharp.gc-roots
+    concept: concept.csharp.gc-roots
+    step: step.csharp.gc.check-roots
+  - id: review.csharp.gc-promotion
+    concept: concept.csharp.gc-promotion
+    step: step.csharp.gc.check-promotion
+  - id: review.csharp.gc-gen1-buffer
+    concept: concept.csharp.gc-gen1-buffer
+    step: step.csharp.gc.check-gen2
+  - id: review.csharp.gc-allocation-pressure
+    concept: concept.csharp.gc-allocation-pressure
+    step: step.csharp.gc.benchmark-copy
+steps:
+  - id: step.csharp.gc.intro
+    type: explain
+    title: The GC bets on short lifetimes
+    body: |
+      A normal small object starts in generation 0. When a collection finds it still reachable from a root, the object survives and is promoted; after surviving later collections it can reach generation 2. Generation 1 is a buffer between the young allocation area and objects that have lived longer. The design works because many request-local objects die before the next collection.
+
+      Roots include active stack locals, static fields and handles held by the runtime. The collector follows references from those roots. A local going out of scope is not itself a collection, and a live object does not move generations because a clock ran out.
+
+      The memory view below is a snapshot of reachable frames and objects at each recorded probe. It shows why an object remains reachable, but it does not simulate collections or label an object's generation.
+  - id: step.csharp.gc.trace-roots
+    type: trace
+    language: csharp
+    title: Two roots, two arrays
+    body: |
+      Follow `retained` into the list and then into its first array. `current` points to a different array. The stack-and-heap snapshot makes the reference paths visible; whether either object has survived a GC is a separate runtime event that this recording does not perform.
+    code: |
+      var retained = new List<byte[]>();
+      var current = new byte[16];
+      retained.Add(current);
+      current = new byte[32];
+      var count = retained[0].Length + current.Length;
+      Console.WriteLine(count);
+    visualise:
+      - as: memory
+  - id: step.csharp.gc.check-roots
+    type: choice
+    title: What keeps the array alive?
+    prompt: |
+      After `var keep = new byte[32]; cache.Add(keep); keep = null;`, what is the important question for the GC?
+    options:
+      - text: Can the array still be reached by following references from a root?
+        correct: true
+        feedback: Right. `cache` can still lead to the array even though `keep` is now null. Reachability, not the number of variable names, decides liveness.
+      - text: Did the method that allocated the array return?
+        correct: false
+        feedback: A method return removes that frame, but the array stays live if another root can still reach it.
+      - text: Is the array's allocation older than one second?
+        correct: false
+        feedback: The GC is not a timer-based object reaper. Collections find the live graph from roots when collection work is needed.
+    hints:
+      - Draw the arrows that remain after `keep = null`.
+  - id: step.csharp.gc.check-promotion
+    type: choice
+    title: What promotes a small object?
+    prompt: |
+      A small object is allocated in generation 0. What must happen for it to be promoted to generation 1?
+    options:
+      - text: It is still reachable when a generation 0 collection examines it
+        correct: true
+        feedback: Right. Survivors are promoted. Allocation size and lifetime by themselves do not move an object to an older generation.
+      - text: It has been alive for one second
+        correct: false
+        feedback: Generations reflect collection survival, not elapsed wall-clock time.
+      - text: Its type has a finalizer
+        correct: false
+        feedback: Finalization affects reclamation and can add work, but it is not the rule that promotes an ordinary small object.
+    hints:
+      - Generations remember which collections an object has survived.
+  - id: step.csharp.gc.benchmark-copy
+    type: benchmark-predict
+    title: Same sum, different allocation pressure
+    prompt: |
+      Rank these implementations by allocated bytes per call. The recorded machine and runtime matter: use this measurement to compare the candidates here, not as a universal timing claim.
+    measure: allocations
+    setup: 'int[] input = Enumerable.Range(1, 256).ToArray();'
+    candidates:
+      - id: direct
+        label: Sum directly
+        code: |
+          var total = 0;
+          for (var i = 0; i < input.Length; i++) total += input[i];
+          return total;
+      - id: copy
+        label: Copy, then sum
+        code: |
+          var copy = new int[input.Length];
+          for (var i = 0; i < input.Length; i++) copy[i] = input[i];
+          var total = 0;
+          for (var i = 0; i < copy.Length; i++) total += copy[i];
+          return total;
+    hints:
+      - Both candidates return the same total. Which one creates an additional array on every call?
+  - id: step.csharp.gc.check-gen2
+    type: choice
+    title: What does a generation 2 collection include?
+    prompt: |
+      Which statement about a generation 2 collection is the useful mental model?
+    options:
+      - text: It collects generations 0, 1 and 2, including the LOH and POH
+        correct: true
+        feedback: Right. A generation 2 collection is the full managed-heap collection; the special large and pinned heaps are collected with it.
+      - text: It only collects generation 2 objects and leaves younger objects alone
+        correct: false
+        feedback: Older-generation collections include the younger generations too.
+      - text: It runs after each method returns
+        correct: false
+        feedback: Method returns change reachability. The GC chooses collection times based on allocation pressure, memory pressure and runtime policy.
+    hints:
+      - An older-generation collection also handles the generations below it.
