@@ -31,6 +31,7 @@ public static class Endpoints
         authed.MapPost("/drafts", PushDrafts);
         authed.MapGet("/drafts", PullDrafts);
         authed.MapPackEndpoints();
+        authed.MapFeedbackEndpoints();
     }
 
     // Serialises pushes so sequence numbers become visible in the order they are handed out. Without it a reader could pull past

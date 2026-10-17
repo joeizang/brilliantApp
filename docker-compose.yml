@@ -33,6 +33,8 @@ services:
       # HTTPS only, with the certificate scripts/local-ca.sh made (docs/https.md). The server refuses to start without it.
       Tls__CertificatePath: /tls/server.pem
       Tls__KeyPath: /tls/server.key
+      # Where phone feedback is graded: the Ollama on the Mac, by its LAN address. Empty means the proxy says "unavailable" (docs/csharp-answer-feedback.md).
+      Feedback__OllamaUrl: ${OLLAMA_URL:-}
     volumes:
       - ${TLS_DIR:-./tls}:/tls:ro
     ports:

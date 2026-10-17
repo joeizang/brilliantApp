@@ -15,7 +15,7 @@
 | `contentPack` | Relative bundled pack asset name, currently `track-1.pack.zip`. |
 | `runtimes` | Explicit runtime capability keys, `python` and `csharp` (declaring C# does not supply its implementation). An empty list is allowed. |
 | `stepTypes` | Nonempty list of enabled step-type keys. |
-| `graderModel` | Optional Ollama model tag (for example `gemma3:12b`) that gives advisory feedback on written answers. Omitted by the DSA app. See [Answer feedback](csharp-answer-feedback.md). |
+| `graderModel` | Optional Ollama model tag (for example `gemma3:12b`) that gives advisory feedback on written answers. Omitted by the DSA app. The server uses it too, when a phone asks it to grade. See [Answer feedback](csharp-answer-feedback.md). |
 
 Capability keys use lowercase words separated by hyphens and are compared exactly.
 Unknown keys are rejected with a list of valid keys. Step keys come from

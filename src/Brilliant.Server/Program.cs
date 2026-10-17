@@ -26,6 +26,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(ServerApps.Load(builder.Configuration["Apps:Directory"] ?? Path.Combine(AppContext.BaseDirectory, "apps")));
 builder.Services.Configure<PairingOptions>(builder.Configuration.GetSection("Pairing"));
 builder.Services.AddScoped<PairingCodes>();
+builder.Services.AddFeedbackProxy(builder.Configuration);
 
 builder.Services.AddAuthentication(DeviceTokenDefaults.Scheme).AddScheme<AuthenticationSchemeOptions, DeviceTokenAuthenticationHandler>(DeviceTokenDefaults.Scheme, null);
 builder.Services.AddAuthorization();

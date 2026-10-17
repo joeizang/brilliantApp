@@ -9,8 +9,8 @@
 
 <div class="shell block wide:flex wide:min-h-screen">
     <aside class="shell-sidebar hidden wide:sticky wide:top-0 wide:block wide:h-screen wide:flex-[0_0_16rem] wide:self-start wide:overflow-y-auto wide:box-border wide:border-r wide:border-hairline wide:bg-surface-raised/80 wide:px-3 wide:py-6 wide:backdrop-blur-[1.25rem]">
-        <CourseSidebar Content="Content" CurrentTrack="_track" CurrentLesson="_lesson" ReviewActive="_reviewing" FlaggedActive="_flagged" SyncActive="_sync" TodayActive="IsToday"
-                       OnOpenToday="GoToToday" OnOpenTrack="OpenTrack" OnOpenLesson="OpenLessonFromSidebar" OnOpenReview="OpenReview" OnOpenFlagged="OpenFlagged" OnOpenSync="OpenSync" />
+        <CourseSidebar Content="Content" CurrentTrack="_track" CurrentLesson="_lesson" ReviewActive="_reviewing" FlaggedActive="_flagged" WrittenActive="_written" SyncActive="_sync" TodayActive="IsToday"
+                       OnOpenToday="GoToToday" OnOpenTrack="OpenTrack" OnOpenLesson="OpenLessonFromSidebar" OnOpenReview="OpenReview" OnOpenFlagged="OpenFlagged" OnOpenWritten="WrittenAnswersEntry" OnOpenSync="OpenSync" />
     </aside>
     <main class="@("shell-main min-w-0 wide:flex-1" + (ShowPhoneNav ? " pb-20 wide:pb-0" : ""))">
         @if (_session)
@@ -20,6 +20,10 @@
         else if (_sync)
         {
             <PairingView OnBack="GoToToday" />
+        }
+        else if (_written)
+        {
+            <WrittenAnswersView Content="Content" OnBack="GoToToday" />
         }
         else if (_flagged)
         {
@@ -51,7 +55,7 @@
         }
         else if (_browsing)
         {
-            <TracksView Content="Content" OnOpenTrack="OpenTrack" OnOpenReview="OpenReview" OnOpenPractice="OpenPractice" OnOpenInterview="OpenInterview" OnOpenFlagged="OpenFlagged" OnOpenSync="OpenSync" OnBack="GoToToday" />
+            <TracksView Content="Content" OnOpenTrack="OpenTrack" OnOpenReview="OpenReview" OnOpenPractice="OpenPractice" OnOpenInterview="OpenInterview" OnOpenFlagged="OpenFlagged" OnOpenWritten="WrittenAnswersEntry" OnOpenSync="OpenSync" OnBack="GoToToday" />
         }
         else
         {
@@ -78,6 +82,7 @@
     private bool _interview;
     private bool _session;
     private bool _flagged;
+    private bool _written;
     private bool _sync;
     private bool _browsing;
     private IJSObjectReference? _module;
@@ -147,28 +152,37 @@
         : _browsing ? PhoneNav.Place.Tracks
         : PhoneNav.Place.Other;
 
-    private bool IsToday => !_session && !_reviewing && !_practising && !_flagged && !_sync && !_browsing && _track is null && _lesson is null && _concept is null;
+    private bool IsToday => !_session && !_reviewing && !_practising && !_flagged && !_written && !_sync && !_browsing && _track is null && _lesson is null && _concept is null;
 
     // Back is the shell's alone: one step up from wherever the learner is (lesson → track → tracks → Today).
     private Task OnShortcut(StepShortcut s) => s.Command != StepCommand.Back ? Task.CompletedTask : InvokeAsync(() =>
     {
         if (_practising) ExitPractice();
-        else if (_session || _reviewing || _flagged || _sync || _browsing) GoToToday();
+        else if (_session || _reviewing || _flagged || _written || _sync || _browsing) GoToToday();
         else if (_lesson is not null) ExitLesson();
         else if (_concept is not null) ExitConcept();
         else if (_track is not null) BackToTracks();
         StateHasChanged();
     });
 
-    private void OpenTrack(Track track) => (_track, _lesson, _concept, _reviewing, _session, _browsing, _flagged, _sync, _practising) = (track, null, null, false, false, false, false, false, false);
+    private void OpenTrack(Track track) => (_track, _lesson, _concept, _reviewing, _session, _browsing, _flagged, _written, _sync, _practising) = (track, null, null, false, false, false, false, false, false, false);
     private void OpenConcept(string conceptId) => _concept = conceptId;
     private void OpenLesson((Lesson Lesson, bool Review) target) => (_lesson, _review) = (target.Lesson, target.Review);
-    private void OpenLessonFromSidebar((Track Track, Lesson Lesson, bool Review) target) => (_track, _lesson, _concept, _review, _reviewing, _session, _browsing, _flagged, _sync, _practising) = (target.Track, target.Lesson, null, target.Review, false, false, false, false, false, false);
-    private void OpenFlagged() => (_lesson, _track, _concept, _reviewing, _session, _browsing, _flagged, _sync, _practising) = (null, null, null, false, false, false, true, false, false);
-    private void OpenSync() => (_lesson, _track, _concept, _reviewing, _session, _browsing, _flagged, _sync, _practising) = (null, null, null, false, false, false, false, true, false);
+    private void OpenLessonFromSidebar((Track Track, Lesson Lesson, bool Review) target) => (_track, _lesson, _concept, _review, _reviewing, _session, _browsing, _flagged, _written, _sync, _practising) = (target.Track, target.Lesson, null, target.Review, false, false, false, false, false, false, false);
+    private void OpenFlagged() => (_lesson, _track, _concept, _reviewing, _session, _browsing, _flagged, _written, _sync, _practising) = (null, null, null, false, false, false, true, false, false, false);
+    private void OpenWritten() => (_lesson, _track, _concept, _reviewing, _session, _browsing, _flagged, _written, _sync, _practising) = (null, null, null, false, false, false, false, true, false, false);
+
+    // The screen only exists where a model can answer: a Mac with Ollama, or a phone that has opted in to the server's. Without one
+    // the entry points get no callback, so they don't show.
+    private EventCallback WrittenAnswersEntry =>
+        Services.GetService(typeof(Brilliant.Core.Feedback.IAnswerGrader)) is Brilliant.Core.Feedback.IAnswerGrader { Enabled: true }
+            ? EventCallback.Factory.Create(this, OpenWritten)
+            : default;
+
+    private void OpenSync() => (_lesson, _track, _concept, _reviewing, _session, _browsing, _flagged, _written, _sync, _practising) = (null, null, null, false, false, false, false, false, true, false);
     private void OpenPractice()
     {
-        (_lesson, _track, _concept, _reviewing, _session, _browsing, _flagged, _sync, _practising) = (null, null, null, false, false, false, false, false, true);
+        (_lesson, _track, _concept, _reviewing, _session, _browsing, _flagged, _written, _sync, _practising) = (null, null, null, false, false, false, false, false, false, true);
         (_interview, _practiceFromToday) = (false, false);
     }
 
@@ -192,16 +206,16 @@
         OpenPractice();
         _interview = true;
     }
-    private void OpenReview() => (_lesson, _track, _concept, _reviewing, _session, _browsing, _flagged, _sync, _practising) = (null, null, null, true, false, false, false, false, false);
+    private void OpenReview() => (_lesson, _track, _concept, _reviewing, _session, _browsing, _flagged, _written, _sync, _practising) = (null, null, null, true, false, false, false, false, false, false);
 
     // An unfinished session stays open in the log; Today offers to resume it.
-    private void StartSession() => (_lesson, _track, _concept, _reviewing, _session, _browsing, _flagged, _sync, _practising) = (null, null, null, false, true, false, false, false, false);
+    private void StartSession() => (_lesson, _track, _concept, _reviewing, _session, _browsing, _flagged, _written, _sync, _practising) = (null, null, null, false, true, false, false, false, false, false);
 
     // Leaving a lesson returns to wherever it was opened from: its concept if it was opened from one (that stays set), else its track.
     private void ExitLesson() => _lesson = null;
     private void ExitConcept() => _concept = null;
-    private void BackToTracks() => (_lesson, _track, _concept, _reviewing, _session, _browsing, _flagged, _sync, _practising) = (null, null, null, false, false, true, false, false, false);
-    private void GoToToday() => (_lesson, _track, _concept, _reviewing, _session, _browsing, _flagged, _sync, _practising) = (null, null, null, false, false, false, false, false, false);
+    private void BackToTracks() => (_lesson, _track, _concept, _reviewing, _session, _browsing, _flagged, _written, _sync, _practising) = (null, null, null, false, false, true, false, false, false, false);
+    private void GoToToday() => (_lesson, _track, _concept, _reviewing, _session, _browsing, _flagged, _written, _sync, _practising) = (null, null, null, false, false, false, false, false, false, false);
 
     public async ValueTask DisposeAsync()
     {

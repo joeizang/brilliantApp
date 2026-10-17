@@ -29,6 +29,12 @@
                 <small class="flagged-count text-[.8rem] font-semibold text-fg-secondary tabular-nums" aria-label="@flagged flagged">@flagged</small>
             }
         </button>
+        @if (OnOpenWritten.HasDelegate)
+        {
+            <button class="side-written @(WrittenActive ? "current" : "") @NavItem(WrittenActive)" aria-current="@(WrittenActive ? "page" : null)" @onclick="() => OnOpenWritten.InvokeAsync()">
+                <span>Written answers</span>
+            </button>
+        }
         <button class="side-sync @(SyncActive ? "current" : "") @NavItem(SyncActive)" aria-current="@(SyncActive ? "page" : null)" @onclick="() => OnOpenSync.InvokeAsync()">
             <span>Sync</span>
         </button>
@@ -96,6 +102,8 @@
     [Parameter] public EventCallback OnOpenReview { get; set; }
     [Parameter] public bool FlaggedActive { get; set; }
     [Parameter] public EventCallback OnOpenFlagged { get; set; }
+    [Parameter] public bool WrittenActive { get; set; }
+    [Parameter] public EventCallback OnOpenWritten { get; set; }
     [Parameter] public bool SyncActive { get; set; }
     [Parameter] public EventCallback OnOpenSync { get; set; }
 

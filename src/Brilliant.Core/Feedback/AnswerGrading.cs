@@ -43,6 +43,12 @@ public sealed class AnswerGraderException(AnswerGraderFailure failure, string me
 /// <summary>Gives advisory feedback on a written answer. It never sets a rating: the learner's own self-assessment does.</summary>
 public interface IAnswerGrader
 {
+    /// <summary>
+    /// Whether the learner currently gets feedback from this grader. A grader that is off (the phone's, until the learner opts in to the
+    /// server) is treated as absent: no feedback section, no request.
+    /// </summary>
+    bool Enabled => true;
+
     /// <exception cref="AnswerGraderException">No usable feedback could be had; the step is finished regardless.</exception>
     Task<AnswerFeedback> GradeAsync(GradeRequest request, CancellationToken ct = default);
 }

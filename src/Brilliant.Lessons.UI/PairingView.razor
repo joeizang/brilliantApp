@@ -1,6 +1,7 @@
 @* Connect this device to the household server: where it lives and the one-time code it printed. Once paired, shows where, with a way to forget it. *@
 @using Brilliant.Core.Sync
 @using Brilliant.Core.Content
+@using Brilliant.Core.Feedback
 @implements IDisposable
 @inject PairingService Pairing
 @inject SyncService Sync
@@ -47,6 +48,16 @@ else if (_paired is { } paired)
             }
             <div><button class="sync-now primary btn-primary" @onclick="SyncNow" disabled="@(Sync.IsSyncing || _checking)">@(Sync.IsSyncing || _checking ? "Syncing…" : "Sync now")</button></div>
         </div>
+        @if (_feedback is not null)
+        {
+            <div class="feedback-setting grid gap-1">
+                <label class="flex min-h-6 cursor-pointer items-center gap-3 font-semibold">
+                    <input type="checkbox" class="use-server-feedback" checked="@_feedback.UseServer" @onchange="e => _feedback.UseServer = (bool)(e.Value ?? false)" />
+                    Get written-answer feedback through the server
+                </label>
+                <p class="m-0 text-[.9rem] text-fg-secondary">Sends the answers you write to the household server, which asks the model on your Mac. Off by default; your answers stay on this device until you turn it on.</p>
+            </div>
+        }
         <p class="m-0 text-[.9rem] text-fg-secondary">This device is on the server's list. To disconnect it for good, revoke it on the server; forgetting only clears it here.</p>
         @if (_error is not null)
         {
@@ -96,6 +107,7 @@ else
 
     private bool _loading = true;
     private bool _checking;
+    private IFeedbackSettings? _feedback;   // optional: only a device with no model of its own registers it
     private ContentUpdateService? _updates;   // optional: hosts without a server don't register it
     private bool _busy;
     private DeviceCredentials? _paired;
@@ -110,6 +122,7 @@ else
         Sync.StatusChanged += OnStatusChanged;
         _updates = Services.GetService(typeof(ContentUpdateService)) as ContentUpdateService;
         if (_updates is not null) _updates.Changed += OnStatusChanged;
+        _feedback = Services.GetService(typeof(IFeedbackSettings)) as IFeedbackSettings;
         _deviceName = Services.GetService(typeof(DeviceLabel)) is DeviceLabel label ? label.Name : Environment.MachineName;
         _paired = await Pairing.CurrentAsync();
         _loading = false;

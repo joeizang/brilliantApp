@@ -24,21 +24,31 @@ public sealed class ServerHarness : WebApplicationFactory<Program>
     private readonly string _connectionString;
     private readonly int _attemptsPerMinute;
     private readonly string? _appsDirectory;
+    private readonly IReadOnlyDictionary<string, string?>? _settings;
+    private readonly Action<IServiceCollection>? _configureServices;
 
     public FakeClock Clock { get; } = new(new DateTimeOffset(2026, 10, 11, 12, 0, 0, TimeSpan.Zero));
 
-    private ServerHarness(string connectionString, int attemptsPerMinute, string? appsDirectory = null) =>
-        (_connectionString, _attemptsPerMinute, _appsDirectory) = (connectionString, attemptsPerMinute, appsDirectory);
+    private ServerHarness(string connectionString, int attemptsPerMinute, string? appsDirectory, IReadOnlyDictionary<string, string?>? settings, Action<IServiceCollection>? configureServices) =>
+        (_connectionString, _attemptsPerMinute, _appsDirectory, _settings, _configureServices) = (connectionString, attemptsPerMinute, appsDirectory, settings, configureServices);
 
-    public static async Task<ServerHarness> StartAsync(PostgresFixture postgres, int attemptsPerMinute = 1000, string? appsDirectory = null) =>
-        new(await postgres.CreateDatabaseAsync(), attemptsPerMinute, appsDirectory);
+    /// <param name="settings">Extra configuration, such as <c>Feedback:OllamaUrl</c>.</param>
+    /// <param name="configureServices">Replaces services after the server's own are registered (a fake Ollama, say).</param>
+    public static async Task<ServerHarness> StartAsync(PostgresFixture postgres, int attemptsPerMinute = 1000, string? appsDirectory = null,
+        IReadOnlyDictionary<string, string?>? settings = null, Action<IServiceCollection>? configureServices = null) =>
+        new(await postgres.CreateDatabaseAsync(), attemptsPerMinute, appsDirectory, settings, configureServices);
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseSetting("ConnectionStrings:Postgres", _connectionString);
         if (_appsDirectory is not null) builder.UseSetting("Apps:Directory", _appsDirectory);
         builder.UseSetting("Pairing:AttemptsPerMinute", _attemptsPerMinute.ToString());
-        builder.ConfigureTestServices(services => services.AddSingleton<TimeProvider>(Clock));
+        foreach (var (key, value) in _settings ?? new Dictionary<string, string?>()) builder.UseSetting(key, value);
+        builder.ConfigureTestServices(services =>
+        {
+            services.AddSingleton<TimeProvider>(Clock);
+            _configureServices?.Invoke(services);
+        });
     }
 
     /// <summary>A pairing code, minted straight from the service the way the CLI does it.</summary>
