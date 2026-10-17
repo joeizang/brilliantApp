@@ -40,6 +40,11 @@ options and defend a choice rather than recall a fact.
 A finished answer records `StepAnswered { correct, score, option, justification, pointsMade, redFlags }`. The justification text is kept
 in the event log (and so synced) on purpose: model feedback can be requested later, on the Mac, for an answer given on the phone.
 
+In Review the same answer is kept on the `ReviewAnswered` event as `answer { score, option, justification, pointsMade, redFlags }`. It is
+not a second `StepAnswered`: the projector counts a lesson attempt for every `StepAnswered` and a review attempt for every
+`ReviewAnswered`, so recording both would double-count one answer in progress and mastery. The projector reads only `item` and `rating`
+from a review event, so the extra field changes no scheduling. Test-out records only the pass, as for every other step type.
+
 ## Authoring
 
 ```yaml
