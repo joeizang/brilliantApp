@@ -153,6 +153,16 @@ public sealed class ReviewCodeEvaluatorTests
     }
 
     [Fact]
+    public void A_clean_line_flagged_under_two_categories_is_charged_once()
+    {
+        var result = ReviewCodeEvaluator.Evaluate(Sample(), [new(3, ReviewCategory.Concurrency), new(7, ReviewCategory.Bug), new(2, ReviewCategory.Bug), new(2, ReviewCategory.Api)]);
+
+        var flag = Assert.Single(result.FalseFlags);
+        Assert.Equal(2, flag.Line);
+        Assert.Equal(0.875, result.Score);
+    }
+
+    [Fact]
     public void Flags_outside_the_code_or_with_an_unknown_category_are_ignored()
     {
         var result = ReviewCodeEvaluator.Evaluate(Sample(), [new(99, ReviewCategory.Bug), new(0, ReviewCategory.Bug), new(3, "style"), new(7, ReviewCategory.Bug)]);

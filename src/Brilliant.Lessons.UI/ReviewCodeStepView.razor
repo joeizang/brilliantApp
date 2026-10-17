@@ -66,7 +66,7 @@
 
     [Parameter] public EventCallback OnContinue { get; set; }
 
-    private const string LineButton = "review-line min-h-9 coarse:min-h-(--touch) w-full cursor-pointer rounded-sm border px-2 py-1 text-left font-mono text-[.9rem] whitespace-pre text-inherit";
+    private const string LineButton = "review-line min-h-9 coarse:min-h-(--touch) w-full cursor-pointer rounded-sm border px-2 py-1 text-left font-mono text-[.9rem] whitespace-pre";
     private const string CategoryButton = "category min-h-9 coarse:min-h-(--touch) cursor-pointer rounded-sm border px-3 py-1 font-inherit text-inherit";
 
     private readonly Dictionary<int, string> _flags = [];
@@ -151,11 +151,11 @@
             "false-flag" => "border-border bg-surface-raised line-through decoration-fg-secondary",
             _ => "border-transparent bg-surface",
         };
-        return LineButton + " " + tone + DiffTone(text);
+        return LineButton + " " + tone + " " + TextTone(text);
     }
 
-    // A unified diff reads better with its additions and removals coloured.
-    private string DiffTone(string text) => Step.Language != "diff" ? "" : text.StartsWith('+') ? " text-success" : text.StartsWith('-') ? " text-danger" : "";
+    // A unified diff reads better with its additions and removals coloured. The colour classes and text-inherit are exclusive.
+    private string TextTone(string text) => Step.Language != "diff" ? "text-inherit" : text.StartsWith('+') ? "text-success" : text.StartsWith('-') ? "text-danger" : "text-inherit";
 
     private string CategoryClass(int number, string category) =>
         CategoryButton + (_flags.GetValueOrDefault(number) == category ? " border-accent bg-surface-raised font-semibold" : " border-border bg-surface");

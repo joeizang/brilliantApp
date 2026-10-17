@@ -204,9 +204,15 @@ public sealed class ReviewCodeStepViewTests : ShortcutContext
 
         var cut = Show(diff);
 
-        Assert.Contains("text-danger", cut.Find(".code-line[data-line='1'] button").ClassName);
-        Assert.Contains("text-success", cut.Find(".code-line[data-line='2'] button").ClassName);
-        Assert.DoesNotContain("text-", cut.Find(".code-line[data-line='3'] button").ClassName.Replace("text-inherit", "").Replace("text-left", "").Replace("text-[.9rem]", "") ?? "");
+        var removed = cut.Find(".code-line[data-line='1'] button").ClassList;
+        var added = cut.Find(".code-line[data-line='2'] button").ClassList;
+        var context = cut.Find(".code-line[data-line='3'] button").ClassList;
+        Assert.Contains("text-danger", removed);
+        Assert.Contains("text-success", added);
+        // text-inherit sorts after the colour utilities in the stylesheet, so it must not sit beside them.
+        Assert.DoesNotContain("text-inherit", removed);
+        Assert.DoesNotContain("text-inherit", added);
+        Assert.Contains("text-inherit", context);
     }
 
     [Fact]

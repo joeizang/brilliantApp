@@ -49,6 +49,8 @@ public static class ReviewCodeEvaluator
 
         var falseFlags = valid
             .Where(f => !step.Defects.Any(d => Covers(d, f.Line)))
+            .GroupBy(f => f.Line)
+            .Select(g => g.First())
             .OrderBy(f => f.Line)
             .Select(f => new ReviewFalseFlag(f.Line, f.Category, FalseFlagFeedback(step, f)))
             .ToList();
