@@ -28,6 +28,10 @@ public sealed class WrittenAnswersTests
     private static readonly Lesson L2 = new("lesson.2", "Two", "track.a", [Tradeoff with { Id = "step.tradeoff.second", Title = "Second" }]);
     private static readonly ContentGraph Content = new(new PackManifest("pack.t", "1.0.0", 1), [new Track("track.a", "A", [L1.Id, L2.Id])], [L1, L2]);
 
+    // What the app saves with an answer: the fingerprint of the step as it was then.
+    private static string Ctx(string stepId, int option) =>
+        option < 0 || option >= Tradeoff.Options.Count ? "n/a" : GradeRequest.ContextOf(stepId == "step.tradeoff.second" ? L2.AllSteps().OfType<DesignTradeoffStep>().Single() : Tradeoff, option);
+
     private readonly MemoryLog _log = new();
     private readonly Clock _clock = new();
     private ProgressRecorder Recorder(string device = "phone") => new(_log, device, _clock);
@@ -36,7 +40,7 @@ public sealed class WrittenAnswersTests
     [Fact]
     public void A_lesson_answer_is_listed_with_the_step_the_option_and_the_words_as_written()
     {
-        Recorder().TradeoffSubmitted("lesson.1", Tradeoff.Id, true, 0.8, 1, "Because every instance sees one copy.", [0], []);
+        Recorder().TradeoffSubmitted("lesson.1", Tradeoff.Id, true, 0.8, 1, "Because every instance sees one copy.", [0], [], Ctx(Tradeoff.Id, 1));
 
         var answer = Assert.Single(Answers);
         Assert.Equal(("lesson.1", Tradeoff.Id), (answer.LessonId, answer.Step.Id));
@@ -52,7 +56,7 @@ public sealed class WrittenAnswersTests
     public void A_review_answer_is_listed_too()
     {
         var item = new ReviewItem("review.cache", "concept.cache", Tradeoff.Id);
-        Recorder().ReviewAnswered("lesson.1", item, true, 0, TimeSpan.FromSeconds(30), Rating.Good, ProgressRecorder.TradeoffDetail(0.8, 0, "A cache per instance.", [], [1]));
+        Recorder().ReviewAnswered("lesson.1", item, true, 0, TimeSpan.FromSeconds(30), Rating.Good, ProgressRecorder.TradeoffDetail(0.8, 0, "A cache per instance.", [], [1], GradeRequest.ContextOf(Tradeoff, 0)));
 
         var answer = Assert.Single(Answers);
         Assert.Equal((0, "A cache per instance."), (answer.Option, answer.Justification));
@@ -78,8 +82,8 @@ public sealed class WrittenAnswersTests
     [Fact]
     public void An_answer_on_a_step_content_no_longer_has_is_not_listed()
     {
-        Recorder().TradeoffSubmitted("lesson.1", "step.gone", true, 1, 0, "Words.", [], []);
-        Recorder().TradeoffSubmitted("lesson.gone", Tradeoff.Id, true, 1, 0, "Words.", [], []);
+        Recorder().TradeoffSubmitted("lesson.1", "step.gone", true, 1, 0, "Words.", [], [], Ctx("step.gone", 0));
+        Recorder().TradeoffSubmitted("lesson.gone", Tradeoff.Id, true, 1, 0, "Words.", [], [], Ctx(Tradeoff.Id, 0));
 
         Assert.Empty(Answers);
     }
@@ -87,11 +91,11 @@ public sealed class WrittenAnswersTests
     [Fact]
     public void An_option_outside_the_step_or_a_blank_justification_is_skipped_not_fatal()
     {
-        Recorder().TradeoffSubmitted("lesson.1", Tradeoff.Id, true, 1, 7, "Words.", [], []);
-        Recorder().TradeoffSubmitted("lesson.1", Tradeoff.Id, true, 1, 0, "   ", [], []);
+        Recorder().TradeoffSubmitted("lesson.1", Tradeoff.Id, true, 1, 7, "Words.", [], [], Ctx(Tradeoff.Id, 7));
+        Recorder().TradeoffSubmitted("lesson.1", Tradeoff.Id, true, 1, 0, "   ", [], [], Ctx(Tradeoff.Id, 0));
         _log.Append(new ProgressEvent("bad-1", "phone", _clock.Now, ProgressEventTypes.StepAnswered, "lesson.1", Tradeoff.Id, "not json"));
         _log.Append(new ProgressEvent("bad-2", "phone", _clock.Now, ProgressEventTypes.StepAnswered, "lesson.1", Tradeoff.Id, null));
-        Recorder().TradeoffSubmitted("lesson.1", Tradeoff.Id, true, 1, 1, "Fine.", [], []);
+        Recorder().TradeoffSubmitted("lesson.1", Tradeoff.Id, true, 1, 1, "Fine.", [], [], Ctx(Tradeoff.Id, 1));
 
         Assert.Equal("Fine.", Assert.Single(Answers).Justification);
     }
@@ -99,9 +103,9 @@ public sealed class WrittenAnswersTests
     [Fact]
     public void Newest_first_whichever_device_gave_the_answer()
     {
-        Recorder("phone").TradeoffSubmitted("lesson.1", Tradeoff.Id, true, 1, 1, "Older, on the phone.", [], []);
+        Recorder("phone").TradeoffSubmitted("lesson.1", Tradeoff.Id, true, 1, 1, "Older, on the phone.", [], [], Ctx(Tradeoff.Id, 1));
         _clock.Now += TimeSpan.FromHours(1);
-        Recorder("mac").TradeoffSubmitted("lesson.2", "step.tradeoff.second", true, 1, 1, "Newer, on the Mac.", [], []);
+        Recorder("mac").TradeoffSubmitted("lesson.2", "step.tradeoff.second", true, 1, 1, "Newer, on the Mac.", [], [], Ctx("step.tradeoff.second", 1));
 
         Assert.Equal(["Newer, on the Mac.", "Older, on the phone."], Answers.Select(a => a.Justification));
         Assert.Equal(["mac", "phone"], Answers.Select(a => a.DeviceId));
@@ -110,7 +114,7 @@ public sealed class WrittenAnswersTests
     [Fact]
     public void An_event_that_arrives_twice_is_listed_once()
     {
-        Recorder().TradeoffSubmitted("lesson.1", Tradeoff.Id, true, 1, 1, "Once.", [], []);
+        Recorder().TradeoffSubmitted("lesson.1", Tradeoff.Id, true, 1, 1, "Once.", [], [], Ctx(Tradeoff.Id, 1));
         _log.Items.Add(_log.Items[0]);
 
         Assert.Single(Answers);
@@ -122,7 +126,7 @@ public sealed class WrittenAnswersTests
         for (var i = 0; i < WrittenAnswers.MaxListed + 5; i++)
         {
             _clock.Now += TimeSpan.FromMinutes(1);
-            Recorder().TradeoffSubmitted("lesson.1", Tradeoff.Id, true, 1, 1, $"Answer {i}", [], []);
+            Recorder().TradeoffSubmitted("lesson.1", Tradeoff.Id, true, 1, 1, $"Answer {i}", [], [], Ctx(Tradeoff.Id, 1));
         }
 
         var answers = Answers;
@@ -133,7 +137,7 @@ public sealed class WrittenAnswersTests
     [Fact]
     public void The_grade_request_is_built_from_the_step_and_what_was_written()
     {
-        Recorder().TradeoffSubmitted("lesson.1", Tradeoff.Id, true, 1, 1, "Because every instance sees one copy.", [], []);
+        Recorder().TradeoffSubmitted("lesson.1", Tradeoff.Id, true, 1, 1, "Because every instance sees one copy.", [], [], Ctx(Tradeoff.Id, 1));
 
         var request = Assert.Single(Answers).ToGradeRequest();
 
@@ -146,5 +150,71 @@ public sealed class WrittenAnswersTests
             a is not null && b is not null && (a.Scenario, a.Option, a.Answer, a.ModelAnswer) == (b.Scenario, b.Option, b.Answer, b.ModelAnswer)
             && a.RubricPoints.SequenceEqual(b.RubricPoints) && a.RedFlags.SequenceEqual(b.RedFlags);
         public int GetHashCode(GradeRequest r) => r.Scenario.GetHashCode();
+    }
+
+    // ---- An answer belongs to the step as it was when answered ----
+
+    private static ContentGraph WithStep(DesignTradeoffStep revised)
+    {
+        var lesson = L1 with { Steps = [Explain, revised] };
+        return new ContentGraph(new PackManifest("pack.t", "1.1.0", 1), [new Track("track.a", "A", [lesson.Id, L2.Id])], [lesson, L2]);
+    }
+
+    [Fact]
+    public void A_content_update_that_reorders_the_options_does_not_turn_an_answer_into_another_choice()
+    {
+        Recorder().TradeoffSubmitted("lesson.1", Tradeoff.Id, true, 1, 1, "Redis, so every instance sees one copy.", [0], [], Ctx(Tradeoff.Id, 1));
+        var swapped = Tradeoff with { Options = [Tradeoff.Options[1], Tradeoff.Options[0]] };
+
+        var scan = WrittenAnswers.Scan(_log.ReadAll(), WithStep(swapped));
+
+        Assert.Empty(scan.Answers);
+        Assert.Equal(1, scan.Changed);
+    }
+
+    [Fact]
+    public void A_reworded_scenario_rubric_model_answer_or_red_flag_also_retires_the_answer()
+    {
+        Recorder().TradeoffSubmitted("lesson.1", Tradeoff.Id, true, 1, 1, "Words.", [0], [], Ctx(Tradeoff.Id, 1));
+
+        foreach (var revised in new[]
+        {
+            Tradeoff with { Prompt = "A different scenario." },
+            Tradeoff with { ModelAnswer = "A different model answer." },
+            Tradeoff with { Rubric = [new("A different point", 1)] },
+            Tradeoff with { RedFlags = ["A different red flag."] },
+        })
+            Assert.Equal(1, WrittenAnswers.Scan(_log.ReadAll(), WithStep(revised)).Changed);
+    }
+
+    [Fact]
+    public void Changes_that_do_not_touch_what_is_graded_leave_the_answer_listed()
+    {
+        Recorder().TradeoffSubmitted("lesson.1", Tradeoff.Id, true, 1, 1, "Words.", [0], [], Ctx(Tradeoff.Id, 1));
+        var retitled = Tradeoff with { Title = "A new title" };
+
+        var scan = WrittenAnswers.Scan(_log.ReadAll(), WithStep(retitled));
+
+        Assert.Single(scan.Answers);
+        Assert.Equal(0, scan.Changed);
+    }
+
+    [Fact]
+    public void An_answer_saved_before_there_was_a_fingerprint_is_counted_but_not_offered()
+    {
+        _log.Append(new ProgressEvent("old", "phone", _clock.Now, ProgressEventTypes.StepAnswered, "lesson.1", Tradeoff.Id,
+            """{"correct":true,"score":1,"option":1,"justification":"Words.","pointsMade":[],"redFlags":[]}"""));
+
+        var scan = WrittenAnswers.Scan(_log.ReadAll(), Content);
+
+        Assert.Empty(scan.Answers);
+        Assert.Equal(1, scan.Changed);
+    }
+
+    [Fact]
+    public void The_fingerprint_ignores_the_learners_words_and_tells_options_apart()
+    {
+        Assert.Equal(GradeRequest.For(Tradeoff, 1, "one").Fingerprint(), GradeRequest.For(Tradeoff, 1, "two").Fingerprint());
+        Assert.NotEqual(GradeRequest.ContextOf(Tradeoff, 0), GradeRequest.ContextOf(Tradeoff, 1));
     }
 }

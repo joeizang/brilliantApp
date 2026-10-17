@@ -55,7 +55,7 @@ else if (_paired is { } paired)
                     <input type="checkbox" class="use-server-feedback" checked="@_feedback.UseServer" @onchange="e => _feedback.UseServer = (bool)(e.Value ?? false)" />
                     Get written-answer feedback through the server
                 </label>
-                <p class="m-0 text-[.9rem] text-fg-secondary">Sends the answers you write to the household server, which asks the model on your Mac. Off by default; your answers stay on this device until you turn it on.</p>
+                <p class="m-0 text-[.9rem] text-fg-secondary">Lets this device ask the household server, which asks the model on your Mac, for feedback on the answers you write. Off by default: until you turn it on, no answer is sent for feedback. Written answers still sync to the server as part of your progress either way.</p>
             </div>
         }
         <p class="m-0 text-[.9rem] text-fg-secondary">This device is on the server's list. To disconnect it for good, revoke it on the server; forgetting only clears it here.</p>

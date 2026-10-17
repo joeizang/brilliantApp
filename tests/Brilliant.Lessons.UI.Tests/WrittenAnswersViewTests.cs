@@ -59,7 +59,7 @@ public class WrittenAnswersViewTests : ShortcutContext
     }
 
     private void Written(string words = "Because every instance sees one copy.") =>
-        new ProgressRecorder(_log, "phone").TradeoffSubmitted(Lesson.Id, Tradeoff.Id, true, 0.8, 1, words, [0], []);
+        new ProgressRecorder(_log, "phone").TradeoffSubmitted(Lesson.Id, Tradeoff.Id, true, 0.8, 1, words, [0], [], GradeRequest.ContextOf(Tradeoff, 1));
 
     private IRenderedComponent<WrittenAnswersView> Open() => Render<WrittenAnswersView>(p => p.Add(c => c.Content, Content));
 
@@ -67,6 +67,16 @@ public class WrittenAnswersViewTests : ShortcutContext
     public void With_nothing_written_the_screen_says_so()
     {
         Assert.Contains("No written answers", Open().Find(".written-none").TextContent);
+    }
+
+    [Fact]
+    public void An_answer_for_a_step_that_has_since_changed_is_not_offered_and_the_screen_says_so()
+    {
+        new ProgressRecorder(_log, "phone").TradeoffSubmitted(Lesson.Id, Tradeoff.Id, true, 0.8, 1, "Words.", [0], [], GradeRequest.ContextOf(Tradeoff with { Prompt = "Before the rewrite." }, 1));
+        var cut = Open();
+
+        Assert.Empty(cut.FindAll(".written-item"));
+        Assert.Contains("1 older answer isn't listed", cut.Find(".written-changed").TextContent);
     }
 
     [Fact]

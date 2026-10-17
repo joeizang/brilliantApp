@@ -11,6 +11,19 @@ public sealed record GradeRequest(
 {
     public static GradeRequest For(DesignTradeoffStep step, int option, string answer) =>
         new(step.Prompt, step.Options[option].Text, answer, step.ModelAnswer, [.. step.Rubric.Select(p => p.Text)], [.. step.RedFlags]);
+
+    /// <summary>
+    /// A short fingerprint of everything the learner was answering against: the scenario, the option's text, the model answer, the
+    /// rubric and the red flags, but not their words. Saved with a written answer, it tells a later reader whether the step still
+    /// means what it meant then (a content update can reorder options or reword the rubric under the same step ID).
+    /// </summary>
+    public static string ContextOf(DesignTradeoffStep step, int option) => For(step, option, "").Fingerprint();
+
+    public string Fingerprint()
+    {
+        var canonical = System.Text.Json.JsonSerializer.Serialize(new object[] { Scenario, Option, ModelAnswer, RubricPoints, RedFlags });
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(canonical)))[..16].ToLowerInvariant();
+    }
 }
 
 /// <summary>Whether the answer made rubric point <see cref="Index"/> (zero-based), and a short note on why.</summary>

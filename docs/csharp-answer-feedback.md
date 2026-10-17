@@ -74,6 +74,14 @@ A phone has no Ollama, so with the learner's say-so it asks the household server
    answers** (sidebar, or the link on Tracks in a narrow window) to see answers written on any device, newest first (the latest 50), and
    press **Get feedback** on one. The Mac's own Ollama is asked; the result is shown and not kept.
 
+An answer is saved with a fingerprint of the question it was given for (scenario, the picked option's text, model answer, rubric and red
+flags). The screen lists an answer only while the step still matches it, so a content update that reorders options or rewords the rubric
+under the same step ID never grades old words against a different question. Answers that no longer match, and ones saved before
+fingerprints existed, are counted in a line at the top rather than listed.
+
+Opting in controls only whether the phone *asks for model feedback*. Written answers are part of the progress log and sync to the server
+as progress whether or not it is on; the Sync screen says so.
+
 The Written answers screen is only offered where a grader is enabled, so a phone that has not opted in does not show it.
 
 ### The one-time setting on the Mac

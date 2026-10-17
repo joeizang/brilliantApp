@@ -74,18 +74,19 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
 
     /// <summary>
     /// Records a design-tradeoff answer: the option picked, the justification as written, and the learner's self-assessment (rubric points
-    /// they ticked and red flags they claimed), so a local model can give feedback on the same text later.
+    /// they ticked and red flags they claimed), so a local model can give feedback on the same text later. <paramref name="context"/> is
+    /// <see cref="Feedback.GradeRequest.ContextOf"/>: it lets a later reader tell whether the step still means what it meant when answered.
     /// </summary>
-    public void TradeoffSubmitted(string lessonId, string stepId, bool correct, double score, int option, string justification, IReadOnlyList<int> pointsMade, IReadOnlyList<int> redFlags) =>
+    public void TradeoffSubmitted(string lessonId, string stepId, bool correct, double score, int option, string justification, IReadOnlyList<int> pointsMade, IReadOnlyList<int> redFlags, string? context = null) =>
         Append(ProgressEventTypes.StepAnswered, lessonId, stepId,
-            JsonSerializer.Serialize(new { correct, score, option, justification, pointsMade, redFlags }));
+            JsonSerializer.Serialize(new { correct, score, option, justification, pointsMade, redFlags, context }));
 
     /// <summary>
     /// The detail of a design-tradeoff answer, for <see cref="ReviewAnswered(ReviewItemState, bool, int, TimeSpan, object?)"/>: the same
     /// fields <see cref="TradeoffSubmitted"/> keeps for a lesson attempt, minus <c>correct</c>, which the review event already holds.
     /// </summary>
-    public static object TradeoffDetail(double score, int option, string justification, IReadOnlyList<int> pointsMade, IReadOnlyList<int> redFlags) =>
-        new { score, option, justification, pointsMade, redFlags };
+    public static object TradeoffDetail(double score, int option, string justification, IReadOnlyList<int> pointsMade, IReadOnlyList<int> redFlags, string? context = null) =>
+        new { score, option, justification, pointsMade, redFlags, context };
 
     /// <summary>Records one write-code submission: the code as submitted and how many hidden tests it passed.</summary>
     public void CodeSubmitted(string lessonId, string stepId, string code, int passedTests, int totalTests) =>

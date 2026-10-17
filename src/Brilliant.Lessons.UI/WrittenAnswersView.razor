@@ -7,7 +7,8 @@
 @inject IServiceProvider Services
 
 @{
-    var answers = WrittenAnswers.From(Recorder.Log.ReadAll(), Content);
+    var scan = WrittenAnswers.Scan(Recorder.Log.ReadAll(), Content);
+    var answers = scan.Answers;
 }
 @if (OnBack.HasDelegate)
 {
@@ -15,6 +16,10 @@
 }
 <h1 class="screen-title content-column mt-6">Written answers</h1>
 <p class="content-column mt-2 text-fg-secondary">Ask the model on this Mac for feedback on an answer you wrote, here or on another device. Feedback is advisory and isn't kept.</p>
+@if (scan.Changed > 0)
+{
+    <p class="written-changed content-column mt-2 text-[.9rem] text-fg-secondary">@scan.Changed older @(scan.Changed == 1 ? "answer isn't" : "answers aren't") listed: the question changed after @(scan.Changed == 1 ? "it was" : "they were") written, or @(scan.Changed == 1 ? "it was" : "they were") saved without enough to check, so feedback would judge the words against a different question.</p>
+}
 @if (answers.Count == 0)
 {
     <p class="written-none content-column mt-4 text-fg-secondary">No written answers yet. Answer a design-tradeoff step and it will be listed here.</p>

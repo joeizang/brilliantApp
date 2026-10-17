@@ -122,6 +122,19 @@ public class PairingViewTests : BunitContext
     }
 
     [Fact]
+    public void The_opt_in_does_not_claim_answers_stay_on_the_device()
+    {
+        _store.Saved = Paired;
+        Services.AddSingleton<IFeedbackSettings>(new MemoryFeedbackSettings());
+        var cut = Open();
+
+        var text = cut.WaitForElement(".feedback-setting").TextContent;
+
+        Assert.DoesNotContain("stay on this device", text);
+        Assert.Contains("still sync", text);
+    }
+
+    [Fact]
     public void The_opt_in_shows_the_current_choice()
     {
         _store.Saved = Paired;

@@ -101,7 +101,7 @@
 
 @code {
     /// <summary>What the learner submitted: the option, their written justification and self-assessment, and the grade that came of it.</summary>
-    public sealed record Attempt(bool Correct, double Score, int Option, string Justification, IReadOnlyList<int> PointsMade, IReadOnlyList<int> RedFlags);
+    public sealed record Attempt(bool Correct, double Score, int Option, string Justification, IReadOnlyList<int> PointsMade, IReadOnlyList<int> RedFlags, string? Context = null);
 
     private enum Phase { Writing, Assessing, Done }
 
@@ -187,7 +187,7 @@
         if (_phase != Phase.Assessing || _selected is not { } option) return;
         _result = DesignTradeoffEvaluator.Evaluate(Step, option, _made, _flagged);
         _phase = Phase.Done;
-        await OnAnswered.InvokeAsync(new Attempt(_result.IsCorrect, _result.Score, option, _justification, [.. _made], [.. _flagged]));
+        await OnAnswered.InvokeAsync(new Attempt(_result.IsCorrect, _result.Score, option, _justification, [.. _made], [.. _flagged], GradeRequest.ContextOf(Step, option)));
         // After the grade is recorded, and not waited for: feedback is a courtesy, so the step never waits on a model.
         _ = RequestFeedbackAsync(option);
     }

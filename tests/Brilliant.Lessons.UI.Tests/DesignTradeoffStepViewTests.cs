@@ -282,6 +282,18 @@ public sealed class DesignTradeoffStepViewTests : ShortcutContext
     }
 
     [Fact]
+    public void The_attempt_carries_a_fingerprint_of_the_question_it_answered()
+    {
+        DesignTradeoffStepView.Attempt? attempt = null;
+        var cut = Show(answered: a => attempt = a);
+        SelfAssess(cut, 0);
+
+        cut.Find("button.primary").Click();
+
+        Assert.Equal(GradeRequest.ContextOf(Cache, 1), attempt!.Context);
+    }
+
+    [Fact]
     public void A_grader_that_is_switched_off_is_treated_as_absent()
     {
         var grader = UseGrader();
