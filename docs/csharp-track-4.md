@@ -13,7 +13,7 @@ and the authored breaking order breaks it.
 | The thread pool and lost updates | Work items run on a few reused workers; blocking them starves the pool; `counter++` is a load and a store. | Two threads lose an update |
 | Locks, Lock, and SemaphoreSlim | A lock excludes only code that takes it; `lock` lowers to `Monitor` or `Lock.EnterScope`; a semaphore counts permits and can be awaited. | One thread forgot the lock |
 | Interlocked and atomic updates | `Interlocked` makes one read-modify-write indivisible; `CompareExchange` returns the previous value and builds retry loops; atomic calls do not compose. | A deposit races a withdrawal |
-| Volatile and reordering | Compiler, JIT and CPU reorder; volatile is acquire/release, not atomicity; `lock` and `Interlocked` are full barriers. | Three threads, volatile counter |
+| Volatile and reordering | Compiler, JIT and CPU reorder; volatile is acquire/release, not atomicity; `Interlocked` is a full fence while `Monitor.Enter`/`Exit` are acquire/release. | Three threads, volatile counter |
 | Concurrent collections, Parallel and PLINQ | Per-call safety is not sequence safety; `GetOrAdd` may run its factory twice; parallel bodies race on shared state; `AsOrdered`. | none (prediction and decision steps) |
 | Finding races and deadlocks | Read-modify-write and check-then-act shapes; the lock must cover the read; lock ordering; tests are weak evidence. | Lock covers only the write; two transfers deadlock |
 
@@ -23,7 +23,7 @@ Each lesson has three or four concepts and a review item for every concept, so *
 
 The interleave machine executes sequentially consistent loads, stores and locks. It cannot show a CPU reordering a store past a load, and
 the track does not pretend otherwise. The volatile lesson therefore uses the interleaver for what it *can* show (volatile gives no
-atomicity: every load sees the latest store, and the total is still wrong) and uses decision questions for reordering, hoisting and
+atomicity: even when every load sees the latest store, which the player assumes and the language does not promise, the total is still wrong) and uses decision questions for reordering, hoisting and
 publication, stating the guarantees from the .NET memory model.
 
 Predict-output answers were run on .NET 10 (a lone `Parallel.For` with `Interlocked.Add`, `AsOrdered` PLINQ, `GetOrAdd` called twice on one key, `SemaphoreSlim` counts, `CompareExchange` return values) and the lowered `lock` output was read from the built pack.

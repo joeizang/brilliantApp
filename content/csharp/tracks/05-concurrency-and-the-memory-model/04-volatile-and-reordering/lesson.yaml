@@ -8,7 +8,7 @@ concepts:
   - id: concept.csharp.conc-publication
     title: Publish data by writing it first and then writing a volatile flag that readers check before reading it
   - id: concept.csharp.conc-full-fence
-    title: lock, Monitor and Interlocked are full barriers, stronger than volatile
+    title: Interlocked operations are full fences; Monitor.Enter and Exit are only acquire and release
 reviewItems:
   - id: review.csharp.conc-reordering
     concept: concept.csharp.conc-reordering
@@ -31,7 +31,7 @@ steps:
 
       `volatile` is the smallest tool for this. Reading a volatile field has **acquire** semantics: later reads and writes cannot be moved before it. Writing one has **release** semantics: earlier reads and writes cannot be moved after it. It also stops the JIT from caching the field in a register. That is enough to **publish** data: write the data, then write a volatile flag; a reader that sees the flag set and then reads the data is guaranteed to see the data.
 
-      What `volatile` does *not* do is make a compound operation atomic: `counter++` on a volatile field is still a separate load and store. And it is weaker than `lock`, `Monitor` and the `Interlocked` methods, which are full barriers: nothing moves across them in either direction.
+      What `volatile` does *not* do is make a compound operation atomic: `counter++` on a volatile field is still a separate load and store. Stronger tools exist, but be precise about which guarantee each one gives. The `Interlocked` methods and `Thread.MemoryBarrier` are **full fences**: nothing moves across them in either direction. `lock` and `Monitor` are weaker: entering has acquire semantics and exiting has release semantics, which is exactly enough to keep the code *inside* a critical section from escaping it. It does not stop accesses *outside* the section from moving into it, so do not rely on a lock for ordering of data that other code accesses without taking the same lock.
   - id: step.csharp.volatile.check-hoisting
     type: choice
     title: A loop that never ends
@@ -70,7 +70,7 @@ steps:
     type: interleave
     title: Volatile does not make ++ atomic
     prompt: |
-      Three threads each run `counter++` on a field that is declared `volatile int counter`. Every read sees the latest write, yet the total can still be wrong. Find an order that leaves `counter` at 1 instead of 3.
+      Three threads each run `counter++` on a field that is declared `volatile int counter`. Even in an execution where every read sees the latest store, the total can be wrong. Find an order that leaves `counter` at 1 instead of 3.
     language: csharp
     shared:
       - { name: counter, value: 0 }
@@ -96,23 +96,26 @@ steps:
     replays:
       - label: One thread after another
         schedule: [A, A, B, B, C, C]
-    explanation: Each load saw the latest stored value, which is all `volatile` promises. But all three loaded 0 before any of them stored, so all three stored 1. Fixing this needs an atomic read-modify-write, for example `Interlocked.Increment`, or a lock.
+    explanation: This player runs one step at a time, so every load sees the latest store. Even then, all three threads loaded 0 before any of them stored, so all three stored 1. (A real `volatile` read is not even guaranteed to return the most recent write from another processor; the language promises acquire and release ordering, not that.) Fixing this needs an atomic read-modify-write, for example `Interlocked.Increment`, or a lock.
     hints:
       - Let every thread load before any thread stores.
   - id: step.csharp.volatile.check-fence
     type: choice
-    title: Which operation is a full barrier?
+    title: Which operation is a full fence?
     prompt: |
-      You need no memory operation to be moved across a particular point in either direction. Which of these gives you that?
+      You need no memory operation to be moved across a particular point in either direction. Which of these is specified to give you that?
     options:
       - text: '`Interlocked.Increment(ref n)`'
         correct: true
-        feedback: Right. `Interlocked` operations, `lock` and `Monitor` are full barriers, and `Interlocked.Increment` is atomic as well.
+        feedback: Right. `Interlocked` operations (and `Thread.MemoryBarrier`) are full fences, and `Interlocked.Increment` is atomic as well. `Monitor.Enter` only acquires and `Monitor.Exit` only releases.
       - text: Reading a `volatile` field
         correct: false
         feedback: A volatile read only stops later operations from moving before it. Earlier operations may still move after it.
       - text: Writing a `volatile` field
         correct: false
         feedback: A volatile write only stops earlier operations from moving after it. Later operations may still move before it.
+      - text: Entering a `lock` (`Monitor.Enter`)
+        correct: false
+        feedback: Entering has acquire semantics only. Operations before the `lock` statement may move into the critical section.
     hints:
       - A volatile access constrains one direction only.

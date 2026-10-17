@@ -120,7 +120,7 @@ steps:
     type: choice
     title: Breaking the cycle
     prompt: |
-      The transfer code from the last puzzle must keep locking both accounts. Which change removes the deadlock?
+      A general `Transfer(from, to, amount)` method locks both accounts, and any two threads may call it at once, moving money either way between the same two accounts. Which change removes the deadlock for every caller?
     options:
       - text: Always take the lock of the account with the lower id first, whichever way the money moves
         correct: true
@@ -128,11 +128,11 @@ steps:
       - text: Add a `Thread.Sleep(10)` between the two locks
         correct: false
         feedback: A delay only changes the odds of hitting the bad order. It does not remove it.
-      - text: Lock the destination account first in thread A only
+      - text: Always lock the destination account first, then the source
         correct: false
-        feedback: Changing the order in only one thread makes the two threads agree for this pair, but it breaks as soon as the roles swap. The order must come from a rule that every caller follows.
+        feedback: That is still a rule tied to the direction of the transfer. `Transfer(a, b)` locks `b` then `a`, while a concurrent `Transfer(b, a)` locks `a` then `b`, so the cycle is back. The order must depend on the accounts, not on which is the source.
     hints:
-      - Think of a rule that gives both threads the same order for the same pair of accounts.
+      - Think of a rule that gives every caller the same order for the same pair of accounts, whichever way the money moves.
   - id: step.csharp.races.check-evidence
     type: choice
     title: It passed ten thousand times
