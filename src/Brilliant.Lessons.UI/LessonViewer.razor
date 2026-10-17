@@ -97,6 +97,9 @@ else if (step is not null)
             case ReviewCodeStep review:
                 <ReviewCodeStepView Step="review" OnAnswered="a => Answered(step, a)" OnContinue="() => Complete(step)" />
                 break;
+            case DesignTradeoffStep tradeoff:
+                <DesignTradeoffStepView Step="tradeoff" OnAnswered="a => Answered(step, a)" OnContinue="() => Complete(step)" />
+                break;
             case WriteCodeStep write:
                 <WriteCodeStepView Step="write" OnSubmitted="s => Submitted(step, write, s)" OnContinue="() => Complete(step)" />
                 break;
@@ -212,6 +215,11 @@ else
     private void Answered(Step owner, InterleaveStepView.Attempt a)
     {
         if (!Review) Recorder.ScheduleSubmitted(Lesson.Id, owner.Id, a.Correct, a.Schedule);
+    }
+
+    private void Answered(Step owner, DesignTradeoffStepView.Attempt a)
+    {
+        if (!Review) Recorder.TradeoffSubmitted(Lesson.Id, owner.Id, a.Correct, a.Score, a.Option, a.Justification, a.PointsMade, a.RedFlags);
     }
 
     private void Answered(Step owner, ReviewCodeStepView.Attempt a)

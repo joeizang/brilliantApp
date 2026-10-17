@@ -56,6 +56,9 @@
             case ReviewCodeStep review:
                 <ReviewCodeStepView Step="review" OnAnswered="a => Answered(item, a.Correct)" OnContinue="Next" />
                 break;
+            case DesignTradeoffStep tradeoff:
+                <DesignTradeoffStepView Step="tradeoff" OnAnswered="a => Answered(item, a.Correct, ProgressRecorder.TradeoffDetail(a.Score, a.Option, a.Justification, a.PointsMade, a.RedFlags))" OnContinue="Next" />
+                break;
             case FillBlankStep fill:
                 <FillBlankStepView Step="fill" OnAnswered="a => Answered(item, a.Result.IsCorrect)" OnContinue="Next" />
                 break;
@@ -180,11 +183,12 @@ else
     }
 
     // Only the first answer to an item counts: retrying is practice, not a better memory.
-    private async Task Answered(ReviewItemState item, bool correct)
+    // A written answer (design-tradeoff) travels as `answer` on the review event, so it is kept without a second, lesson-style attempt.
+    private async Task Answered(ReviewItemState item, bool correct, object? answer = null)
     {
         if (_recorded) return;
         _recorded = true;
-        Recorder.ReviewAnswered(item, correct, item.HintsBefore(_hintsUsed), Recorder.Now - _shownAt);
+        Recorder.ReviewAnswered(item, correct, item.HintsBefore(_hintsUsed), Recorder.Now - _shownAt, answer);
         _scheduled = Recorder.Project(Content, Screen.Class).Reviews.First(r => r.Item.Id == item.Item.Id).Card?.Due;
         await OnProgress.InvokeAsync();
     }

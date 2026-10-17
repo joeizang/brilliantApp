@@ -66,6 +66,55 @@ public class ReviewViewTests : ShortcutContext
 
     private static JsonElement Data(ProgressEvent e) => JsonDocument.Parse(e.Data!).RootElement;
 
+    // A design-tradeoff review keeps the whole answer on the review event, so a local model can still give feedback on the justification.
+    private static readonly Lesson TradeoffLesson = new("lesson.tr", "Tradeoffs", "track.t",
+        [
+            new ExplainStep("step.intro3", "Intro", "b", [], null),
+            new DesignTradeoffStep("step.tr", "Where does the cache live?", "Three instances share an API.",
+                [new TradeoffOption("In-process", false, "They disagree."), new TradeoffOption("Shared Redis", true, "One copy.")],
+                [new RubricPoint("One consistent view", 2), new RubricPoint("Accepts the hop", 1)],
+                "Use a shared cache.", ["Always faster."]),
+        ])
+    {
+        Concepts = [new Concept("concept.tr", "TR")],
+        ReviewItems = [new ReviewItem("review.tr", "concept.tr", "step.tr")],
+    };
+
+    private static readonly ContentGraph TradeoffContent = new(new PackManifest("pack.t", "1.0.0", 1), [new Track("track.t", "T", [TradeoffLesson.Id])], [TradeoffLesson]);
+
+    [Fact]
+    public void A_design_tradeoff_review_records_the_whole_answer_without_counting_it_as_a_lesson_attempt()
+    {
+        foreach (var s in TradeoffLesson.Steps) _recorder.CompleteStep(TradeoffLesson, s.Id);
+        var cut = Render<ReviewView>(p => p.Add(c => c.Content, TradeoffContent));
+
+        cut.Find("li[data-option='1'] input").Change(true);
+        cut.Find("textarea.justification").Input("Every instance sees one copy.");
+        cut.Find("button.primary").Click();                                  // Check
+        cut.Find(".rubric-point[data-point='0'] input").Change(true);
+        cut.Find("button.primary").Click();                                  // Done
+
+        var answer = Assert.Single(Answers);
+        var detail = Data(answer).GetProperty("answer");
+        Assert.Equal(1, detail.GetProperty("option").GetInt32());
+        Assert.Equal("Every instance sees one copy.", detail.GetProperty("justification").GetString());
+        Assert.Equal([0], detail.GetProperty("pointsMade").EnumerateArray().Select(e => e.GetInt32()));
+        Assert.Empty(detail.GetProperty("redFlags").EnumerateArray());
+        Assert.Equal(0.4 + 0.6 * (2.0 / 3), detail.GetProperty("score").GetDouble(), 10);
+        Assert.DoesNotContain(_log.Items, e => e.Type == ProgressEventTypes.StepAnswered);
+    }
+
+    [Fact]
+    public void Answers_that_carry_no_detail_are_recorded_exactly_as_before()
+    {
+        FinishLesson();
+        var cut = Open();
+
+        Pick(cut, "right");
+
+        Assert.False(Data(Assert.Single(Answers)).TryGetProperty("answer", out _));
+    }
+
     [Fact]
     public void Before_any_lesson_is_finished_there_is_nothing_to_review()
     {

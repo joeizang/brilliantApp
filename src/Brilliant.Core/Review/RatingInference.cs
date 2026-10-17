@@ -59,6 +59,8 @@ public static class RatingInference
         InterleaveStep => (TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(120)),
         // Reading a screenful of code for several problems takes minutes, not seconds.
         ReviewCodeStep => (TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(240)),
+        // Choosing and writing a justification takes a few minutes; ticking the rubric afterwards is quick.
+        DesignTradeoffStep => (TimeSpan.FromSeconds(90), TimeSpan.FromSeconds(300)),
         FillBlankStep => (TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(90)),
         ParsonsStep => (TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(150)),
         WriteCodeStep => (TimeSpan.FromSeconds(90), TimeSpan.FromSeconds(420)),

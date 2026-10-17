@@ -72,6 +72,21 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
         Append(ProgressEventTypes.StepAnswered, lessonId, stepId,
             JsonSerializer.Serialize(new { correct, score, flags = flags.Select(f => new { line = f.Line, category = f.Category }) }));
 
+    /// <summary>
+    /// Records a design-tradeoff answer: the option picked, the justification as written, and the learner's self-assessment (rubric points
+    /// they ticked and red flags they claimed), so a local model can give feedback on the same text later.
+    /// </summary>
+    public void TradeoffSubmitted(string lessonId, string stepId, bool correct, double score, int option, string justification, IReadOnlyList<int> pointsMade, IReadOnlyList<int> redFlags) =>
+        Append(ProgressEventTypes.StepAnswered, lessonId, stepId,
+            JsonSerializer.Serialize(new { correct, score, option, justification, pointsMade, redFlags }));
+
+    /// <summary>
+    /// The detail of a design-tradeoff answer, for <see cref="ReviewAnswered(ReviewItemState, bool, int, TimeSpan, object?)"/>: the same
+    /// fields <see cref="TradeoffSubmitted"/> keeps for a lesson attempt, minus <c>correct</c>, which the review event already holds.
+    /// </summary>
+    public static object TradeoffDetail(double score, int option, string justification, IReadOnlyList<int> pointsMade, IReadOnlyList<int> redFlags) =>
+        new { score, option, justification, pointsMade, redFlags };
+
     /// <summary>Records one write-code submission: the code as submitted and how many hidden tests it passed.</summary>
     public void CodeSubmitted(string lessonId, string stepId, string code, int passedTests, int totalTests) =>
         Append(ProgressEventTypes.CodeSubmitted, lessonId, stepId,
@@ -105,9 +120,11 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
         Append(ProgressEventTypes.LessonTestedOut, lesson.Id, "", JsonSerializer.Serialize(new { items = asked.Select(i => i.Id) }));
 
     /// <summary>Records a review answer with an explicit rating.</summary>
-    public void ReviewAnswered(string lessonId, ReviewItem item, bool correct, int hintsUsed, TimeSpan elapsed, Rating rating) =>
+    public void ReviewAnswered(string lessonId, ReviewItem item, bool correct, int hintsUsed, TimeSpan elapsed, Rating rating, object? answer = null) =>
         Append(ProgressEventTypes.ReviewAnswered, lessonId, item.StepId,
-            JsonSerializer.Serialize(new { item = item.Id, correct, hintsUsed, elapsedMs = (int)elapsed.TotalMilliseconds, rating = (int)rating, day = Day() }));
+            answer is null
+                ? JsonSerializer.Serialize(new { item = item.Id, correct, hintsUsed, elapsedMs = (int)elapsed.TotalMilliseconds, rating = (int)rating, day = Day() })
+                : JsonSerializer.Serialize(new { item = item.Id, correct, hintsUsed, elapsedMs = (int)elapsed.TotalMilliseconds, rating = (int)rating, day = Day(), answer }));
 
     // The learner's local date now, stored on answers so the same-day rule replays the same everywhere (AnswerDay).
     private string Day() => AnswerDay.Today(_clock).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
@@ -115,13 +132,15 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
     /// <summary>
     /// Records a review answer, inferring the FSRS rating from correctness, hints and time. Returns the rating. A derived pattern pick
     /// is rated as a pick (<see cref="RatingInference.InferPick"/>): its question is the problem, but the answer only names the pattern.
+    /// <paramref name="answer"/> is an optional detail kept on the event (a written answer worth feedback later); it rides on the review
+    /// event, not a separate lesson-attempt event, so it is never counted as a second attempt.
     /// </summary>
-    public Rating ReviewAnswered(ReviewItemState review, bool correct, int hintsUsed, TimeSpan elapsed)
+    public Rating ReviewAnswered(ReviewItemState review, bool correct, int hintsUsed, TimeSpan elapsed, object? answer = null)
     {
         var rating = review.IsPracticePick
             ? RatingInference.InferPick(correct, elapsed, hintsUsed)
             : RatingInference.Infer(correct, hintsUsed, elapsed, review.Presented);
-        ReviewAnswered(review.Lesson.Id, review.Item, correct, hintsUsed, elapsed, rating);
+        ReviewAnswered(review.Lesson.Id, review.Item, correct, hintsUsed, elapsed, rating, answer);
         return rating;
     }
 

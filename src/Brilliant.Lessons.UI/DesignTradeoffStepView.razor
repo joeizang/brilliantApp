@@ -1,0 +1,190 @@
+@using Brilliant.Core.Content
+@implements IDisposable
+@inject StepShortcuts Shortcuts
+
+@* "Pick one and justify it." The learner chooses an option and writes why. Checking grades the option and reveals the model answer and the
+   rubric; the learner then ticks the points their answer made (and any red flag it claimed), and that self-assessment is the grade. *@
+<article class="design-tradeoff-step lesson-step">
+    <h2>@(Title ?? Step.Title)</h2>
+    <p class="prompt">@Step.Prompt</p>
+
+    <ul class="options my-4 grid list-none gap-2 p-0" aria-label="Options">
+        @for (var i = 0; i < Step.Options.Count; i++)
+        {
+            var index = i;
+            var option = Step.Options[index];
+            <li class="@OptionClass(index)" data-option="@index">
+                <label class="flex min-h-6 cursor-pointer items-center gap-3">
+                    <input type="radio" name="@Step.Id" checked="@(_selected == index)" disabled="@(_phase != Phase.Writing)" @onchange="() => Pick(index)" />
+                    @option.Text
+                </label>
+                @if (_phase != Phase.Writing && _selected == index)
+                {
+                    <div class="option-feedback mt-[.4rem] text-[.9rem] text-fg-secondary">@option.Feedback</div>
+                }
+            </li>
+        }
+    </ul>
+
+    @if (_phase == Phase.Writing)
+    {
+        <label class="mb-1 block font-semibold" for="@JustificationId">Why? Justify your pick in a few sentences.</label>
+        <textarea id="@JustificationId" class="justification box-border mb-4 w-full resize-y rounded-md border border-border bg-surface px-4 py-3 text-[1rem] leading-[normal] text-fg transition-shadow duration-150 ease-app focus:ring-2 focus:ring-accent focus:outline-none"
+                  rows="5" @bind="_justification" @bind:event="oninput"></textarea>
+        <button type="button" class="primary btn-primary" disabled="@(!CanCheck)" @onclick="Check">@CheckText</button>
+    }
+    else
+    {
+        <section class="your-answer mb-4" aria-label="Your justification">
+            <h3 class="mb-1">Your justification</h3>
+            <p class="m-0 whitespace-pre-wrap rounded-lg border border-hairline bg-surface-raised px-4 py-3">@_justification</p>
+        </section>
+        <section class="model-answer mb-4" aria-label="Model answer">
+            <h3 class="mb-1">Model answer</h3>
+            <p class="m-0 whitespace-pre-wrap rounded-lg border border-hairline bg-surface-raised px-4 py-3">@Step.ModelAnswer</p>
+        </section>
+
+        @if (_phase == Phase.Assessing)
+        {
+            <section class="rubric mb-4" aria-label="Rubric">
+                <h3 class="mb-1">Which of these did your answer make?</h3>
+                <p class="mt-0 mb-2 text-[.95rem] text-fg-secondary">Tick honestly. This is your grade, and it decides how soon you see this again.</p>
+                <ul class="m-0 grid list-none gap-2 p-0">
+                    @for (var i = 0; i < Step.Rubric.Count; i++)
+                    {
+                        var index = i;
+                        <li class="rubric-point rounded-lg border border-hairline bg-surface-raised px-4 py-2" data-point="@index">
+                            <label class="flex min-h-6 cursor-pointer items-center gap-3">
+                                <input type="checkbox" checked="@_made.Contains(index)" @onchange="() => Tick(_made, index)" />
+                                @Step.Rubric[index].Text
+                            </label>
+                        </li>
+                    }
+                </ul>
+            </section>
+            @if (Step.RedFlags.Count > 0)
+            {
+                <section class="red-flags mb-4" aria-label="Red flags">
+                    <h3 class="mb-1">Did your answer claim any of these?</h3>
+                    <p class="mt-0 mb-2 text-[.95rem] text-fg-secondary">Each of these sounds right and is not.</p>
+                    <ul class="m-0 grid list-none gap-2 p-0">
+                        @for (var i = 0; i < Step.RedFlags.Count; i++)
+                        {
+                            var index = i;
+                            <li class="red-flag rounded-lg border border-hairline bg-surface-raised px-4 py-2" data-flag="@index">
+                                <label class="flex min-h-6 cursor-pointer items-center gap-3">
+                                    <input type="checkbox" checked="@_flagged.Contains(index)" @onchange="() => Tick(_flagged, index)" />
+                                    @Step.RedFlags[index]
+                                </label>
+                            </li>
+                        }
+                    </ul>
+                </section>
+            }
+            <button type="button" class="primary btn-primary" @onclick="Finish">Done</button>
+        }
+        else if (_result is not null)
+        {
+            <p class="verdict @(_result.IsCorrect ? "correct text-success" : "incorrect") font-semibold" role="status">@_result.Summary</p>
+            <p class="score text-[.95rem] text-fg-secondary">Score: @ScorePercent%</p>
+            <button type="button" class="primary btn-primary mt-2" @onclick="() => OnContinue.InvokeAsync()">Continue</button>
+        }
+    }
+</article>
+
+@code {
+    /// <summary>What the learner submitted: the option, their written justification and self-assessment, and the grade that came of it.</summary>
+    public sealed record Attempt(bool Correct, double Score, int Option, string Justification, IReadOnlyList<int> PointsMade, IReadOnlyList<int> RedFlags);
+
+    private enum Phase { Writing, Assessing, Done }
+
+    [Parameter, EditorRequired] public DesignTradeoffStep Step { get; set; } = default!;
+
+    /// <summary>Shown instead of the step's title (Practice shows "Problem").</summary>
+    [Parameter] public string? Title { get; set; }
+
+    [Parameter] public string CheckText { get; set; } = "Check";
+
+    /// <summary>Raised once, when the learner finishes their self-assessment.</summary>
+    [Parameter] public EventCallback<Attempt> OnAnswered { get; set; }
+
+    [Parameter] public EventCallback OnContinue { get; set; }
+
+    private readonly SortedSet<int> _made = [];
+    private readonly SortedSet<int> _flagged = [];
+    private DesignTradeoffStep? _source;
+    private IDisposable? _shortcuts;
+    private DesignTradeoffResult? _result;
+    private Phase _phase;
+    private int? _selected;
+    private string _justification = "";
+
+    private string JustificationId => $"{Step.Id}-why";
+    private bool CanCheck => _selected is not null && !string.IsNullOrWhiteSpace(_justification);
+    private int ScorePercent => (int)Math.Round((_result?.Score ?? 0) * 100);
+
+    protected override void OnInitialized() => _shortcuts = Shortcuts.Subscribe(OnShortcut);
+
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(_source, Step)) return;
+        _source = Step;
+        _made.Clear();
+        _flagged.Clear();
+        _result = null;
+        _phase = Phase.Writing;
+        _selected = null;
+        _justification = "";
+    }
+
+    public void Dispose() => _shortcuts?.Dispose();
+
+    private void Pick(int index)
+    {
+        if (_phase == Phase.Writing) _selected = index;
+    }
+
+    private static void Tick(SortedSet<int> set, int index)
+    {
+        if (!set.Remove(index)) set.Add(index);
+    }
+
+    private void Check()
+    {
+        if (_phase != Phase.Writing || !CanCheck) return;
+        _justification = _justification.Trim();
+        _phase = Phase.Assessing;
+    }
+
+    private async Task Finish()
+    {
+        if (_phase != Phase.Assessing || _selected is not { } option) return;
+        _result = DesignTradeoffEvaluator.Evaluate(Step, option, _made, _flagged);
+        _phase = Phase.Done;
+        await OnAnswered.InvokeAsync(new Attempt(_result.IsCorrect, _result.Score, option, _justification, [.. _made], [.. _flagged]));
+    }
+
+    private string OptionClass(int index) => _phase == Phase.Writing
+        ? Styling.Option(_selected == index ? OptionState.Selected : OptionState.Idle)
+        : _selected == index
+            ? Styling.Option(Step.Options[index].Correct ? OptionState.Right : OptionState.Wrong)
+            : Styling.Option(OptionState.Idle);
+
+    // Return never submits the written answer (it is a text box); it moves on from the self-assessment and the result.
+    private Task OnShortcut(StepShortcut s) => InvokeAsync(async () =>
+    {
+        switch (s.Command)
+        {
+            case StepCommand.Choose when _phase == Phase.Writing && s.Number <= Step.Options.Count:
+                Pick(s.Number - 1);
+                break;
+            case StepCommand.Advance when _phase == Phase.Assessing:
+                await Finish();
+                break;
+            case StepCommand.Advance when _phase == Phase.Done:
+                await OnContinue.InvokeAsync();
+                return;
+        }
+        StateHasChanged();
+    });
+}

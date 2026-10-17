@@ -9,6 +9,8 @@ concepts:
     title: Taking two locks in opposite orders can deadlock, and one global order prevents it
   - id: concept.csharp.conc-race-evidence
     title: Passing tests are weak evidence about a race; reason about the interleavings
+  - id: concept.csharp.conc-share-nothing
+    title: Prefer sharing nothing, then immutable data, then a lock, and lock-free code only last
 reviewItems:
   - id: review.csharp.conc-race-shape
     concept: concept.csharp.conc-race-shape
@@ -28,6 +30,9 @@ reviewItems:
   - id: review.csharp.conc-race-review
     concept: concept.csharp.conc-race-shape
     step: step.csharp.races.review-booking
+  - id: review.csharp.conc-share-nothing
+    concept: concept.csharp.conc-share-nothing
+    step: step.csharp.races.tradeoff-counting
 steps:
   - id: step.csharp.races.intro
     type: explain
@@ -187,3 +192,35 @@ steps:
     hints:
       - Read each line as if a second request ran the same line at the same moment.
       - There are two problems, and both are about the same kind of mistake.
+  - id: step.csharp.races.tradeoff-counting
+    type: design-tradeoff
+    title: Counting hits from many threads
+    prompt: |
+      A request handler runs on up to 64 threads and bumps a counter on every hit. The count is read once a minute by a metrics job, and being a few hits out of date is fine. Which approach would you choose, and why?
+    options:
+      - text: Wrap `_hits++` in a `lock`
+        correct: false
+        feedback: Correct, but every request now queues on one lock to bump a number nobody reads promptly. It works; it is not the cheapest way to meet the need.
+      - text: Give each thread its own counter and add them up when the job reads
+        correct: true
+        feedback: Nothing is shared on the hot path, so there is nothing to contend on. The reader pays a small cost once a minute, and the slight staleness is exactly what the requirement allows.
+      - text: Mark `_hits` as `volatile` and use `_hits++`
+        correct: false
+        feedback: '`volatile` orders reads and writes but does not make `++` atomic, so updates are still lost.'
+      - text: Use `Interlocked.Increment(ref _hits)`
+        correct: false
+        feedback: Correct and lock-free, and a perfectly good answer. But every core still fights over one cache line, so under heavy load it is not the best fit when staleness is acceptable.
+    rubric:
+      - point: Says that a plain `++` is a read-modify-write, so it needs protection or no sharing.
+      - point: Prefers not sharing the counter on the hot path, because the reader tolerates staleness.
+        points: 2
+      - point: Names the cost of the alternative (lock contention, or every core contending on one cache line).
+      - point: States the trade, that reading the total is now slightly stale or costs a sum.
+    modelAnswer: |
+      Keep a counter per thread (or per core) and sum them when the metrics job reads. The hot path shares nothing, so there is no lock to queue on and no cache line bouncing between cores, and the reader only sees a total that is a moment old, which the requirement already allows. A lock or `Interlocked.Increment` is correct too, but it makes every request contend on one location to serve a reader that does not need that precision.
+    redFlags:
+      - '`volatile` makes `count++` atomic.'
+      - Lock-free code is always faster than a lock.
+    hints:
+      - Who reads the value, and how fresh does it need to be?
+      - The cheapest synchronisation is the one you do not need.
