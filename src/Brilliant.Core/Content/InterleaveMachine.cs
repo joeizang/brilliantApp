@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace Brilliant.Core.Content;
@@ -61,7 +62,8 @@ public static partial class InterleaveMachine
         if (Constant().Match(line) is { Success: true } c)
         {
             if (!shared.Contains(c.Groups["name"].Value)) { error = $"'{c.Groups["name"].Value}' is not a shared variable, so a constant cannot be stored in it."; return false; }
-            instruction = new(InterleaveInstructionKind.Store, c.Groups["name"].Value, null, int.Parse(c.Groups["n"].Value));
+            if (!int.TryParse(c.Groups["n"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var constant)) { error = $"'{line}': the number is too large."; return false; }
+            instruction = new(InterleaveInstructionKind.Store, c.Groups["name"].Value, null, constant);
             return true;
         }
         if (Assignment().Match(line) is { Success: true } a)
@@ -72,7 +74,12 @@ public static partial class InterleaveMachine
             if (shared.Contains(target))
             {
                 if (shared.Contains(source)) { error = $"'{line}' reads one shared variable into another in a single step; load it into a local first."; return false; }
-                var offset = hasOffset ? int.Parse(a.Groups["n"].Value) * (a.Groups["sign"].Value == "-" ? -1 : 1) : 0;
+                var offset = 0;
+                if (hasOffset)
+                {
+                    if (!int.TryParse(a.Groups["n"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out offset)) { error = $"'{line}': the number is too large."; return false; }
+                    if (a.Groups["sign"].Value == "-") offset = -offset;
+                }
                 instruction = new(InterleaveInstructionKind.Store, target, source, offset);
                 return true;
             }

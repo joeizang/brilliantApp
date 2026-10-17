@@ -239,6 +239,22 @@ public sealed class InterleaveStepTests : IDisposable
     }
 
     [Fact]
+    public void An_oversized_number_is_reported_not_thrown()
+    {
+        WritePack(LostUpdate.Replace("do: counter = t + 1\n", "do: counter = t + 2147483648\n"));
+
+        Assert.Contains(Errors(), e => e.Contains("too large"));
+    }
+
+    [Fact]
+    public void An_interleave_step_can_prefer_a_large_screen()
+    {
+        WritePack(LostUpdate.Replace("    language: csharp\n", "    language: csharp\n    largeScreenPreferred: true\n"));
+
+        Assert.Empty(Errors());
+    }
+
+    [Fact]
     public void Question_step_fields_are_refused()
     {
         WritePack(LostUpdate.Replace("    language: csharp\n", "    language: csharp\n    accepted: ['1']\n"));

@@ -166,4 +166,21 @@ public sealed class InterleaveMachineTests
         Assert.Equal(2, back.Threads.Count);
         Assert.Equal("counter", back.Invariant.Variable);
     }
+
+    [Theory]
+    [InlineData("counter = t + 2147483648")]
+    [InlineData("counter = t - 99999999999")]
+    [InlineData("counter = 2147483648")]
+    public void A_number_too_large_is_an_error_not_a_crash(string line)
+    {
+        Assert.False(InterleaveMachine.TryParse(line, new HashSet<string> { "counter" }, out _, out var error));
+        Assert.Contains("too large", error);
+    }
+
+    [Fact]
+    public void The_largest_int_still_parses()
+    {
+        Assert.True(InterleaveMachine.TryParse("counter = t + 2147483647", new HashSet<string> { "counter" }, out var instruction, out _));
+        Assert.Equal(int.MaxValue, instruction.Offset);
+    }
 }

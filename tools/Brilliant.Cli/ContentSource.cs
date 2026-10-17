@@ -409,7 +409,7 @@ public static partial class ContentValidator
 
     private const int MaxHints = 4;
 
-    private static readonly string[] QuestionTypes = ["choice", "predict-output", "lowered", "benchmark-predict", "allocations", "write-code", "fill-blank", "parsons"];
+    private static readonly string[] QuestionTypes = ["choice", "predict-output", "lowered", "benchmark-predict", "allocations", "interleave", "write-code", "fill-blank", "parsons"];
 
     private static Step? LoadStep(StepDto dto, string where, string file, ValidationReport report,
         Dictionary<string, string> seenIds, bool isAlternative = false)
