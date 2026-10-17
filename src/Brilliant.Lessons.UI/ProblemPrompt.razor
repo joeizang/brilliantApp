@@ -21,6 +21,7 @@
         LoweredStep s => s.Prompt,
         BenchmarkPredictStep s => s.Prompt,
         InterleaveStep s => s.Prompt,
+        ReviewCodeStep s => s.Prompt,
         _ => "",
     };
 }

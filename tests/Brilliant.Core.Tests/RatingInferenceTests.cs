@@ -90,4 +90,15 @@ public class RatingInferenceTests
         Assert.True(RatingInference.Thresholds(interleave).Slow > RatingInference.Thresholds(predict).Slow);
         Assert.True(LessonTestOut.Difficulty(interleave) > LessonTestOut.Difficulty(predict));
     }
+
+    [Fact]
+    public void A_code_review_is_given_longer_than_a_puzzle_and_can_be_asked_in_a_test_out()
+    {
+        var review = new ReviewCodeStep("r", "R", "?", "csharp", "code", [], []);
+        var interleave = new InterleaveStep("i", "I", "?", [], [], new(InterleaveInvariant.NoDeadlock, "d"), [], [], "e");
+
+        Assert.True(RatingInference.Thresholds(review).Fast > RatingInference.Thresholds(interleave).Fast);
+        Assert.True(RatingInference.Thresholds(review).Slow > RatingInference.Thresholds(interleave).Slow);
+        Assert.True(LessonTestOut.Difficulty(review) > LessonTestOut.Difficulty(interleave));
+    }
 }

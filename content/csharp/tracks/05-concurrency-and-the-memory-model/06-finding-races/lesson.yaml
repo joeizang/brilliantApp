@@ -25,6 +25,9 @@ reviewItems:
   - id: review.csharp.conc-race-evidence
     concept: concept.csharp.conc-race-evidence
     step: step.csharp.races.check-evidence
+  - id: review.csharp.conc-race-review
+    concept: concept.csharp.conc-race-shape
+    step: step.csharp.races.review-booking
 steps:
   - id: step.csharp.races.intro
     type: explain
@@ -150,3 +153,37 @@ steps:
         feedback: More machines raise the chance of seeing a failure but still cannot prove one cannot happen.
     hints:
       - What can a test show about interleavings it never produced?
+  - id: step.csharp.races.review-booking
+    type: review-code
+    title: Review the seat booking
+    prompt: |
+      A teammate wrote this class for a ticket service. Many requests call `TryBook` at the same time. Flag the lines you would push back on, and say what kind of problem each one is.
+    language: csharp
+    code: |
+      public sealed class SeatBooking
+      {
+          private readonly Dictionary<int, string> _holders = new();
+          private int _booked;
+
+          public bool TryBook(int seat, string user)
+          {
+              if (_holders.ContainsKey(seat)) return false;
+              _holders[seat] = user;
+              _booked++;
+              return true;
+          }
+      }
+    defects:
+      - line: 8
+        endLine: 9
+        category: concurrency
+        explanation: This is check-then-act on shared state. Two callers can both see the seat free and both book it, and a plain `Dictionary` is not safe for concurrent writers at all. The check and the write need to sit under one lock.
+      - line: 10
+        category: concurrency
+        explanation: '`_booked++` is a read-modify-write, so concurrent bookings can lose updates and the count drifts below the real number. It needs the same lock as the dictionary, or `Interlocked.Increment` if it were the only shared write.'
+    decoys:
+      - line: 6
+        explanation: A `bool` result for "the seat was taken" is the ordinary `Try...` pattern, not an API problem.
+    hints:
+      - Read each line as if a second request ran the same line at the same moment.
+      - There are two problems, and both are about the same kind of mistake.

@@ -1,0 +1,225 @@
+@using Brilliant.Core.Content
+@implements IDisposable
+@inject StepShortcuts Shortcuts
+
+@* "Review this." The learner reads the code, taps the lines they would push back on and names the kind of problem for each. Submitting
+   grades the flags against the authored defects: what was found, what was missed, and which flags landed on lines that are fine. *@
+<article class="review-code-step lesson-step">
+    <h2>@(Title ?? Step.Title)</h2>
+    <p class="prompt">@Step.Prompt</p>
+
+    @if (_result is null)
+    {
+        <p class="hint-text mb-3 text-[.95rem] text-fg-secondary" id="@HelpId">Tap a line you would flag, then choose what kind of problem it is. Tap a flagged line to change or remove its flag.</p>
+    }
+    @CodeBlock()
+
+    @if (_result is null)
+    {
+        <p class="flag-count mt-3 text-[.95rem]" aria-live="polite">@FlagCountText</p>
+        <div class="actions mt-3 flex flex-wrap gap-2">
+            <button type="button" class="primary btn-primary" disabled="@(_flags.Count == 0)" @onclick="Submit">@CheckText</button>
+        </div>
+    }
+    else
+    {
+        <section class="results mt-5" aria-label="Your review">
+            <p class="verdict @(_result.IsCorrect ? "correct text-success" : "incorrect") font-semibold" role="status">@_result.Summary</p>
+            <p class="score text-[.95rem] text-fg-secondary">Score: @ScorePercent%</p>
+            <ul class="defects m-0 mt-3 grid list-none gap-3 p-0">
+                @foreach (var defect in _result.Defects)
+                {
+                    <li class="defect rounded-lg border border-hairline bg-surface-raised px-4 py-3" data-outcome="@OutcomeName(defect.Outcome)" data-line="@defect.Defect.Line">
+                        <p class="m-0 text-[.9rem] font-semibold">@OutcomeBadge(defect.Outcome)</p>
+                        <p class="m-0 mt-1">@defect.Feedback</p>
+                    </li>
+                }
+            </ul>
+            @if (_result.FalseFlags.Count > 0)
+            {
+                <h3 class="mt-5 mb-1">Lines that were fine</h3>
+                <ul class="false-flags m-0 grid list-none gap-2 p-0">
+                    @foreach (var flag in _result.FalseFlags)
+                    {
+                        <li class="false-flag rounded-lg border border-hairline bg-surface-raised px-4 py-3" data-line="@flag.Line">@flag.Feedback</li>
+                    }
+                </ul>
+            }
+        </section>
+        <button type="button" class="primary btn-primary mt-4" @onclick="() => OnContinue.InvokeAsync()">Continue</button>
+    }
+</article>
+
+@code {
+    /// <summary>What the learner submitted: every flag, the score out of 1, and whether it was a perfect review.</summary>
+    public sealed record Attempt(bool Correct, double Score, IReadOnlyList<ReviewFlag> Flags);
+
+    [Parameter, EditorRequired] public ReviewCodeStep Step { get; set; } = default!;
+
+    /// <summary>Shown instead of the step's title (Practice shows "Problem").</summary>
+    [Parameter] public string? Title { get; set; }
+
+    [Parameter] public string CheckText { get; set; } = "Submit review";
+
+    /// <summary>Raised once, when the learner submits the review.</summary>
+    [Parameter] public EventCallback<Attempt> OnAnswered { get; set; }
+
+    [Parameter] public EventCallback OnContinue { get; set; }
+
+    private const string LineButton = "review-line min-h-9 coarse:min-h-(--touch) w-full cursor-pointer rounded-sm border px-2 py-1 text-left font-mono text-[.9rem] whitespace-pre";
+    private const string CategoryButton = "category min-h-9 coarse:min-h-(--touch) cursor-pointer rounded-sm border px-3 py-1 font-inherit text-inherit";
+
+    private readonly Dictionary<int, string> _flags = [];
+    private ReviewCodeResult? _result;
+    private ReviewCodeStep? _source;
+    private IDisposable? _shortcuts;
+    private int? _open;
+
+    private string HelpId => $"{Step.Id}-help";
+    private string FlagCountText => _flags.Count switch { 0 => "No lines flagged yet.", 1 => "1 line flagged.", var n => $"{n} lines flagged." };
+    private int ScorePercent => (int)Math.Round((_result?.Score ?? 0) * 100);
+
+    protected override void OnInitialized() => _shortcuts = Shortcuts.Subscribe(OnShortcut);
+
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(_source, Step)) return;
+        _source = Step;
+        _flags.Clear();
+        _result = null;
+        _open = null;
+    }
+
+    public void Dispose() => _shortcuts?.Dispose();
+
+    private RenderFragment CodeBlock() => __builder =>
+    {
+        var lines = Step.Lines;
+        <ol class="code-lines m-0 mt-2 grid list-none gap-1 p-0" aria-label="Code to review">
+            @for (var i = 0; i < lines.Count; i++)
+            {
+                var number = i + 1;
+                var text = lines[i];
+                <li class="code-line" data-line="@number" data-state="@LineState(number)">
+                    <div class="flex items-start gap-2">
+                        <span class="line-number w-7 shrink-0 pt-1 text-right text-[.85rem] text-fg-secondary select-none" aria-hidden="true">@number</span>
+                        <div class="min-w-0 flex-1 overflow-x-auto">
+                            <button type="button" class="@LineClass(number, text)" disabled="@(_result is not null)" aria-pressed="@(_flags.ContainsKey(number) ? "true" : "false")"
+                                    aria-label="@LineLabel(number, text)" aria-describedby="@HelpId" @onclick="() => Toggle(number)"><code>@(text.Length == 0 ? " " : text)</code></button>
+                        </div>
+                        @if (_flags.TryGetValue(number, out var category))
+                        {
+                            <span class="flag-badge shrink-0 rounded-sm border border-accent px-2 py-[.1rem] text-[.8rem]">@ReviewCategory.Label(category)</span>
+                        }
+                    </div>
+                    @if (_open == number && _result is null)
+                    {
+                        <div class="picker ml-9 mt-1 flex flex-wrap gap-2" role="group" aria-label="@($"Kind of problem on line {number}")">
+                            @foreach (var option in ReviewCategory.All)
+                            {
+                                var chosen = option;
+                                <button type="button" class="@CategoryClass(number, chosen)" data-category="@chosen" aria-pressed="@(_flags.GetValueOrDefault(number) == chosen ? "true" : "false")"
+                                        @onclick="() => Flag(number, chosen)">@ReviewCategory.Label(chosen)</button>
+                            }
+                            @if (_flags.ContainsKey(number))
+                            {
+                                <button type="button" class="secondary btn-secondary remove-flag" @onclick="() => Unflag(number)">Remove flag</button>
+                            }
+                        </div>
+                    }
+                </li>
+            }
+        </ol>
+    };
+
+    private string LineState(int number)
+    {
+        if (_result is null) return _flags.ContainsKey(number) ? "flagged" : "plain";
+        var defect = Step.Defects.FirstOrDefault(d => number >= d.Line && number <= d.EndLine);
+        if (defect is not null)
+            return _result.Defects.First(r => r.Defect == defect).Outcome == ReviewDefectOutcome.Missed ? "missed" : "found";
+        return _flags.ContainsKey(number) ? "false-flag" : "plain";
+    }
+
+    private string LineClass(int number, string text)
+    {
+        var tone = LineState(number) switch
+        {
+            "flagged" => "border-accent bg-surface-raised",
+            "found" => "border-success bg-surface-raised",
+            "missed" => "border-danger bg-surface-raised",
+            "false-flag" => "border-border bg-surface-raised line-through decoration-fg-secondary",
+            _ => "border-transparent bg-surface",
+        };
+        return LineButton + " " + tone + " " + TextTone(text);
+    }
+
+    // A unified diff reads better with its additions and removals coloured. The colour classes and text-inherit are exclusive.
+    private string TextTone(string text) => Step.Language != "diff" ? "text-inherit" : text.StartsWith('+') ? "text-success" : text.StartsWith('-') ? "text-danger" : "text-inherit";
+
+    private string CategoryClass(int number, string category) =>
+        CategoryButton + (_flags.GetValueOrDefault(number) == category ? " border-accent bg-surface-raised font-semibold" : " border-border bg-surface");
+
+    private string LineLabel(int number, string text)
+    {
+        var flagged = _flags.TryGetValue(number, out var category) ? $", flagged as {ReviewCategory.Label(category)}" : "";
+        return $"Line {number}: {(string.IsNullOrWhiteSpace(text) ? "blank" : text.Trim())}{flagged}";
+    }
+
+    private static string OutcomeName(ReviewDefectOutcome outcome) => outcome switch
+    {
+        ReviewDefectOutcome.Found => "found",
+        ReviewDefectOutcome.WrongCategory => "wrong-category",
+        _ => "missed",
+    };
+
+    private static string OutcomeBadge(ReviewDefectOutcome outcome) => outcome switch
+    {
+        ReviewDefectOutcome.Found => "Found",
+        ReviewDefectOutcome.WrongCategory => "Right line, wrong kind (half credit)",
+        _ => "Missed",
+    };
+
+    private void Toggle(int number)
+    {
+        if (_result is not null) return;
+        _open = _open == number ? null : number;
+    }
+
+    private void Flag(int number, string category)
+    {
+        if (_result is not null) return;
+        _flags[number] = category;
+        _open = null;
+    }
+
+    private void Unflag(int number)
+    {
+        if (_result is not null) return;
+        _flags.Remove(number);
+        _open = null;
+    }
+
+    private async Task Submit()
+    {
+        if (_result is not null || _flags.Count == 0) return;
+        var flags = _flags.OrderBy(f => f.Key).Select(f => new ReviewFlag(f.Key, f.Value)).ToList();
+        _result = ReviewCodeEvaluator.Evaluate(Step, flags);
+        _open = null;
+        await OnAnswered.InvokeAsync(new Attempt(_result.IsCorrect, _result.Score, flags));
+    }
+
+    private Task OnShortcut(StepShortcut s) => InvokeAsync(async () =>
+    {
+        switch (s.Command)
+        {
+            case StepCommand.Run or StepCommand.Advance when _result is null:
+                await Submit();
+                break;
+            case StepCommand.Advance when _result is not null:
+                await OnContinue.InvokeAsync();
+                return;
+        }
+        StateHasChanged();
+    });
+}
