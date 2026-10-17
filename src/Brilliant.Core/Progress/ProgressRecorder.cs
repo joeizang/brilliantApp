@@ -72,6 +72,14 @@ public sealed class ProgressRecorder(IProgressEventLog log, string deviceId, Tim
         Append(ProgressEventTypes.StepAnswered, lessonId, stepId,
             JsonSerializer.Serialize(new { correct, score, flags = flags.Select(f => new { line = f.Line, category = f.Category }) }));
 
+    /// <summary>
+    /// Records a design-tradeoff answer: the option picked, the justification as written, and the learner's self-assessment (rubric points
+    /// they ticked and red flags they claimed), so a local model can give feedback on the same text later.
+    /// </summary>
+    public void TradeoffSubmitted(string lessonId, string stepId, bool correct, double score, int option, string justification, IReadOnlyList<int> pointsMade, IReadOnlyList<int> redFlags) =>
+        Append(ProgressEventTypes.StepAnswered, lessonId, stepId,
+            JsonSerializer.Serialize(new { correct, score, option, justification, pointsMade, redFlags }));
+
     /// <summary>Records one write-code submission: the code as submitted and how many hidden tests it passed.</summary>
     public void CodeSubmitted(string lessonId, string stepId, string code, int passedTests, int totalTests) =>
         Append(ProgressEventTypes.CodeSubmitted, lessonId, stepId,

@@ -395,8 +395,8 @@ public static partial class ContentValidator
     {
         var hints = dto.Hints ?? [];
         if (hints.Count == 0) return [];
-        if (dto.Type is not ("choice" or "predict-output" or "lowered" or "benchmark-predict" or "allocations" or "interleave" or "review-code" or "write-code" or "fill-blank" or "parsons"))
-            report.Add(file, $"{label}: 'hints' only apply to questions (choice, predict-output, lowered, benchmark-predict, allocations, interleave, review-code, write-code, fill-blank or parsons).");
+        if (dto.Type is not ("choice" or "predict-output" or "lowered" or "benchmark-predict" or "allocations" or "interleave" or "review-code" or "design-tradeoff" or "write-code" or "fill-blank" or "parsons"))
+            report.Add(file, $"{label}: 'hints' only apply to questions (choice, predict-output, lowered, benchmark-predict, allocations, interleave, review-code, design-tradeoff, write-code, fill-blank or parsons).");
         var max = dto.Walkthrough is null ? MaxHints : MaxHints - 1;
         if (hints.Count > max)
             report.Add(file, dto.Walkthrough is null
@@ -409,7 +409,7 @@ public static partial class ContentValidator
 
     private const int MaxHints = 4;
 
-    private static readonly string[] QuestionTypes = ["choice", "predict-output", "lowered", "benchmark-predict", "allocations", "interleave", "review-code", "write-code", "fill-blank", "parsons"];
+    private static readonly string[] QuestionTypes = ["choice", "predict-output", "lowered", "benchmark-predict", "allocations", "interleave", "review-code", "design-tradeoff", "write-code", "fill-blank", "parsons"];
 
     private static Step? LoadStep(StepDto dto, string where, string file, ValidationReport report,
         Dictionary<string, string> seenIds, bool isAlternative = false)
@@ -423,7 +423,7 @@ public static partial class ContentValidator
 
         var preferred = dto.LargeScreenPreferred ?? false;
         if (preferred && !QuestionTypes.Contains(dto.Type))
-            report.Add(file, $"{label}: 'largeScreenPreferred' only applies to questions (choice, predict-output, lowered, benchmark-predict, allocations, interleave, review-code, write-code, fill-blank or parsons).");
+            report.Add(file, $"{label}: 'largeScreenPreferred' only applies to questions (choice, predict-output, lowered, benchmark-predict, allocations, interleave, review-code, design-tradeoff, write-code, fill-blank or parsons).");
         if (dto.Compare is not null && dto.Type != "write-code")
             report.Add(file, $"{label}: 'compare' only applies to write-code steps.");
         if (dto.Files is not null && dto.Type != "write-code")
@@ -549,11 +549,12 @@ public static partial class ContentValidator
         if (dto.Type == "trace") return RejectWalkthrough(dto, label, file, report, LoadTrace(dto, label, file, report, before));
         if (dto.Type == "async-timeline") return RejectWalkthrough(dto, label, file, report, LoadAsyncTimeline(dto, label, file, report, before));
         if (dto.Type == "interleave") return WithHints(RejectWalkthrough(dto, label, file, report, LoadInterleave(dto, label, file, report, before)), hints);
+        if (dto.Type == "design-tradeoff") return WithHints(RejectWalkthrough(dto, label, file, report, LoadDesignTradeoff(dto, label, file, report, before)), hints);
         if (dto.Type == "review-code") return WithHints(RejectWalkthrough(dto, label, file, report, LoadReviewCode(dto, label, file, report, before)), hints);
 
         if (dto.Type != "explain")
         {
-            report.Add(file, $"{label}: unsupported step type '{dto.Type ?? "(missing)"}' (supported: explain, choice, predict-output, lowered, benchmark-predict, allocations, interleave, review-code, write-code, fill-blank, parsons, trace, async-timeline).");
+            report.Add(file, $"{label}: unsupported step type '{dto.Type ?? "(missing)"}' (supported: explain, choice, predict-output, lowered, benchmark-predict, allocations, interleave, review-code, design-tradeoff, write-code, fill-blank, parsons, trace, async-timeline).");
             return null;
         }
 
@@ -976,6 +977,70 @@ public static partial class ContentValidator
         if (report.Errors.Count != errorsBefore) return null;
         report.TraceChecks.Add(new TraceCheck(file, label, dto.Code!, visuals, language, dto.Id ?? "", IsWalkthrough: false));
         return new TraceStep(dto.Id!, dto.Title!, dto.Body!, dto.Code!, visuals) { Language = dto.Language };
+    }
+
+    private const int MaxTradeoffOptions = 5;
+    private const int MaxRubricPoints = 6;
+    private const int MaxRubricWeight = 5;
+    private const int MaxRedFlags = 4;
+
+    /// <summary>
+    /// A <c>design-tradeoff</c> step: pick one option, then justify it in writing and grade that against a rubric. The option is checked
+    /// automatically, so exactly one is correct and each explains itself. The rubric points (weighted 1 to 5), the model answer and the red
+    /// flags are what the learner sees after writing; red flags are optional.
+    /// </summary>
+    private static Step? LoadDesignTradeoff(StepDto dto, string label, string file, ValidationReport report, int errorsBefore)
+    {
+        Require(dto.Prompt, "prompt", file, report, label);
+        Require(dto.ModelAnswer, "modelAnswer", file, report, label);
+        if (dto.Accepted is { Count: > 0 } || dto.Mistakes is { Count: > 0 } || dto.Tests is { Count: > 0 } || dto.Threads is { Count: > 0 } || dto.Defects is { Count: > 0 } || dto.Decoys is { Count: > 0 } || dto.MultiSelect is not null)
+            report.Add(file, $"{label}: a design-tradeoff step is answered by picking an option and writing a justification; remove 'accepted', 'mistakes', 'tests', 'threads', 'defects', 'decoys' and 'multiSelect' (the grading goes under 'rubric').");
+        if (dto.Explanation is not null)
+            report.Add(file, $"{label}: a design-tradeoff step explains itself through each option's 'feedback' and the 'modelAnswer'; remove 'explanation'.");
+
+        var options = new List<TradeoffOption>();
+        var optionCount = dto.Options?.Count ?? 0;
+        if (optionCount < 2 || optionCount > MaxTradeoffOptions)
+            report.Add(file, $"{label}: a design-tradeoff step needs {2} to {MaxTradeoffOptions} options; found {optionCount}.");
+        for (var i = 0; i < optionCount; i++)
+        {
+            var o = dto.Options![i];
+            if (IsEmptyEntry(o, $"{label}: options[{i}]", file, report)) continue;
+            if (string.IsNullOrWhiteSpace(o.Text)) report.Add(file, $"{label}: options[{i}] needs 'text'.");
+            if (string.IsNullOrWhiteSpace(o.Feedback)) report.Add(file, $"{label}: options[{i}] needs 'feedback' on why it is or is not the best fit.");
+            options.Add(new TradeoffOption(o.Text ?? "", o.Correct ?? false, o.Feedback?.Trim() ?? ""));
+        }
+        var correct = options.Count(o => o.Correct);
+        if (optionCount >= 2)
+        {
+            if (correct == 0) report.Add(file, $"{label}: no option is marked 'correct: true'.");
+            else if (correct != 1) report.Add(file, $"{label}: {correct} options are correct; mark exactly one option as the best fit.");
+        }
+
+        var rubric = new List<RubricPoint>();
+        var rubricCount = dto.Rubric?.Count ?? 0;
+        if (rubricCount < 2 || rubricCount > MaxRubricPoints)
+            report.Add(file, $"{label}: 'rubric' needs 2 to {MaxRubricPoints} points; found {rubricCount}.");
+        for (var i = 0; i < rubricCount; i++)
+        {
+            var p = dto.Rubric![i];
+            if (IsEmptyEntry(p, $"{label}: rubric[{i}]", file, report)) continue;
+            if (string.IsNullOrWhiteSpace(p.Point)) report.Add(file, $"{label}: rubric[{i}] needs 'point', what a good justification says.");
+            var weight = p.Points ?? 1;
+            if (weight < 1 || weight > MaxRubricWeight) report.Add(file, $"{label}: rubric[{i}]: 'points' must be between 1 and {MaxRubricWeight} (found {weight}).");
+            rubric.Add(new RubricPoint(p.Point?.Trim() ?? "", weight));
+        }
+
+        var flags = new List<string>();
+        if ((dto.RedFlags?.Count ?? 0) > MaxRedFlags) report.Add(file, $"{label}: at most {MaxRedFlags} redFlags; found {dto.RedFlags!.Count}.");
+        for (var i = 0; i < (dto.RedFlags?.Count ?? 0); i++)
+        {
+            if (string.IsNullOrWhiteSpace(dto.RedFlags![i])) report.Add(file, $"{label}: redFlags[{i}] is blank.");
+            else flags.Add(dto.RedFlags[i].Trim());
+        }
+
+        if (report.Errors.Count != errorsBefore) return null;
+        return new DesignTradeoffStep(dto.Id!, dto.Title!, dto.Prompt!, options, rubric, dto.ModelAnswer!.Trim(), flags);
     }
 
     private const int MaxReviewLines = 60;
@@ -1635,7 +1700,11 @@ public static partial class ContentValidator
         public string? Explanation { get; set; }
         public List<ReviewDefectDto>? Defects { get; set; }
         public List<ReviewDecoyDto>? Decoys { get; set; }
+        public List<RubricPointDto>? Rubric { get; set; }
+        public string? ModelAnswer { get; set; }
+        public List<string>? RedFlags { get; set; }
     }
+    private sealed class RubricPointDto { public string? Point { get; set; } public int? Points { get; set; } }
     private sealed class ReviewDefectDto { public int? Line { get; set; } public int? EndLine { get; set; } public string? Category { get; set; } public string? Explanation { get; set; } }
     private sealed class ReviewDecoyDto { public int? Line { get; set; } public string? Explanation { get; set; } }
     private sealed class InterleaveVariableDto { public string? Name { get; set; } public int? Value { get; set; } }

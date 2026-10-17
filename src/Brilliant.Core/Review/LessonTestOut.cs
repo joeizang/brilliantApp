@@ -51,6 +51,8 @@ public static class LessonTestOut
         InterleaveStep => 3,
         // Reading code for defects and naming each one is judgement, not recall: harder than a puzzle with a fixed answer.
         ReviewCodeStep => 4,
+        // Weighing options and defending the pick is the hardest recall the app asks for.
+        DesignTradeoffStep => 5,
         ChoiceStep => 1,
         _ => 0,
     };

@@ -110,6 +110,27 @@ public sealed record ReviewCodeStep(
     public IReadOnlyList<string> Lines => Code.Replace("\r\n", "\n").Split('\n');
 }
 
+/// <summary>One choosable option of a <see cref="DesignTradeoffStep"/>. <see cref="Feedback"/> says why it is or is not the best fit.</summary>
+public sealed record TradeoffOption(string Text, bool Correct, string Feedback);
+
+/// <summary>One thing a good justification says. <see cref="Points"/> is its weight when the learner ticks it in their self-assessment.</summary>
+public sealed record RubricPoint(string Text, int Points);
+
+/// <summary>
+/// "Pick an option and justify it." The option is graded automatically; the written justification is graded by the learner, who ticks the
+/// <see cref="Rubric"/> points their answer made (and the <see cref="RedFlags"/> it claimed) after seeing the <see cref="ModelAnswer"/>.
+/// <see cref="DesignTradeoffEvaluator"/> turns that into a score and whether the answer was correct, which drives the review rating.
+/// Nothing is run, so it works on every device.
+/// </summary>
+public sealed record DesignTradeoffStep(
+    string Id,
+    string Title,
+    string Prompt,
+    IReadOnlyList<TradeoffOption> Options,
+    IReadOnlyList<RubricPoint> Rubric,
+    string ModelAnswer,
+    IReadOnlyList<string> RedFlags) : Step(Id, Title);
+
 public sealed record CodeSnippet(string Language, string Code);
 
 /// <summary>One labelled code snippet in a comparison, in any language.</summary>
@@ -128,6 +149,7 @@ public sealed record LabelledSnippet(string Label, string Language, string Code)
 [JsonDerivedType(typeof(BenchmarkPredictStep), "benchmark-predict")]
 [JsonDerivedType(typeof(InterleaveStep), "interleave")]
 [JsonDerivedType(typeof(ReviewCodeStep), "review-code")]
+[JsonDerivedType(typeof(DesignTradeoffStep), "design-tradeoff")]
 public abstract record Step(string Id, string Title) : ContentItem(Id)
 {
     /// <summary>

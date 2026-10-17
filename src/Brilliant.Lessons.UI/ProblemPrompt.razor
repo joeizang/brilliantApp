@@ -22,6 +22,7 @@
         BenchmarkPredictStep s => s.Prompt,
         InterleaveStep s => s.Prompt,
         ReviewCodeStep s => s.Prompt,
+        DesignTradeoffStep s => s.Prompt,
         _ => "",
     };
 }

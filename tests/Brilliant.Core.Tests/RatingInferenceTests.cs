@@ -101,4 +101,15 @@ public class RatingInferenceTests
         Assert.True(RatingInference.Thresholds(review).Slow > RatingInference.Thresholds(interleave).Slow);
         Assert.True(LessonTestOut.Difficulty(review) > LessonTestOut.Difficulty(interleave));
     }
+
+    [Fact]
+    public void A_tradeoff_is_given_longer_than_a_code_review_and_can_be_asked_in_a_test_out()
+    {
+        var review = new ReviewCodeStep("r", "R", "?", "csharp", "code", [], []);
+        var tradeoff = new DesignTradeoffStep("t", "T", "?", [], [], "m", []);
+
+        Assert.True(RatingInference.Thresholds(tradeoff).Fast > RatingInference.Thresholds(review).Fast);
+        Assert.True(RatingInference.Thresholds(tradeoff).Slow > RatingInference.Thresholds(review).Slow);
+        Assert.True(LessonTestOut.Difficulty(tradeoff) > LessonTestOut.Difficulty(review));
+    }
 }
