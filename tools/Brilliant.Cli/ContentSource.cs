@@ -395,8 +395,8 @@ public static partial class ContentValidator
     {
         var hints = dto.Hints ?? [];
         if (hints.Count == 0) return [];
-        if (dto.Type is not ("choice" or "predict-output" or "lowered" or "benchmark-predict" or "allocations" or "interleave" or "write-code" or "fill-blank" or "parsons"))
-            report.Add(file, $"{label}: 'hints' only apply to questions (choice, predict-output, lowered, benchmark-predict, allocations, interleave, write-code, fill-blank or parsons).");
+        if (dto.Type is not ("choice" or "predict-output" or "lowered" or "benchmark-predict" or "allocations" or "interleave" or "review-code" or "write-code" or "fill-blank" or "parsons"))
+            report.Add(file, $"{label}: 'hints' only apply to questions (choice, predict-output, lowered, benchmark-predict, allocations, interleave, review-code, write-code, fill-blank or parsons).");
         var max = dto.Walkthrough is null ? MaxHints : MaxHints - 1;
         if (hints.Count > max)
             report.Add(file, dto.Walkthrough is null
@@ -409,7 +409,7 @@ public static partial class ContentValidator
 
     private const int MaxHints = 4;
 
-    private static readonly string[] QuestionTypes = ["choice", "predict-output", "lowered", "benchmark-predict", "allocations", "interleave", "write-code", "fill-blank", "parsons"];
+    private static readonly string[] QuestionTypes = ["choice", "predict-output", "lowered", "benchmark-predict", "allocations", "interleave", "review-code", "write-code", "fill-blank", "parsons"];
 
     private static Step? LoadStep(StepDto dto, string where, string file, ValidationReport report,
         Dictionary<string, string> seenIds, bool isAlternative = false)
@@ -423,7 +423,7 @@ public static partial class ContentValidator
 
         var preferred = dto.LargeScreenPreferred ?? false;
         if (preferred && !QuestionTypes.Contains(dto.Type))
-            report.Add(file, $"{label}: 'largeScreenPreferred' only applies to questions (choice, predict-output, lowered, benchmark-predict, allocations, interleave, write-code, fill-blank or parsons).");
+            report.Add(file, $"{label}: 'largeScreenPreferred' only applies to questions (choice, predict-output, lowered, benchmark-predict, allocations, interleave, review-code, write-code, fill-blank or parsons).");
         if (dto.Compare is not null && dto.Type != "write-code")
             report.Add(file, $"{label}: 'compare' only applies to write-code steps.");
         if (dto.Files is not null && dto.Type != "write-code")
@@ -549,10 +549,11 @@ public static partial class ContentValidator
         if (dto.Type == "trace") return RejectWalkthrough(dto, label, file, report, LoadTrace(dto, label, file, report, before));
         if (dto.Type == "async-timeline") return RejectWalkthrough(dto, label, file, report, LoadAsyncTimeline(dto, label, file, report, before));
         if (dto.Type == "interleave") return WithHints(RejectWalkthrough(dto, label, file, report, LoadInterleave(dto, label, file, report, before)), hints);
+        if (dto.Type == "review-code") return WithHints(RejectWalkthrough(dto, label, file, report, LoadReviewCode(dto, label, file, report, before)), hints);
 
         if (dto.Type != "explain")
         {
-            report.Add(file, $"{label}: unsupported step type '{dto.Type ?? "(missing)"}' (supported: explain, choice, predict-output, lowered, benchmark-predict, allocations, interleave, write-code, fill-blank, parsons, trace, async-timeline).");
+            report.Add(file, $"{label}: unsupported step type '{dto.Type ?? "(missing)"}' (supported: explain, choice, predict-output, lowered, benchmark-predict, allocations, interleave, review-code, write-code, fill-blank, parsons, trace, async-timeline).");
             return null;
         }
 
@@ -975,6 +976,74 @@ public static partial class ContentValidator
         if (report.Errors.Count != errorsBefore) return null;
         report.TraceChecks.Add(new TraceCheck(file, label, dto.Code!, visuals, language, dto.Id ?? "", IsWalkthrough: false));
         return new TraceStep(dto.Id!, dto.Title!, dto.Body!, dto.Code!, visuals) { Language = dto.Language };
+    }
+
+    private const int MaxReviewLines = 60;
+    private const int MaxReviewDefects = 6;
+    private const int MaxReviewDefectSpan = 5;
+
+    /// <summary>
+    /// A <c>review-code</c> step: a diff or file the learner flags lines of, each with a category. The authored defects (and any decoys that
+    /// look wrong but are fine) are what it is graded against. Nothing is compiled, so the checks here are about the step being gradable:
+    /// every defect points at a real, non-blank line of the shown code, none overlap, and each has a category and an explanation to show.
+    /// </summary>
+    private static Step? LoadReviewCode(StepDto dto, string label, string file, ValidationReport report, int errorsBefore)
+    {
+        Require(dto.Prompt, "prompt", file, report, label);
+        Require(dto.Code, "code", file, report, label);
+        if (dto.Accepted is { Count: > 0 } || dto.Options is { Count: > 0 } || dto.Mistakes is { Count: > 0 } || dto.Tests is { Count: > 0 } || dto.Threads is { Count: > 0 })
+            report.Add(file, $"{label}: a review-code step is answered by flagging lines; remove 'accepted', 'options', 'mistakes', 'tests' and 'threads' (the problems go under 'defects').");
+        if (dto.Explanation is not null)
+            report.Add(file, $"{label}: a review-code step explains each problem under its own 'defects' entry; remove 'explanation'.");
+
+        var lines = (dto.Code ?? "").Replace("\r\n", "\n").TrimEnd('\n').Split('\n');
+        if (!string.IsNullOrWhiteSpace(dto.Code) && lines.Length > MaxReviewLines)
+            report.Add(file, $"{label}: the code is {lines.Length} lines; keep a review to at most {MaxReviewLines} so it can be read on a phone.");
+        bool InRange(int line) => line >= 1 && line <= lines.Length;
+
+        var defects = new List<ReviewDefect>();
+        if ((dto.Defects?.Count ?? 0) == 0) report.Add(file, $"{label}: 'defects' is required; list the problems a reviewer should find.");
+        else if (dto.Defects!.Count > MaxReviewDefects) report.Add(file, $"{label}: at most {MaxReviewDefects} defects; found {dto.Defects.Count}.");
+        for (var i = 0; i < (dto.Defects?.Count ?? 0); i++)
+        {
+            var d = dto.Defects![i];
+            if (IsEmptyEntry(d, $"{label}: defects[{i}]", file, report)) continue;
+            var where = $"{label}: defects[{i}]";
+            if (d.Line is not { } line) { report.Add(file, $"{where} needs the 'line' it starts on (1 is the first line of the code)."); continue; }
+            var end = d.EndLine ?? line;
+            var ok = true;
+            if (!InRange(line)) { report.Add(file, $"{where}: line {line} is outside the code (it has {lines.Length} lines)."); ok = false; }
+            else if (end < line) { report.Add(file, $"{where}: 'endLine' {end} is before 'line' {line}."); ok = false; }
+            else if (!InRange(end)) { report.Add(file, $"{where}: endLine {end} is outside the code (it has {lines.Length} lines)."); ok = false; }
+            else if (end - line + 1 > MaxReviewDefectSpan) { report.Add(file, $"{where}: a defect spans at most {MaxReviewDefectSpan} lines; narrow it to the lines that are wrong."); ok = false; }
+            else if (Enumerable.Range(line, end - line + 1).All(n => string.IsNullOrWhiteSpace(lines[n - 1]))) { report.Add(file, $"{where}: lines {line} to {end} are blank, so there is nothing to flag."); ok = false; }
+            if (string.IsNullOrWhiteSpace(d.Category) || !ReviewCategory.All.Contains(d.Category))
+            { report.Add(file, $"{where}: 'category' must be one of {string.Join(", ", ReviewCategory.All)} (found '{d.Category}')."); ok = false; }
+            if (string.IsNullOrWhiteSpace(d.Explanation)) { report.Add(file, $"{where} needs an 'explanation' of what is wrong and why."); ok = false; }
+            if (ok) defects.Add(new ReviewDefect(line, end, d.Category!, d.Explanation!.Trim()));
+        }
+        for (var i = 0; i < defects.Count; i++)
+            for (var j = i + 1; j < defects.Count; j++)
+                if (defects[i].Line <= defects[j].EndLine && defects[j].Line <= defects[i].EndLine)
+                    report.Add(file, $"{label}: two defects cover the same line (lines {defects[i].Line} to {defects[i].EndLine} and {defects[j].Line} to {defects[j].EndLine}); give each its own lines.");
+
+        var decoys = new List<ReviewDecoy>();
+        for (var i = 0; i < (dto.Decoys?.Count ?? 0); i++)
+        {
+            var d = dto.Decoys![i];
+            if (IsEmptyEntry(d, $"{label}: decoys[{i}]", file, report)) continue;
+            var where = $"{label}: decoys[{i}]";
+            if (d.Line is not { } line) { report.Add(file, $"{where} needs the 'line' it is on."); continue; }
+            if (!InRange(line)) report.Add(file, $"{where}: line {line} is outside the code (it has {lines.Length} lines).");
+            else if (defects.Any(x => line >= x.Line && line <= x.EndLine)) report.Add(file, $"{where}: line {line} is part of a defect, so it cannot also be a decoy.");
+            else if (decoys.Any(x => x.Line == line)) report.Add(file, $"{where} repeats line {line}.");
+            if (string.IsNullOrWhiteSpace(d.Explanation)) report.Add(file, $"{where} needs an 'explanation' of why the line is fine.");
+            decoys.Add(new ReviewDecoy(line, d.Explanation?.Trim() ?? ""));
+        }
+
+        if (report.Errors.Count != errorsBefore) return null;
+        return new ReviewCodeStep(dto.Id!, dto.Title!, dto.Prompt!, string.IsNullOrWhiteSpace(dto.Language) ? "csharp" : dto.Language.Trim(), dto.Code!.TrimEnd('\n'),
+            defects.OrderBy(d => d.Line).ToList(), decoys.OrderBy(d => d.Line).ToList());
     }
 
     private const int MaxInterleaveOps = 8;
@@ -1564,7 +1633,11 @@ public static partial class ContentValidator
         public List<string>? BreakingSchedule { get; set; }
         public List<InterleaveReplayDto>? Replays { get; set; }
         public string? Explanation { get; set; }
+        public List<ReviewDefectDto>? Defects { get; set; }
+        public List<ReviewDecoyDto>? Decoys { get; set; }
     }
+    private sealed class ReviewDefectDto { public int? Line { get; set; } public int? EndLine { get; set; } public string? Category { get; set; } public string? Explanation { get; set; } }
+    private sealed class ReviewDecoyDto { public int? Line { get; set; } public string? Explanation { get; set; } }
     private sealed class InterleaveVariableDto { public string? Name { get; set; } public int? Value { get; set; } }
     private sealed class InterleaveOpDto { public string? Code { get; set; } public string? Do { get; set; } }
     private sealed class InterleaveThreadDto { public string? Name { get; set; } public List<InterleaveOpDto>? Ops { get; set; } }

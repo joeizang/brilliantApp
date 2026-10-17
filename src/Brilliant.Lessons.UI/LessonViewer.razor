@@ -94,6 +94,9 @@ else if (step is not null)
             case InterleaveStep interleave:
                 <InterleaveStepView Step="interleave" OnAnswered="a => Answered(step, a)" OnContinue="() => Complete(step)" />
                 break;
+            case ReviewCodeStep review:
+                <ReviewCodeStepView Step="review" OnAnswered="a => Answered(step, a)" OnContinue="() => Complete(step)" />
+                break;
             case WriteCodeStep write:
                 <WriteCodeStepView Step="write" OnSubmitted="s => Submitted(step, write, s)" OnContinue="() => Complete(step)" />
                 break;
@@ -209,6 +212,11 @@ else
     private void Answered(Step owner, InterleaveStepView.Attempt a)
     {
         if (!Review) Recorder.ScheduleSubmitted(Lesson.Id, owner.Id, a.Correct, a.Schedule);
+    }
+
+    private void Answered(Step owner, ReviewCodeStepView.Attempt a)
+    {
+        if (!Review) Recorder.ReviewSubmitted(Lesson.Id, owner.Id, a.Correct, a.Score, a.Flags);
     }
 
     private void Answered(Step owner, FillBlankStep step, FillBlankStepView.Attempt a)

@@ -57,6 +57,8 @@ public static class RatingInference
         BenchmarkPredictStep => (TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(90)),
         // Stepping two threads by hand to find the failing order is slower than reading a result.
         InterleaveStep => (TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(120)),
+        // Reading a screenful of code for several problems takes minutes, not seconds.
+        ReviewCodeStep => (TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(240)),
         FillBlankStep => (TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(90)),
         ParsonsStep => (TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(150)),
         WriteCodeStep => (TimeSpan.FromSeconds(90), TimeSpan.FromSeconds(420)),

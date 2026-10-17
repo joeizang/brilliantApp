@@ -22,7 +22,7 @@ public class AppManifestTests
         var knownSteps = typeof(Step).GetCustomAttributes<JsonDerivedTypeAttribute>()
             .Select(type => Assert.IsType<string>(type.TypeDiscriminator));
         // Every step type but the C#-only ones: DSA doesn't show compiler output (#154), async timelines (#159), BenchmarkDotNet results (#155), allocation questions (#156) or interleaving puzzles (#162).
-        string[] csharpOnly = ["lowered", "async-timeline", "benchmark-predict", "allocations", "interleave"];
+        string[] csharpOnly = ["lowered", "async-timeline", "benchmark-predict", "allocations", "interleave", "review-code"];
         Assert.All(csharpOnly, type => Assert.False(app.SupportsStepType(type)));
         Assert.True(app.StepTypes.SetEquals(knownSteps.Where(type => !csharpOnly.Contains(type))));
         Assert.True(app.StepTypes.SetEquals(StepTypes.All.Where(type => !csharpOnly.Contains(type))));

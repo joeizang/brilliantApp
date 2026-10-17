@@ -58,6 +58,58 @@ public sealed record Lesson(string Id, string Title, string TrackId, IReadOnlyLi
     public IEnumerable<Step> AllSteps() => Steps.Concat(Practice);
 }
 
+/// <summary>The kinds of problem a reviewer names when flagging a line. A closed list, so the learner picks rather than types.</summary>
+public static class ReviewCategory
+{
+    public const string Bug = "bug";
+    public const string Performance = "performance";
+    public const string Concurrency = "concurrency";
+    public const string Api = "api";
+    public const string Security = "security";
+
+    public static IReadOnlyList<string> All { get; } = [Bug, Performance, Concurrency, Api, Security];
+
+    /// <summary>What the learner sees on the category buttons.</summary>
+    public static string Label(string category) => category switch
+    {
+        Bug => "Bug",
+        Performance => "Performance",
+        Concurrency => "Concurrency",
+        Api => "API design",
+        Security => "Security",
+        _ => category,
+    };
+}
+
+/// <summary>
+/// A real problem the author planted: lines <see cref="Line"/> to <see cref="EndLine"/> (1-based, inclusive) of the shown code, of one
+/// <see cref="Category"/>. Flagging any line in the range finds it; <see cref="Explanation"/> is shown for it in the results.
+/// </summary>
+public sealed record ReviewDefect(int Line, int EndLine, string Category, string Explanation);
+
+/// <summary>A line that looks suspicious but is fine. Flagging it is a false flag, and <see cref="Explanation"/> says why it is fine.</summary>
+public sealed record ReviewDecoy(int Line, string Explanation);
+
+/// <summary>
+/// "Review this code." The learner reads a diff or a file, flags the lines they think are wrong, and picks a category for each. Graded
+/// against the authored <see cref="Defects"/> by <see cref="ReviewCodeEvaluator"/>: right line and category is full credit, right line
+/// and wrong category is half, a flag on a clean line costs a little, and defects the learner missed are revealed afterwards.
+/// Nothing is compiled or run, so it works on every device. <see cref="Language"/> may be <c>diff</c> for a unified diff.
+/// </summary>
+public sealed record ReviewCodeStep(
+    string Id,
+    string Title,
+    string Prompt,
+    string Language,
+    string Code,
+    IReadOnlyList<ReviewDefect> Defects,
+    IReadOnlyList<ReviewDecoy> Decoys) : Step(Id, Title)
+{
+    /// <summary>The shown code, one entry per line. Line numbers elsewhere count from 1 into this list.</summary>
+    [JsonIgnore]
+    public IReadOnlyList<string> Lines => Code.Replace("\r\n", "\n").Split('\n');
+}
+
 public sealed record CodeSnippet(string Language, string Code);
 
 /// <summary>One labelled code snippet in a comparison, in any language.</summary>
@@ -75,6 +127,7 @@ public sealed record LabelledSnippet(string Label, string Language, string Code)
 [JsonDerivedType(typeof(LoweredStep), "lowered")]
 [JsonDerivedType(typeof(BenchmarkPredictStep), "benchmark-predict")]
 [JsonDerivedType(typeof(InterleaveStep), "interleave")]
+[JsonDerivedType(typeof(ReviewCodeStep), "review-code")]
 public abstract record Step(string Id, string Title) : ContentItem(Id)
 {
     /// <summary>

@@ -49,6 +49,8 @@ public static class LessonTestOut
         BenchmarkPredictStep => 2,
         // Finding the bad order is a puzzle, harder than picking from options but nothing like writing code.
         InterleaveStep => 3,
+        // Reading code for defects and naming each one is judgement, not recall: harder than a puzzle with a fixed answer.
+        ReviewCodeStep => 4,
         ChoiceStep => 1,
         _ => 0,
     };
