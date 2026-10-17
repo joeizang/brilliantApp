@@ -23,6 +23,10 @@ public sealed partial class AppManifest
     [GeneratedRegex(@"\A[a-z][a-z0-9]*(?:-[a-z0-9]+)*\z", RegexOptions.CultureInvariant)]
     private static partial Regex CapabilityPattern();
 
+    // One Ollama model tag: "gemma3:12b", "llama3", "hf.co/org/model:Q4". No spaces or shell characters, and it can't start like a flag.
+    [GeneratedRegex(@"\A[A-Za-z0-9][A-Za-z0-9_./:-]{0,99}\z", RegexOptions.CultureInvariant)]
+    private static partial Regex ModelTagPattern();
+
     public string AppId { get; }
     public string DisplayName { get; }
     public string? Icon { get; }
@@ -31,6 +35,9 @@ public sealed partial class AppManifest
     public string? ContentRoot { get; }
     public IReadOnlySet<string> Runtimes { get; }
     public IReadOnlySet<string> StepTypes { get; }
+
+    /// <summary>The Ollama model that gives feedback on written answers; null when the app has no written-answer steps to grade.</summary>
+    public string? GraderModel { get; }
 
     private AppManifest(Document doc)
     {
@@ -42,6 +49,7 @@ public sealed partial class AppManifest
         ContentRoot = doc.ContentRoot;
         Runtimes = doc.Runtimes!.ToFrozenSet(StringComparer.Ordinal);
         StepTypes = doc.StepTypes!.ToFrozenSet(StringComparer.Ordinal);
+        GraderModel = doc.GraderModel;
     }
 
     public bool SupportsRuntime(string language) => Runtimes.Contains(language);
@@ -67,6 +75,7 @@ public sealed partial class AppManifest
             Require(doc.Accent?.OnDark, "accent.onDark", ColourPattern());
             Require(doc.Accent?.OnLight, "accent.onLight", ColourPattern());
             RequireCapabilities(doc.Runtimes, "runtimes", KnownRuntimes, allowEmpty: true);
+            if (doc.GraderModel is not null) Require(doc.GraderModel, "graderModel", ModelTagPattern());
             RequireCapabilities(doc.StepTypes, "stepTypes", Content.StepTypes.All, allowEmpty: false);
             return new AppManifest(doc);
         }
@@ -114,6 +123,7 @@ public sealed partial class AppManifest
         public string? ContentRoot { get; set; }
         public string[]? Runtimes { get; set; }
         public string[]? StepTypes { get; set; }
+        public string? GraderModel { get; set; }
     }
 
     private sealed class AccentDocument
