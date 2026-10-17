@@ -1,0 +1,88 @@
+id: lesson.csharp.async-streams
+title: Async streams and channels
+concepts:
+  - id: concept.csharp.async-enumerable
+    title: IAsyncEnumerable produces values over time
+  - id: concept.csharp.channel-backpressure
+    title: A bounded Channel applies backpressure to producers
+  - id: concept.csharp.async-enumerator-disposal
+    title: await foreach disposes an async enumerator
+reviewItems:
+  - id: review.csharp.async-enumerable
+    concept: concept.csharp.async-enumerable
+    step: step.csharp.streams.predict-yield
+  - id: review.csharp.channel-backpressure
+    concept: concept.csharp.channel-backpressure
+    step: step.csharp.streams.check-bounded
+  - id: review.csharp.async-enumerator-disposal
+    concept: concept.csharp.async-enumerator-disposal
+    step: step.csharp.streams.check-disposal
+steps:
+  - id: step.csharp.streams.intro
+    type: explain
+    title: Results can arrive one at a time
+    body: |
+      `Task<T>` represents one eventual value. `IAsyncEnumerable<T>` represents a sequence whose next value may need an await. `await foreach` asks for an asynchronous enumerator, awaits each `MoveNextAsync`, and disposes that enumerator when the loop ends early or normally.
+
+      `Channel<T>` is a producer/consumer queue. A bounded channel makes a fast producer wait when its buffer is full instead of growing memory forever. That waiting is **backpressure**. Use `WriteAsync` when the producer must respect it; `TryWrite` only tells you whether a slot was immediately available.
+  - id: step.csharp.streams.predict-yield
+    type: predict-output
+    title: Yield one, wait, yield another
+    prompt: |
+      What does this program print?
+    language: csharp
+    code: |
+      await foreach (var value in Values())
+      {
+          Console.Write(value);
+      }
+
+      static async IAsyncEnumerable<int> Values()
+      {
+          yield return 1;
+          await Task.Yield();
+          yield return 2;
+      }
+    accepted:
+      - '12'
+    mistakes:
+      - answers: ['1']
+        feedback: 'The await pauses the iterator between values; after it resumes, the iterator yields 2 and the loop continues.'
+      - answers: ['21']
+        feedback: 'Async does not reverse sequence order. The first yield supplies 1 before the iterator reaches its await.'
+    hints:
+      - Each yield return gives the current loop iteration one value in source order.
+  - id: step.csharp.streams.check-bounded
+    type: choice
+    title: What a full bounded channel does
+    prompt: |
+      A bounded Channel has capacity 10. Its consumer is slow and all 10 slots are occupied. What does `await writer.WriteAsync(item, token)` do by default?
+    options:
+      - text: It waits until a reader frees space, or until the token cancels
+        correct: true
+        feedback: 'Right. The wait is backpressure: the producer matches the consumer rather than allocating an unbounded backlog.'
+      - text: It silently drops the new item
+        correct: false
+        feedback: Dropping is a possible explicitly configured full mode, but it is not the default behaviour of WriteAsync on a bounded channel.
+      - text: It creates an extra buffer slot outside the capacity
+        correct: false
+        feedback: That would defeat the memory bound. Capacity is the limit that creates the pressure.
+    hints:
+      - Why choose a bounded queue if it can grow whenever it is full?
+  - id: step.csharp.streams.check-disposal
+    type: choice
+    title: Leaving an async stream early
+    prompt: |
+      An `await foreach` loop breaks after its first item. What cleanup contract does the compiler honor for the enumerator?
+    options:
+      - text: It awaits `DisposeAsync`, so iterator cleanup runs even on an early break
+        correct: true
+        feedback: Right. This is important when an async iterator owns a reader, a response stream, or a linked cancellation source.
+      - text: It leaves the enumerator for the GC because the loop did not finish
+        correct: false
+        feedback: Resources should not wait for GC. The generated try/finally disposes the enumerator deterministically.
+      - text: It calls synchronous Dispose only after every item was read
+        correct: false
+        feedback: Async enumeration supports asynchronous cleanup, and cleanup occurs for both normal and early loop exits.
+    hints:
+      - Compare await foreach with the finally that an ordinary foreach uses for IDisposable enumerators.

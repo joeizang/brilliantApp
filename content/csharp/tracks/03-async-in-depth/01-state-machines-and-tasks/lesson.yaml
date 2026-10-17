@@ -1,0 +1,98 @@
+id: lesson.csharp.async-state-machines
+title: State machines, Task, and ValueTask
+concepts:
+  - id: concept.csharp.async-state-machine
+    title: An async method is lowered into a resumable state machine
+  - id: concept.csharp.task-promise
+    title: A Task represents work that may finish later
+  - id: concept.csharp.valuetask-fast-path
+    title: ValueTask can avoid allocating when a result is already available
+reviewItems:
+  - id: review.csharp.async-state-machine
+    concept: concept.csharp.async-state-machine
+    step: step.csharp.asyncsm.lowered-await
+  - id: review.csharp.task-promise
+    concept: concept.csharp.task-promise
+    step: step.csharp.asyncsm.predict-order
+  - id: review.csharp.valuetask-fast-path
+    concept: concept.csharp.valuetask-fast-path
+    step: step.csharp.asyncsm.check-valuetask
+steps:
+  - id: step.csharp.asyncsm.intro
+    type: explain
+    title: await splits a method in two
+    body: |
+      An `async` method runs normally until it reaches an incomplete `await`. At that point it saves its locals and its next position, gives its caller a `Task`, and returns. When the awaited operation completes, a continuation resumes from that saved position.
+
+      The compiler writes the storage and the resume switch for you: a state-machine type with a `MoveNext` method. This is why an `async` method can have locals that survive after its original call frame has returned. `await` does not make a thread wait; it arranges a continuation.
+
+      A `Task<T>` is the usual promise of a future `T`. Use `ValueTask<T>` only when an API frequently completes synchronously and measurements show that the avoided `Task` allocation matters. A `ValueTask` has stricter consumption rules: await it once, or convert it to a `Task` if it must be stored, awaited repeatedly, or combined.
+  - id: step.csharp.asyncsm.predict-order
+    type: predict-output
+    title: What runs before the await finishes?
+    prompt: |
+      `Task.Yield()` always makes the continuation asynchronous. What does this program print?
+    language: csharp
+    code: |
+      var task = Work();
+      Console.Write("B");
+      await task;
+
+      static async Task Work()
+      {
+          Console.Write("A");
+          await Task.Yield();
+          Console.Write("C");
+      }
+    accepted:
+      - 'ABC'
+    mistakes:
+      - answers: ['BAC']
+        feedback: '`Work` starts synchronously. It prints `A` before reaching its incomplete await, then returns its Task so the caller can print `B`.'
+      - answers: ['ACB']
+        feedback: '`Task.Yield` posts the continuation; it cannot print `C` before the caller gets control back and prints `B`.'
+    hints:
+      - An async method starts immediately. Which statement runs before it reaches `await Task.Yield()`?
+  - id: step.csharp.asyncsm.lowered-await
+    type: lowered
+    title: The saved continuation
+    prompt: |
+      Look at the lowered view of `AddLater`. What holds the value of `n` while `Task.Yield()` is incomplete?
+    code: |
+      static class Demo
+      {
+          public static async System.Threading.Tasks.Task<int> AddLater(int n)
+          {
+              await System.Threading.Tasks.Task.Yield();
+              return n + 1;
+          }
+      }
+    options:
+      - text: A field on the compiler-generated async state machine
+        correct: true
+        feedback: Right. The state machine has a field for `n`, a state field, and an awaiter field. Its `MoveNext` method comes back to the state after the await.
+      - text: The original stack frame, which remains blocked until the Task completes
+        correct: false
+        feedback: The original call returns a Task at the await. Keeping its stack frame would tie up a thread, which is exactly what async I/O avoids.
+      - text: A copy placed in the Task's Result property before the await
+        correct: false
+        feedback: The result does not exist yet. `n` is input needed by the later continuation, not the eventual result.
+    hints:
+      - Search the lowered state-machine type for a field whose name includes `n`.
+  - id: step.csharp.asyncsm.check-valuetask
+    type: choice
+    title: When is ValueTask the better contract?
+    prompt: |
+      A cache lookup returns a value immediately for almost every request, but occasionally reads it asynchronously. Which return type is worth considering after measuring allocations?
+    options:
+      - text: '`ValueTask<T>`, because the synchronous cache hit can carry its result directly'
+        correct: true
+        feedback: Right. This is the narrow case ValueTask targets. Its extra complexity is paid back only when synchronous completion is common and allocation pressure matters.
+      - text: '`ValueTask<T>` for every async method, because it is always faster'
+        correct: false
+        feedback: ValueTask is not a universal replacement. It is larger, has usage constraints, and can make callers harder to compose. Task is the default.
+      - text: '`Task<T>`, because ValueTask cannot represent an asynchronous operation'
+        correct: false
+        feedback: A ValueTask can wrap a Task or a specialised source. The distinction is its efficient synchronous-result path.
+    hints:
+      - The useful case is the one where the answer is already known most of the time.
