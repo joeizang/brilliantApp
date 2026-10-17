@@ -3,7 +3,7 @@
 After a learner finishes the self-assessment on a [design-tradeoff](csharp-design-tradeoff.md) step, a model running in Ollama on the Mac
 reads their written justification and says, for each rubric point, whether it was made and why, and which red flags the answer claimed.
 It is **advisory**: the learner's own ticks set the grade and the review rating, and nothing the model says changes either. The text
-never leaves the machine, unless the learner turns on phone feedback below.
+is never sent to a model off this machine, unless the learner turns on phone feedback below.
 
 ## Flow
 
@@ -61,7 +61,7 @@ exception is shown as "Feedback is unavailable right now."
 A phone has no Ollama, so with the learner's say-so it asks the household server, which asks the Mac.
 
 1. **Opt in.** On the Sync screen, once paired, tick "Get written-answer feedback through the server". It is off by default, kept in
-   `feedback-settings.json` in the app's data folder, and while it is off the answer text never leaves the phone (apart from the normal sync of progress).
+   `feedback-settings.json` in the app's data folder, and while it is off no answer is sent for feedback. Written answers still sync to the server as part of the progress log either way.
 2. **Ask.** After the self-assessment the phone posts the same grading request to `POST /feedback/grade` on the server it is paired with,
    with its device token. The server looks up the grader model in the calling app's manifest and calls `/api/chat` on `Feedback:OllamaUrl`
    using the same `OllamaAnswerGrader` as the Mac, so the prompt and checks are identical.
