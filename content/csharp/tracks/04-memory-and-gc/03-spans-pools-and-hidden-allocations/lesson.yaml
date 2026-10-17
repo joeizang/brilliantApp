@@ -12,7 +12,7 @@ concepts:
 reviewItems:
   - id: review.csharp.gc-span
     concept: concept.csharp.gc-span
-    step: step.csharp.spans.check-span-lifetime
+    step: step.csharp.spans.stackalloc
   - id: review.csharp.gc-memory
     concept: concept.csharp.gc-memory
     step: step.csharp.spans.check-memory-across-await
@@ -36,7 +36,7 @@ steps:
     type: predict-output
     title: A view over stack storage
     prompt: |
-      What does this program print, and does `stackalloc` create a managed array?
+      `stackalloc` creates the storage on the stack, and the `Span<int>` is a view over it, not a managed array. What does this program print?
     language: csharp
     code: |
       Span<int> values = stackalloc int[] { 2, 3, 5 };
@@ -48,9 +48,6 @@ steps:
       - answers:
           - '10'
         feedback: '`values` is a view of three stack-allocated integers. After the middle value changes from 3 to 30, the sum is 37.'
-      - answers:
-          - 'false'
-        feedback: '`stackalloc` creates stack memory here, not a managed array object. `Span<int>` is the safe view over that storage.'
     hints:
       - The second slot changes from `3` to `30`; add all three values.
   - id: step.csharp.spans.check-span-lifetime
@@ -102,14 +99,36 @@ steps:
       type: fill-blank
       title: Sum the squares
       prompt: |
-        Loop over the existing array and accumulate each square.
+        Add up the squares of 1 through `n` in a loop, with no query objects or arrays.
       language: csharp
       template: |
-        for (var i = 1; {{condition}}; i++) total += i * i;
+        static int SumSquares(int n)
+        {
+            var total = 0;
+            for (var i = 1; {{condition}}; i++) total += i * i;
+            return total;
+        }
       blanks:
         - id: condition
           accepted:
             - i <= n
+  - id: step.csharp.spans.check-ref-struct
+    type: choice
+    title: What a ref struct may not do
+    prompt: |
+      `Span<T>` is a `ref struct`. Which of these is something the compiler rejects for a `ref struct` local or field?
+    options:
+      - text: Declaring a `Span<int>` field in an ordinary class
+        correct: true
+        feedback: Right. A `ref struct` can live only on the stack (or inside another `ref struct`), so a class field, a boxing conversion or a capture by a lambda is a compile error.
+      - text: Passing a `Span<int>` to a method as an argument
+        correct: false
+        feedback: Passing it is fine. The span is copied as a small struct (a pointer and a length) and the callee uses it before returning.
+      - text: Indexing into a `Span<int>` in a loop
+        correct: false
+        feedback: Indexing is the normal use. The restriction is about where the span may be stored, not what you may do with it.
+    hints:
+      - A ref struct must never end up on the heap.
   - id: step.csharp.spans.check-memory-across-await
     type: choice
     title: What does Memory own?

@@ -6,7 +6,7 @@ concepts:
   - id: concept.csharp.gc-promotion
     title: Small objects that survive a collection are promoted
   - id: concept.csharp.gc-gen1-buffer
-    title: Generation 1 separates short-lived from long-lived objects
+    title: An older-generation collection includes the younger generations
   - id: concept.csharp.gc-allocation-pressure
     title: Allocation volume creates collection work
 reviewItems:
@@ -18,10 +18,10 @@ reviewItems:
     step: step.csharp.gc.check-promotion
   - id: review.csharp.gc-gen1-buffer
     concept: concept.csharp.gc-gen1-buffer
-    step: step.csharp.gc.benchmark-copy
+    step: step.csharp.gc.check-gen2
   - id: review.csharp.gc-allocation-pressure
     concept: concept.csharp.gc-allocation-pressure
-    step: step.csharp.gc.check-gen2
+    step: step.csharp.gc.benchmark-copy
 steps:
   - id: step.csharp.gc.intro
     type: explain
